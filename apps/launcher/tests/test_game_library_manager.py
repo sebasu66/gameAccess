@@ -220,6 +220,23 @@ def test_a_folder_without_its_appid_is_identified_by_its_emulator_file_and_fixed
     assert [p.name for p in storage.root.iterdir() if p.name.startswith("690790-")] == ["690790-Delta_Rally_2_0_Game_of_the_Year_Edition-ready"]
 
 
+def test_fixing_a_folder_open_in_another_program_says_so_and_notes_it_in_the_game_log(tmp_path):
+    storage, lib = library(tmp_path)
+    manual = storage.root / "Delta Rally 2 0"
+    manual.mkdir(parents=True)
+    (manual / "delta.exe").write_bytes(b"x" * 1000)
+    (manual / "steam_emu.ini").write_text("[Settings]\nAppId=690790\n", encoding="utf-8")
+    lib.list_games(with_sizes=False)
+    # What Windows raises when the folder is open in an Explorer window.
+    in_use = PermissionError(13, "in use", str(manual))
+    in_use.winerror = 32
+    with patch.object(Path, "rename", side_effect=in_use):
+        result = lib.batch("adopt", [690790])[0]
+    assert not result["ok"] and "libFolderInUse" in result["error"] and "Delta Rally 2 0" in result["error"]
+    assert "abierta en otro programa" in journal.read(manual)
+    assert manual.is_dir()
+
+
 def test_a_folder_whose_appid_another_game_already_has_is_not_renamed(tmp_path):
     storage, lib = library(tmp_path)
     copy = storage.root / "Alpha copy"

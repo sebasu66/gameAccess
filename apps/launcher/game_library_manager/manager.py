@@ -74,6 +74,18 @@ def on_disk_bytes(game: dict) -> int:
     return stored if stored is not None else game["size_bytes"] or 0
 
 
+
+# Windows' "in use" errors: 32 a sharing violation, 5 access denied (a folder open in Explorer gives either on rename).
+IN_USE_ERRORS = {5, 32}
+
+
+def _in_use(error: BaseException) -> Path | None:
+    """The folder an action could not rename or move because another program has it open, or None."""
+    if not isinstance(error, OSError) or getattr(error, "winerror", None) not in IN_USE_ERRORS or not error.filename:
+        return None
+    folder = Path(error.filename)
+    return folder if folder.is_dir() else None
+
 class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None, steam=None):
         self.storage = storage
@@ -534,6 +546,13 @@ class GameLibraryManager:
                     results.append({"app_id": app_id, "ok": True, "analysis": self.manager.analyze(app_id, name)})
             except (OSError, ValueError, RuntimeError) as error:
                 self.log.error("Batch %s AppID %s failed: %s", action, app_id, error)
-                results.append({"app_id": app_id, "ok": False, "error": str(error)})
+                folder = _in_use(error)
+                if folder:
+                    # Windows will not rename or move a folder open in Explorer (or a console standing in it): say so
+                    # plainly, and in the game's own log too, where the player looks first.
+                    journal.note(folder, "error", f"{action}: la carpeta está abierta en otro programa (WinError {getattr(error, 'winerror', '')})")
+                    results.append({"app_id": app_id, "ok": False, "error": ui("libFolderInUse", folder=str(folder))})
+                else:
+                    results.append({"app_id": app_id, "ok": False, "error": str(error)})
         self.log.info("Batch %s done: %s ok, %s failed", action, sum(1 for r in results if r.get("ok")), sum(1 for r in results if not r.get("ok")))
         return results

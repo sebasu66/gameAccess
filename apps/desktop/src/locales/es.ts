@@ -641,6 +641,7 @@ export const es = {
   gamePickerNone: "Ningún juego del catálogo coincide.",
   manualPickGame: "Elegí de la lista qué juego es: así la descarga queda con su AppID.",
   libMisnamed: "Su carpeta no lleva el AppID en el nombre; por {{file}} es el AppID {{app_id}}. «Corregir» la renombra y la adapta.",
+  libFolderInUse: "No se pudo cambiar la carpeta {{folder}} porque está abierta en otro programa (por ejemplo, una ventana del Explorador o una consola parada ahí). Cerrala y volvé a intentar.",
   libPlanIdentified: "Identificado como AppID {{app_id}} por {{file}}",
   libPlanRename: "Renombrar la carpeta a {{folder}}",
   libPlanAdopt: "Revisarla como cualquier juego instalado (ejecutable y estado)",

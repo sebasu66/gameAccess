@@ -643,6 +643,7 @@ export const en: Record<keyof typeof es, string> = {
   gamePickerNone: "No game of the catalog matches.",
   manualPickGame: "Pick from the list which game it is, so the download carries its AppID.",
   libMisnamed: "Its folder does not carry the AppID in its name; {{file}} says it is AppID {{app_id}}. “Fix” renames and adapts it.",
+  libFolderInUse: "The folder {{folder}} could not be changed because another program has it open (for instance an Explorer window, or a console standing in it). Close it and try again.",
   libPlanIdentified: "Identified as AppID {{app_id}} by {{file}}",
   libPlanRename: "Rename the folder to {{folder}}",
   libPlanAdopt: "Check it like any installed game (executable and status)",
