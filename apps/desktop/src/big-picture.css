@@ -12,6 +12,11 @@ body.ga-big-screen .ga-bento-menu,
 body.ga-big-screen .ga-view-rail,
 body.ga-big-screen .ga-brand-wall { display: none !important; }
 
+/* Real fullscreen: Windows already gives the window the whole screen (window_fit.rs); the app's own title bar
+   (minimize, maximize, close) goes too, and what sat under it moves up into its place. */
+body.ga-big-screen .window-chrome { display: none !important; }
+body.ga-big-screen { --window-chrome-height: 0px; }
+
 /* The label sits where the old footer bar was, at the bottom centre between the bezel's tabs; the grid ends above it. */
 html body.ga-device-frame.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 64px !important; }
 .ga-big-picture-label {
