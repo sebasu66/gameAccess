@@ -85,7 +85,8 @@ export function closeGate(mode: "enter" | "leave"): Promise<void> {
   if (!motionOk()) { gsap.set(gate, { autoAlpha: 1 }); gsap.set(leaves, { xPercent: 0, x: 0 }); return Promise.resolve(); }
   const timeline = gsap.timeline();
   timeline.set(gate, { autoAlpha: 1 })
-    .fromTo(leaves, { xPercent: index => (index ? 101 : -101) }, { xPercent: 0, duration: 0.6, ease: "power3.in" })
+    // x is set too: GSAP reads the style sheet's open position (translateX(-101%)) as pixels and would add it.
+    .fromTo(leaves, { x: 0, xPercent: index => (index ? 101 : -101) }, { x: 0, xPercent: 0, duration: 0.6, ease: "power3.in" })
     // The leaves meet with a small knock.
     .to(leaves, { x: index => (index ? 4 : -4), duration: 0.07, ease: "power1.out", yoyo: true, repeat: 1 });
   // Behind the closed gate: entering, the card waits (shown at once, revealed when the gate opens).

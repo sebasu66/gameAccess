@@ -88,13 +88,13 @@
 @keyframes gs-lock-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 @keyframes gs-engrave{from{opacity:0}to{opacity:1}}
 @keyframes gs-turn{from{transform:rotate(90deg)}to{transform:rotate(0)}}
-@keyframes gs-unlocked{0%{fill:#07090b}40%{fill:#e39a4a;filter:drop-shadow(0 0 10px #cc8333cc)}100%{fill:#cc8333;filter:drop-shadow(0 0 4px #cc833366)}}
+@keyframes gs-unlocked{0%{fill:#07090b}40%{fill:#ffa04a;filter:drop-shadow(0 0 12px #ff7a1acc)}100%{fill:#f57a1a;filter:drop-shadow(0 0 5px #ff7a1a77)}}
 /* Reduced motion (or the pixel style's animation off): the lock is shown open and the gate simply goes. */
 .gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}
 .gs-gate.is-still .gs-padlock-body{fill:#14181b;filter:none}.gs-gate.is-still .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}
-.gs-gate.is-still .gs-cut.is-a{fill:#cc8333}
+.gs-gate.is-still .gs-cut.is-a{fill:#f57a1a}
 .gs-gate.is-still .gs-leaf{transition:none}
-@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-cut.is-a{fill:#cc8333}.gs-gate .gs-leaf{transition:none}}
+@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-cut.is-a{fill:#f57a1a}.gs-gate .gs-leaf{transition:none}}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
 .activation-showcase{position:absolute;inset:-12%;overflow:hidden}

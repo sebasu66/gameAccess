@@ -10,11 +10,13 @@ export const HOLD_MAX_MS = 900;
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
-// The maker's emblem, engraved in the lock: a G and an A that together make one circle. The G is a thick ring open at
-// the top right; the A uses its top left as its left side, closes the circle with a straight right leg from the top
-// to the G's end, and its bar is also the G's bar. Unlocked, the A lights up in orange.
-const EMBLEM_G = "M 108.7 85 A 138 138 0 1 1 0 -138 L 0 -106 A 106 106 0 1 0 83.5 65.3 Z";
-const EMBLEM_A = "M 0 -138 L 33.4 -133.9 L 108.7 85 L 83.5 65.3 Z M -34 8 L 70 8 L 78 34 L -34 34 Z";
+// The maker's emblem, engraved in the lock: a G and an A that together make one circle (outer radius 138, inner 106).
+// The A's leg is a straight band of constant width (32, the ring's own thickness) from the top of the circle to its
+// bottom right, cut by the outer circle at both ends. The G is the ring up to the leg's left edge: both of its ends are
+// cut along that same line, so G and A meet exactly. The A's bar, also the G's bar, ends on that line too. Unlocked,
+// the A lights up in orange.
+const EMBLEM_G = "M 97.0 98.2 A 138 138 0 1 1 0.0 -138.0 L 13.5 -105.1 A 106 106 0 1 0 83.5 65.3 Z";
+const EMBLEM_A = "M 0.0 -138.0 A 138 138 0 0 1 36.6 -133.1 L 119.6 68.9 A 138 138 0 0 1 97.0 98.2 Z M -34 8 L 60.0 8 L 70.6 34 L -34 34 Z";
 const BRAND = "GAME ACCESS";
 
 /** The lock: a round plate fixed to the right leaf and lying over the seam, as a real cover would have it. Its rim is
