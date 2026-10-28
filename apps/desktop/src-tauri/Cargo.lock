@@ -1368,6 +1368,7 @@ dependencies = [
  "unicode-normalization",
  "uuid",
  "webview2-com",
+ "windows",
  "windows-core 0.61.2",
  "zstd",
 ]

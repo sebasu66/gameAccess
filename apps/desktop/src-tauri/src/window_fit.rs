@@ -119,16 +119,67 @@ pub fn window_set_big_screen<R: Runtime>(app: tauri::AppHandle<R>, window: Windo
         let now = placement(&window);
         if let Ok(mut saved) = BEFORE_BIG_SCREEN.lock() { if saved.is_none() { *saved = Some(now); } }
         if now.fullscreen { refit(&window); return true; }
-        if now.maximized { window.set_maximized(false); }
+        if now.maximized {
+            // Leaving maximized, Windows puts the window back at its restored size for a moment (Seba's recording):
+            // that size becomes the whole monitor first, so it only grows.
+            native::restored_size_whole_monitor(&window);
+            window.set_maximized(false);
+        }
         window.set_full(true);
     } else {
         let before = BEFORE_BIG_SCREEN.lock().ok().and_then(|mut saved| saved.take()).unwrap_or_default();
         if !before.fullscreen {
             window.set_full(false);
-            if before.maximized { window.set_maximized(true); }
+            // Maximized again, with the player's own restored size back.
+            if !native::put_back(&window) && before.maximized { window.set_maximized(true); }
         }
     }
     window.fullscreen()
+}
+
+/// The window's placement as Windows keeps it (maximized or not, and the size it restores to).
+#[cfg(windows)]
+mod native {
+    use std::sync::Mutex;
+    use tauri::{Runtime, Window};
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowPlacement, SetWindowPlacement, WINDOWPLACEMENT};
+
+    /// The placement before big picture mode changed its restored size, to put it back when the mode ends.
+    static ORIGINAL: Mutex<Option<WINDOWPLACEMENT>> = Mutex::new(None);
+
+    fn placement<R: Runtime>(window: &Window<R>) -> Option<WINDOWPLACEMENT> {
+        let hwnd = window.hwnd().ok()?;
+        let mut found = WINDOWPLACEMENT { length: std::mem::size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
+        unsafe { GetWindowPlacement(hwnd, &mut found) }.ok()?;
+        Some(found)
+    }
+
+    /// The size a maximized window restores to becomes its whole monitor (it stays maximized meanwhile).
+    pub fn restored_size_whole_monitor<R: Runtime>(window: &Window<R>) {
+        let (Some(original), Ok(Some(monitor)), Ok(hwnd)) = (placement(window), window.current_monitor(), window.hwnd()) else { return };
+        let (screen, size, work) = (monitor.position(), monitor.size(), monitor.work_area().position);
+        // The restored rectangle counts from the work area's corner, not the screen's.
+        let (left, top) = (screen.x - work.x, screen.y - work.y);
+        let whole = WINDOWPLACEMENT { rcNormalPosition: RECT { left, top, right: left + size.width as i32, bottom: top + size.height as i32 }, ..original };
+        if unsafe { SetWindowPlacement(hwnd, &whole) }.is_ok() {
+            if let Ok(mut saved) = ORIGINAL.lock() { *saved = Some(original); }
+        }
+    }
+
+    /// Puts back the placement from before big picture mode (maximized, with its own restored size). Whether there was one.
+    pub fn put_back<R: Runtime>(window: &Window<R>) -> bool {
+        let Some(original) = ORIGINAL.lock().ok().and_then(|mut saved| saved.take()) else { return false };
+        let Ok(hwnd) = window.hwnd() else { return false };
+        unsafe { SetWindowPlacement(hwnd, &original) }.is_ok()
+    }
+}
+
+#[cfg(not(windows))]
+mod native {
+    use tauri::{Runtime, Window};
+    pub fn restored_size_whole_monitor<R: Runtime>(_window: &Window<R>) {}
+    pub fn put_back<R: Runtime>(_window: &Window<R>) -> bool { false }
 }
 
 /// The window's Maximize button. A window that counts as maximized but does not fill the screen is maximized properly
