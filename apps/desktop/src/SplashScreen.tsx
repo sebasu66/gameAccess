@@ -10,7 +10,7 @@ export const HOLD_MAX_MS = 900;
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
-// The maker's emblem, engraved in the lock: a G and an A that together make one circle (outer radius 138, inner 106).
+// The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
 // The A's leg is a straight band of constant width (32, the ring's own thickness) from the top of the circle to its
 // bottom right, cut by the outer circle at both ends. The G is the ring up to the leg's left edge: both of its ends are
 // cut along that same line, so G and A meet exactly. The A's bar, also the G's bar, ends on that line too. Unlocked,
@@ -28,6 +28,31 @@ function Lock() {
    <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
    <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
+   {/* The letters are coloured glass set into the engraving: the G in the library's green, the A in the catalogue's
+       orange (the colours of the big side words, view-rail.css), with a sheen and fine scratches on the glass only. */}
+   <linearGradient id="gs-glass-g" gradientUnits="userSpaceOnUse" x1="-120" y1="-120" x2="110" y2="120"><stop offset="0" stopColor="#e8f9f0" /><stop offset=".42" stopColor="#a0d2b4" /><stop offset="1" stopColor="#3f7a5d" /></linearGradient>
+   <linearGradient id="gs-glass-a" gradientUnits="userSpaceOnUse" x1="-20" y1="-140" x2="120" y2="100"><stop offset="0" stopColor="#ffcf9a" /><stop offset=".4" stopColor="#f57a1a" /><stop offset="1" stopColor="#a8490a" /></linearGradient>
+   <linearGradient id="gs-glass-sheen" gradientUnits="userSpaceOnUse" x1="-140" y1="-140" x2="60" y2="60"><stop offset="0" stopColor="#fff" stopOpacity=".5" /><stop offset=".38" stopColor="#fff" stopOpacity=".1" /><stop offset=".52" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity=".06" /></linearGradient>
+   <clipPath id="gs-letters"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></clipPath>
+   {/* The cavity: the glass sits below the plate, so it is shaded all round its edge (smaller inside than at the
+       rim), more on the top left where the wall hides the light, and catches a faint light on the bottom right. */}
+   <filter id="gs-inset" x="-20%" y="-20%" width="140%" height="140%">
+    <feMorphology in="SourceAlpha" operator="erode" radius="2.5" result="inner" />
+    <feGaussianBlur in="inner" stdDeviation="3" result="innerSoft" />
+    <feComposite in="SourceAlpha" in2="innerSoft" operator="out" result="ring" />
+    <feFlood floodColor="#000" floodOpacity=".5" /><feComposite in2="ring" operator="in" result="ringShade" />
+    <feOffset in="SourceAlpha" dx="3" dy="3" result="moved" />
+    <feGaussianBlur in="moved" stdDeviation="2.4" result="movedSoft" />
+    <feComposite in="SourceAlpha" in2="movedSoft" operator="out" result="topLeft" />
+    <feFlood floodColor="#000" floodOpacity=".6" /><feComposite in2="topLeft" operator="in" result="topLeftShade" />
+    <feOffset in="SourceAlpha" dx="-2" dy="-2" result="back" />
+    <feGaussianBlur in="back" stdDeviation="1.6" result="backSoft" />
+    <feComposite in="SourceAlpha" in2="backSoft" operator="out" result="bottomRight" />
+    <feFlood floodColor="#fff" floodOpacity=".28" /><feComposite in2="bottomRight" operator="in" result="bottomRightLight" />
+    <feMerge><feMergeNode in="ringShade" /><feMergeNode in="topLeftShade" /><feMergeNode in="bottomRightLight" /></feMerge>
+   </filter>
+   {/* The rim: a thin raised edge round the letters, lit on the top left and in shade on the bottom right. */}
+   <linearGradient id="gs-raise" gradientUnits="userSpaceOnUse" x1="-110" y1="-110" x2="110" y2="110"><stop offset="0" stopColor="#9aa4ab" /><stop offset=".5" stopColor="#4a5359" /><stop offset="1" stopColor="#0c0f11" /></linearGradient>
   </defs>
   <g className="gs-lock-turn">
    <circle className="gs-rim" r="214" />
@@ -39,9 +64,20 @@ function Lock() {
    <text className="gs-brand is-lip" transform="translate(1 1)"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
    <text className="gs-brand"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
    <g className="gs-emblem">
+    <g className="gs-raise"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
     <g className="gs-lip" transform="translate(1.8 1.8)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
     <path className="gs-cut" d={EMBLEM_G} />
     <path className="gs-cut is-a" d={EMBLEM_A} />
+    {/* The glass in the cuts; the A's lights up when the lock is open. */}
+    <path className="gs-glass" d={EMBLEM_G} fill="url(#gs-glass-g)" />
+    <path className="gs-glass is-a" d={EMBLEM_A} fill="url(#gs-glass-a)" />
+    {/* The cavity's shading, worked out on G and A together so their meeting line shows no edge. */}
+    <g className="gs-cavity" filter="url(#gs-inset)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <g className="gs-glass-top" clipPath="url(#gs-letters)">
+     {/* Seba's scratch texture: light scratches on black; the screen blend makes the black transparent. */}
+     <image className="gs-scratch" href="/textures/glass-scratches.jpg" x="-150" y="-150" width="300" height="300" preserveAspectRatio="xMidYMid slice" />
+     <rect x="-160" y="-160" width="320" height="320" fill="url(#gs-glass-sheen)" />
+    </g>
    </g>
    <circle className="gs-hub" r="9" />
   </g>
