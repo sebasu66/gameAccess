@@ -1,8 +1,8 @@
 {
-  "released_since": "2025-10-27",
-  "through": "2026-10-27",
+  "released_since": "2025-10-28",
+  "through": "2026-10-28",
   "recent_complete": true,
-  "recent_count": 28452,
+  "recent_count": 28681,
   "popular_limit": 5000,
   "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
   "cooptimus": {
@@ -11,20 +11,20 @@
     "state": "not-requested"
   },
   "artwork": {
-    "matched": 45046,
-    "capsule": 45033,
-    "hero": 42839,
-    "header": 45017,
+    "matched": 45342,
+    "capsule": 45329,
+    "hero": 43135,
+    "header": 45313,
     "missing": 77,
-    "descriptors": 10459,
-    "adult_only": 2502,
-    "nudity": 3965,
-    "categories": 44966,
-    "requests": 903,
+    "descriptors": 10526,
+    "adult_only": 2525,
+    "nudity": 3998,
+    "categories": 45261,
+    "requests": 909,
     "cache_hits": 0
   },
   "server_games_added": 0,
   "server_fields_filled": 0,
-  "updated_at": "2026-10-27T10:18:41.055553+00:00",
-  "tagged_count": 39361
+  "updated_at": "2026-10-28T11:04:45.521869+00:00",
+  "tagged_count": 39658
 }
