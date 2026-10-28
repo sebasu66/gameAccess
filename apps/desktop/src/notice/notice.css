@@ -16,7 +16,7 @@
 .ga-notice-icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--nt); background: #ffffff0d; }
 .ga-notice-text { flex: 1; min-width: 0; }
 .ga-notice-text strong { display: block; font-size: 15px; font-weight: 700; margin-bottom: 3px; }
-.ga-notice-text span { display: block; font-size: 12.5px; line-height: 1.5; color: #929ba2; overflow-wrap: anywhere; }
+.ga-notice-text span { display: block; font-size: 12.5px; line-height: 1.5; color: #929ba2; overflow-wrap: anywhere; white-space: pre-line; }
 .ga-notice-steps { list-style: none; margin: 0; padding: 0 0 0 2px; display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: #929ba2; }
 .ga-notice-steps li { display: flex; align-items: center; gap: 10px; }
 .ga-notice-steps li i { position: relative; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #ffffff30; flex: none; }

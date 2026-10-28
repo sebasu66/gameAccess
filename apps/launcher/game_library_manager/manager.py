@@ -581,7 +581,8 @@ class GameLibraryManager:
                     # plainly, and in the game's own log too, where the player looks first.
                     if not getattr(error, "journaled", False):
                         journal.note(folder, "error", f"{action}: la carpeta está en uso. Cerrá cualquier ventana abierta en esa ubicación (Explorador, consola) y volvé a intentar.")
-                    results.append({"app_id": app_id, "ok": False, "error": ui("libFolderInUse", folder=str(folder))})
+                    # The folder too: the app asks Windows who holds it and names them (process_control.rs).
+                    results.append({"app_id": app_id, "ok": False, "error": ui("libFolderInUse", folder=str(folder)), "in_use_folder": str(folder)})
                 else:
                     results.append({"app_id": app_id, "ok": False, "error": str(error)})
         self.log.info("Batch %s done: %s ok, %s failed", action, sum(1 for r in results if r.get("ok")), sum(1 for r in results if not r.get("ok")))

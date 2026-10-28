@@ -41,3 +41,6 @@ custom-protocol = ["tauri/custom-protocol"]
 # WebView2 rest while nobody looks at Game Access (webview_rest.rs); the versions Tauri's wry already uses.
 webview2-com = "=0.38.2"
 windows-core = "=0.61.2"
+# Which processes hold a folder open (process_control.rs): PowerToys File Locksmith's method in pure Rust, MIT, no
+# dependencies (github.com/velopack/filelocksmith-rs). Its quit_processes is kept for kid mode's time limit.
+filelocksmith = "=2.1.0"

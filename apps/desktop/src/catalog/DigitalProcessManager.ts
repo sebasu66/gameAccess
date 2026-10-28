@@ -45,7 +45,8 @@ export interface ProcessExecutionResult {
   plans?: LibraryPlan[];
   summary?: LibrarySummary;
   space?: LibrarySpace;
-  results?: Array<{ app_id: number; ok: boolean; error?: string }>;
+  /** in_use_folder: the folder Windows would not rename or move because programs hold it (library-batch). */
+  results?: Array<{ app_id: number; ok: boolean; error?: string; in_use_folder?: string }>;
   file?: string;
   needs_repair?: boolean;
   errors?: Array<{file: string; error: string}>;

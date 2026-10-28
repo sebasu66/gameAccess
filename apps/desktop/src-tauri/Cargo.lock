@@ -1176,6 +1176,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "filelocksmith"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82260c149a81b94aa3049e18c495fce35350c9cab32b488987042a78c446ca07"
+
+[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1343,6 +1349,7 @@ dependencies = [
  "argon2",
  "base64 0.22.1",
  "chrono",
+ "filelocksmith",
  "flate2",
  "rand 0.8.8",
  "reqwest 0.12.28",

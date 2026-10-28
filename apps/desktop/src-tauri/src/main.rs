@@ -29,6 +29,7 @@ mod game_controllers;
 mod game_focus;
 mod webview_rest;
 mod window_fit;
+mod process_control;
 
 use std::{env, sync::Mutex};
 
@@ -84,6 +85,8 @@ fn main() {
             game_focus::game_focus_watch,
             window_fit::window_toggle_maximize,
             window_fit::window_set_big_screen,
+            process_control::folder_lockers,
+            process_control::close_explorer_windows,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
             parental_lock::parental_state,

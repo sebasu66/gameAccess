@@ -233,6 +233,7 @@ def test_fixing_a_folder_open_in_another_program_says_so_and_notes_it_in_the_gam
     with patch.object(Path, "rename", side_effect=in_use):
         result = lib.batch("adopt", [690790])[0]
     assert not result["ok"] and "libFolderInUse" in result["error"] and "Delta Rally 2 0" in result["error"]
+    assert result["in_use_folder"] == str(manual)
     log = journal.read(manual)
     assert "renombrando la carpeta a 690790-" in log and "error renombrando la carpeta: está en uso" in log
     assert log.count("está en uso") == 1                       # noted once, by the step that failed

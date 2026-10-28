@@ -27,6 +27,7 @@ import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice } from "../notice/notice";
+import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
 import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
 import "./manager.css";
@@ -395,10 +396,13 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const runBatch = async (action: BatchAction, ids: number[]) => {
     setBusy(true); setMessage(c.working);
     try {
-      const results = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
+      const results: Array<{ app_id: number; ok: boolean; error?: string; in_use_folder?: string }> = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
       if (action === "adopt" && !libraryDemo()) results.forEach(row => { const found = games.find(game => game.app_id === row.app_id); if (row.ok && found) addReadyGameToLibrary(row.app_id, found.name, catalog); });
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
       announceBatch(action, results, games);
+      // A folder held open by other programs: the notice names them, can close the Explorer windows and tries again.
+      const locked = results.find(row => !row.ok && row.in_use_folder);
+      if (locked?.in_use_folder) void showFolderInUse(locked.in_use_folder, () => void runBatch(action, [locked.app_id]));
       setSelection({});
     } catch (failure) { setMessage(String(failure)); notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
   };
