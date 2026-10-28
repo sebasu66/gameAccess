@@ -28,21 +28,26 @@
 .ga-frame-name { position: fixed; z-index: 2147483602; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 14px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
   font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ebceae; text-shadow: 0 0 1px #cc8333aa, 0 0 3px #cc833355; }
 
-/* Buttons mounted on the frame (the footer's controls) are part of the device: raised metal keys with depth and a
-   bevel (light on the top-left edge, dark on the bottom-right, a dark side underneath) that sink when pressed. Buttons
-   on the screen (the filter strip, the search dock, the view switch) are flat: no gradient, bevel, glow or shadow. */
+/* Buttons mounted on the frame (the footer's controls) are part of the device: low-profile keys like a thin keyboard's,
+   with a crisp edge rather than a soft one. Nearly square corners, a flat face, a sharp light edge on top and a dark
+   one below, a 2 px side and a short shadow; they sink 1 px when pressed. Their icons are backlit in the green of the
+   emblem's G (SplashScreen.tsx). Buttons on the screen (the filter strip, the search dock, the view switch) are flat:
+   no gradient, bevel, glow or shadow. */
 html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle) {
-  background: linear-gradient(180deg, #3a4249, #252b30 55%, #1d2226) !important; border: 1px solid #07090a !important;
-  box-shadow: inset 1px 1px 0 #ffffff33, inset -1px -1px 0 #00000080, 0 2px 0 #0a0d0f, 0 4px 9px #000a !important;
-  transition: background .2s, box-shadow .12s, transform .12s, color .2s !important; }
+  border-radius: 4px !important; background: linear-gradient(180deg, #30373d, #262c31) !important; border: 1px solid #050607 !important;
+  box-shadow: inset 0 1px 0 #ffffff3d, inset 0 -1px 0 #0000008c, 0 1px 0 #11151a, 0 2px 0 #050607, 0 3px 5px #0009 !important;
+  transition: background .2s, box-shadow .1s, transform .1s, color .2s !important; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube::before { display: none; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube > svg { color: #a0d2b4; filter: drop-shadow(0 0 2px #a0d2b499) drop-shadow(0 0 6px #a0d2b433); transition: color .2s, filter .2s; }
 html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):is(:hover, :focus-visible) {
-  color: #fff !important; background: linear-gradient(180deg, #423628, #2e271f 55%, #261b14) !important;
-  box-shadow: inset 1px 1px 0 #e4bf9555, inset -1px -1px 0 #00000080, 0 2px 0 #0a0d0f, 0 4px 9px #000a, 0 0 14px #cc833340 !important; }
+  color: #fff !important; background: linear-gradient(180deg, #363e45, #2b3237) !important;
+  box-shadow: inset 0 1px 0 #ffffff52, inset 0 -1px 0 #0000008c, 0 1px 0 #11151a, 0 2px 0 #050607, 0 3px 6px #000a !important; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube:is(:hover, :focus-visible) > svg { color: #d4f2e2; filter: drop-shadow(0 0 3px #a0d2b4cc) drop-shadow(0 0 9px #a0d2b466); }
 html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):active:not(:disabled) {
-  transform: translateY(2px) !important; box-shadow: inset 1px 1px 2px #00000099, inset -1px -1px 0 #ffffff14, 0 0 0 #0a0d0f, 0 1px 3px #0008 !important; }
+  transform: translateY(1px) !important; box-shadow: inset 0 1px 1px #00000080, inset 0 -1px 0 #ffffff12, 0 1px 0 #050607, 0 1px 2px #0008 !important; }
 html body.ga-device-frame .catalog-bottom-actions button.ga-cube[aria-pressed="true"] {
-  color: #fff !important; background: linear-gradient(180deg, #1c2024, #262c31) !important;
-  box-shadow: inset 1px 1px 3px #000000b3, inset -1px -1px 0 #ffffff1a, 0 1px 0 #0a0d0f !important; transform: translateY(1px) !important; }
+  color: #fff !important; background: linear-gradient(180deg, #22282d, #2a3136) !important;
+  box-shadow: inset 0 1px 2px #000000b3, inset 0 -1px 0 #ffffff14, 0 1px 0 #050607 !important; transform: translateY(1px) !important; }
 html body.ga-device-frame .catalog-bottom-actions .ga-premium-button { color: #ddb079; }
 
 html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube, summary.ga-cube) {
