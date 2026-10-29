@@ -18,7 +18,7 @@ import { useKidState, usePlus } from "./kidMode";
  * Changing or removing the key asks for the word or today's key (whichever the parent remembers). This screen is only
  * reachable as the administrator (accessRole.ts); with PLUS ended everyone is, so the eye is not offered then.
  */
-const validWord = (word: string) => /^\p{L}{3,20}$/u.test(word.trim());
+export const validWord = (word: string) => /^\p{L}{3,20}$/u.test(word.trim());
 const HIDDEN = "••••••";
 
 /** The word, hidden until its eye is held pressed (pointer, Space or Enter) and hidden again on release. */

@@ -51,3 +51,31 @@
 .ga-adminkey-secret.is-shown { color: var(--ga-orange); letter-spacing: .08em; }
 .ga-adminkey-word .ga-btn-secondary { touch-action: none; user-select: none; }
 .ga-adminkey-word .ga-hint { grid-column: 1 / -1; }
+
+/* The wizard: steps added one under the other; a finished one stays, quieter. */
+.ga-kid-step { padding-top: var(--ga-space-3); border-top: 1px solid var(--ga-line); }
+.ga-kid-step.is-done { opacity: .62; }
+.ga-kid-step .eyebrow svg { vertical-align: -1px; }
+.ga-kid-how { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-how li { display: flex; gap: 10px; align-items: flex-start; color: var(--ga-orange); }
+
+/* Panel tabs: a read-only scope while the user is a player (the fieldset disables every control inside). */
+.ga-kid-scope { min-width: 0; margin: 0; padding: 0; border: 0; }
+.ga-kid-scope:disabled { opacity: .7; }
+
+/* The child's games: the library manager's table, four columns, fitting the dialog. */
+.ga-kid-games .lm-grid { min-width: 0; }
+.ga-kid-games .lm-cell-name { max-width: none; }
+.ga-kid-panel .ga-kid-switch { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 32px; padding: 0 12px; border-radius: 16px;
+  border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-muted); font: 800 12px var(--ga-text-family); cursor: pointer; }
+.ga-kid-panel .ga-kid-switch[aria-pressed="true"] { border-color: var(--ga-orange); background: var(--ga-orange); color: var(--ga-btn-ink); }
+.ga-kid-panel .ga-kid-switch:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 3px; }
+.ga-kid-panel .ga-kid-switch:hover { border-color: var(--ga-orange); background: var(--ga-surface-2); }
+.ga-kid-panel .ga-kid-switch[aria-pressed="true"]:hover { background: var(--ga-orange-hover); }
+.ga-kid-limit-cell { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ga-kid-spinner { display: inline-flex; align-items: center; gap: 4px; }
+.ga-kid-panel .ga-kid-spinner button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); cursor: pointer; }
+.ga-kid-panel .ga-kid-spinner button:disabled { opacity: .4; cursor: default; }
+.ga-kid-spinner output { min-width: 56px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Four tabs whose names differ in length: each as wide as its name, filling the row. */
+.ga-kid-panel .ga-tabs .ga-tab { flex: 1 1 auto; }

@@ -3,7 +3,6 @@ import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
-import ParentalSetupDialog from "./ParentalSetupDialog";
 import KidModePanel from "./KidModePanel";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
@@ -667,7 +666,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><ParentalSetupDialog />
+          <AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
         </div>
       </header>
 

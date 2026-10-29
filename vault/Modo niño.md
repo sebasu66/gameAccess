@@ -80,11 +80,17 @@ El modo niño y la clave de padre son parte de PLUS. Si el usuario los tenía co
 - **Servidor de prueba**: `apps/api/run_demo_users_api.ps1 [-Reset]` usa un SQLite aparte (`users-demo.db`, ignorado por Git; el script de semillas se niega a correr contra otra base) y siembra los cuatro estados con contraseña `prueba-1234`; imprime sus llaves y deja el panel en `http://127.0.0.1:8010/admin`. `restart_local_api.ps1` no sirve para esto: apunta a la base compartida de clientes.
 - **Preguntas abiertas para Seba**: cuántos días de tolerancia tras un cobro rechazado; si una llave vencida debe poder reactivarse sola al pagar; si el usuario puede tener más de una PC con la misma llave.
 
-## Una sola pantalla para los niños (Seba, 2026-10-29)
-Todo lo que tiene que ver con niños, control de acceso y filtro de contenido para adultos se configura en **un solo lugar: el botón del niño**. La pantalla empieza preguntando si hay niños en casa:
-- **No hay niños**: Game Access funciona como siempre, sin clave ni modo niño; se puede volver a decir "ahora hay niños".
-- **Hay niños**: tres pestañas, **Modo niño** (explicación, asistente y panel), **Filtro de contenido** (el que estaba en Configuración, ya no está allí) y **Clave de padre**. Volver a "no hay niños" solo se permite con el modo niño y la clave ya quitados, para que no quede nada a medias.
-- Una cuenta de niño o una clave ya creadas cuentan como "hay niños" sin preguntar.
+## Una sola pantalla para los niños (Seba, 2026-10-29; rediseño MN.16)
+Todo lo de niños se configura en **un solo lugar: el botón del niño**. Lo abre cualquiera; **cambiar algo pide ser administrador** (la clave de padre): como jugador se ve todo deshabilitado con "Ingresar la clave".
+- **Modo niños apagado** (no hay cuenta de niño): primero, siempre, tenga o no PLUS, la **página que explica**: "¿Tenés niños en casa?", el texto de que controla el tiempo de juego sin peleas, y las tres funciones (filtro de contenido adulto en el catálogo; bloqueo de las funciones de padres; una cuenta de Windows solo para el niño, como una consola, sin Windows, con tiempo por día y horarios). **Empezar pide PLUS** (sin PLUS: "Activá PLUS para empezar" y "Conocer PLUS").
+- **Asistente** (`KidWizard.tsx`): cada "Siguiente" agrega el paso debajo con GSAP y baja hasta él; los pasos hechos quedan, atenuados; "Cancelar" vuelve a la explicación.
+  1. **Restringir las funciones de padres**: elegir la palabra de la **clave de padre** (la única clave: también protege el filtro).
+  2. **Filtro de contenido adulto**.
+  3. **La cuenta del niño**: cómo funciona y su nombre.
+  4. **Sus juegos**: la grilla de juegos; "Crear la cuenta y terminar" crea la cuenta (Windows pide permiso) y el modo niños queda **encendido** (hay cuenta).
+- **Modo niños encendido** (`KidControlPanel.tsx`): un panel con cuatro pestañas, **Juegos**, **Tiempo** (tiempo por día, horarios, la semana y las órdenes en vivo), **Filtro de contenido** y **Soporte y configuración** (clave de padre, ayuda y contacto, celular próximamente, quitar el modo niño). Abajo, "Aplicar" para los cambios de juegos y tiempo.
+- **Grilla de juegos** (`KidGamesGrid.tsx`): la tabla del administrador de biblioteca con cuatro columnas: imagen, nombre, **Sí/No** y **límite propio**: *General* (juega libre dentro del tiempo del día) o *Específico* (de a 30 minutos, hasta el tiempo del día). Lista los juegos instalados y los accesos directos.
+- **Una sola clave** (MN.14 punto 2): el filtro ya no tiene contraseña propia ni la pide al arrancar (se quitó `ParentalSetupDialog`); una contraseña vieja del filtro todavía lo desbloquea. Se quitó la pregunta "¿hay niños en casa?" con sus respuestas sí/no (`familyPrefs.ts`).
 
 ## Cómo es la clave de padre (Seba, 2026-10-29) — hecho en MN.10
 - **Regla**: el padre elige una palabra; la clave de cada día es esa palabra con los dígitos de la fecha (dd mm aa, seis dígitos con ceros): después de cada letra va un dígito en orden y tras la última letra van los que sobren. `perro` el 11-11-26 es `P1E1R1R1O26`. Cambia todos los días, así que verla escribir no sirve. No distingue mayúsculas. Largo = letras + 6.

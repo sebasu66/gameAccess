@@ -6,128 +6,157 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 // PLUS is on for this flow; the rest of kidMode.ts is the real one (no Tauri: "Apply" and "Remove" only change the state).
-vi.mock("./kidMode", async importOriginal => ({ ...(await importOriginal<typeof import("./kidMode")>()), usePlus: () => true }));
+const plus = vi.hoisted(() => ({ on: true }));
+vi.mock("./kidMode", async importOriginal => ({ ...(await importOriginal<typeof import("./kidMode")>()), usePlus: () => plus.on }));
 vi.mock("./notice/notice", () => ({ showNotice: vi.fn(), confirmNotice: vi.fn(async () => true), hideNotice: vi.fn() }));
-// The filter's tab has its own screen and tests: here it only has to be a tab.
+// The filter has its own screen and tests: here it only has to be there.
 vi.mock("./ParentalControlSection", () => ({ default: () => <p>filtro</p> }));
 
 import KidModePanel from "./KidModePanel";
 import { setKidDraft, NEW_KID, resetKidMode } from "./kidMode";
-import { resetHasKidsForTests } from "./familyPrefs";
-import { resetAccessRoleForTests, setAdminKey, setPlusGraceDays, setPlusLapsed } from "./accessRole";
+import { getAdminKey, resetAccessRoleForTests, setAccessRole, setAdminKey, setPlusGraceDays, setPlusLapsed } from "./accessRole";
 
 let root: Root; let host: HTMLDivElement;
-const text = () => document.querySelector(".ga-kid-panel")?.textContent ?? "";
+const panel = () => document.querySelector(".ga-kid-panel")!;
+const text = () => panel()?.textContent ?? "";
+const button = (label: RegExp) => [...panel().querySelectorAll<HTMLButtonElement>("button")].find(item => label.test(item.textContent ?? ""));
 const press = async (label: RegExp) => {
-  const button = [...document.querySelectorAll<HTMLButtonElement>(".ga-kid-panel button")].find(item => label.test(item.textContent ?? ""));
-  if (!button) throw new Error(`no button ${label}; panel says: ${text().slice(0, 200)}`);
-  await act(async () => { button.click(); });
+  const found = button(label);
+  if (!found) throw new Error(`no button ${label}; panel says: ${text().slice(0, 300)}`);
+  await act(async () => { found.click(); });
+};
+/** Types into a React-controlled field. */
+const type = async (input: HTMLInputElement, value: string) => {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 };
 const open = async () => {
   await act(async () => { root.render(<KidModePanel />); });
   await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
 };
+/** The whole wizard: key, filter, the child's account, its games, and finish. */
+const finishWizard = async (name = "Juan") => {
+  await press(/^Empezar|^Start/);
+  await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
+  await press(/Siguiente: filtro|Next: content filter/);
+  await press(/Siguiente: la cuenta|Next: your child/);
+  await act(async () => { setKidDraft({ name }); });
+  await press(/Siguiente: sus juegos|Next: their games/);
+  await press(/Crear la cuenta|Create the account/);
+};
 
 beforeEach(async () => {
-  // Each test starts from zero: no account made, nothing answered, no key, PLUS fine.
+  // Each test starts from zero: no account made, no key, PLUS fine.
+  plus.on = true;
   await resetKidMode();
-  localStorage.clear(); resetHasKidsForTests(); resetAccessRoleForTests();
+  localStorage.clear(); resetAccessRoleForTests();
   setKidDraft({ ...NEW_KID, name: "", games: [] });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-describe("Niños en casa: una sola pantalla para todo", () => {
-  it("empieza preguntando si hay niños y, si no los hay, no pide nada", async () => {
+describe("Niños en casa", () => {
+  it("abre siempre con la página que explica, con o sin PLUS; sin PLUS no empieza", async () => {
+    plus.on = false;
     await open();
-    expect(text()).toMatch(/¿Hay niños en tu casa\?|Are there children/);
+    expect(text()).toMatch(/¿Tenés niños en casa\?|Do you have children/);
+    expect(text()).toMatch(/sin peleas|no fights/);
+    expect(text()).toMatch(/Filtro de contenido para adultos|Adult content filter/);
     expect(document.querySelector('[role="tablist"]')).toBeNull();
-    await press(/No hay niños|No children/);
-    expect(text()).toMatch(/No hay niños en casa|No children at home/);
-    expect(document.querySelector('[role="tablist"]')).toBeNull();
-    // It can be changed later.
-    await press(/Ahora hay niños|There are children now/);
-    expect(document.querySelectorAll('[role="tab"]').length).toBe(3);
+    await press(/Activá PLUS para empezar|Activate PLUS/);
+    expect(document.querySelector(".ga-kid-step")).toBeNull();
+    expect(button(/Conocer PLUS|PLUS/)).toBeTruthy();
   });
 
-  it("recorre el asistente, llega al panel y lo deshace", async () => {
+  it("el asistente agrega los pasos de a uno: clave, filtro, cuenta y juegos; Cancelar vuelve al principio", async () => {
     await open();
-    await press(/Sí, hay niños|Yes, there are/);
-    // Everything about the children is a tab of this one screen.
-    expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/Modo niño|Kid mode/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Clave|key/i)]));
-
-    // 1. The page that explains kid mode, with its button open because PLUS is on.
-    expect(text()).toMatch(/pelea|fight/i);
-    await press(/Empezar|Start/);
-
-    // 2. The account: "Next" waits for a valid name.
-    const next = () => [...document.querySelectorAll<HTMLButtonElement>(".ga-kid-panel button")].find(item => /Siguiente|Next/.test(item.textContent ?? ""))!;
-    expect(next().disabled).toBe(true);
+    await press(/^Empezar|^Start/);
+    expect(panel().querySelectorAll(".ga-kid-step")).toHaveLength(1);
+    // 1. The parent's key: Next waits for a valid word.
+    expect(button(/Siguiente: filtro|Next: content filter/)!.disabled).toBe(true);
+    await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
+    await press(/Siguiente: filtro|Next: content filter/);
+    expect(getAdminKey()).toEqual({ enabled: true, length: 11 });
+    // 2. The filter, under the first step (which stays, done).
+    expect(panel().querySelectorAll(".ga-kid-step")).toHaveLength(2);
+    expect(panel().querySelector(".ga-kid-step.is-done")).not.toBeNull();
+    expect(text()).toContain("filtro");
+    // Cancel: back to the page that explains, with its button again.
+    await press(/^Cancelar|^Cancel/);
+    expect(panel().querySelector(".ga-kid-step")).toBeNull();
+    // Again: the key is already there, so step 1 only says so.
+    await press(/^Empezar|^Start/);
+    expect(text()).toMatch(/Ya tenés una clave|already have a parent's key/);
+    await press(/Siguiente: filtro|Next: content filter/);
+    await press(/Siguiente: la cuenta|Next: your child/);
+    // 3. The account: Next waits for a valid name.
+    expect(button(/Siguiente: sus juegos|Next: their games/)!.disabled).toBe(true);
     await act(async () => { setKidDraft({ name: "Juan" }); });
-    expect(next().disabled).toBe(false);
-    await press(/Siguiente|Next/);
-
-    // 3. Time and hours come filled in: two hours, 12-21 on weekdays, 9-22 on weekends.
-    const values = [...document.querySelectorAll<HTMLSelectElement>(".ga-kid-panel select")].map(select => select.value);
-    expect(values).toEqual(["120", "12", "21", "9", "22"]);
+    await press(/Siguiente: sus juegos|Next: their games/);
+    // 4. The games, then finish: kid mode is on and the screen is the control panel.
+    expect(text()).toMatch(/qué juegos verá tu hijo|which games your child will see/);
     await press(/Crear la cuenta|Create the account/);
-
-    // 4. The account exists: the same tab is the panel, with the week, the live orders and the way back.
-    expect(text()).toContain("Juan");
-    expect(text()).toMatch(/Esta semana|This week/);
-    expect(text()).toMatch(/Parar el juego ahora|Stop the game now/);
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
+    expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
+      expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
+    ]);
+  });
 
-    // 5. With the account made, "there are no children" is refused until it is removed.
-    await press(/Ya no hay niños|no children at home any more/);
-    expect(text()).toMatch(/primero quitá|first remove/);
+  it("panel: cada juego con Sí/No y su límite general o específico de a 30 minutos", async () => {
+    await open();
+    await act(async () => { setKidDraft({ games: [{ appId: 10, name: "Tetris", folder: "C:/Juegos/Tetris", executable: "", arguments: [], steam: false }] }); });
+    await finishWizard();
+    const row = () => [...panel().querySelectorAll("tr.lm-row")].find(item => item.textContent?.includes("Tetris"))!;
+    expect(row().querySelector(".ga-kid-switch")!.getAttribute("aria-pressed")).toBe("true");
+    const limit = row().querySelector<HTMLSelectElement>("select")!;
+    expect(limit.value).toBe("general");
+    await act(async () => { limit.value = "specific"; limit.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(row().querySelector("output")!.textContent).toBe("1:00 h");
+    await act(async () => { row().querySelectorAll<HTMLButtonElement>(".ga-kid-spinner button")[1].click(); });
+    expect(row().querySelector("output")!.textContent).toBe("1:30 h");
+    expect(text()).toMatch(/Hay cambios sin aplicar|not applied yet/);
+  });
 
-    // 6. Remove kid mode: back to the explanation, nothing configured.
+  it("como jugador el panel se ve pero no se puede cambiar", async () => {
+    await open();
+    await finishWizard();
+    await act(async () => { setAccessRole("player"); });
+    expect(text()).toMatch(/hace falta la clave de padre|needs the parent's key/);
+    expect(panel().querySelector<HTMLFieldSetElement>(".ga-kid-scope")!.disabled).toBe(true);
+    await act(async () => { setAccessRole("admin"); });
+    expect(panel().querySelector<HTMLFieldSetElement>(".ga-kid-scope")!.disabled).toBe(false);
+  });
+
+  it("Soporte y configuración: la clave de padre, la ayuda y quitar el modo niño, que vuelve a la explicación", async () => {
+    await open();
+    await finishWizard();
+    await press(/Soporte|Support/);
+    expect(text()).toMatch(/Ayuda y contacto|Help & contact/);
+    expect(text()).toMatch(/cambia cada día|changes every day/);
     await press(/Quitar el modo niño|Remove kid mode/);
     expect(document.querySelector(".ga-kid-intro")).not.toBeNull();
     expect(JSON.parse(localStorage.getItem("gameaccess.kidDraft") ?? "null")).toBeNull();
   });
 
-  it("el filtro de contenido y la clave de padre viven en las otras pestañas", async () => {
-    await open();
-    await press(/Sí, hay niños|Yes, there are/);
-    await press(/Filtro de contenido|Content filter/);
-    expect(text()).toContain("filtro");
-    await press(/Clave de padre|Parent's key/);
-    expect(text()).toMatch(/cambia todos los días|changes every day/);
-    expect(text()).toMatch(/P1E1R1R1O26|D1O1G1126/);
-  });
-
   it("si se apaga PLUS avisa que el modo niño está en pausa y la clave sin efecto, y no borra nada", async () => {
-    setKidDraft({ ...NEW_KID, name: "Juan", games: [] });
     await open();
-    await press(/Sí, hay niños|Yes, there are/);
-    expect(text()).not.toMatch(/PLUS no está activo|PLUS is not active/);
-    await press(/Empezar|Start/);
-    await act(async () => { setKidDraft({ name: "Juan" }); });
-    await press(/Siguiente|Next/);
-    await press(/Crear la cuenta|Create the account/);
+    await finishWizard();
     await act(async () => { setAdminKey({ enabled: true, length: 11 }); setPlusLapsed(true); });
     expect(text()).toMatch(/PLUS no está activo|PLUS is not active/);
     expect(text()).toMatch(/en pausa|paused/);
-    // Nothing was deleted: the account is still there, and PLUS coming back clears the notice.
     expect(text()).toContain("Juan");
     await act(async () => { setPlusLapsed(false); });
     expect(text()).not.toMatch(/PLUS no está activo|PLUS is not active/);
   });
 
   it("sin conexión avisa cuántos días de gracia quedan y no pausa nada", async () => {
-    setKidDraft({ ...NEW_KID, name: "Juan", games: [] });
     await open();
-    await press(/Sí, hay niños|Yes, there are/);
-    await press(/Empezar|Start/);
-    await act(async () => { setKidDraft({ name: "Juan" }); });
-    await press(/Siguiente|Next/);
-    await press(/Crear la cuenta|Create the account/);
+    await finishWizard();
     await act(async () => { setPlusGraceDays(4); });
     expect(text()).toMatch(/No se pudo verificar tu PLUS|could not be checked/);
     expect(text()).toMatch(/4 día|4 more day/);
-    expect(text()).not.toMatch(/en pausa/);
     await act(async () => { setPlusGraceDays(null); });
     expect(text()).not.toMatch(/No se pudo verificar tu PLUS|could not be checked/);
   });

@@ -186,6 +186,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Filas sin dato (sin carpeta, sin partidas) quedan al final en los dos sentidos.
 - Contenedor con borde `#ffffff14` y radio 12 px; con la ventana angosta la tabla se desplaza de costado y la columna de acciones queda fija a la derecha.
 - Sin buscador propio: la filtra el buscador del catálogo y la librería.
+- **Variante juegos del niño** (`KidGamesGrid`, pantalla de niños): la misma tabla con cuatro columnas, portada, nombre, interruptor **Sí/No** (pastilla de 32 px, naranja si lo ve) y **límite propio** (General / Específico; el específico con − y + de a 30 minutos hasta el tiempo del día). Sin ancho mínimo: entra en el diálogo.
 - Solo se desplazan las filas (con la barra redonda); título, resumen, botones (apilados a la derecha del resumen), filtros y encabezado de la tabla quedan fijos.
 
 ### 4.21 Descarga en la lista `digital-download-row` / `ga-dl-card`

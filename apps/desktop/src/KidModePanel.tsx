@@ -1,226 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ArrowRight, Baby, BarChart3, Clock, Gamepad2, Lock, Plus, ShieldCheck, Smartphone, Sparkles, Square, Trash2, Unlock, UserRound } from "lucide-react";
+import { Baby, Sparkles } from "lucide-react";
 import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
 import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
-import { confirmNotice, showNotice } from "./notice/notice";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
-import { loadAdminKey, requestAdmin, useAccessRole, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
-import { setHasKids, useHasKids } from "./familyPrefs";
-import GaTabs from "./GaTabs";
-import ParentalControlSection from "./ParentalControlSection";
-import AdminKeySection from "./AdminKeySection";
-import {
-  applyKidDraft, EMPTY_LIVE, KidApplyError, loadKidFamily, readKidLive, resetKidMode, sendKidControl, setKidDraft, setKidGameMinutes, useKidState, usePlus, validKidName,
-  type Kid, type KidControlAction, type KidLive,
-} from "./kidMode";
+import { loadAdminKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
+import { loadKidFamily, useKidState } from "./kidMode";
+import KidWizard from "./KidWizard";
+import KidControlPanel from "./KidControlPanel";
 import "./kid-mode.css";
 
 /**
- * The adult's kid mode (kidMode.ts). Without a child account yet it is a small wizard: what the feature is (a page that
- * sells it, locked behind PLUS), the child's account, then time and hours. Once the account exists the same dialog is the
- * child's panel: the week's play, live orders (stop, close the day, add minutes), the games and the settings.
- * "Apply" asks Windows for permission once and sets everything up.
+ * The kids screen (vault/Modo niño.md). While kid mode is off it is the page that explains the features and, with
+ * PLUS, the wizard below it (KidWizard.tsx). Once the child's account exists it is the control panel (KidControlPanel.tsx).
+ * Anyone may open it; changes need the administrator (the parent's key).
  */
-const HOURS = Array.from({ length: 25 }, (_, hour) => hour);
-const LIMITS = [0, 30, 60, 90, 120, 180, 240];
-const GAME_LIMITS = [0, 15, 30, 45, 60, 90, 120];
-const range = (value: string): [number, number] => { const [from, to] = value.split("-").map(Number); return [Number.isFinite(from) ? from : 0, Number.isFinite(to) ? to : 24]; };
-
-type Step = "intro" | "account" | "schedule";
-
-function Hours({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  const { t } = useI18n();
-  const [from, to] = range(value);
-  const pick = (next: [number, number]) => onChange(`${next[0]}-${next[1]}`);
-  return <div className="ga-kid-hours"><span>{label}</span>
-    <label>{t("kidFrom")}<select value={from} onChange={event => { const start = Number(event.target.value); pick([start, Math.max(to, start + 1)]); }}>{HOURS.slice(0, 24).map(hour => <option key={hour} value={hour}>{`${hour}:00`}</option>)}</select></label>
-    <label>{t("kidTo")}<select value={to} onChange={event => { const end = Number(event.target.value); pick([Math.min(from, end - 1), end]); }}>{HOURS.slice(1).map(hour => <option key={hour} value={hour}>{`${hour}:00`}</option>)}</select></label>
-  </div>;
-}
-
-/** Daily time and the allowed hours: the wizard's second step and the panel's settings. */
-function TimeFields({ draft }: { draft: Kid }) {
-  const { t } = useI18n();
-  return <>
-    <fieldset className="ga-group"><legend className="ga-label">{t("kidDailyTime")}</legend>
-      <select className="ga-kid-limit" value={draft.dailyMinutes} onChange={event => setKidDraft({ dailyMinutes: Number(event.target.value) })}>
-        {LIMITS.map(minutes => <option key={minutes} value={minutes}>{minutes ? t("kidMinutes", { minutes: String(minutes) }) : t("kidNoLimit")}</option>)}
-      </select>
-    </fieldset>
-    <fieldset className="ga-group"><legend className="ga-label">{t("kidSchedule")}</legend>
-      <Hours label={t("kidWeekdays")} value={draft.weekdays} onChange={weekdays => setKidDraft({ weekdays })} />
-      <Hours label={t("kidWeekend")} value={draft.weekend} onChange={weekend => setKidDraft({ weekend })} />
-      <p className="ga-hint">{t("kidScheduleHint")}</p>
-    </fieldset>
-  </>;
-}
-
-function Intro({ plus, onStart, onPlus }: { plus: boolean; onStart: () => void; onPlus: () => void }) {
-  const { t } = useI18n();
-  const benefits = [
-    { icon: <UserRound size={22} aria-hidden="true" />, title: t("kidIntroB1Title"), text: t("kidIntroB1Text") },
-    { icon: <Gamepad2 size={22} aria-hidden="true" />, title: t("kidIntroB2Title"), text: t("kidIntroB2Text") },
-    { icon: <Clock size={22} aria-hidden="true" />, title: t("kidIntroB3Title"), text: t("kidIntroB3Text") },
-    { icon: <Smartphone size={22} aria-hidden="true" />, title: t("kidIntroB4Title"), text: t("kidIntroB4Text") },
-  ];
-  return <div className="ga-kid-intro ga-stack">
-    <p>{t("kidIntroLead")}</p>
-    <ul className="ga-kid-benefits">{benefits.map(item => <li key={item.title}><span className="ga-kid-benefit-icon">{item.icon}</span><div><strong>{item.title}</strong><p className="ga-hint">{item.text}</p></div></li>)}</ul>
-    <p className="ga-hint">{t("kidIntroSteps")}</p>
-    <div className="ga-actions">
-      <GaButton variant="primary" icon={plus ? <ArrowRight size={16} aria-hidden="true" /> : <Lock size={16} aria-hidden="true" />} aria-disabled={!plus} onClick={() => { if (plus) onStart(); }}>{plus ? t("kidIntroStart") : t("kidIntroLocked")}</GaButton>
-      {plus ? null : <GaButton icon={<Sparkles size={16} aria-hidden="true" />} onClick={onPlus}>{t("kidIntroKnowPlus")}</GaButton>}
-    </div>
-  </div>;
-}
-
-const formatDuration = (seconds: number, t: ReturnType<typeof useI18n>["t"]) => {
-  const minutes = Math.round(seconds / 60);
-  return minutes >= 60 ? t("kidDurationHM", { hours: String(Math.floor(minutes / 60)), minutes: String(minutes % 60) }) : t("kidDurationM", { minutes: String(minutes) });
-};
-
-/** The week's play: a bar per day (against the daily limit) and what was played the most. */
-function Week({ live, draft }: { live: KidLive; draft: Kid }) {
-  const { t, locale } = useI18n();
-  const limit = draft.dailyMinutes * 60;
-  const scale = Math.max(limit, ...live.days.map(day => day.seconds), 1);
-  const names = new Map(draft.games.map(game => [String(game.appId), game.name]));
-  const totals = new Map<string, number>();
-  for (const day of live.days) for (const [id, seconds] of Object.entries(day.games)) totals.set(id, (totals.get(id) ?? 0) + seconds);
-  const top = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-  return <fieldset className="ga-group"><legend className="ga-label"><BarChart3 size={13} aria-hidden="true" />{t("kidWeek")}</legend>
-    {live.days.some(day => day.seconds > 0) ? <>
-      <ul className="ga-kid-week">{live.days.map(day => {
-        const detail = Object.entries(day.games).map(([id, seconds]) => `${names.get(id) ?? id}: ${formatDuration(seconds, t)}`).join(" · ");
-        return <li key={day.date} title={detail}>
-          <span>{new Date(`${day.date}T12:00:00`).toLocaleDateString(locale, { weekday: "short" })}</span>
-          <span className="ga-kid-bar"><i style={{ width: `${Math.round((day.seconds / scale) * 100)}%` }} /></span>
-          <b>{day.seconds ? formatDuration(day.seconds, t) : "—"}</b></li>;
-      })}</ul>
-      {top.length ? <p className="ga-hint">{t("kidMostPlayed")} {top.map(([id, seconds]) => `${names.get(id) ?? id} (${formatDuration(seconds, t)})`).join(" · ")}</p> : null}
-    </> : <p className="ga-hint">{t("kidWeekEmpty")}</p>}
-  </fieldset>;
-}
-
-/** Live orders: take effect in seconds, without applying anything to Windows. */
-function LiveControls({ sid, live, onLive }: { sid: string; live: KidLive; onLive: (live: KidLive) => void }) {
-  const { t } = useI18n();
-  const [busy, setBusy] = useState(false);
-  const send = async (action: KidControlAction, minutes = 0, done = "") => {
-    setBusy(true);
-    try { onLive(await sendKidControl(sid, action, minutes)); if (done) showNotice({ tone: "ok", title: done }); }
-    catch (failure) { showNotice({ tone: "error", title: failure instanceof KidApplyError && failure.code === "needs_apply" ? t("kidLiveNeedsApply") : t("kidLiveFailed") }); }
-    finally { setBusy(false); }
-  };
-  const off = busy || !sid;
-  return <fieldset className="ga-group"><legend className="ga-label">{t("kidLive")}</legend>
-    <div className="ga-actions">
-      <GaButton icon={<Square size={16} aria-hidden="true" />} disabled={off} onClick={() => void send("stop", 0, t("kidLiveStopped"))}>{t("kidStopNow")}</GaButton>
-      <GaButton icon={live.lockedToday ? <Unlock size={16} aria-hidden="true" /> : <Lock size={16} aria-hidden="true" />} disabled={off}
-        onClick={() => void send(live.lockedToday ? "unlock" : "lock", 0, live.lockedToday ? t("kidLiveUnlocked") : t("kidLiveLocked"))}>{live.lockedToday ? t("kidUnlockToday") : t("kidLockToday")}</GaButton>
-      {[15, 30].map(minutes => <GaButton key={minutes} icon={<Plus size={16} aria-hidden="true" />} disabled={off} onClick={() => void send("extend", minutes, t("kidLiveExtended", { minutes: String(minutes) }))}>{t("kidAddMinutes", { minutes: String(minutes) })}</GaButton>)}
-    </div>
-    <p className="ga-hint">{live.extraMinutes ? `${t("kidExtraToday", { minutes: String(live.extraMinutes) })} ` : ""}{live.lockedToday ? `${t("kidLockedToday")} ` : ""}{live.channel ? "" : t("kidLiveNeedsApply")}</p>
-  </fieldset>;
-}
-
-function Dashboard({ draft, sid, busy, onReset }: { draft: Kid; sid: string; busy: boolean; onReset: () => void }) {
-  const { t } = useI18n();
-  const [live, setLive] = useState<KidLive>(EMPTY_LIVE);
-  const [settings, setSettings] = useState(false);
-  useEffect(() => {
-    let stopped = false;
-    const read = () => { void readKidLive(sid).then(next => { if (!stopped) setLive(next); }); };
-    read();
-    const timer = window.setInterval(read, 10_000);
-    return () => { stopped = true; window.clearInterval(timer); };
-  }, [sid]);
-  return <>
-    <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={draft.enabled} onChange={event => setKidDraft({ enabled: event.target.checked })} />{t("kidModeOn")}</label>
-    <p className="ga-kid-summary ga-hint"><UserRound size={16} aria-hidden="true" /><strong>{draft.name}</strong>
-      <span>{draft.dailyMinutes ? t("kidMinutes", { minutes: String(draft.dailyMinutes) }) : t("kidNoLimit")} · {t("kidWeekdays")} {draft.weekdays.replace("-", "–")} · {t("kidWeekend")} {draft.weekend.replace("-", "–")}</span></p>
-    <Week live={live} draft={draft} />
-    <LiveControls sid={sid} live={live} onLive={setLive} />
-    <fieldset className="ga-group"><legend className="ga-label">{t("kidGames", { count: String(draft.games.length) })}</legend>
-      {draft.games.length ? <ul className="ga-kid-chosen">{draft.games.map(game => <li key={game.appId}><span>{game.name}</span>
-        <select aria-label={t("kidGameLimitAria", { name: game.name })} value={game.dailyMinutes ?? 0} onChange={event => setKidGameMinutes(game.appId, Number(event.target.value))}>
-          {GAME_LIMITS.map(minutes => <option key={minutes} value={minutes}>{minutes ? t("kidGameMax", { minutes: String(minutes) }) : t("kidGameDailyOnly")}</option>)}
-        </select></li>)}</ul> : null}
-      <p className="ga-hint">{t("kidGamesHint")} {t("kidGameLimitHint")}</p>
-    </fieldset>
-    <div className="ga-actions"><GaButton onClick={() => setSettings(open => !open)} aria-expanded={settings}>{t("kidChangeTime")}</GaButton></div>
-    {settings ? <TimeFields draft={draft} /> : null}
-    <p className="ga-kid-phone ga-hint"><Smartphone size={16} aria-hidden="true" />{t("kidPhoneSoon")}</p>
-    <fieldset className="ga-group ga-group-danger"><legend className="ga-label">{t("kidResetLegend")}</legend>
-      <p className="ga-hint">{t("kidResetHint")}</p>
-      <div className="ga-actions"><GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} disabled={busy} onClick={onReset}>{t("kidReset")}</GaButton></div>
-    </fieldset>
-  </>;
-}
-
-/** The kid mode tab: what it is (a page that sells it), the two-step setup, then the child's panel. */
-function KidTab({ busy, setBusy }: { busy: boolean; setBusy: (busy: boolean) => void }) {
-  const { t } = useI18n();
-  const { draft, applied, dirty } = useKidState();
-  const [step, setStep] = useState<Step>("intro");
-  const [error, setError] = useState("");
-  const made = applied !== null;
-  const plus = usePlus();
-  const apply = async () => {
-    if (!validKidName(draft.name)) { setError(t("kidBadName")); return; }
-    setBusy(true); setError("");
-    try {
-      await applyKidDraft();
-      showNotice({ tone: "ok", title: t("kidApplied", { name: draft.name }) });
-    } catch (failure) {
-      const code = failure instanceof KidApplyError ? failure.code : String(failure);
-      setError(code === "cancelled" ? t("kidApplyCancelled") : code === "needs_plus" ? t("kidNeedsPlus") : code === "not_program_files" ? t("kidNotProgramFiles") : code === "bad_name" ? t("kidBadName") : t("kidApplyFailed", { error: code }));
-    } finally { setBusy(false); }
-  };
-  /** Undoes everything kid mode made: the account, its profile and the family file; the screen starts from zero. */
-  const reset = async () => {
-    const ok = await confirmNotice({ title: t("kidResetTitle", { name: draft.name }), text: t("kidResetText"), confirmLabel: t("kidReset"), cancelLabel: t("noticeCancel") });
-    if (!ok) return;
-    setBusy(true); setError("");
-    try {
-      await resetKidMode();
-      setStep("intro");
-      showNotice({ tone: "ok", title: t("kidResetDone") });
-    } catch (failure) {
-      const code = failure instanceof KidApplyError ? failure.code : String(failure);
-      setError(code === "cancelled" ? t("kidApplyCancelled") : t("kidResetFailed", { error: code }));
-    } finally { setBusy(false); }
-  };
-  const knowPlus = () => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT));
-  const wizard = made ? null : step;
-  const title = wizard === "account" ? t("kidStep1Title") : wizard === "schedule" ? t("kidStep2Title") : t("kidIntroTitle");
-  const eyebrow = wizard === "account" ? t("kidStepOf", { step: "1" }) : wizard === "schedule" ? t("kidStepOf", { step: "2" }) : t("kidIntroEyebrow");
-  return <>
-    <div className="ga-stack">
-      {wizard ? <div className="ga-stack ga-stack-sm"><span className="eyebrow">{eyebrow}</span><h3 className="ga-heading">{title}</h3></div> : null}
-      {plus || wizard === "intro" ? null : <p className="ga-kid-plus ga-status" role="note"><Sparkles size={16} aria-hidden="true" />{t("kidNeedsPlus")}</p>}
-      {wizard === "intro" ? <Intro plus={plus} onStart={() => setStep("account")} onPlus={knowPlus} /> : null}
-      {wizard === "account" ? <>
-        <p>{t("kidStep1Text")}</p>
-        <label className="ga-field"><span>{t("kidStep1Label")}</span>
-          <input value={draft.name} maxLength={20} placeholder={t("kidAccountPlaceholder")} autoFocus onChange={event => setKidDraft({ name: event.target.value.trim() })} /></label>
-        <p className="ga-hint">{t("kidAccountNoPassword")}</p>
-      </> : null}
-      {wizard === "schedule" ? <><p>{t("kidStep2Text")}</p><TimeFields draft={draft} /></> : null}
-      {made ? <Dashboard draft={draft} sid={applied?.sid ?? ""} busy={busy} onReset={() => void reset()} /> : null}
-      {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
-    </div>
-    {wizard === "intro" ? null : <div className="ga-kid-tab-foot">
-      {made ? <p className="ga-hint">{dirty ? t("kidPending") : t("kidUpToDate")}</p> : <GaButton icon={<ArrowLeft size={16} aria-hidden="true" />} disabled={busy} onClick={() => setStep(wizard === "schedule" ? "account" : "intro")}>{t("kidBack")}</GaButton>}
-      <div>
-        {wizard === "account" ? <GaButton variant="primary" icon={<ArrowRight size={16} aria-hidden="true" />} disabled={!validKidName(draft.name)} onClick={() => setStep("schedule")}>{t("kidNext")}</GaButton> : null}
-        {wizard === "schedule" ? <GaButton variant="primary" icon={<ShieldCheck size={16} aria-hidden="true" />} disabled={busy || !plus} aria-busy={busy} onClick={() => void apply()}>{busy ? t("kidApplying") : t("kidCreate")}</GaButton> : null}
-        {made ? <GaButton variant="primary" icon={<ShieldCheck size={16} aria-hidden="true" />} disabled={busy || !dirty || !plus} aria-busy={busy} onClick={() => void apply()}>{busy ? t("kidApplying") : t("kidApply")}</GaButton> : null}
-      </div></div>}
-  </>;
-}
+const knowPlus = () => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT));
 
 /** PLUS was on and is not any more: what happens to what was set up (kid mode paused, the key asleep), and the way back. */
 function PlusLapsedNote() {
@@ -237,33 +33,7 @@ function PlusLapsedNote() {
   return <div className="ga-kid-plus ga-kid-lapsed ga-status" role="alert">
     <Sparkles size={18} aria-hidden="true" />
     <div><strong>{t("plusLapsedTitle")}</strong><p>{t("plusLapsedText")}</p></div>
-    <GaButton variant="primary" onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("kidIntroKnowPlus")}</GaButton>
-  </div>;
-}
-
-/** The first question, and what the answer "no" leaves: Game Access as it always was. */
-function Ask({ answered }: { answered: boolean }) {
-  const { t } = useI18n();
-  return <div className="ga-stack ga-family-ask">
-    <Baby size={34} aria-hidden="true" />
-    <h3 className="ga-heading">{answered ? t("familyNoneTitle") : t("familyAskTitle")}</h3>
-    <p>{answered ? t("familyNoneText") : t("familyAskText")}</p>
-    <div className="ga-actions">
-      <GaButton variant="primary" icon={<ArrowRight size={16} aria-hidden="true" />} onClick={() => setHasKids(true)}>{answered ? t("familyNowYes") : t("familyYes")}</GaButton>
-      {answered ? null : <GaButton onClick={() => setHasKids(false)}>{t("familyNo")}</GaButton>}
-    </div>
-  </div>;
-}
-
-/** Back to "no children": only once nothing is set up (the account, the key), so nothing is left behind. */
-function NoMoreKids() {
-  const { t } = useI18n();
-  const { applied } = useKidState();
-  const key = useAdminKey();
-  const [blocked, setBlocked] = useState(false);
-  return <div className="ga-kid-nomore ga-stack ga-stack-sm">
-    <button type="button" className="gs-keypad-forgot" onClick={() => { if (applied || key.enabled) setBlocked(true); else setHasKids(false); }}>{t("familyNoMore")}</button>
-    {blocked ? <p className="ga-hint" role="note">{t("familyNoMoreBlocked")}</p> : null}
+    <GaButton variant="primary" onClick={knowPlus}>{t("kidIntroKnowPlus")}</GaButton>
   </div>;
 }
 
@@ -271,27 +41,13 @@ function NoMoreKids() {
 function FamilyDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const panel = useDialogFocus(onClose);
-  const [busy, setBusy] = useState(false);
-  const role = useAccessRole();
-  const answer = useHasKids();
   const { applied } = useKidState();
-  const key = useAdminKey();
-  const hasKids = answer ?? (applied || key.enabled ? true : null);
-  // The gate closed on the parent (the PC was left alone): the screen goes with the administrator.
-  useEffect(() => { if (role === "player") onClose(); }, [role, onClose]);
-  return <div className="ga-settings-backdrop" onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+  return <div className="ga-settings-backdrop" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section ref={panel} className="ga-settings-panel ga-kid-panel" role="dialog" aria-modal="true" aria-labelledby="ga-kid-title">
       <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-kid-title">{t("familyTitle")}</h2><p>{t("familySubtitle")}</p></div><GaClose label={t("close")} onClick={onClose} data-dialog-initial /></header>
       <div className="ga-settings-content ga-kid-content ga-stack ga-stack-lg">
-        {hasKids === true ? <>
-          <PlusLapsedNote />
-          <GaTabs label={t("familyTitle")} tabs={[
-            { id: "kid", label: t("familyTabKid"), content: <KidTab busy={busy} setBusy={setBusy} /> },
-            { id: "filter", label: t("familyTabFilter"), content: <ParentalControlSection /> },
-            { id: "key", label: t("adminKeyTab"), content: <AdminKeySection /> },
-          ]} />
-          <NoMoreKids />
-        </> : <Ask answered={hasKids === false} />}
+        <PlusLapsedNote />
+        {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} />}
       </div>
     </section>
   </div>;
@@ -303,8 +59,7 @@ export default function KidModePanel({ dockTarget = null }: { dockTarget?: HTMLE
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => { void loadKidFamily(); void loadAdminKey().catch(() => undefined); }, []);
   const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
-  // A player who touches it makes the gate close and ask for the parent's key; the screen opens once it opens as administrator.
-  const button = <GaIconButton ref={trigger} className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} onClick={() => void requestAdmin().then(admin => { if (admin) setOpen(true); })} />;
+  const button = <GaIconButton ref={trigger} className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} onClick={() => setOpen(true)} />;
   return <>
     {dockTarget ? createPortal(button, dockTarget) : button}
     {open ? <FamilyDialog onClose={close} /> : null}
