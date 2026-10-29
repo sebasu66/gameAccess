@@ -1,3 +1,4 @@
+import { requestAdmin } from "./accessRole";
 import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
@@ -508,6 +509,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
+    if (!(await requestAdmin())) { setToast(t("adminRequired")); return; }
     // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
     const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
     if (isSteamOwned(steamEntry)) {

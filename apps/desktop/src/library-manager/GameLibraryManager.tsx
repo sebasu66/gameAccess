@@ -28,7 +28,7 @@ import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
-import { useAccessRole } from "../accessRole";
+import { requestAdmin, useAccessRole } from "../accessRole";
 import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
@@ -462,6 +462,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 
   const askPlan = async (ids: number[]) => {
     if (!ids.length) return;
+    if (!(await requestAdmin())) return;
     setBusy(true); setMessage("");
     try {
       const plans = libraryDemo() ? demoPlans(ids) : (await digitalProcessManager.libraryPlan(ids)).plans ?? [];
@@ -510,13 +511,15 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     const leaving = pending.kind === "uninstall" ? pending.ids : pending.kind === "steam_uninstall" || pending.kind === "linked_delete" || pending.kind === "linked_move" ? [pending.game.app_id as number] : [];
     const kidGames = kidGamesAmong(leaving);
     const kidNote = kidGames.length ? ` ${c.kidRemoveNote(kidGames.map(game => game.name).join(", "), kidGames.length >= kidGameCount())}` : "";
-    void confirmNotice({
+    const confirm = () => confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
       title: pending.kind === "linked_move" ? c.linkedMoveTitle(pending.game.name) : pending.kind === "linked_delete" ? c.linkedDeleteTitle(pending.game.name) : pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
       text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
       confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
+    // The parent's key first (accessRole.ts): a player is asked before the confirmation, not after it.
+    void requestAdmin().then(admin => { if (!live) return; if (admin) void confirm(); else setPending(null); });
     return () => { live = false; };
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -554,7 +557,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <ActivityBoard scanning={scanning} working={busy} />
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
-            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
+            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => void requestAdmin().then(admin => { if (admin) setImportOpen(true); })}>{c.importGames}</GaButton>
             <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
           </div>
           </div>

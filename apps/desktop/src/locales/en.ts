@@ -1182,6 +1182,7 @@ export const en: Record<keyof typeof es, string> = {
   kidResetText: "Your child's Windows account is deleted with everything in it, and their play history is lost. If the account is signed in, sign it out first. This cannot be undone.",
   kidResetDone: "Done: kid mode is off and the account was deleted",
   kidResetFailed: "Could not remove it: {{error}}",
+  adminRequired: "The parent's key is needed for this.",
   adminKeyLabel: "Parent's key",
   adminKeyGateLabel: "Game Access is closed: it asks for the parent's key",
   adminKeyOk: "Correct key",

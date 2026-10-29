@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { hasTauriRuntime } from "./native";
+import { translate } from "./i18n";
 
 /**
  * Who is using Game Access: the parent (administrator) or a player. Without a parent's key (admin_key.rs) everyone is
@@ -86,4 +87,13 @@ export function relock(): Promise<boolean> {
 
 export function resetAccessRoleForTests() {
   role = "admin"; key = { enabled: false, length: 0 }; asking = null; emit();
+}
+
+/** Thrown when a protected action was asked for and the person entered as a player instead of giving the key. */
+export class AdminRequiredError extends Error { constructor() { super(translate("adminRequired")); this.name = "AdminRequiredError"; } }
+
+/** Before an action only the parent may do: resolves at once for the administrator (or without a key), otherwise closes
+ *  the gate asking for the key, and rejects if the person enters as a player. */
+export async function requireAdmin(): Promise<void> {
+  if (!(await requestAdmin())) throw new AdminRequiredError();
 }

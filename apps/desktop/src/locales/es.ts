@@ -1180,6 +1180,7 @@ export const es = {
   kidResetText: "Se borra la cuenta de Windows de tu hijo con todo lo que haya en ella, y se pierde su historial de juego. Si la cuenta tiene la sesión abierta, cerrala antes. No se puede deshacer.",
   kidResetDone: "Listo: el modo niño quedó desactivado y la cuenta se borró",
   kidResetFailed: "No se pudo quitar: {{error}}",
+  adminRequired: "Hace falta la clave de padre para esto.",
   adminKeyLabel: "Clave de padre",
   adminKeyGateLabel: "Game Access cerrado: pide la clave de padre",
   adminKeyOk: "Clave correcta",
