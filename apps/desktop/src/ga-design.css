@@ -41,7 +41,8 @@ button.ga-close:focus-visible { outline: 2px solid #cc8333; outline-offset: 3px;
    frosted rust glass with the thin gradient ring (--ga-dialog-*). Exceptions on purpose (docs/GUI_DESIGN.md §4.12): the
    game detail (the reference, with its picture) and the small run-a-game dialog with the game's picture behind. */
 :is(.ga-dialog-backdrop, .ga-settings-backdrop, .download-complete-backdrop, .ga-filter-backdrop, .ga-premium-overlay, .central-dialog-backdrop, .ga-overlay-root) {
-  background: var(--ga-backdrop) !important; -webkit-backdrop-filter: var(--ga-backdrop-blur) !important; backdrop-filter: var(--ga-backdrop-blur) !important; }
+  background: var(--ga-backdrop) !important; -webkit-backdrop-filter: var(--ga-backdrop-blur) !important; backdrop-filter: var(--ga-backdrop-blur) !important;
+  pointer-events: auto !important; /* a modal dialog takes every click, wherever it is mounted (the top bar lets clicks through) */ }
 :is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card) {
   position: relative; isolation: isolate; border: 1px solid transparent !important; border-radius: var(--ga-dialog-radius) !important;
   background: var(--ga-dialog-bg) !important; -webkit-backdrop-filter: var(--ga-dialog-glass); backdrop-filter: var(--ga-dialog-glass); box-shadow: var(--ga-dialog-shadow) !important; }

@@ -85,6 +85,8 @@ body.ga-device-frame .catalog-bottom-actions { z-index: 2147483603 !important; b
    the screen: it lets clicks through to what is under it (the filter strip), except on what it still holds. */
 body.ga-device-frame header.topbar { pointer-events: none; }
 body.ga-device-frame header.topbar :is(button, a, input, select, summary, [role="button"], [role="tab"], .library-catalog-toolbar) { pointer-events: auto; }
+/* A dialog opened from the bar (settings, kids, help) takes every click over it, its backdrop included: nothing reaches the catalog behind. */
+body.ga-device-frame header.topbar :is([role="dialog"], [role="alertdialog"], :has(> [aria-modal="true"])) { pointer-events: auto; }
 /* (The base rule sets the whole padding with !important, so this one has to as well.) */
 html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }
 /* The old footer bar is gone (its controls sit on the bezel's tabs): the screen reaches down to the bezel, with no dark
