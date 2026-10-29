@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlmodel import Session, SQLModel, select
 from .database import engine, database_project_ref, verify_shared_database
 from .local_database import LOCAL_TABLE_NAMES, create_local_tables, local_engine
@@ -103,6 +103,12 @@ def stop_discovery_worker():
     from .keep_awake import stop as stop_keep_awake
     stop_keep_awake()
     resource_governor.stop()
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """The server's bare address opens the admin console (its login first, when not signed in)."""
+    return RedirectResponse("/admin", status_code=307)
 
 
 @app.get("/admin", response_class=HTMLResponse)
