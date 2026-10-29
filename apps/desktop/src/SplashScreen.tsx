@@ -4,10 +4,16 @@ import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
+import { hasTauriRuntime } from "./native";
+import { loadAdminKey, setAccessRole } from "./accessRole";
+import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
+import "./admin-gate.css";
 // The opening sound ends with silence; the closed gate never waits for it longer than this.
 export const HOLD_MAX_MS = 900;
 // The lock: its lines are drawn, then it turns a quarter to unlock; the gate opens once access is settled.
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
+// With the parent's key set (admin_key.rs) the gate stays shut after the lock is drawn, asking for it: the key unlocks the lock (it turns, the padlock goes out) and opens the gate; "enter as a player" opens it with the lock still shut.
+const UNLOCK_MS = TURN_MS + 450;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
 // The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
@@ -122,7 +128,7 @@ function Padlock() {
 
 /** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
  *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
-export function Leaf({ side }: { side: "left" | "right" }) {
+export function Leaf({ side, children }: { side: "left" | "right"; children?: React.ReactNode }) {
  return <div className={`gs-leaf is-${side}`}>
   {/* Its frame: an engraved border all round, and a heavy bevelled edge where it meets the other leaf. */}
   <i className="gs-frame" /><i className="gs-edge" />
@@ -133,6 +139,7 @@ export function Leaf({ side }: { side: "left" | "right" }) {
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
   <i className="gs-hazard" />
   {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : <Padlock />}
+  {children}
  </div>;
 }
 
@@ -149,6 +156,10 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const [audioState, setAudioState] = useState("idle");
  const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
+ const [keyGate, setKeyGate] = useState<"checking" | "asking" | "done">(hasTauriRuntime() ? "checking" : "done");
+ const [lock, setLock] = useState<"free" | "sealed" | "unlocking">("free");
+ const [keyLength, setKeyLength] = useState(0);
+ const forgot = useForgotAdminKey();
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
@@ -164,6 +175,18 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   setLanding(true);
   window.setTimeout(onDocked, 260);
  }, [onDocked]);
+ useEffect(() => {
+  if (!hasTauriRuntime()) return;
+  let live = true;
+  loadAdminKey().then(state => {
+   if (!live) return;
+   if (!state.enabled) { setKeyGate("done"); return; }
+   // The app is a player's until the key says otherwise.
+   setAccessRole("player"); setKeyLength(state.length); setLock("sealed"); setKeyGate("asking");
+  }).catch(() => { if (live) { setAccessRole("player"); setKeyGate("done"); } });
+  return () => { live = false; };
+ }, []);
+ const unlock = () => { setLock("unlocking"); window.setTimeout(() => { setAccessRole("admin"); setKeyGate("done"); }, reduced ? 0 : UNLOCK_MS); };
  useEffect(() => {
   document.body.classList.add("ga-splash-active");
   return () => {
@@ -192,6 +215,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
+   if (keyGate !== "done") return;
    // Keep the cover closed until the opening sound has finished (never longer than HOLD_MAX_MS).
    const audio = sound.current;
    const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
@@ -206,11 +230,11 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   setOpening(true);
   const timer = window.setTimeout(finishDock, OPEN_MS + 100);
   return () => clearTimeout(timer);
- }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
- const cls = `gameaccess-splash gs-gate phase-${phase}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
+ }, [phase, reduced, audioState, keyGate, onIntroReady, onDockStart, finishDock]);
+ const cls = `gameaccess-splash gs-gate phase-${phase}${lock === "sealed" ? " is-sealed" : ""}${keyGate === "asking" && formed ? " is-asking" : ""}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
  return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}
-  style={{ "--gs-draw": `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
-  <Leaf side="left" />
+  style={{ "--gs-draw": lock === "unlocking" ? "0ms" : `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
+  <Leaf side="left">{keyGate === "asking" && formed ? <AdminKeyField length={keyLength} onSuccess={unlock} onPlayer={() => setKeyGate("done")} onForgot={forgot} /> : null}</Leaf>
   <Leaf side="right" />
  </div>;
 }

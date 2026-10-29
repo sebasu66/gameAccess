@@ -2,6 +2,7 @@
 
 mod automation;
 mod access_activation;
+mod admin_key;
 mod parental_lock;
 mod access_policy;
 mod launch_intent;
@@ -98,6 +99,11 @@ fn main() {
             process_control::close_explorer_windows,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
+            admin_key::admin_key_state,
+            admin_key::admin_key_check,
+            admin_key::admin_key_set,
+            admin_key::admin_key_clear,
+            admin_key::admin_key_today,
             parental_lock::parental_state,
             parental_lock::parental_save,
             parental_lock::parental_check,

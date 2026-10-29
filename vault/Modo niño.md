@@ -63,6 +63,19 @@ Las estadísticas y las órdenes en vivo tienen que poder consultarse desde la a
 - **Emparejar el celular con la PC**: código corto que muestra Game Access en el panel del niño; el celular lo canjea y queda ligado a la cuenta del usuario (US.1). Cada orden lleva usuario, PC y niño, y el servidor comprueba que el usuario sea el dueño.
 - **Tabla de usuarios (US.1)**: `user` con correo, nombre, idioma y fecha de alta; sus llaves de acceso (`AccessKey` pasa a tener `user_id`), la membresía PLUS (vigencia) y **pagado / no pagado** con fecha y nota, que Seba cambia a mano en el panel de administración (sin pasarela de pago por ahora). El acceso a PLUS sale de la vigencia y de esa marca.
 
+## Una sola pantalla para los niños (Seba, 2026-10-29)
+Todo lo que tiene que ver con niños, control de acceso y filtro de contenido para adultos se configura en **un solo lugar: el botón del niño**. La pantalla empieza preguntando si hay niños en casa:
+- **No hay niños**: Game Access funciona como siempre, sin clave ni modo niño; se puede volver a decir "ahora hay niños".
+- **Hay niños**: tres pestañas, **Modo niño** (explicación, asistente y panel), **Filtro de contenido** (el que estaba en Configuración, ya no está allí) y **Clave de padre**. Volver a "no hay niños" solo se permite con el modo niño y la clave ya quitados, para que no quede nada a medias.
+- Una cuenta de niño o una clave ya creadas cuentan como "hay niños" sin preguntar.
+
+## Cómo es la clave de padre (Seba, 2026-10-29) — hecho en MN.10
+- **Regla**: el padre elige una palabra; la clave de cada día es esa palabra con los dígitos de la fecha (dd mm aa, seis dígitos con ceros): después de cada letra va un dígito en orden y tras la última letra van los que sobren. `perro` el 11-11-26 es `P1E1R1R1O26`. Cambia todos los días, así que verla escribir no sirve. No distingue mayúsculas. Largo = letras + 6.
+- **Dónde se explica**: solo en la pestaña "Clave de padre", en una sección que se despliega ("solo para los ojos del padre"). Se activa cuando hay PLUS y el modo niño en marcha; antes no hace falta clave.
+- **Dónde vive**: la palabra se guarda con DPAPI en el perfil de Windows del adulto (`admin_key.rs`, igual que el filtro) y **nunca vuelve a la interfaz**: el portón manda lo escrito y Rust contesta sí o no.
+- **El portón**: al abrir Game Access con clave activa, el portón queda cerrado con un campo tipo LCD junto al candado: círculos (se ven tres como mucho, corriendo a la izquierda, sin revelar cuántos), un tic por tecla, sin botón de confirmar; solo consulta cuando lo escrito tiene el largo de la clave de hoy, sin límite de intentos; al acertar se pone verde, la cerradura gira y el portón abre como administrador. Debajo, **"Entrar como jugador"** (sin clave, con menos privilegios) y "Olvidé la clave" (necesita US.1).
+- **Jugador**: no puede abrir la pantalla de niños (ni ver los botones del niño por juego en la biblioteca). Si toca algo protegido, el portón vuelve a cerrarse pidiendo la clave con el mismo campo; con la clave se abre y sigue. Tras 5 minutos sin tocar la PC, el administrador vuelve a ser jugador y el portón se cierra de nuevo.
+
 ## Contraseña de administrador (Seba, 2026-10-29) — MN.10
 Si el Modo niño está activo, hay un niño en la casa que puede llegar a Game Access abierto en la cuenta del adulto, o abrirlo él. Entonces:
 - Modo niño y el filtro de contenido para niños quedan en una sección **bajo contraseña**.

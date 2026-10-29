@@ -31,6 +31,7 @@ import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
 import KidScreen from "./KidScreen";
 import { readKidSession, type KidSession } from "./kidMode";
+import AdminGate from "./AdminGate";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
@@ -147,7 +148,7 @@ void (libraryDemo() ? Promise.resolve(null) : readKidSession()).then(session => 
     ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
   } else ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
+      <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><AdminGate /><CentralDialogView /><NativeAccessBoundary />
       <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
     </React.StrictMode>,
   );

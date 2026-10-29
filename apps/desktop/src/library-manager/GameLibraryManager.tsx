@@ -28,6 +28,7 @@ import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
+import { useAccessRole } from "../accessRole";
 import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
@@ -256,6 +257,7 @@ async function removeForKid(item: AppShortcut, c: LibraryCopy) {
 function ThirdPartyApps({ c }: { c: LibraryCopy }) {
   const shortcuts = useShortcuts();
   const kid = useKidState().draft;
+  const admin = useAccessRole() === "admin";
   const plus = usePlus();
   useEffect(() => { void loadShortcuts(); }, []);
   const fail = (failure: unknown) => notify(c.appsFailed.replace("{error}", String(failure instanceof Error ? failure.message : failure)), { tone: "error" });
@@ -267,7 +269,7 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
         <AppWindow size={18} aria-hidden="true" /><span className="lm-apps-name">{item.name}</span><span className="lm-apps-path" title={item.target}>{item.target}</span>
         <span className="lm-acts">
           <IconAction label={c.appsOpen} onClick={() => void openShortcut(item.id).catch(fail)}><PhPlay /></IconAction>
-          {plus && kid.name ? <IconAction label={(kidMayPlay(-item.id) ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={kidMayPlay(-item.id)} onClick={() => chooseForKid(item, c)}><Baby /></IconAction> : null}
+          {plus && admin && kid.name ? <IconAction label={(kidMayPlay(-item.id) ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={kidMayPlay(-item.id)} onClick={() => chooseForKid(item, c)}><Baby /></IconAction> : null}
           <IconAction label={c.appsRemove} tone="danger" onClick={() => void removeForKid(item, c).catch(fail)}><Trash /></IconAction>
         </span>
       </li>)}
@@ -292,6 +294,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const hosted = Boolean(freezing) && id != null;
   // Kid mode (kidMode.ts): once a child account is set up, each game says whether the child sees it.
   const kid = useKidState().draft;
+  const admin = useAccessRole() === "admin";
   const plus = usePlus();
   const forKid = kidMayPlay(id);
   useEffect(() => {
@@ -341,7 +344,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
           {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
-          {plus && kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
+          {plus && admin && kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}

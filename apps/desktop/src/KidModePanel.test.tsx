@@ -8,9 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // PLUS is on for this flow; the rest of kidMode.ts is the real one (no Tauri: "Apply" and "Remove" only change the state).
 vi.mock("./kidMode", async importOriginal => ({ ...(await importOriginal<typeof import("./kidMode")>()), usePlus: () => true }));
 vi.mock("./notice/notice", () => ({ showNotice: vi.fn(), confirmNotice: vi.fn(async () => true), hideNotice: vi.fn() }));
+// The filter's tab has its own screen and tests: here it only has to be a tab.
+vi.mock("./ParentalControlSection", () => ({ default: () => <p>filtro</p> }));
 
 import KidModePanel from "./KidModePanel";
 import { setKidDraft, NEW_KID } from "./kidMode";
+import { resetHasKidsForTests } from "./familyPrefs";
+import { resetAccessRoleForTests } from "./accessRole";
 
 let root: Root; let host: HTMLDivElement;
 const text = () => document.querySelector(".ga-kid-panel")?.textContent ?? "";
@@ -19,17 +23,38 @@ const press = async (label: RegExp) => {
   if (!button) throw new Error(`no button ${label}; panel says: ${text().slice(0, 200)}`);
   await act(async () => { button.click(); });
 };
+const open = async () => {
+  await act(async () => { root.render(<KidModePanel />); });
+  await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
+};
 
-beforeEach(() => { localStorage.clear(); host = document.createElement("div"); document.body.append(host); root = createRoot(host); });
+beforeEach(() => {
+  localStorage.clear(); resetHasKidsForTests(); resetAccessRoleForTests();
+  setKidDraft({ ...NEW_KID, name: "", games: [] });
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+});
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-describe("Modo niño: de la explicación al panel y de vuelta a cero", () => {
-  it("recorre el asistente, llega al panel y lo deshace", async () => {
-    setKidDraft({ ...NEW_KID, name: "", games: [] });
-    await act(async () => { root.render(<KidModePanel />); });
-    await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
+describe("Niños en casa: una sola pantalla para todo", () => {
+  it("empieza preguntando si hay niños y, si no los hay, no pide nada", async () => {
+    await open();
+    expect(text()).toMatch(/¿Hay niños en tu casa\?|Are there children/);
+    expect(document.querySelector('[role="tablist"]')).toBeNull();
+    await press(/No hay niños|No children/);
+    expect(text()).toMatch(/No hay niños en casa|No children at home/);
+    expect(document.querySelector('[role="tablist"]')).toBeNull();
+    // It can be changed later.
+    await press(/Ahora hay niños|There are children now/);
+    expect(document.querySelectorAll('[role="tab"]').length).toBe(3);
+  });
 
-    // 1. The page that explains the feature, with its button open because PLUS is on.
+  it("recorre el asistente, llega al panel y lo deshace", async () => {
+    await open();
+    await press(/Sí, hay niños|Yes, there are/);
+    // Everything about the children is a tab of this one screen.
+    expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual(expect.arrayContaining([expect.stringMatching(/Modo niño|Kid mode/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Clave|key/i)]));
+
+    // 1. The page that explains kid mode, with its button open because PLUS is on.
     expect(text()).toMatch(/pelea|fight/i);
     await press(/Empezar|Start/);
 
@@ -45,15 +70,29 @@ describe("Modo niño: de la explicación al panel y de vuelta a cero", () => {
     expect(values).toEqual(["120", "12", "21", "9", "22"]);
     await press(/Crear la cuenta|Create the account/);
 
-    // 4. The account exists: the same dialog is the panel, with the week, the live orders and the way back.
+    // 4. The account exists: the same tab is the panel, with the week, the live orders and the way back.
     expect(text()).toContain("Juan");
     expect(text()).toMatch(/Esta semana|This week/);
     expect(text()).toMatch(/Parar el juego ahora|Stop the game now/);
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
 
-    // 5. Remove kid mode: back to the explanation, nothing configured.
+    // 5. With the account made, "there are no children" is refused until it is removed.
+    await press(/Ya no hay niños|no children at home any more/);
+    expect(text()).toMatch(/primero quitá|first remove/);
+
+    // 6. Remove kid mode: back to the explanation, nothing configured.
     await press(/Quitar el modo niño|Remove kid mode/);
     expect(document.querySelector(".ga-kid-intro")).not.toBeNull();
     expect(JSON.parse(localStorage.getItem("gameaccess.kidDraft") ?? "null")).toBeNull();
+  });
+
+  it("el filtro de contenido y la clave de padre viven en las otras pestañas", async () => {
+    await open();
+    await press(/Sí, hay niños|Yes, there are/);
+    await press(/Filtro de contenido|Content filter/);
+    expect(text()).toContain("filtro");
+    await press(/Clave de padre|Parent's key/);
+    expect(text()).toMatch(/cambia todos los días|changes every day/);
+    expect(text()).toMatch(/P1E1R1R1O26|D1O1G1126/);
   });
 });

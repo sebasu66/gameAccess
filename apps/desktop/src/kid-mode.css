@@ -34,14 +34,14 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-over p { margin: 0 0 8px; color: #dfe3e6; font-size: 16px; }
 
 /* The adult's settings: the settings dialog's frame. */
-.ga-kid-panel-body { display: grid; gap: 18px; padding: 22px 30px; overflow: auto; }
-.ga-settings-panel.ga-kid-panel fieldset { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; border: 0; }
-.ga-kid-panel legend { margin-bottom: 8px; padding: 0; color: #d79d5d; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.ga-kid-tab-body { display: grid; gap: 18px; }
+.ga-kid-tab-body fieldset { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; border: 0; }
+.ga-kid-tab-body legend { margin-bottom: 8px; padding: 0; color: #d79d5d; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .ga-kid-hint { margin: 0; color: #a5a7ad; font-size: 12px; }
 .ga-kid-hours { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
 .ga-kid-hours > span { min-width: 150px; font-weight: 700; }
 .ga-kid-hours label { display: inline-flex; align-items: center; gap: 6px; color: #c9ccd1; }
-.ga-kid-panel select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #ffffff2a; background: #15171b; color: var(--ga-white, #f4f4f2); font: 600 13px Manrope, "Segoe UI", sans-serif; }
+.ga-kid-tab-body select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #ffffff2a; background: #15171b; color: var(--ga-white, #f4f4f2); font: 600 13px Manrope, "Segoe UI", sans-serif; }
 .ga-kid-limit { justify-self: start; min-width: 180px; }
 .ga-kid-chosen { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ga-kid-chosen li { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid #ffffff24; background: #ffffff0d; font-size: 12px; font-weight: 700; }
@@ -58,7 +58,7 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-cta [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .ga-kid-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: #c9ccd1; }
 .ga-kid-summary strong { color: var(--ga-white, #f4f4f2); font-size: 15px; }
-.ga-kid-panel legend svg { vertical-align: -2px; }
+.ga-kid-tab-body legend svg { vertical-align: -2px; }
 .ga-kid-week { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .ga-kid-week li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 88px; align-items: center; gap: 10px; font-size: 12px; }
 .ga-kid-week li > span:first-child { text-transform: capitalize; color: #a5a7ad; font-weight: 700; }
@@ -67,7 +67,14 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ga-orange, #cc8333); }
 .ga-kid-live { display: flex; flex-wrap: wrap; gap: 10px; }
 .ga-kid-phone { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px dashed #ffffff2a; color: #a5a7ad; font-size: 12px; }
-.ga-kid-panel footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 30px; border-top: 1px solid #ffffff16; }
-.ga-kid-panel footer p { margin: 0; color: #a5a7ad; font-size: 12px; }
+.ga-kid-tab-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 16px; border-top: 1px solid #ffffff16; }
+.ga-kid-tab-foot p { margin: 0; color: #a5a7ad; font-size: 12px; }
 .ga-kid-plus { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: #ffd0a0; font-size: 13px; font-weight: 700; }
 .ga-kid-danger legend { color: #e1898f; }
+
+/* The kids screen is one dialog: the first question, the tabs, and the way back to "no children". */
+.ga-family-ask { justify-items: start; padding: 8px 0; }
+.ga-family-ask svg { color: var(--ga-orange, #cc8333); }
+.ga-family-ask h3 { margin: 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
+.ga-kid-step-head h3 { margin: 4px 0 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
+.ga-kid-nomore { display: grid; justify-items: start; gap: 6px; margin-top: 18px; }
