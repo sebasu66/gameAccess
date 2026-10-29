@@ -165,8 +165,9 @@ function Set-LogonHours {
         }
     }
     $account = [ADSI]"WinNT://$env:COMPUTERNAME/$Name,user"
-    $account.Put('LoginHours', $bytes)
-    $account.SetInfo()
+    # Put and SetInfo hand back an empty value; it must not end up in a function's result (the SID).
+    [void]$account.Put('LoginHours', $bytes)
+    [void]$account.SetInfo()
 }
 
 switch ($PSCmdlet.ParameterSetName) {
@@ -295,7 +296,8 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
         $Weekdays = if ($request.weekdays) { [string]$request.weekdays } else { '0-24' }
         $Weekend = if ($request.weekend) { [string]$request.weekend } else { '0-24' }
         $NoPassword = $true
-        $sid = Set-KidAccount
+        [void](Set-KidAccount)
+        $sid = (Get-LocalUser -Name $Name).SID
         if ($request.enabled) { Enable-LocalUser -SID $sid } else { Disable-LocalUser -SID $sid }
         $games = @($request.games | Where-Object { $_ -and $_.folder })
         # Exactly the chosen games may run: the earlier choice goes, the folders of this one come in.
