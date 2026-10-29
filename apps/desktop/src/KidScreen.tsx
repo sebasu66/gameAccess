@@ -47,12 +47,13 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     showNotice({ tone: "info", title: t("kidFiveMinutesTitle"), text: t("kidFiveMinutesText") });
   }, [left, t]);
 
-  // The day's time is over: the game was closed; a minute later the child is signed out if nobody pressed "Leave".
+  // The day's time is over, or kid mode is paused (PLUS ended): the game was closed; a minute later the child is signed out if nobody pressed "Leave".
+  const over = session.timeUp || Boolean(session.paused);
   useEffect(() => {
-    if (!session.timeUp || demo) return;
+    if (!over || demo) return;
     const timer = window.setTimeout(signOut, SIGN_OUT_AFTER_MS);
     return () => window.clearTimeout(timer);
-  }, [session.timeUp, demo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [over, demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Seconds left of a game's own limit today; undefined when it has none. */
   const gameLeft = (game: KidGame) => game.dailyMinutes ? session.gameRemaining?.[String(game.appId)] ?? game.dailyMinutes * 60 : undefined;
@@ -60,14 +61,14 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
 
   const play = async (game: KidGame) => {
     setError("");
-    if (session.timeUp) return;
+    if (over) return;
     if (spent(game)) { setError(t("kidGameSpent")); return; }
     try {
       if (!demo) await invoke("kid_play", { appId: game.appId });
       setSession(current => ({ ...current, playing: game.appId }));
     } catch (failure) {
       const code = String(failure);
-      setError(code === "time_up" ? t("kidTimeUpTitle") : code === "game_time_up" ? t("kidGameSpent") : code === "already_playing" ? t("kidAlreadyPlaying") : t("kidPlayFailed", { name: game.name }));
+      setError(code === "time_up" ? t("kidTimeUpTitle") : code === "paused" ? t("kidPausedTitle") : code === "game_time_up" ? t("kidGameSpent") : code === "already_playing" ? t("kidAlreadyPlaying") : t("kidPlayFailed", { name: game.name }));
     }
   };
   const latest = useRef({ play, games: session.kid.games }); latest.current = { play, games: session.kid.games };
@@ -126,8 +127,8 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     <p className="ga-big-picture-label" role="status"><Gamepad2 size={20} aria-hidden="true" /><strong>{playing ? t("kidPlaying", { name: playing.name }) : t("bigPictureTitle")}</strong>
       <span className="ga-pad-legend"><span className="ga-pad-key is-a">A</span>{t("kidPlayKeys")}</span>
       <span className="ga-pad-legend"><span className="ga-pad-key"><Move size={15} strokeWidth={2.4} aria-hidden="true" /></span>{t("kidMoveKeys")}</span></p>
-    {session.timeUp ? <div className="ga-kid-over" role="alertdialog" aria-labelledby="ga-kid-over-title">
-      <section><h2 id="ga-kid-over-title">{t("kidTimeUpTitle")}</h2><p>{t("kidTimeUpText")}</p>
+    {over ? <div className="ga-kid-over" role="alertdialog" aria-labelledby="ga-kid-over-title">
+      <section><h2 id="ga-kid-over-title">{session.paused ? t("kidPausedTitle") : t("kidTimeUpTitle")}</h2><p>{session.paused ? t("kidPausedText") : t("kidTimeUpText")}</p>
         <GaButton variant="primary" icon={<LogOut size={18} aria-hidden="true" />} onClick={signOut} autoFocus>{t("kidLeave")}</GaButton></section>
     </div> : null}
   </main>;

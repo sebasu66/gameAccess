@@ -12,9 +12,9 @@ vi.mock("./notice/notice", () => ({ showNotice: vi.fn(), confirmNotice: vi.fn(as
 vi.mock("./ParentalControlSection", () => ({ default: () => <p>filtro</p> }));
 
 import KidModePanel from "./KidModePanel";
-import { setKidDraft, NEW_KID } from "./kidMode";
+import { setKidDraft, NEW_KID, resetKidMode } from "./kidMode";
 import { resetHasKidsForTests } from "./familyPrefs";
-import { resetAccessRoleForTests } from "./accessRole";
+import { resetAccessRoleForTests, setAdminKey, setPlusGraceDays, setPlusLapsed } from "./accessRole";
 
 let root: Root; let host: HTMLDivElement;
 const text = () => document.querySelector(".ga-kid-panel")?.textContent ?? "";
@@ -28,7 +28,9 @@ const open = async () => {
   await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Each test starts from zero: no account made, nothing answered, no key, PLUS fine.
+  await resetKidMode();
   localStorage.clear(); resetHasKidsForTests(); resetAccessRoleForTests();
   setKidDraft({ ...NEW_KID, name: "", games: [] });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -94,5 +96,39 @@ describe("Niños en casa: una sola pantalla para todo", () => {
     await press(/Clave de padre|Parent's key/);
     expect(text()).toMatch(/cambia todos los días|changes every day/);
     expect(text()).toMatch(/P1E1R1R1O26|D1O1G1126/);
+  });
+
+  it("si se apaga PLUS avisa que el modo niño está en pausa y la clave sin efecto, y no borra nada", async () => {
+    setKidDraft({ ...NEW_KID, name: "Juan", games: [] });
+    await open();
+    await press(/Sí, hay niños|Yes, there are/);
+    expect(text()).not.toMatch(/PLUS no está activo|PLUS is not active/);
+    await press(/Empezar|Start/);
+    await act(async () => { setKidDraft({ name: "Juan" }); });
+    await press(/Siguiente|Next/);
+    await press(/Crear la cuenta|Create the account/);
+    await act(async () => { setAdminKey({ enabled: true, length: 11 }); setPlusLapsed(true); });
+    expect(text()).toMatch(/PLUS no está activo|PLUS is not active/);
+    expect(text()).toMatch(/en pausa|paused/);
+    // Nothing was deleted: the account is still there, and PLUS coming back clears the notice.
+    expect(text()).toContain("Juan");
+    await act(async () => { setPlusLapsed(false); });
+    expect(text()).not.toMatch(/PLUS no está activo|PLUS is not active/);
+  });
+
+  it("sin conexión avisa cuántos días de gracia quedan y no pausa nada", async () => {
+    setKidDraft({ ...NEW_KID, name: "Juan", games: [] });
+    await open();
+    await press(/Sí, hay niños|Yes, there are/);
+    await press(/Empezar|Start/);
+    await act(async () => { setKidDraft({ name: "Juan" }); });
+    await press(/Siguiente|Next/);
+    await press(/Crear la cuenta|Create the account/);
+    await act(async () => { setPlusGraceDays(4); });
+    expect(text()).toMatch(/No se pudo verificar tu PLUS|could not be checked/);
+    expect(text()).toMatch(/4 día|4 more day/);
+    expect(text()).not.toMatch(/en pausa/);
+    await act(async () => { setPlusGraceDays(null); });
+    expect(text()).not.toMatch(/No se pudo verificar tu PLUS|could not be checked/);
   });
 });

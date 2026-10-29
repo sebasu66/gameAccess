@@ -6,7 +6,7 @@ import { useDialogFocus } from "./dialogFocus";
 import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
 import { confirmNotice, showNotice } from "./notice/notice";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
-import { loadAdminKey, requestAdmin, useAccessRole, useAdminKey } from "./accessRole";
+import { loadAdminKey, requestAdmin, useAccessRole, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
 import { setHasKids, useHasKids } from "./familyPrefs";
 import GaTabs from "./GaTabs";
 import ParentalControlSection from "./ParentalControlSection";
@@ -222,6 +222,25 @@ function KidTab({ busy, setBusy }: { busy: boolean; setBusy: (busy: boolean) => 
   </>;
 }
 
+/** PLUS was on and is not any more: what happens to what was set up (kid mode paused, the key asleep), and the way back. */
+function PlusLapsedNote() {
+  const { t } = useI18n();
+  const lapsed = usePlusLapsed();
+  const grace = usePlusGraceDays();
+  const { applied } = useKidState();
+  const key = useAdminKey();
+  if (!(applied || key.enabled)) return null;
+  // No connection to check PLUS: everything keeps working for a few days, and the notice says how many.
+  if (!lapsed && grace !== null) return <div className="ga-kid-plus ga-kid-lapsed" role="status"><Sparkles size={18} aria-hidden="true" />
+    <div><strong>{t("plusGraceTitle")}</strong><p>{t("plusGraceText", { days: String(grace) })}</p></div></div>;
+  if (!lapsed) return null;
+  return <div className="ga-kid-plus ga-kid-lapsed" role="alert">
+    <Sparkles size={18} aria-hidden="true" />
+    <div><strong>{t("plusLapsedTitle")}</strong><p>{t("plusLapsedText")}</p></div>
+    <GaButton variant="primary" onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("kidIntroKnowPlus")}</GaButton>
+  </div>;
+}
+
 /** The first question, and what the answer "no" leaves: Game Access as it always was. */
 function Ask({ answered }: { answered: boolean }) {
   const { t } = useI18n();
@@ -265,6 +284,7 @@ function FamilyDialog({ onClose }: { onClose: () => void }) {
       <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-kid-title">{t("familyTitle")}</h2><p>{t("familySubtitle")}</p></div><GaClose label={t("close")} onClick={onClose} data-dialog-initial /></header>
       <div className="ga-settings-content ga-kid-content">
         {hasKids === true ? <>
+          <PlusLapsedNote />
           <GaTabs label={t("familyTitle")} tabs={[
             { id: "kid", label: t("familyTabKid"), content: <KidTab busy={busy} setBusy={setBusy} /> },
             { id: "filter", label: t("familyTabFilter"), content: <div className="ga-kid-tab-body"><ParentalControlSection /></div> },

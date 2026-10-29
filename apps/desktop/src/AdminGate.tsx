@@ -3,7 +3,7 @@ import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import { Leaf } from "./SplashScreen";
 import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
-import { IDLE_RELOCK_MS, getAccessRole, getAdminKey, relock, settleGateRequest, useAdminKey, useGateRequest } from "./accessRole";
+import { IDLE_RELOCK_MS, getAccessRole, getAdminKey, isPlusLapsed, relock, settleGateRequest, useAdminKey, useGateRequest } from "./accessRole";
 import "./splash-screen.css";
 import "./admin-gate.css";
 
@@ -41,6 +41,14 @@ export default function AdminGate() {
   }, [asking]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { for (const timer of timers.current) window.clearTimeout(timer); }, []);
 
+  // PLUS turned out to be off while it waited for the key: it opens by itself.
+  useEffect(() => {
+    if (!asking && (current.current === "asking" || current.current === "closing")) {
+      setStep("opening");
+      later(() => { setStep("away"); setUnlocked(false); }, reduced.current ? 0 : CLOSE_MS + 100);
+    }
+  }, [asking]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const finish = (admin: boolean) => {
     setStep("opening");
     later(() => { setStep("away"); setUnlocked(false); settleGateRequest(admin); }, reduced.current ? 0 : CLOSE_MS + 100);
@@ -55,7 +63,7 @@ export default function AdminGate() {
     const events = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
     for (const name of events) window.addEventListener(name, seen, { passive: true });
     const timer = window.setInterval(() => {
-      if (getAccessRole() === "admin" && getAdminKey().enabled && Date.now() - last > IDLE_RELOCK_MS) { last = Date.now(); void relock(); }
+      if (getAccessRole() === "admin" && !isPlusLapsed() && getAdminKey().enabled && Date.now() - last > IDLE_RELOCK_MS) { last = Date.now(); void relock(); }
     }, 15_000);
     return () => { for (const name of events) window.removeEventListener(name, seen); window.clearInterval(timer); };
   }, [key.enabled]);

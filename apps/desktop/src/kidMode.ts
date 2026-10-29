@@ -4,6 +4,7 @@ import { hasTauriRuntime } from "./native";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
+import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
 
 /**
  * Kid mode (vault/Modo niño.md, src-tauri/src/kid_mode.rs). The family file says which Windows accounts are children
@@ -17,7 +18,7 @@ export interface KidGame { appId: number; name: string; folder: string; executab
   dailyMinutes?: number }
 export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[] }
 export interface Family { version: number; kids: Kid[] }
-export interface KidSession { kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
+export interface KidSession { paused?: boolean; kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
   /** Seconds left today of each game that has its own limit, by appId. */
   gameRemaining?: Record<string, number> }
 
@@ -180,4 +181,40 @@ export async function resetKidMode(): Promise<void> {
 export async function readKidSession(): Promise<KidSession | null> {
   if (!hasTauriRuntime()) return null;
   try { return await invoke<KidSession | null>("kid_session"); } catch { return null; }
+}
+
+/**
+ * What an activation check found. PLUS off (ended, revoked or only the base plan): the parent's key goes quiet and the
+ * child's account is paused (its Game Access reads `uso\\plus.json`, written here with no Windows permission needed);
+ * nothing is deleted. PLUS on again: both resume by themselves. A check that could not reach the server concludes
+ * nothing: the caller does not report it.
+ */
+export function reportPlus(plus: boolean): void {
+  setPlusLapsed(!plus);
+  if (plus) { rememberPlusConfirmed(Date.now()); setPlusGraceDays(null); }
+  else setPlusGraceDays(null);
+  if (hasTauriRuntime()) void invoke("kid_plus_set", { active: plus }).catch(() => undefined);
+}
+
+/**
+ * The server could not be reached, so PLUS is neither confirmed nor refused. Kid mode and the parent's key keep working
+ * for a grace period counted from the last time PLUS was confirmed here (a PC that was never confirmed starts counting
+ * now): a cut internet must not lock a family out the same day. Once it runs out, it counts as ended (reportPlus(false)).
+ * The server saying "no PLUS" is not this case: that one is immediate.
+ */
+export const PLUS_GRACE_DAYS = 7;
+const CONFIRMED_KEY = "gameaccess.plusConfirmedAt";
+const DAY_MS = 86_400_000;
+
+function rememberPlusConfirmed(at: number) {
+  try { localStorage.setItem(CONFIRMED_KEY, String(at)); } catch { /* the grace then starts at the next check */ }
+}
+
+export function reportPlusUnreachable(now = Date.now()): void {
+  let confirmed = 0;
+  try { confirmed = Number(localStorage.getItem(CONFIRMED_KEY)) || 0; } catch { confirmed = 0; }
+  if (!confirmed) { confirmed = now; rememberPlusConfirmed(now); }
+  const left = confirmed + PLUS_GRACE_DAYS * DAY_MS - now;
+  if (left <= 0) { reportPlus(false); return; }
+  setPlusGraceDays(Math.ceil(left / DAY_MS));
 }

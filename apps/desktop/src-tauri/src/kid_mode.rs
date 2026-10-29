@@ -215,6 +215,17 @@ pub struct Control {
     stop_nonce: u64,
 }
 
+/// Whether kid mode is on while the adult's PLUS is: the adult's Game Access writes `uso\plus.json` after every activation
+/// check that answered (no Windows permission needed). Missing or unreadable means on: a PC that never reported, or an
+/// older version, keeps working; only an explicit `"active": false` pauses the child's account.
+fn plus_flag(text: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(text).ok().and_then(|value| value.get("active").and_then(serde_json::Value::as_bool)).unwrap_or(true)
+}
+
+fn plus_active() -> bool {
+    std::fs::read_to_string(shared_dir().join("plus.json")).map(|text| plus_flag(&text)).unwrap_or(true)
+}
+
 fn valid_sid(sid: &str) -> bool { sid.starts_with("S-1-") && sid.chars().all(|c| c.is_ascii_digit() || c == 'S' || c == '-') }
 fn control_path(sid: &str) -> PathBuf { shared_dir().join(format!("{sid}.control.json")) }
 
@@ -269,6 +280,8 @@ pub struct KidSession {
     remaining_seconds: Option<u64>,
     playing: Option<i64>,
     time_up: bool,
+    /// PLUS ended: kid mode is paused, nothing plays until it is back.
+    paused: bool,
     /// Seconds left today of each game that has its own limit (by AppID), for the games screen.
     game_remaining: HashMap<i64, u64>,
 }
@@ -285,7 +298,7 @@ pub fn kid_session() -> Option<KidSession> {
     let time_up = control.lock_date == today() || remaining(&limited, played) == Some(0);
     let game_remaining = kid.games.iter().filter(|game| game.daily_minutes > 0)
         .filter_map(|game| Some((game.app_id, game_remaining(game, usage.games.get(&game.app_id.to_string()).copied().unwrap_or(0))?))).collect();
-    Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, game_remaining, kid })
+    Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, paused: !plus_active(), game_remaining, kid })
 }
 
 /// Starts one of the child's games, if it is one of them and there is time left.
@@ -293,6 +306,7 @@ pub fn kid_session() -> Option<KidSession> {
 pub fn kid_play(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
     let game = kid.games.iter().find(|game| game.app_id == app_id).cloned().ok_or("not_allowed")?;
+    if !plus_active() { return Err("paused".into()); }
     let usage = usage_today();
     let control = read_control(&kid.sid);
     let limited = with_control(kid.clone(), &control, &today());
@@ -326,7 +340,7 @@ fn watch(kid: Kid, game: KidGame) {
         let pids = game_pids(&game);
         // The adult's live orders: "stop now" (another number than at the start) and the day closed.
         let control = read_control(&kid.sid);
-        if control.stop_nonce != stop_nonce || control.lock_date == today() { close_game(&pids); break; }
+        if control.stop_nonce != stop_nonce || control.lock_date == today() || !plus_active() { close_game(&pids); break; }
         let limited = with_control(kid.clone(), &control, &today());
         let own = PLAYING.lock().ok().and_then(|mut playing| playing.as_mut()?.child.as_mut()?.try_wait().ok().map(|done| done.is_none())).unwrap_or(false);
         let alive = own || !pids.is_empty();
@@ -399,6 +413,16 @@ pub fn kid_live(sid: String) -> KidLive {
     let control = read_control(&sid);
     let now = today();
     KidLive { days, extra_minutes: if control.extra_date == now { control.extra_minutes } else { 0 }, locked_today: control.lock_date == now, channel: shared_dir().is_dir() }
+}
+
+/// The adult's Game Access reports what its activation check found: PLUS on (kid mode runs) or off (it is paused). Nothing
+/// is deleted either way. Before an account was applied there is no shared folder and nothing to report.
+#[tauri::command]
+pub fn kid_plus_set(active: bool) -> Result<(), String> {
+    if kid_account().is_some() { return Err("not_allowed".into()); }
+    if !shared_dir().is_dir() { return Ok(()); }
+    let text = serde_json::json!({ "active": active, "at": chrono::Local::now().to_rfc3339() }).to_string();
+    std::fs::write(shared_dir().join("plus.json"), text).map_err(|error| error.to_string())
 }
 
 /// A live order from the adult: "extend" (`minutes` more today), "lock" / "unlock" (the day), "stop" (the open game now).
@@ -522,6 +546,14 @@ mod tests {
         assert_eq!(apply_control(locked.clone(), "stop", 0, "2026-10-29", 77).unwrap().stop_nonce, 77);
         assert!(apply_control(locked, "nope", 0, "2026-10-29", 1).is_err());
         assert!(valid_sid("S-1-5-21-1-2-3-1007") && !valid_sid("..\\evil") && !valid_sid("S-1-5\\x"));
+    }
+
+    #[test]
+    fn only_an_explicit_off_pauses_kid_mode() {
+        assert!(!plus_flag(r#"{"active":false,"at":"2026-10-29T10:00:00-03:00"}"#));
+        assert!(plus_flag(r#"{"active":true}"#));
+        // A file nobody can read, or without the answer, never pauses a child by mistake.
+        assert!(plus_flag("") && plus_flag("not json") && plus_flag("{}") && plus_flag(r#"{"active":"no"}"#));
     }
 
     #[test]

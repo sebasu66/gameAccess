@@ -5,7 +5,7 @@ import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
 import { hasTauriRuntime } from "./native";
-import { loadAdminKey, setAccessRole } from "./accessRole";
+import { loadAdminKey, setAccessRole, usePlusLapsed } from "./accessRole";
 import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
 import "./admin-gate.css";
 // The opening sound ends with silence; the closed gate never waits for it longer than this.
@@ -160,6 +160,8 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const [lock, setLock] = useState<"free" | "sealed" | "unlocking">("free");
  const [keyLength, setKeyLength] = useState(0);
  const forgot = useForgotAdminKey();
+ const lapsed = usePlusLapsed();
+ useEffect(() => { if (lapsed && keyGate === "asking") setKeyGate("done"); }, [lapsed, keyGate]);
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);

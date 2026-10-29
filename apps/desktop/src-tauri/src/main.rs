@@ -180,6 +180,7 @@ fn main() {
             kid_mode::kid_family,
             kid_mode::kid_live,
             kid_mode::kid_control,
+            kid_mode::kid_plus_set,
             kid_mode::kid_apply,
             kid_mode::kid_remove,
             app_shortcuts::shortcuts_list,

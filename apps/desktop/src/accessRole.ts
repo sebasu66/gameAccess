@@ -19,16 +19,40 @@ export const IDLE_RELOCK_MS = 5 * 60_000;
 let role: AccessRole = "admin";
 let key: AdminKeyState = { enabled: false, length: 0 };
 let asking: Array<(ok: boolean) => void> | null = null;
+/** A verification answered that PLUS is not active (ended, revoked or only the base plan): the key is dormant. It is
+ *  not set by a failed connection, and not stored: every start verifies again. */
+let plusLapsed = false;
+/** Days left of the grace given while PLUS could not be checked (the server unreachable); null when there is none running. */
+let plusGraceDays: number | null = null;
 const listeners = new Set<() => void>();
 const emit = () => { for (const listener of listeners) listener(); };
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 
-export const getAccessRole = () => role;
+export const getAccessRole = (): AccessRole => (plusLapsed ? "admin" : role);
+export const isPlusLapsed = () => plusLapsed;
+export const getPlusGraceDays = () => plusGraceDays;
+export const usePlusGraceDays = (): number | null => useSyncExternalStore(subscribe, getPlusGraceDays, getPlusGraceDays);
+export function setPlusGraceDays(days: number | null) {
+  if (plusGraceDays === days) return;
+  plusGraceDays = days;
+  emit();
+}
+export const usePlusLapsed = (): boolean => useSyncExternalStore(subscribe, isPlusLapsed, isPlusLapsed);
 export const getAdminKey = () => key;
 export const isAskingForKey = () => asking !== null;
 export const useAccessRole = (): AccessRole => useSyncExternalStore(subscribe, getAccessRole, getAccessRole);
 export const useAdminKey = (): AdminKeyState => useSyncExternalStore(subscribe, getAdminKey, getAdminKey);
 export const useGateRequest = (): boolean => useSyncExternalStore(subscribe, isAskingForKey, isAskingForKey);
+
+/** PLUS ended (or came back). While it is off, the parent's key asks for nothing and everyone is the administrator: Game Access
+ *  is as in the base mode. The key's word stays stored, asleep: it works again by itself with PLUS. */
+export function setPlusLapsed(next: boolean) {
+  if (plusLapsed === next) return;
+  plusLapsed = next;
+  // A gate that was waiting for the key opens: there is nothing to protect.
+  if (next && asking) { const waiting = asking; asking = null; emit(); for (const resolve of waiting) resolve(true); return; }
+  emit();
+}
 
 export function setAccessRole(next: AccessRole) {
   if (role === next) return;
@@ -50,9 +74,12 @@ export function setAdminKey(next: AdminKeyState) {
   emit();
 }
 
+/** In the dev browser (no Tauri, so no stored word) the gate can be tried with the design's own example: perro on 11-11-26. */
+export const DEV_DEMO_KEY = "P1E1R1R1O26";
+
 /** Whether what was typed is today's key. */
 export async function checkAdminKey(attempt: string): Promise<boolean> {
-  if (!hasTauriRuntime()) return false;
+  if (!hasTauriRuntime()) return import.meta.env.DEV && attempt.trim().toUpperCase() === DEV_DEMO_KEY;
   try { return await invoke<boolean>("admin_key_check", { attempt }); } catch { return false; }
 }
 
@@ -61,7 +88,7 @@ export async function checkAdminKey(attempt: string): Promise<boolean> {
  * otherwise the gate closes and this waits: true once the key opens it, false when the person enters as a player.
  */
 export function requestAdmin(): Promise<boolean> {
-  if (role === "admin" || !key.enabled) return Promise.resolve(true);
+  if (getAccessRole() === "admin" || !key.enabled) return Promise.resolve(true);
   return new Promise(resolve => {
     if (asking) asking.push(resolve);
     else { asking = [resolve]; emit(); }
@@ -79,14 +106,14 @@ export function settleGateRequest(admin: boolean) {
 
 /** The administrator left the PC alone: back to player, and the gate closes asking for the key. */
 export function relock(): Promise<boolean> {
-  if (!key.enabled || role !== "admin") return Promise.resolve(role === "admin");
+  if (!key.enabled || plusLapsed || role !== "admin") return Promise.resolve(getAccessRole() === "admin");
   role = "player";
   emit();
   return requestAdmin();
 }
 
 export function resetAccessRoleForTests() {
-  role = "admin"; key = { enabled: false, length: 0 }; asking = null; emit();
+  role = "admin"; key = { enabled: false, length: 0 }; asking = null; plusLapsed = false; plusGraceDays = null; emit();
 }
 
 /** Thrown when a protected action was asked for and the person entered as a player instead of giving the key. */
@@ -96,4 +123,13 @@ export class AdminRequiredError extends Error { constructor() { super(translate(
  *  the gate asking for the key, and rejects if the person enters as a player. */
 export async function requireAdmin(): Promise<void> {
   if (!(await requestAdmin())) throw new AdminRequiredError();
+}
+
+/** Dev only: `gaGateDemo()` in the browser console closes the gate asking for the example key (P1E1R1R1O26), as a player. */
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { gaGateDemo: () => Promise<boolean> }).gaGateDemo = () => {
+    setAdminKey({ enabled: true, length: DEV_DEMO_KEY.length });
+    setAccessRole("player");
+    return requestAdmin();
+  };
 }

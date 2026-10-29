@@ -78,3 +78,8 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-family-ask h3 { margin: 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
 .ga-kid-step-head h3 { margin: 4px 0 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
 .ga-kid-nomore { display: grid; justify-items: start; gap: 6px; margin-top: 18px; }
+
+/* PLUS ended while kid mode or the parent's key were set up. */
+.ga-kid-lapsed { flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
+.ga-kid-lapsed > div { flex: 1; min-width: 220px; }
+.ga-kid-lapsed p { margin: 3px 0 0; font-weight: 500; color: #e9d9c6; }

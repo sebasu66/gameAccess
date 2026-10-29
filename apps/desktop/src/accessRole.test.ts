@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { getAccessRole, isAskingForKey, relock, requestAdmin, resetAccessRoleForTests, setAccessRole, setAdminKey, settleGateRequest } from "./accessRole";
+import { getAccessRole, isAskingForKey, isPlusLapsed, relock, requestAdmin, requireAdmin, resetAccessRoleForTests, setAccessRole, setAdminKey, setPlusLapsed, settleGateRequest } from "./accessRole";
 
 describe("clave de padre: administrador y jugador", () => {
   beforeEach(() => resetAccessRoleForTests());
@@ -47,5 +47,39 @@ describe("clave de padre: administrador y jugador", () => {
     setAccessRole("player");
     setAdminKey({ enabled: false, length: 0 });
     expect(getAccessRole()).toBe("admin");
+  });
+
+  it("si se apaga PLUS la clave queda sin efecto: todos son administradores y nada se pide", async () => {
+    setAdminKey({ enabled: true, length: 11 });
+    setAccessRole("player");
+    setPlusLapsed(true);
+    expect(getAccessRole()).toBe("admin");
+    await expect(requestAdmin()).resolves.toBe(true);
+    await expect(requireAdmin()).resolves.toBeUndefined();
+    await expect(relock()).resolves.toBe(true);
+    expect(isAskingForKey()).toBe(false);
+  });
+
+  it("si PLUS se apaga con el portón esperando la clave, el portón se libera", async () => {
+    setAdminKey({ enabled: true, length: 11 });
+    setAccessRole("player");
+    const waiting = requestAdmin();
+    expect(isAskingForKey()).toBe(true);
+    setPlusLapsed(true);
+    await expect(waiting).resolves.toBe(true);
+    expect(isAskingForKey()).toBe(false);
+  });
+
+  it("al volver PLUS la clave vuelve a regir sola, con la misma palabra", async () => {
+    setAdminKey({ enabled: true, length: 11 });
+    setAccessRole("player");
+    setPlusLapsed(true);
+    setPlusLapsed(false);
+    expect(isPlusLapsed()).toBe(false);
+    expect(getAccessRole()).toBe("player");
+    const waiting = requestAdmin();
+    expect(isAskingForKey()).toBe(true);
+    settleGateRequest(false);
+    await expect(waiting).resolves.toBe(false);
   });
 });

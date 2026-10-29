@@ -1,3 +1,4 @@
+import { reportPlus, reportPlusUnreachable } from "./kidMode";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import SplashScreen from "./SplashScreen";
 import { openingStage } from "./openingFlow";
@@ -23,7 +24,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ActivationStatus | null>(null);
   const [busy, setBusy] = useState(true);
   const [connecting, setConnecting] = useState(true);
-  const [, setEnded] = useState<ActivationEnd | null>(null);
+  const [ended, setEnded] = useState<ActivationEnd | null>(null);
   const verification = useRef<AbortController | null>(null);
   const redeeming = useRef(false);
   const [notice, setNotice] = useState("");
@@ -176,6 +177,14 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       if (timer != null) window.clearTimeout(timer);
     };
   }, [status, t]);
+
+  // PLUS on or off, as far as the server said. An unreachable server ("unavailable") gets a grace period; no activation at all says nothing.
+  useEffect(() => {
+    if (!verificationReady) return;
+    if (status?.active) reportPlus(status.access_tier === "plus");
+    else if (ended && (ended.reason === "expired" || ended.reason === "revoked")) reportPlus(false);
+    else if (ended?.reason === "unavailable") reportPlusUnreachable();
+  }, [verificationReady, status, ended]);
 
   /**
    * Development convenience: sign in with the key in the local `.env`.

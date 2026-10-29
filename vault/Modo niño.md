@@ -63,6 +63,21 @@ Las estadísticas y las órdenes en vivo tienen que poder consultarse desde la a
 - **Emparejar el celular con la PC**: código corto que muestra Game Access en el panel del niño; el celular lo canjea y queda ligado a la cuenta del usuario (US.1). Cada orden lleva usuario, PC y niño, y el servidor comprueba que el usuario sea el dueño.
 - **Tabla de usuarios (US.1)**: `user` con correo, nombre, idioma y fecha de alta; sus llaves de acceso (`AccessKey` pasa a tener `user_id`), la membresía PLUS (vigencia) y **pagado / no pagado** con fecha y nota, que Seba cambia a mano en el panel de administración (sin pasarela de pago por ahora). El acceso a PLUS sale de la vigencia y de esa marca.
 
+## Cuando PLUS se apaga (Seba, 2026-10-29) — MN.15
+El modo niño y la clave de padre son parte de PLUS. Si el usuario los tenía configurados y PLUS deja de estar activo:
+- **Modo niño**: queda **en pausa**, no se borra. La cuenta del niño sigue existiendo pero Game Access no lo deja jugar ("El modo niño está en pausa") y cierra la sesión al minuto. La PC del niño se entera por `C:\ProgramData\GameAccess\uso\plus.json`, que escribe el Game Access del adulto tras cada verificación (sin permiso de administrador); si el archivo falta o no se entiende, el modo niño sigue (una PC que nunca reportó, o una versión vieja, no se rompe). Si el adulto nunca vuelve a abrir Game Access la pausa no llega: eso lo resuelven las órdenes desde el servidor (MN.9).
+- **Clave de padre**: **sin efecto**. No se pide, todos son administradores, el portón no se cierra. La palabra queda guardada, dormida.
+- **Lo demás**: la biblioteca y las descargas se desbloquean (dependían de la clave); el filtro de contenido sigue (es gratuito).
+- **Volver**: al volver PLUS todo se reanuda solo, con la misma palabra y la misma cuenta.
+- **Sin internet**: el cliente no puede verificar PLUS. Hay una **gracia de 7 días** desde la última confirmación (`PLUS_GRACE_DAYS`, en `kidMode.ts`) en la que todo sigue funcionando, con un aviso de cuántos días quedan; después se trata como PLUS terminado. Una respuesta explícita del servidor de que no hay PLUS no tiene gracia (si el cobro tiene días de tolerancia, los da el servidor, no el cliente).
+
+## Usuarios y PLUS (Seba, 2026-10-29) — US.1, US.2
+- **Qué se guarda de cada usuario**: nombre, correo, contraseña (como hash) y su **llave de PLUS**. La llave activa el modo PLUS en el cliente y no vence mientras se reciba el pago mensual (hoy `AccessKey` vence y está ligada a una instalación; pasa a ligarse al usuario).
+- **Pagado / no pagado**: una marca con fecha que Seba pone a mano en el panel de administración. La app no cobra todavía.
+- **Cobro (más adelante)**: suscripciones de Mercado Pago y sus avisos (webhooks): pago recibido extiende la llave, pago rechazado dispara un aviso al usuario con unos días de anticipación y, si sigue sin pagar, revoca la llave. El cliente ya reacciona a una llave revocada (sección anterior).
+- **Para probar**: servidor local con usuarios de ejemplo en cada estado (pagado, por vencer, sin pagar, sin llave), `apps/api/restart_local_api.ps1` y un script que los siembre; sirve también para la recuperación de clave olvidada y las órdenes desde el celular.
+- **Preguntas abiertas para Seba**: cuántos días de tolerancia tras un cobro rechazado; si una llave vencida debe poder reactivarse sola al pagar; si el usuario puede tener más de una PC con la misma llave.
+
 ## Una sola pantalla para los niños (Seba, 2026-10-29)
 Todo lo que tiene que ver con niños, control de acceso y filtro de contenido para adultos se configura en **un solo lugar: el botón del niño**. La pantalla empieza preguntando si hay niños en casa:
 - **No hay niños**: Game Access funciona como siempre, sin clave ni modo niño; se puede volver a decir "ahora hay niños".
