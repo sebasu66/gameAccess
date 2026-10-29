@@ -51,6 +51,7 @@ def list_access_keys(request: Request, session: Session = Depends(get_session)) 
         "last_seen_at": utc(row.last_seen_at) if row.last_seen_at else None,
         "last_ip": row.last_ip,
         "last_client": row.last_client,
+        "account_id": row.account_id,
     } for row in rows]}
 
 
@@ -66,6 +67,9 @@ def renew_access_key(key_id: int, req: AccessKeyRenewRequest, request: Request, 
         raise HTTPException(409, "A revoked key cannot be renewed")
     if row.access_tier != "plus":
         raise HTTPException(409, "Manual payment renewal is only available for PLUS")
+    if row.account_id is not None:
+        # Its end date follows the user's membership (accounts.py): renewing it alone would be undone there.
+        raise HTTPException(409, "This key belongs to a user: mark the payment on the user")
     target = utc(req.expires_at)
     if row.expires_at is not None and target <= utc(row.expires_at):
         raise HTTPException(409, "Renewal must extend the current expiry")

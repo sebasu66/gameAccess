@@ -23,6 +23,7 @@ from .steam_client import steam_catalog
 from .review_maintenance import _start_steam_review_importer
 from .activation_routes import router as activation_router, require_active_installation, redeem_access_key, activation_status
 from .access_admin_routes import router as access_admin_router, create_access_keys, list_access_keys, renew_access_key, revoke_access_key
+from .account_admin_routes import router as account_admin_router
 from .client_error_routes import router as client_error_router, report_client_error, admin_client_errors_view
 from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary, library_catalog, digital_game_details
 from .viking_cache_routes import router as viking_cache_router
@@ -158,5 +159,5 @@ app.include_router(game_lessons_router)
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)
 app.middleware("http")(trace_request)
-for router in (activation_router, access_admin_router, client_error_router, catalog_router, viking_cache_router, viking_chunk_router, admin_dashboard_router):
+for router in (activation_router, access_admin_router, account_admin_router, client_error_router, catalog_router, viking_cache_router, viking_chunk_router, admin_dashboard_router):
     app.include_router(router)

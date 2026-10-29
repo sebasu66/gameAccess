@@ -109,3 +109,6 @@ tools/windows/plugin-payload.zip
 
 # Local caches (benchmarks, frozen registry, downloads)
 .cache/
+
+apps/api/users-demo.db
+apps/api/users-demo-*.log

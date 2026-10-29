@@ -28,3 +28,21 @@ class AccessKeyRenewRequest(BaseModel):
 class AccessKeyRedeemRequest(BaseModel):
     key: str = Field(min_length=1, max_length=120)
     installation_id: str = Field(min_length=36, max_length=36)
+
+
+class AccountCreateRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    name: str = Field(min_length=1, max_length=80)
+    language: Literal["es", "en"] = "es"
+    password: Optional[str] = Field(default=None, min_length=8, max_length=200)
+
+
+class AccountMembershipRequest(BaseModel):
+    paid: bool
+    plus_until: Optional[datetime] = None
+    note: Optional[str] = Field(default=None, max_length=200)
+
+
+class AccountKeyRequest(BaseModel):
+    """Link an existing PLUS key (`key_id`) or, without it, issue a new one for the user."""
+    key_id: Optional[int] = None

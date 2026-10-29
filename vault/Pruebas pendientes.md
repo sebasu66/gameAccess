@@ -74,6 +74,13 @@ Código: `accessRole.ts` (`setPlusLapsed`, `setPlusGraceDays`), `kidMode.ts` (`r
 - [ ] Atajo para ver la pausa sin tocar el servidor: escribir `{"active": false}` en `C:\ProgramData\GameAccess\uso\plus.json` (y `{"active": true}` para reanudar).
 - Límite conocido: si el adulto nunca vuelve a abrir Game Access, la pausa no llega (la PC del niño solo se entera por ese archivo). Cuando las estadísticas y órdenes vivan en el servidor (MN.9) también podrá pausar desde allá.
 
+## 7b. Usuarios y PLUS en el servidor (US.1) 🖥️ (nuevo)
+Código: `apps/api/app/accounts.py`, `account_admin_routes.py`, `admin/index.html` (sección Usuarios), `scripts/seed_demo_users.py`, `run_demo_users_api.ps1`.
+- [ ] **Levantar el servidor de prueba**: `apps/api/run_demo_users_api.ps1 -Reset`. Imprime cuatro usuarios (Pagado, Por vencer, Sin pagar, Sin llave) y sus llaves. Abrir `http://127.0.0.1:8010/admin`: la sección Usuarios los muestra con su estado en color.
+- [ ] **El cliente contra ese servidor**: compilar o correr Game Access con `VITE_GAMEACCESS_API=http://127.0.0.1:8010` y activar la llave de "Pagado": PLUS activo. Con el modo niño y la clave puestos, en el panel marcar **No pagado**: a la siguiente verificación la app avisa que PLUS terminó, la clave deja de pedirse y la cuenta del niño queda en pausa. Marcar **Pagado hasta…**: todo vuelve solo, sin llave nueva.
+- [ ] **La llave de "Sin pagar"** no se puede activar ("This activation key has expired").
+- Comprobado por HTTP el 2026-10-29 (sin la app): Pagado ve PLUS hasta su fecha; No pagado da `401 expired`; al volver a pagar la misma sesión vuelve a PLUS.
+
 ## 8. Cosas que no se pudieron comprobar y conviene mirar con atención
 - [ ] **DPAPI real**: la palabra de la clave se guarda cifrada en el perfil del adulto (`%LOCALAPPDATA%\GameAccess\parental\admin-key.dpapi`). Los tests pasan en Windows, falta verlo en la app instalada. Otro adulto en la misma PC no tendría esa clave.
 - [ ] **El portón de arranque con clave dentro de Tauri**: la lógica está probada con tests y en el navegador, falta verlo en la app (sonido incluido: se genera con la placa de sonido, sin archivo).
