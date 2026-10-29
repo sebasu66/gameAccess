@@ -44,7 +44,8 @@ Var GaParentalBox
   Page custom GaFoldersCreate GaFoldersLeave
 
 ; $R0 = a folder -> $R1 = 1 when games may not start from it: longer than 40 characters (the limit
-; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space and _ - . : \
+; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space, backslash and
+; _ - . : (a comment line must not end in a backslash: NSIS joins it with the next one).
 Function GaPathRisky
   Push $R2
   Push $R3
