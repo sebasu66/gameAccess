@@ -1,8 +1,9 @@
 # Local test server with sample users (US.1): an isolated SQLite file, never the shared customer database.
-# Seeds one user per state (scripts/seed_demo_users.py prints their PLUS keys) and starts the API on port 8010.
-# The admin console is at http://127.0.0.1:8010/admin (password: the GAMEACCESS_ADMIN_TOKEN below).
-# Point the desktop app at it with VITE_GAMEACCESS_API=http://127.0.0.1:8010 to see what a customer sees in each state.
-param([int]$Port = 8010, [switch]$Reset)
+# Seeds one user per state (scripts/seed_demo_users.py prints their PLUS keys) and starts the API on port 38147.
+# That is the port the desktop app always tries first (settings.ts DEFAULT_LOCAL_API) and shows as "Local"; a build
+# with GAMEACCESS_ALLOW_LOCAL_ACTIVATION=1 accepts activations from it. Any other port is never seen by the app.
+# It replaces whatever local API was on that port. The admin console is at http://127.0.0.1:38147 (opens /admin).
+param([int]$Port = 38147, [switch]$Reset)
 $ErrorActionPreference = 'Stop'
 $api = $PSScriptRoot
 $python = Join-Path $api '.venv/Scripts/python.exe'
