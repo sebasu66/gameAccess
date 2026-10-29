@@ -201,7 +201,7 @@ if (-not $user) {
     Write-Host "Cuenta $Name creada."
 }
 $sid = $user.SID
-if (-not (Get-LocalGroupMember -SID $UsersGroupSid | Where-Object { $_.SID -eq $sid })) { Add-LocalGroupMember -SID $UsersGroupSid -Member $sid }
+if (-not (Get-LocalGroupMember -SID $UsersGroupSid | Where-Object { $_.SID -eq $sid })) { Add-LocalGroupMember -SID $UsersGroupSid -Member $user }
 
 $open = @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)})
 $closed = Get-ClosedFolders
