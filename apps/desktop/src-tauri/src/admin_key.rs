@@ -6,8 +6,9 @@
 //! last letter the digits still left. "perro" on 11-11-26 is P1E1R1R1O26. A child who watches it typed learns a key
 //! that is already wrong tomorrow. Typed in any case.
 //!
-//! The word is kept in one file that Windows protects (DPAPI) for this account, like the parental control's, and it
-//! never goes back to the interface: the gate only sends what was typed and gets "yes" or "no".
+//! The word is kept in one file that Windows protects (DPAPI) for this account, like the parental control's. The gate
+//! only sends what was typed and gets "yes" or "no". The day's key is never handed to the interface; the word goes
+//! there only while the parent holds its eye pressed on the parent's key tab (wallet style, `admin_key_word`).
 use chrono::{Datelike, Local, NaiveDate};
 use std::{env, fs, io, path::{Path, PathBuf}};
 
@@ -84,15 +85,23 @@ fn check_at(path: &Path, attempt: &str, date: NaiveDate) -> Result<bool, String>
     Ok(read_at(path)?.word.is_some_and(|word| key_for(&word, date) == attempt.trim().to_uppercase()))
 }
 
-/// Sets or changes the word. With a key already set, `current` must be today's key.
+/// Whether `current` proves the parent: the word itself or today's key (a parent who is not technical may only
+/// remember the word). Without a key set there is nothing to prove.
+fn authorized(path: &Path, current: Option<&str>, date: NaiveDate) -> Result<bool, String> {
+    let Some(word) = read_at(path)?.word else { return Ok(true) };
+    let typed = current.unwrap_or("").trim().to_uppercase();
+    Ok(!typed.is_empty() && (typed == word || typed == key_for(&word, date)))
+}
+
+/// Sets or changes the word. With a key already set, `current` must be the word or today's key.
 fn set_at(path: &Path, word: &str, current: Option<&str>, date: NaiveDate) -> Result<AdminKeyState, String> {
-    if read_at(path)?.word.is_some() && !check_at(path, current.unwrap_or(""), date)? { return Err("wrong_key".into()); }
+    if !authorized(path, current, date)? { return Err("wrong_key".into()); }
     write_at(path, &Stored { word: Some(clean_word(word)?) })?;
     state_at(path, date)
 }
 
 fn clear_at(path: &Path, current: Option<&str>, date: NaiveDate) -> Result<(), String> {
-    if read_at(path)?.word.is_some() && !check_at(path, current.unwrap_or(""), date)? { return Err("wrong_key".into()); }
+    if !authorized(path, current, date)? { return Err("wrong_key".into()); }
     match fs::remove_file(path) { Ok(()) => Ok(()), Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()), Err(err) => Err(err.to_string()) }
 }
 
@@ -118,10 +127,11 @@ pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), today())).await.map_err(|e| e.to_string())?
 }
 
-/// Today's key, for the parent's settings screen (it shows it only on request).
+/// The word, for the parent's key tab: shown only while its eye is held pressed. That tab is reachable only as the
+/// administrator (accessRole.ts); the day's key itself is never returned.
 #[tauri::command]
-pub async fn admin_key_today() -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(|| Ok(read_at(&store_path()?)?.word.map(|word| key_for(&word, today())))).await.map_err(|e| e.to_string())?
+pub async fn admin_key_word() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| Ok(read_at(&store_path()?)?.word)).await.map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]
@@ -165,11 +175,14 @@ mod tests {
         assert!(!check_at(&path, "P1E1R1R1O27", date).unwrap());
         // Yesterday's key is no good today.
         assert!(!check_at(&path, "P1E1R1R1O26", day(2026, 11, 12)).unwrap());
-        // Changing or removing it needs today's key.
+        // Changing or removing it needs today's key or the word itself; yesterday's key is no good.
         assert_eq!(set_at(&path, "gato", None, date), Err("wrong_key".into()));
+        assert_eq!(set_at(&path, "gato", Some(""), date), Err("wrong_key".into()));
         assert_eq!(clear_at(&path, Some("nope"), date), Err("wrong_key".into()));
+        assert_eq!(clear_at(&path, Some("P1E1R1R1O26"), day(2026, 11, 12)), Err("wrong_key".into()));
         assert!(set_at(&path, "gato", Some("P1E1R1R1O26"), date).is_ok());
-        assert!(clear_at(&path, Some("G1A1T1O126"), date).is_ok());
+        assert!(set_at(&path, "mono", Some(" gato "), date).is_ok());
+        assert!(clear_at(&path, Some("M1O1N1O126"), date).is_ok());
         assert!(!state_at(&path, date).unwrap().enabled);
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }

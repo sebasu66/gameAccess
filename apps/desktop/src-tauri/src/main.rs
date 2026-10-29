@@ -103,7 +103,7 @@ fn main() {
             admin_key::admin_key_check,
             admin_key::admin_key_set,
             admin_key::admin_key_clear,
-            admin_key::admin_key_today,
+            admin_key::admin_key_word,
             parental_lock::parental_state,
             parental_lock::parental_save,
             parental_lock::parental_check,

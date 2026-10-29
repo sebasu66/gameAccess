@@ -49,7 +49,8 @@ Código: `kid-account.ps1`, `kid_mode.rs` (`kid_remove`), `windows/hooks.nsh`. C
 ## 5. La clave de padre 🖥️
 Código: `src-tauri/src/admin_key.rs`, `accessRole.ts`, `AdminKeySection.tsx`, `AdminKeyField.tsx`, `AdminGate.tsx`, `SplashScreen.tsx`. Commit `a9c15bc`.
 - [ ] **Activarla**: pestaña "Clave de padre" (solo con PLUS y la cuenta del niño creada). Poner una palabra. Abrir el desplegable "solo para los ojos del padre" y revisar que la explicación sea clara.
-- [ ] **La clave de hoy**: "Mostrar la clave de hoy" la muestra unos segundos. Verificar a mano que coincide con la regla (palabra + dígitos de la fecha dd-mm-aa: `perro` el 11-11-26 = `P1E1R1R1O26`). Mañana tiene que ser otra.
+- [ ] **La palabra oculta**: en la pestaña, "Tu palabra" muestra puntos. Mantener apretado "Mantené apretado para verla" (mouse, o Espacio/Enter con el teclado) la muestra; al soltar, al cambiar de ventana o al bloquear la pantalla se oculta. La clave del día no aparece en ningún lado. Con PLUS terminado el botón no aparece.
+- [ ] **Cambiar o quitar la clave**: piden escribir la palabra actual o la clave de hoy (cualquiera de las dos, sin importar mayúsculas). La de ayer o una palabra equivocada dan "No coincide…".
 - [ ] **Al abrir Game Access**: el portón queda cerrado con el LCD. La clave correcta abre como administrador; en minúsculas también. **Entrar como jugador** abre sin clave.
 - [ ] **Jugador**: no puede abrir el botón del niño (el portón se cierra y pide la clave; con la clave se abre y entra); no ve los botones del niño por juego en la biblioteca.
 - [ ] **Inactividad**: 5 minutos sin tocar la PC y el portón se cierra de nuevo pidiendo la clave.

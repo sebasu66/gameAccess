@@ -83,3 +83,18 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-lapsed { flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
 .ga-kid-lapsed > div { flex: 1; min-width: 220px; }
 .ga-kid-lapsed p { margin: 3px 0 0; font-weight: 500; color: #e9d9c6; }
+
+/* Parent's key tab (AdminKeySection.tsx): the word hidden like a wallet's balance, seen only while its eye is held. */
+.ga-adminkey { display: grid; gap: 16px; }
+.ga-adminkey .ga-adminkey-on { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ga-success, #a0d2b4); font-size: 14px; font-weight: 700; }
+.ga-adminkey-word { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 16px; border: 1px solid var(--ga-line); border-radius: 12px; background: #ffffff08; }
+.ga-adminkey-word-label { color: var(--ga-muted); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.ga-adminkey-secret { min-width: 0; overflow: hidden; color: var(--ga-white); font-size: 20px; font-weight: 800; letter-spacing: .2em; text-overflow: ellipsis; white-space: nowrap; user-select: none; }
+.ga-adminkey-secret.is-shown { color: var(--ga-orange); letter-spacing: .08em; }
+.ga-adminkey-word .ga-btn-secondary { touch-action: none; user-select: none; }
+.ga-adminkey-word .ga-kid-hint { grid-column: 1 / -1; }
+.ga-adminkey-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.ga-adminkey-form { display: grid; gap: 12px; }
+.ga-adminkey-form .ga-field { margin-top: 0; }
+.ga-adminkey-how summary { cursor: pointer; color: var(--ga-orange); font-size: 13px; font-weight: 700; }
+.ga-adminkey .ga-adminkey-how p { margin: 8px 0 0; color: var(--ga-muted); font-size: 13px; }
