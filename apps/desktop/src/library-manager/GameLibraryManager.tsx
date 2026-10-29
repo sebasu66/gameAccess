@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, Baby, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
@@ -28,7 +28,8 @@ import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
-import { applyKidDraft, kidMayPlay, loadKidFamily, toggleKidGame, useKidState } from "../kidMode";
+import { applyKidDraft, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
+import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
 import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
@@ -224,13 +225,38 @@ function StatusCell({ status }: { status: Status }) {
 
 /** A row of the grid: picture, name, state, folder, size, source, plays, days without playing and the row's actions.
  *  What a game still needs, or a problem it has, is in its log (the expanded row). */
-/** Shows or hides a game for the child; the change waits in a notice until it is applied (one Windows permission). */
-function chooseForKid(game: LibraryGame, c: LibraryCopy) {
-  toggleKidGame(game);
+/** Shows or hides a game (or a shortcut) for the child; the change waits in a notice until it is applied (one Windows
+ *  permission). */
+function chooseForKid(game: LibraryGame | AppShortcut, c: LibraryCopy) {
+  if ("app_id" in game) toggleKidGame(game); else toggleKidShortcut(game);
   showNotice({ tone: "info", title: c.kidPending, timer: false, actions: [
     { label: c.kidApplyNow, kind: "primary", run: () => { hideNotice(); void applyKidDraft().then(() => notify(c.kidApplied), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" })); } },
     { label: c.kidLater, kind: "secondary", run: () => hideNotice() },
   ] });
+}
+
+/** Shortcuts to programs that are not library games (appShortcuts.ts): their own section under the games, never
+ *  matched to Steam nor moved into the games folder. */
+function ThirdPartyApps({ c }: { c: LibraryCopy }) {
+  const shortcuts = useShortcuts();
+  const kid = useKidState().draft;
+  const plus = usePlus();
+  useEffect(() => { void loadShortcuts(); }, []);
+  const fail = (failure: unknown) => notify(c.appsFailed.replace("{error}", String(failure instanceof Error ? failure.message : failure)), { tone: "error" });
+  return <section className="lm-apps" aria-labelledby="lm-apps-title">
+    <header><div><h3 id="lm-apps-title">{c.appsTitle}</h3><p>{c.appsHint}</p></div>
+      <GaButton icon={<AppWindow size={16} aria-hidden="true" />} disabled={libraryDemo()} onClick={() => void addShortcut(c.appsFilter).catch(fail)}>{c.appsAdd}</GaButton></header>
+    {shortcuts.length ? <ul>
+      {shortcuts.map(item => <li key={item.id}>
+        <AppWindow size={18} aria-hidden="true" /><span className="lm-apps-name">{item.name}</span><span className="lm-apps-path" title={item.target}>{item.target}</span>
+        <span className="lm-acts">
+          <IconAction label={c.appsOpen} onClick={() => void openShortcut(item.id).catch(fail)}><PhPlay /></IconAction>
+          {plus && kid.name ? <IconAction label={(kidMayPlay(-item.id) ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={kidMayPlay(-item.id)} onClick={() => chooseForKid(item, c)}><Baby /></IconAction> : null}
+          <IconAction label={c.appsRemove} tone="danger" onClick={() => void removeShortcut(item.id).catch(fail)}><Trash /></IconAction>
+        </span>
+      </li>)}
+    </ul> : <p className="lm-empty">{c.appsEmpty}</p>}
+  </section>;
 }
 
 function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
@@ -250,6 +276,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const hosted = Boolean(freezing) && id != null;
   // Kid mode (kidMode.ts): once a child account is set up, each game says whether the child sees it.
   const kid = useKidState().draft;
+  const plus = usePlus();
   const forKid = kidMayPlay(id);
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -298,7 +325,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
           {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
-          {kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
+          {plus && kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
@@ -534,6 +561,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
               </tbody>
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
+            <ThirdPartyApps c={c} />
           </div>
         </div>
       </div>

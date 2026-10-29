@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { hasTauriRuntime } from "./native";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
+import type { AppShortcut } from "./appShortcuts";
+import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 
 /**
  * Kid mode (vault/Modo niño.md, src-tauri/src/kid_mode.rs). The family file says which Windows accounts are children
@@ -9,6 +11,7 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
  * manager edit a draft here, and "Apply" sends it to Windows (one permission question). In a child's account the app
  * opens the kid screen instead of the library.
  */
+/** `appId`: a library game's Steam AppID, or `-id` for a shortcut to another program (appShortcuts.ts). */
 export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean }
 export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[] }
 export interface Family { version: number; kids: Kid[] }
@@ -74,9 +77,25 @@ export function toggleKidGame(game: LibraryGame) {
   setKidDraft({ games });
 }
 
-/** What the child's account needs to start each game by itself, asked to the launcher now (it may have changed). */
+/** Shows or hides a shortcut to another program (Roblox, a drawing program) for the child. */
+export function toggleKidShortcut(shortcut: AppShortcut) {
+  const appId = -shortcut.id;
+  const games = kidMayPlay(appId) ? draft.games.filter(item => item.appId !== appId)
+    : [...draft.games, { appId, name: shortcut.name, folder: shortcut.folder, executable: shortcut.target, arguments: shortcut.arguments, steam: false }];
+  setKidDraft({ games });
+}
+
+/** Kid mode is part of PLUS (vault/Proyecto.md): without it the screen explains that and nothing is applied. */
+const subscribeTier = (listener: () => void) => { window.addEventListener(ACTIVATION_CHANGED_EVENT, listener); return () => window.removeEventListener(ACTIVATION_CHANGED_EVENT, listener); };
+export function usePlus(): boolean {
+  return useSyncExternalStore(subscribeTier, () => getActivationTier() === "plus", () => false);
+}
+
+/** What the child's account needs to start each game by itself, asked to the launcher now (it may have changed).
+ *  A shortcut already carries it. */
 async function withEntries(games: KidGame[]): Promise<KidGame[]> {
   return Promise.all(games.map(async game => {
+    if (game.appId < 0) return game;
     try {
       const result = await invoke<{ ok: boolean; entry?: Omit<KidGame, "appId" | "name"> }>("run_digital_process", { action: "kid-entry", appId: game.appId, name: game.name, command: "", workingDir: null, autoInstalled: false });
       return result.ok && result.entry ? { ...game, ...result.entry } : game;
@@ -88,6 +107,7 @@ export class KidApplyError extends Error { constructor(readonly code: string) { 
 
 /** Sends the draft to Windows: creates or updates the child's account and writes the family file. */
 export async function applyKidDraft(): Promise<void> {
+  if (getActivationTier() !== "plus" && hasTauriRuntime()) throw new KidApplyError("needs_plus");
   if (!validKidName(draft.name)) throw new KidApplyError("bad_name");
   if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; emit(); return; }
   const kid = { ...draft, games: await withEntries(draft.games) };

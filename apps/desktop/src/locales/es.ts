@@ -1154,5 +1154,6 @@ export const es = {
   kidFiveMinutesTitle: "Quedan 5 minutos",
   kidFiveMinutesText: "Guardá la partida: el juego se va a cerrar.",
   kidTimeUpTitle: "Se terminó el tiempo de hoy",
+  kidNeedsPlus: "El modo niño es parte de PLUS. Activá PLUS para crear la cuenta del niño y aplicar los cambios.",
   kidTimeUpText: "El juego se cerró. Mañana hay más.",
 } as const;

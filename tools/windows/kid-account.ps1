@@ -133,7 +133,8 @@ function Remove-PathRule([string]$Hkcu, [string]$Path) {
     foreach ($level in $Levels.Values) {
         $rules = "$Hkcu\$Safer\$level\Paths"
         if (-not (Test-Path -LiteralPath $rules)) { continue }
-        Get-ChildItem -LiteralPath $rules | Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath).ItemData -eq $Path } |
+        # As written (%LOCALAPPDATA% stays a variable: expanded here it would be the administrator's own folder).
+        Get-ChildItem -LiteralPath $rules | Where-Object { $_.GetValue('ItemData', $null, 'DoNotExpandEnvironmentNames') -eq $Path } |
             Remove-Item -Recurse -Force
     }
 }
@@ -142,7 +143,8 @@ function Remove-PathRule([string]$Hkcu, [string]$Path) {
 function Add-PathRule([string]$Hkcu, [string]$Level, [string]$Path, [string]$Description) {
     Remove-PathRule $Hkcu $Path
     $rule = "$Hkcu\$Safer\$($Levels[$Level])\Paths\{$([guid]::NewGuid())}"
-    Set-Value $rule ItemData $Path String
+    # A shortcut's program in the child's own folders (%LOCALAPPDATA%\Roblox): Windows expands it for that account.
+    Set-Value $rule ItemData $Path $(if ($Path.Contains('%')) { 'ExpandString' } else { 'String' })
     Set-Value $rule SaferFlags 0 DWord
     Set-Value $rule Description $Description String
     Set-Value $rule LastModified ([DateTime]::Now.ToFileTime()) QWord

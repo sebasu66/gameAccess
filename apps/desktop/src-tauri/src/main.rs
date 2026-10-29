@@ -31,6 +31,7 @@ mod webview_rest;
 mod window_fit;
 mod process_control;
 mod kid_mode;
+mod app_shortcuts;
 
 use std::{env, sync::Mutex};
 
@@ -171,7 +172,11 @@ fn main() {
             kid_mode::kid_play,
             kid_mode::kid_sign_out,
             kid_mode::kid_family,
-            kid_mode::kid_apply
+            kid_mode::kid_apply,
+            app_shortcuts::shortcuts_list,
+            app_shortcuts::shortcut_add,
+            app_shortcuts::shortcut_remove,
+            app_shortcuts::shortcut_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");

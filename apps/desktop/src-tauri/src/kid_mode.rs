@@ -30,10 +30,11 @@ const APPEAR_GRACE: Duration = Duration::from_secs(90);
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct KidGame {
-    pub app_id: u32,
+    /// A library game's Steam AppID; a shortcut to another program is `-id` (app_shortcuts.rs).
+    pub app_id: i64,
     pub name: String,
     pub folder: String,
-    /// Empty for a Steam game: Steam starts it.
+    /// Empty for a Steam game: Steam starts it. May hold `%LOCALAPPDATA%` and the like (a shortcut).
     pub executable: String,
     #[serde(deserialize_with = "one_or_many")]
     pub arguments: Vec<String>,
@@ -160,7 +161,7 @@ fn remaining(kid: &Kid, played: u64) -> Option<u64> {
     (kid.daily_minutes > 0).then(|| (kid.daily_minutes as u64 * 60).saturating_sub(played))
 }
 
-struct Playing { app_id: u32, child: Option<Child> }
+struct Playing { app_id: i64, child: Option<Child> }
 static PLAYING: Mutex<Option<Playing>> = Mutex::new(None);
 static TIME_UP: Mutex<bool> = Mutex::new(false);
 
@@ -170,7 +171,7 @@ pub struct KidSession {
     kid: Kid,
     played_seconds: u64,
     remaining_seconds: Option<u64>,
-    playing: Option<u32>,
+    playing: Option<i64>,
     time_up: bool,
 }
 
@@ -186,7 +187,7 @@ pub fn kid_session() -> Option<KidSession> {
 
 /// Starts one of the child's games, if it is one of them and there is time left.
 #[tauri::command]
-pub fn kid_play(app_id: u32) -> Result<(), String> {
+pub fn kid_play(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
     let game = kid.games.iter().find(|game| game.app_id == app_id).cloned().ok_or("not_allowed")?;
     if remaining(&kid, played_today()) == Some(0) { return Err("time_up".into()); }
@@ -200,9 +201,7 @@ pub fn kid_play(app_id: u32) -> Result<(), String> {
         command.spawn().map_err(|error| error.to_string())?;
         None
     } else {
-        let exe = PathBuf::from(&game.executable);
-        let dir = exe.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from(&game.folder));
-        Some(Command::new(&exe).args(&game.arguments).current_dir(dir).spawn().map_err(|error| error.to_string())?)
+        crate::app_shortcuts::launch(&game.executable, &game.arguments)?
     };
     *playing = Some(Playing { app_id, child });
     drop(playing);
@@ -234,7 +233,7 @@ fn watch(kid: Kid, game: KidGame) {
 
 fn game_pids(game: &KidGame) -> Vec<u32> {
     #[cfg(windows)]
-    return crate::game_focus::game_processes(&game.folder);
+    return crate::game_focus::game_processes(&crate::app_shortcuts::expand(&game.folder));
     #[cfg(not(windows))]
     { let _ = game; Vec::new() }
 }

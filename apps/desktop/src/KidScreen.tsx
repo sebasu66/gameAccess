@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Gamepad2, LogOut, Move } from "lucide-react";
+import { AppWindow, Gamepad2, LogOut, Move } from "lucide-react";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { focusCard } from "./BigScreenControls";
@@ -112,7 +112,7 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     </header>
     {session.kid.games.length ? <div className="ga-kid-grid">
       {session.kid.games.map(game => <button key={game.appId} type="button" className={game.appId === session.playing ? "ga-kid-card is-playing" : "ga-kid-card"} data-kid-game={game.appId} onClick={() => void play(game)} aria-label={t("kidPlayAria", { name: game.name })}>
-        <span className="ga-kid-art"><Gamepad2 size={40} aria-hidden="true" /><img src={cover(game.appId)} alt="" draggable={false} onError={event => { event.currentTarget.hidden = true; }} /></span>
+        <span className="ga-kid-art">{game.appId > 0 ? <Gamepad2 size={40} aria-hidden="true" /> : <AppWindow size={40} aria-hidden="true" />}{game.appId > 0 ? <img src={cover(game.appId)} alt="" draggable={false} onError={event => { event.currentTarget.hidden = true; }} /> : null}</span>
         <span className="ga-kid-name">{game.name}</span>
       </button>)}
     </div> : <p className="ga-kid-empty">{t("kidNoGames")}</p>}

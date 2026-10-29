@@ -173,3 +173,14 @@
 .lm-source-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #c9ced2; }
 /* A switch in the row (kid mode: the game is shown in the child's account): on, it is filled orange. */
 .lm-act[aria-pressed="true"] { background: #cc833333; border-color: #d79e60; color: #ffd0a0; }
+/* Third-party apps (appShortcuts.ts): shortcuts under the games, in their own section. */
+.lm-apps { margin: 18px 12px 12px; padding-top: 14px; border-top: 1px solid #ffffff14; }
+.lm-apps > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.lm-apps h3 { margin: 0 0 4px; font: 400 22px "Bebas Neue", sans-serif; letter-spacing: .04em; color: var(--ga-orange, #ff6a00); }
+.lm-apps header p { margin: 0; color: #929ba2; font-size: 12px; max-width: 70ch; }
+.lm-apps ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lm-apps li { display: grid; grid-template-columns: 22px minmax(140px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; background: #ffffff06; }
+.lm-apps li > svg { color: #c9ccd1; }
+.lm-apps-name { font-weight: 800; font-size: 13px; }
+.lm-apps-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #929ba2; font: 12px Consolas, monospace; }
+.lm-apps .lm-acts { display: flex; gap: 6px; }

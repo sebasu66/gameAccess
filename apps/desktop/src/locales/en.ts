@@ -1156,5 +1156,6 @@ export const en: Record<keyof typeof es, string> = {
   kidFiveMinutesTitle: "5 minutes left",
   kidFiveMinutesText: "Save your game: it is going to close.",
   kidTimeUpTitle: "Today's time is over",
+  kidNeedsPlus: "Kid mode is part of PLUS. Activate PLUS to create the child's account and apply changes.",
   kidTimeUpText: "The game was closed. There is more tomorrow.",
 };

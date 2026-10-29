@@ -47,3 +47,4 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-chosen li { padding: 4px 10px; border-radius: 999px; border: 1px solid #ffffff24; background: #ffffff0d; font-size: 12px; font-weight: 700; }
 .ga-kid-panel footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 30px; border-top: 1px solid #ffffff16; }
 .ga-kid-panel footer p { margin: 0; color: #a5a7ad; font-size: 12px; }
+.ga-kid-plus { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: #ffd0a0; font-size: 13px; font-weight: 700; }
