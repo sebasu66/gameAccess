@@ -1,6 +1,6 @@
 ---
 tipo: diseño
-actualizado: 2026-10-19
+actualizado: 2026-10-29
 estado: diseñado, sin implementar
 ---
 # Modo niño — control de acceso y tiempo para chicos
@@ -25,6 +25,20 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 - **Horario de inicio de sesión**: `net user <cuenta> /times:...`. Fuera de horario el niño no puede ni entrar; lo hace cumplir Windows.
 - **Administrador de tareas deshabilitado** en la cuenta del niño (política `DisableTaskMgr`), para cerrar la vía Ctrl+Alt+Supr → "Ejecutar nueva tarea".
 - **La cuenta del adulto debe tener contraseña**; si no, el niño cambia de usuario desde la pantalla de inicio.
+
+### Juegos bloqueados hasta que Game Access los habilita (Seba, 2026-10-29)
+En la cuenta del niño Game Access corre **como el niño**: no puede tener más permisos que él, así que lo que Game Access pudiera habilitar solo, también lo podría el niño. Por eso:
+- Las cuentas de niños están en el grupo local **`GameAccess-Kids`**, que tiene **denegado ejecutar** (permiso NTFS `ExecuteFile`, heredado) en las carpetas de juegos. Bloquea los `.exe` y también las DLL (cargarlas pide permiso de ejecución). Anda en Home y Pro.
+- Un **servicio de Game Access como SYSTEM** (MN.6, ahora obligatorio) recibe el pedido "jugar a X" por named pipe, comprueba qué cuenta lo pide, si el juego está permitido, si queda tiempo y si está en horario, y agrega un permiso **explícito de ejecutar** en la carpeta de ese juego solo para esa cuenta (el permiso de la carpeta del juego queda más cerca que la denegación heredada de la raíz, y gana). Al acabarse el tiempo cierra el juego y saca el permiso; al arrancar la PC saca los que hayan quedado.
+- El tiempo también lo lleva el servicio: el niño no puede tocar ni el contador ni el permiso.
+- Descartados para esto: **AppLocker** (Microsoft solo garantiza que se aplique en Enterprise/Education; no existe en Home), **App Control / WDAC** (es para toda la PC: bloquearía también al adulto), **`DisallowRun`** (solo la respeta el Explorador).
+- No cubre programas de Windows (`cmd`, etc.): no conviene cambiar sus permisos; ahí protege que no haya escritorio ni Explorador.
+- Steam abre sus juegos él mismo: su carpeta de juegos necesita el mismo bloqueo y habilitación. Probarlo en MN.2.
+
+Script de la prueba de concepto: `tools/windows/kid-account.ps1` (crea la cuenta, el grupo, el escritorio, el Administrador de tareas bloqueado, el horario y el bloqueo de las carpetas; `-Remove` lo deshace).
+
+### App del celular del padre (idea, Seba 2026-10-29)
+Una mini app en el celular del adulto para **ver y administrar** al niño: cuánto jugó y a qué, cuánto le queda, sumar o quitar tiempo, habilitar o bloquear un juego, cambiar el horario. Habla con el servicio de la PC (directo en la red local o a través de la API de Game Access); la PC aplica los cambios y el servicio los hace cumplir. Sin diseñar todavía.
 
 ## Instalación y datos para varios usuarios
 Desde 2026-10-19 (MN.1) Game Access se instala **para toda la PC** en `Program Files\gameAccess`; el estado del launcher va a `%LOCALAPPDATA%\gameAccess\launcher` y las carpetas de juegos y descargas elegidas en el instalador a `HKLM\Software\gameAccess`. Lo que sigue describe el resto del diseño.
@@ -59,7 +73,7 @@ El adulto crea o elige la cuenta del niño, elige sus juegos y define horarios y
 
 ## Conteo del tiempo
 - **Versión 1**: el Game Access del niño guarda cuánto jugó en su `%LOCALAPPDATA%`. Sin escritorio ni explorador, un chico de 6 a 12 no tiene cómo borrarlo; además el horario de inicio de sesión lo hace cumplir Windows.
-- **Más adelante (opcional)**: un servicio chico como SYSTEM que lleva el tiempo y al que Game Access consulta (named pipe); el niño no puede tocarlo. Si en las pruebas aparecen escapes reales, ese mismo servicio puede vigilar procesos (eventos de proceso por ETW con `Microsoft.Diagnostics.Tracing.TraceEvent` o equivalente en Rust, reglas por firma digital del ejecutable con `WinVerifyTrust`, p. ej. "Roblox Corporation") y dejar correr solo lo que lanzó Game Access.
+- **Con el bloqueo de ejecutables (2026-10-29) pasa a ser obligatorio**: un servicio chico como SYSTEM que lleva el tiempo y al que Game Access consulta (named pipe); el niño no puede tocarlo. Si en las pruebas aparecen escapes reales, ese mismo servicio puede vigilar procesos (eventos de proceso por ETW con `Microsoft.Diagnostics.Tracing.TraceEvent` o equivalente en Rust, reglas por firma digital del ejecutable con `WinVerifyTrust`, p. ej. "Roblox Corporation") y dejar correr solo lo que lanzó Game Access.
 
 ## Vías de escape conocidas
 - Launchers (Steam, Epic): tienda, navegador interno, otros juegos → Vista familiar.
