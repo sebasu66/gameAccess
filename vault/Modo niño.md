@@ -60,6 +60,8 @@ Al arrancar, Game Access lee el **SID** de la cuenta que inició sesión y lo bu
 El modo no es un interruptor que el niño pueda tocar: lo define la cuenta.
 
 ## Control parental (modo adulto)
+
+> **Decidido con Seba (2026-10-29):** Game Access se instala desde la cuenta del padre y ese Game Access es la consola desde donde se administra todo: crear la cuenta del hijo, asignarle juegos, tiempo y horarios. Lo que pide administrador no lo hace la app del padre relanzándose elevada cada vez, sino el **servicio SYSTEM** que instala el instalador (que ya corre como administrador): la app del padre le manda las órdenes por named pipe y el servicio solo acepta órdenes de administración de cuentas del grupo Administradores (o del SID del padre registrado) y con el PIN; a la cuenta del niño solo le acepta "jugar a X". La app del celular (MN.7) pasa por el mismo servicio. El servicio hace en Rust lo mismo que `tools/windows/kid-account.ps1`. Lo de abajo (relanzar elevado) queda como plan B si el servicio no estuviera.
 El adulto crea o elige la cuenta del niño, elige sus juegos y define horarios y límites. Para aplicarlo, Game Access se relanza **elevado** (p. ej. `gameaccess-desktop.exe --aplicar-control-parental`; Windows pide confirmación una vez) y:
 - crea la cuenta local estándar del niño,
 - pone Game Access como su escritorio,
