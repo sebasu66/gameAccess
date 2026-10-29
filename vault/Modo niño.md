@@ -41,6 +41,35 @@ Script de la prueba de concepto: `tools/windows/kid-account.ps1` (crea la cuenta
 ### App del celular del padre (idea, Seba 2026-10-29)
 Una mini app en el celular del adulto para **ver y administrar** al niño: cuánto jugó y a qué, cuánto le queda, sumar o quitar tiempo, habilitar o bloquear un juego, cambiar el horario. Habla con el servicio de la PC (directo en la red local o a través de la API de Game Access); la PC aplica los cambios y el servicio los hace cumplir. Sin diseñar todavía.
 
+## Cómo se presenta y se usa (Seba, 2026-10-29)
+El botón del niño abre una mini aplicación con varias páginas:
+1. **Explicación que vende la función** (tono de marketing, para quien todavía no paga PLUS): qué resuelve, cuatro beneficios y "se configura en dos pasos". El botón Empezar está bloqueado sin PLUS y al lado hay "Conocer PLUS".
+2. **Asistente**: (a) cuenta nueva de Windows para el niño, con el aviso de que solo puede usar Game Access (sin otros programas, sin internet, sin nada dañino) y el nombre; (b) tiempo por día y horarios, ya llenos: 2 h, lunes a viernes 12–21, fin de semana 9–22.
+3. **Panel** (el asistente no vuelve a mostrarse): juegos habilitados con su máximo propio, cuánto jugó por día en la semana, órdenes en vivo (parar ahora, cerrar el día, sumar minutos) y ajustes. Más adelante, el enlace para bajar la app del celular.
+
+**Máximo por juego** (2026-10-29): cada juego puede tener un máximo diario menor, **dentro** del total; el tiempo de un juego también cuenta para el total. Sirve para dar más tiempo a un programa de dibujo o a juegos educativos y menos a los que no aportan (Roblox: 1 h de 3 h).
+
+## Deshacer y desinstalar (Seba, 2026-10-29)
+- **Desde la app**: "Quitar el modo niño" deshace lo que se hizo: borra la cuenta de Windows y su perfil, saca al niño de `familia.json` y borra su tiempo y órdenes; queda como antes de empezar.
+- **Al desinstalar Game Access**: se borran las cuentas de niño y `%ProgramData%\GameAccess`; una cuenta con Game Access de escritorio y sin Game Access sería una pantalla negra. En una actualización no se toca.
+- **Al quitar un juego de la biblioteca**: la confirmación avisa que sale también del modo niño (y si el niño se queda sin juegos); el cambio llega a Windows al aplicar.
+
+## Servidor (Seba, 2026-10-29) — MN.9 y US.1
+Las estadísticas y las órdenes en vivo tienen que poder consultarse desde la app del celular, así que viven en el servidor (`apps/api`) y también en la PC.
+- **Quién manda**: la PC hace cumplir las reglas aunque no haya internet. El servidor es el buzón y el historial.
+- **Sin puertos abiertos en la casa**: la PC consulta al servidor (cada pocos segundos mientras el niño juega, más espaciado si no) y sube su historial; el celular habla solo con el servidor.
+- **Estadísticas**: la PC sube los segundos por día y por juego (mismo formato que `uso\<sid>.json`); el servidor guarda el historial y lo sirve al celular y a Game Access.
+- **Órdenes**: cola por niño con las mismas acciones del canal local (`extend`, `lock`, `unlock`, `stop`, más cambiar horario y límites). La PC las toma, las aplica y confirma; el canal local queda para la pantalla de Game Access y sin internet. Las dos fuentes se combinan por fecha de la orden.
+- **Emparejar el celular con la PC**: código corto que muestra Game Access en el panel del niño; el celular lo canjea y queda ligado a la cuenta del usuario (US.1). Cada orden lleva usuario, PC y niño, y el servidor comprueba que el usuario sea el dueño.
+- **Tabla de usuarios (US.1)**: `user` con correo, nombre, idioma y fecha de alta; sus llaves de acceso (`AccessKey` pasa a tener `user_id`), la membresía PLUS (vigencia) y **pagado / no pagado** con fecha y nota, que Seba cambia a mano en el panel de administración (sin pasarela de pago por ahora). El acceso a PLUS sale de la vigencia y de esa marca.
+
+## Contraseña de administrador (Seba, 2026-10-29) — MN.10
+Si el Modo niño está activo, hay un niño en la casa que puede llegar a Game Access abierto en la cuenta del adulto, o abrirlo él. Entonces:
+- Modo niño y el filtro de contenido para niños quedan en una sección **bajo contraseña**.
+- Game Access pasa a pedir permiso de administrador para modificar la biblioteca, descargar y cambiar el perfil del niño.
+- No se pide todo el tiempo: al abrir Game Access, o cuando la PC lleva un rato sin actividad, Game Access se cierra de nuevo con la animación del portón (§4.24 de `docs/GUI_DESIGN.md`), que gana un campo de clave: **con clave entra como administrador, sin clave como jugador** (menos privilegios).
+- Hay que decidir dónde vive la clave (hash en `familia.json`, que ya prevé un PIN del adulto, o en la cuenta del usuario del servidor) y qué puede hacer el modo jugador.
+
 ## Instalación y datos para varios usuarios
 Desde 2026-10-19 (MN.1) Game Access se instala **para toda la PC** en `Program Files\gameAccess`; el estado del launcher va a `%LOCALAPPDATA%\gameAccess\launcher` y las carpetas de juegos y descargas elegidas en el instalador a `HKLM\Software\gameAccess`. Lo que sigue describe el resto del diseño.
 

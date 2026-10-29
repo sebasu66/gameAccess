@@ -242,6 +242,17 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+; Uninstalling also deletes the children's Windows accounts that kid mode made (kid-account.ps1 -RemoveAll): an
+; account whose desktop is Game Access would be a black screen without it. Runs before the files go (the script is
+; in the install folder) and never in an update, which would otherwise erase the account at every new version.
+!macro NSIS_HOOK_PREUNINSTALL
+  ${If} $UpdateMode <> 1
+  ${AndIf} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
+    nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -RemoveAll`
+    Pop $0
+  ${EndIf}
+!macroend
+
 ; Uninstalling Game Access also removes the source plugins it installed. Plugins live in each user's
 ; %APPDATA%\GameAccess\plugins (see plugin_install.rs) and keep running as their own process, so they are
 ; stopped first. Skipped when the uninstaller runs as part of an update (/UPDATE).

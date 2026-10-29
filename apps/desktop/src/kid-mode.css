@@ -48,6 +48,26 @@ body.ga-kid-screen { background: var(--ga-bg, #07090d); }
 .ga-kid-chosen li select { font-size: 12px; }
 .ga-kid-card.is-spent { opacity: 0.45; }
 .ga-kid-card .ga-kid-left { font-size: 12px; font-weight: 700; opacity: 0.85; }
+.ga-kid-lead { margin: 0; font-size: 15px; line-height: 1.55; color: #dfe3e6; }
+.ga-kid-benefits { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-benefits li { display: flex; gap: 14px; align-items: flex-start; }
+.ga-kid-benefits strong { font-size: 14px; }
+.ga-kid-benefits p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: #a5a7ad; }
+.ga-kid-benefit-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: var(--ga-orange, #cc8333); }
+.ga-kid-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+.ga-kid-cta [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+.ga-kid-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: #c9ccd1; }
+.ga-kid-summary strong { color: var(--ga-white, #f4f4f2); font-size: 15px; }
+.ga-kid-panel legend svg { vertical-align: -2px; }
+.ga-kid-week { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-week li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 88px; align-items: center; gap: 10px; font-size: 12px; }
+.ga-kid-week li > span:first-child { text-transform: capitalize; color: #a5a7ad; font-weight: 700; }
+.ga-kid-week b { text-align: right; font-weight: 800; }
+.ga-kid-bar { height: 10px; border-radius: 5px; background: #ffffff12; overflow: hidden; }
+.ga-kid-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ga-orange, #cc8333); }
+.ga-kid-live { display: flex; flex-wrap: wrap; gap: 10px; }
+.ga-kid-phone { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px dashed #ffffff2a; color: #a5a7ad; font-size: 12px; }
 .ga-kid-panel footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 30px; border-top: 1px solid #ffffff16; }
 .ga-kid-panel footer p { margin: 0; color: #a5a7ad; font-size: 12px; }
 .ga-kid-plus { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: #ffd0a0; font-size: 13px; font-weight: 700; }
+.ga-kid-danger legend { color: #e1898f; }

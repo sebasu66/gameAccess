@@ -28,7 +28,7 @@ import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
-import { applyKidDraft, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
+import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
@@ -229,10 +229,26 @@ function StatusCell({ status }: { status: Status }) {
  *  permission). */
 function chooseForKid(game: LibraryGame | AppShortcut, c: LibraryCopy) {
   if ("app_id" in game) toggleKidGame(game); else toggleKidShortcut(game);
+  offerKidApply(c);
+}
+
+/** The child's list changed: the change waits in a notice until it is applied (one Windows permission). */
+function offerKidApply(c: LibraryCopy) {
   showNotice({ tone: "info", title: c.kidPending, timer: false, actions: [
     { label: c.kidApplyNow, kind: "primary", run: () => { hideNotice(); void applyKidDraft().then(() => notify(c.kidApplied), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" })); } },
     { label: c.kidLater, kind: "secondary", run: () => hideNotice() },
   ] });
+}
+
+/** Removes a shortcut; when the child has it, the confirmation says it also leaves their list. */
+async function removeForKid(item: AppShortcut, c: LibraryCopy) {
+  const kidGames = kidGamesAmong([-item.id]);
+  if (kidGames.length) {
+    const ok = await confirmNotice({ title: c.appsRemove, text: c.kidRemoveNote(kidGames.map(game => game.name).join(", "), kidGames.length >= kidGameCount()), confirmLabel: c.appsRemove, cancelLabel: c.cancel });
+    if (!ok) return;
+  }
+  await removeShortcut(item.id);
+  if (dropKidGames([-item.id]).length) offerKidApply(c);
 }
 
 /** Shortcuts to programs that are not library games (appShortcuts.ts): their own section under the games, never
@@ -252,7 +268,7 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
         <span className="lm-acts">
           <IconAction label={c.appsOpen} onClick={() => void openShortcut(item.id).catch(fail)}><PhPlay /></IconAction>
           {plus && kid.name ? <IconAction label={(kidMayPlay(-item.id) ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={kidMayPlay(-item.id)} onClick={() => chooseForKid(item, c)}><Baby /></IconAction> : null}
-          <IconAction label={c.appsRemove} tone="danger" onClick={() => void removeShortcut(item.id).catch(fail)}><Trash /></IconAction>
+          <IconAction label={c.appsRemove} tone="danger" onClick={() => void removeForKid(item, c).catch(fail)}><Trash /></IconAction>
         </span>
       </li>)}
     </ul> : <p className="lm-empty">{c.appsEmpty}</p>}
@@ -449,11 +465,13 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       setPending({ kind: "plan", plans, ids });
     } catch (failure) { setMessage(String(failure)); } finally { setBusy(false); }
   };
-  const runBatch = async (action: BatchAction, ids: number[]) => {
+  const runBatch = async (action: BatchAction, ids: number[]): Promise<number[]> => {
     setBusy(true); setMessage(c.working);
+    let worked: number[] = [];
     try {
       const results: Array<{ app_id: number; ok: boolean; error?: string; in_use_folder?: string }> = libraryDemo() ? ids.map(app_id => ({ app_id, ok: true })) : (await digitalProcessManager.libraryBatch(action, ids)).results ?? [];
       if (action === "adopt" && !libraryDemo()) results.forEach(row => { const found = games.find(game => game.app_id === row.app_id); if (row.ok && found) addReadyGameToLibrary(row.app_id, found.name, catalog); });
+      worked = results.filter(row => row.ok).map(row => row.app_id);
       setMessage(c.done(results.filter(row => row.ok).length, results.filter(row => !row.ok).length));
       announceBatch(action, results, games);
       // A folder held open by other programs: the notice names them, can close the Explorer windows and tries again.
@@ -461,13 +479,16 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       if (locked?.in_use_folder) void showFolderInUse(locked.in_use_folder, () => void runBatch(action, [locked.app_id]));
       setSelection({});
     } catch (failure) { setMessage(String(failure)); notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); setPending(null); await scanLibrary(); notifyLibraryChanged(); }
+    return worked;
   };
+  /** Games that left the library also leave the child's list; the change waits for "Apply". */
+  const releaseKidGames = (ids: number[]) => { if (dropKidGames(ids).length) offerKidApply(c); };
   const confirmPending = async (current: Pending | null = pending) => {
     if (!current) return;
     if (current.kind === "plan") await runBatch("adopt", current.ids);
-    else if (current.kind === "uninstall") await runBatch("uninstall", current.ids);
-    else if (current.kind === "steam_uninstall") await runBatch("steam_uninstall", [current.game.app_id as number]);
-    else if (current.kind === "linked_delete" || current.kind === "linked_move") await runBatch(current.kind, [current.game.app_id as number]);
+    else if (current.kind === "uninstall") releaseKidGames(await runBatch("uninstall", current.ids));
+    else if (current.kind === "steam_uninstall") releaseKidGames(await runBatch("steam_uninstall", [current.game.app_id as number]));
+    else if (current.kind === "linked_delete" || current.kind === "linked_move") releaseKidGames(await runBatch(current.kind, [current.game.app_id as number]));
     else {
       const catalogGame = findCatalogGame(current.game);
       await runBatch("discard_transfer", [current.game.app_id as number]);
@@ -483,10 +504,13 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     const allLinked = pending.kind === "uninstall" && pending.ids.every(id => linkedIds.has(id));
     const anyLinked = pending.kind === "uninstall" && pending.ids.some(id => linkedIds.has(id));
     let live = true;
+    const leaving = pending.kind === "uninstall" ? pending.ids : pending.kind === "steam_uninstall" || pending.kind === "linked_delete" || pending.kind === "linked_move" ? [pending.game.app_id as number] : [];
+    const kidGames = kidGamesAmong(leaving);
+    const kidNote = kidGames.length ? ` ${c.kidRemoveNote(kidGames.map(game => game.name).join(", "), kidGames.length >= kidGameCount())}` : "";
     void confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
       title: pending.kind === "linked_move" ? c.linkedMoveTitle(pending.game.name) : pending.kind === "linked_delete" ? c.linkedDeleteTitle(pending.game.name) : pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
-      text: pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody,
+      text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
       confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });

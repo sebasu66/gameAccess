@@ -11,7 +11,7 @@
 //! in the child's own `%LOCALAPPDATA%` (version 1: no desktop or explorer to reach it; the SYSTEM service keeps it later).
 
 use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::{Mutex, OnceLock};
@@ -135,39 +135,111 @@ pub fn run_shell_if_requested() -> bool {
     true
 }
 
-/// `games`: seconds played today per game (by AppID); the day's `seconds` is the total of all of them.
-#[derive(Serialize, Deserialize, Default, Clone)]
+/// One day's play: `games` is seconds per game (by AppID); `seconds` is the total of all of them.
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 #[serde(default)]
-struct Usage { date: String, seconds: u64, games: HashMap<String, u64> }
+struct DayUsage { seconds: u64, games: HashMap<String, u64> }
+type Usage = DayUsage;
 
-fn usage_path() -> Option<PathBuf> {
+/// The last days kept (the adult's screen shows the week). The `date`/`seconds`/`games` fields are the older format,
+/// one day only; they are read into `days` and not written again.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+struct UsageFile { days: BTreeMap<String, DayUsage>, date: String, seconds: u64, games: HashMap<String, u64> }
+const DAYS_KEPT: usize = 30;
+
+fn read_usage(path: &Path) -> UsageFile {
+    let mut file: UsageFile = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default();
+    if !file.date.is_empty() {
+        let date = std::mem::take(&mut file.date);
+        let day = DayUsage { seconds: std::mem::take(&mut file.seconds), games: std::mem::take(&mut file.games) };
+        file.days.entry(date).or_insert(day);
+    }
+    file
+}
+
+/// Where the adult's live orders and the child's time are shared: next to the family file, in a folder every account
+/// may write (made by `kid-account.ps1`). The child's Game Access has no desktop or explorer to reach it.
+fn shared_dir() -> PathBuf { family_path().parent().map(Path::to_path_buf).unwrap_or_default().join("uso") }
+
+fn local_usage_path() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|base| PathBuf::from(base).join("gameAccess").join("kid-time.json"))
+}
+
+/// The child's own time file: in the shared folder when this account can write there (so the adult sees it), else in
+/// its own `%LOCALAPPDATA%`.
+fn usage_path() -> Option<PathBuf> {
+    static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let shared = kid_account().map(|kid| shared_dir().join(format!("{}.json", kid.sid)));
+        match shared {
+            Some(path) if path.parent().is_some_and(Path::is_dir) && std::fs::OpenOptions::new().create(true).append(true).open(&path).is_ok() => Some(path),
+            _ => local_usage_path(),
+        }
+    }).clone()
 }
 
 fn today() -> String { chrono::Local::now().format("%Y-%m-%d").to_string() }
 
 fn usage_today() -> Usage {
     let Some(path) = usage_path() else { return Usage::default() };
-    let usage: Usage = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default();
-    if usage.date == today() { usage } else { Usage::default() }
+    read_usage(&path).days.get(&today()).cloned().unwrap_or_default()
 }
-
-fn played_today() -> u64 { usage_today().seconds }
 
 /// Counts `seconds` of `app_id` in the day's total and in that game's own time; returns both totals.
 fn add_played(app_id: i64, seconds: u64) -> (u64, u64) {
-    let mut usage = usage_today();
-    usage.date = today();
-    usage.seconds += seconds;
-    let game = usage.games.entry(app_id.to_string()).or_insert(0);
+    let Some(path) = usage_path() else { return (0, 0) };
+    let mut file = read_usage(&path);
+    let day = file.days.entry(today()).or_default();
+    day.seconds += seconds;
+    let game = day.games.entry(app_id.to_string()).or_insert(0);
     *game += seconds;
-    let game = *game;
-    let total = usage.seconds;
-    if let Some(path) = usage_path() {
-        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
-        let _ = std::fs::write(path, serde_json::to_string(&usage).unwrap_or_default());
-    }
+    let (game, total) = (*game, day.seconds);
+    while file.days.len() > DAYS_KEPT { if let Some(oldest) = file.days.keys().next().cloned() { file.days.remove(&oldest); } }
+    if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
+    let _ = std::fs::write(path, serde_json::to_string(&file).unwrap_or_default());
     (total, game)
+}
+
+/// The adult's live orders for one child, written by the adult's Game Access (or later the phone app) and read by the
+/// child's every few seconds: more time today, the day closed, or the game stopped now.
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Control {
+    /// Minutes added to the daily limit, valid on `extra_date` only.
+    extra_date: String,
+    extra_minutes: u32,
+    /// The day closed for the child: no game starts and the one open is closed.
+    lock_date: String,
+    /// Changes with every "stop now": a running game that sees another number closes.
+    stop_nonce: u64,
+}
+
+fn valid_sid(sid: &str) -> bool { sid.starts_with("S-1-") && sid.chars().all(|c| c.is_ascii_digit() || c == 'S' || c == '-') }
+fn control_path(sid: &str) -> PathBuf { shared_dir().join(format!("{sid}.control.json")) }
+
+fn read_control(sid: &str) -> Control {
+    std::fs::read_to_string(control_path(sid)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+}
+
+/// The child as limited today: the daily limit plus the minutes the adult added (no limit stays no limit).
+fn with_control(mut kid: Kid, control: &Control, today: &str) -> Kid {
+    if kid.daily_minutes > 0 && control.extra_date == today { kid.daily_minutes += control.extra_minutes; }
+    kid
+}
+
+fn apply_control(mut control: Control, action: &str, minutes: u32, today: &str, nonce: u64) -> Result<Control, String> {
+    match action {
+        "extend" => {
+            if control.extra_date != today { control.extra_date = today.to_string(); control.extra_minutes = 0; }
+            control.extra_minutes = (control.extra_minutes + minutes.clamp(1, 600)).min(1440);
+        }
+        "lock" => control.lock_date = today.to_string(),
+        "unlock" => control.lock_date.clear(),
+        "stop" => control.stop_nonce = nonce,
+        _ => return Err("bad_action".into()),
+    }
+    Ok(control)
 }
 
 /// What is left today, in seconds; None without a daily limit.
@@ -188,7 +260,6 @@ fn left_for(kid: &Kid, game: &KidGame, usage: &Usage) -> Option<u64> {
 
 struct Playing { app_id: i64, child: Option<Child> }
 static PLAYING: Mutex<Option<Playing>> = Mutex::new(None);
-static TIME_UP: Mutex<bool> = Mutex::new(false);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -208,11 +279,13 @@ pub fn kid_session() -> Option<KidSession> {
     let kid = kid_account()?;
     let usage = usage_today();
     let played = usage.seconds;
+    let control = read_control(&kid.sid);
+    let limited = with_control(kid.clone(), &control, &today());
     let playing = PLAYING.lock().ok().and_then(|playing| playing.as_ref().map(|game| game.app_id));
-    let time_up = TIME_UP.lock().map(|flag| *flag).unwrap_or(false) || remaining(&kid, played) == Some(0);
+    let time_up = control.lock_date == today() || remaining(&limited, played) == Some(0);
     let game_remaining = kid.games.iter().filter(|game| game.daily_minutes > 0)
         .filter_map(|game| Some((game.app_id, game_remaining(game, usage.games.get(&game.app_id.to_string()).copied().unwrap_or(0))?))).collect();
-    Some(KidSession { remaining_seconds: remaining(&kid, played), played_seconds: played, playing, time_up, game_remaining, kid })
+    Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, game_remaining, kid })
 }
 
 /// Starts one of the child's games, if it is one of them and there is time left.
@@ -221,8 +294,10 @@ pub fn kid_play(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
     let game = kid.games.iter().find(|game| game.app_id == app_id).cloned().ok_or("not_allowed")?;
     let usage = usage_today();
-    if remaining(&kid, usage.seconds) == Some(0) { return Err("time_up".into()); }
-    if left_for(&kid, &game, &usage) == Some(0) { return Err("game_time_up".into()); }
+    let control = read_control(&kid.sid);
+    let limited = with_control(kid.clone(), &control, &today());
+    if control.lock_date == today() || remaining(&limited, usage.seconds) == Some(0) { return Err("time_up".into()); }
+    if left_for(&limited, &game, &usage) == Some(0) { return Err("game_time_up".into()); }
     let mut playing = PLAYING.lock().map_err(|_| "busy")?;
     if playing.is_some() { return Err("already_playing".into()); }
     let child = if game.steam {
@@ -245,17 +320,21 @@ pub fn kid_play(app_id: i64) -> Result<(), String> {
 fn watch(kid: Kid, game: KidGame) {
     let started = Instant::now();
     let mut seen = false;
+    let stop_nonce = read_control(&kid.sid).stop_nonce;
     loop {
         std::thread::sleep(TICK);
         let pids = game_pids(&game);
+        // The adult's live orders: "stop now" (another number than at the start) and the day closed.
+        let control = read_control(&kid.sid);
+        if control.stop_nonce != stop_nonce || control.lock_date == today() { close_game(&pids); break; }
+        let limited = with_control(kid.clone(), &control, &today());
         let own = PLAYING.lock().ok().and_then(|mut playing| playing.as_mut()?.child.as_mut()?.try_wait().ok().map(|done| done.is_none())).unwrap_or(false);
         let alive = own || !pids.is_empty();
         seen |= alive;
         if !alive && (seen || started.elapsed() > APPEAR_GRACE) { break; }
         if !alive { continue; }
         let (total, own) = add_played(game.app_id, TICK.as_secs());
-        if remaining(&kid, total) == Some(0) {
-            if let Ok(mut flag) = TIME_UP.lock() { *flag = true; }
+        if remaining(&limited, total) == Some(0) {
             close_game(&pids);
             break;
         }
@@ -291,6 +370,49 @@ pub fn kid_sign_out() { sign_out(); }
 #[tauri::command]
 pub fn kid_family() -> Family { read_family(&family_path()) }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayRow { date: String, seconds: u64, games: HashMap<String, u64> }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KidLive {
+    /// The last 7 days, oldest first, today last.
+    days: Vec<DayRow>,
+    extra_minutes: u32,
+    locked_today: bool,
+    /// False until the account is applied with the version that makes the shared folder: no live orders yet.
+    channel: bool,
+}
+
+/// What the adult's screen shows of a child: the week's time and the live orders in force today.
+#[tauri::command]
+pub fn kid_live(sid: String) -> KidLive {
+    if !valid_sid(&sid) { return KidLive { days: vec![], extra_minutes: 0, locked_today: false, channel: false }; }
+    let file = read_usage(&shared_dir().join(format!("{sid}.json")));
+    let now = chrono::Local::now().date_naive();
+    let days = (0..7).rev().map(|ago| {
+        let date = (now - chrono::Duration::days(ago)).format("%Y-%m-%d").to_string();
+        let day = file.days.get(&date).cloned().unwrap_or_default();
+        DayRow { date, seconds: day.seconds, games: day.games }
+    }).collect();
+    let control = read_control(&sid);
+    let now = today();
+    KidLive { days, extra_minutes: if control.extra_date == now { control.extra_minutes } else { 0 }, locked_today: control.lock_date == now, channel: shared_dir().is_dir() }
+}
+
+/// A live order from the adult: "extend" (`minutes` more today), "lock" / "unlock" (the day), "stop" (the open game now).
+#[tauri::command]
+pub fn kid_control(sid: String, action: String, minutes: u32) -> Result<KidLive, String> {
+    if kid_account().is_some() { return Err("not_allowed".into()); }
+    if !valid_sid(&sid) { return Err("bad_sid".into()); }
+    if !shared_dir().is_dir() { return Err("needs_apply".into()); }
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|time| time.as_millis() as u64).unwrap_or(1);
+    let control = apply_control(read_control(&sid), &action, minutes, &today(), nonce)?;
+    std::fs::write(control_path(&sid), serde_json::to_string(&control).map_err(|error| error.to_string())?).map_err(|error| error.to_string())?;
+    Ok(kid_live(sid))
+}
+
 /// Where `kid-account.ps1` is: next to the installed app's runtime, or in a development checkout.
 fn script_path() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
@@ -321,10 +443,25 @@ pub async fn kid_apply(kid: Kid) -> Result<Family, String> {
 }
 
 fn apply_elevated(kid: &Kid) -> Result<Family, String> {
+    run_script(serde_json::to_string(kid).map_err(|error| error.to_string())?)
+}
+
+/// Undoes kid mode for one child: Windows asks for permission, then `kid-account.ps1 -FromFamily` (with `remove`)
+/// deletes the account and its profile and takes the child out of the family file and the time folder.
+#[tauri::command]
+pub async fn kid_remove(name: String) -> Result<Family, String> {
+    if kid_account().is_some() { return Err("not_allowed".into()); }
+    if !valid_name(&name) { return Err("bad_name".into()); }
+    let request = serde_json::json!({ "name": name, "remove": true }).to_string();
+    tauri::async_runtime::spawn_blocking(move || run_script(request)).await.map_err(|error| error.to_string())?
+}
+
+/// Runs the script elevated with this request (a JSON file it reads); a failure comes back as its `.error` file.
+fn run_script(request_json: String) -> Result<Family, String> {
     let script = script_path().ok_or("missing_script")?;
     let request = std::env::temp_dir().join(format!("gameaccess-kid-{}.json", uuid::Uuid::new_v4()));
     let error_file = PathBuf::from(format!("{}.error", request.display()));
-    std::fs::write(&request, serde_json::to_string(kid).map_err(|error| error.to_string())?).map_err(|error| error.to_string())?;
+    std::fs::write(&request, request_json).map_err(|error| error.to_string())?;
     let inner = format!("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{}\" -FromFamily \"{}\"", script.display(), request.display());
     let outer = format!("$p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '{}'; exit $p.ExitCode", inner.replace('\'', "''"));
     let mut command = Command::new("powershell");
@@ -366,6 +503,35 @@ mod tests {
         assert_eq!(remaining(&kid, 90), Some(0));
         assert_eq!(remaining(&Kid::default(), 9999), None);
         assert!(valid_name("Prueba") && !valid_name("Juan Pérez") && !valid_name(""));
+    }
+
+    #[test]
+    fn the_adults_live_orders_change_the_day() {
+        let kid = Kid { daily_minutes: 120, ..Default::default() };
+        let control = apply_control(Control::default(), "extend", 30, "2026-10-29", 1).unwrap();
+        let control = apply_control(control, "extend", 15, "2026-10-29", 1).unwrap();
+        assert_eq!(with_control(kid.clone(), &control, "2026-10-29").daily_minutes, 165);
+        // Another day: the extra time is gone, and a new extension starts from zero.
+        assert_eq!(with_control(kid.clone(), &control, "2026-10-30").daily_minutes, 120);
+        assert_eq!(apply_control(control.clone(), "extend", 10, "2026-10-30", 1).unwrap().extra_minutes, 10);
+        // No limit stays no limit.
+        assert_eq!(with_control(Kid::default(), &control, "2026-10-29").daily_minutes, 0);
+        let locked = apply_control(control, "lock", 0, "2026-10-29", 1).unwrap();
+        assert_eq!(locked.lock_date, "2026-10-29");
+        assert!(apply_control(locked.clone(), "unlock", 0, "2026-10-29", 1).unwrap().lock_date.is_empty());
+        assert_eq!(apply_control(locked.clone(), "stop", 0, "2026-10-29", 77).unwrap().stop_nonce, 77);
+        assert!(apply_control(locked, "nope", 0, "2026-10-29", 1).is_err());
+        assert!(valid_sid("S-1-5-21-1-2-3-1007") && !valid_sid("..\\evil") && !valid_sid("S-1-5\\x"));
+    }
+
+    #[test]
+    fn the_older_one_day_file_is_read_into_the_week() {
+        let path = std::env::temp_dir().join(format!("kid-usage-{}.json", uuid::Uuid::new_v4()));
+        std::fs::write(&path, r#"{"date":"2026-10-28","seconds":600,"games":{"-1":600}}"#).unwrap();
+        let file = read_usage(&path);
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(file.days["2026-10-28"].seconds, 600);
+        assert_eq!(file.days["2026-10-28"].games["-1"], 600);
     }
 
     #[test]

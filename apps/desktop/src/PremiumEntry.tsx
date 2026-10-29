@@ -27,6 +27,8 @@ const copy = {
   },
 } satisfies Record<Lang, Record<string, string>>;
 
+export const OPEN_PREMIUM_EVENT = "gameaccess:open-premium";
+
 const subscribe = (listener: () => void) => {
   window.addEventListener(ACTIVATION_CHANGED_EVENT, listener);
   return () => window.removeEventListener(ACTIVATION_CHANGED_EVENT, listener);
@@ -48,6 +50,13 @@ export default function PremiumEntry() {
   const [done, setDone] = useState(false);
   const titleId = useId();
   const input = useRef<HTMLInputElement>(null);
+
+  // Other screens that sell PLUS (kid mode) open this same dialog.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_PREMIUM_EVENT, show);
+    return () => window.removeEventListener(OPEN_PREMIUM_EVENT, show);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

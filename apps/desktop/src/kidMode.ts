@@ -21,7 +21,26 @@ export interface KidSession { kid: Kid; playedSeconds: number; remainingSeconds:
   /** Seconds left today of each game that has its own limit, by appId. */
   gameRemaining?: Record<string, number> }
 
-export const NEW_KID: Kid = { name: "", sid: "", enabled: true, dailyMinutes: 120, weekdays: "0-24", weekend: "0-24", games: [] };
+/** What the wizard offers: two hours a day, afternoons and evenings on school days, a wider window on weekends. */
+export const NEW_KID: Kid = { name: "", sid: "", enabled: true, dailyMinutes: 120, weekdays: "12-21", weekend: "9-22", games: [] };
+
+/** The child's week and the adult's live orders in force today. Today it comes from the PC (kid_mode.rs); the same
+ *  shape is what the server will give the phone app (vault/Modo niño.md). */
+export interface KidDay { date: string; seconds: number; games: Record<string, number> }
+export interface KidLive { days: KidDay[]; extraMinutes: number; lockedToday: boolean; channel: boolean }
+export type KidControlAction = "extend" | "lock" | "unlock" | "stop";
+export const EMPTY_LIVE: KidLive = { days: [], extraMinutes: 0, lockedToday: false, channel: false };
+
+export async function readKidLive(sid: string): Promise<KidLive> {
+  if (!hasTauriRuntime() || !sid) return EMPTY_LIVE;
+  try { return await invoke<KidLive>("kid_live", { sid }); } catch { return EMPTY_LIVE; }
+}
+
+/** Sends a live order; rejects with the code (`needs_apply`: the account was applied before live orders existed). */
+export async function sendKidControl(sid: string, action: KidControlAction, minutes = 0): Promise<KidLive> {
+  if (!hasTauriRuntime()) return EMPTY_LIVE;
+  try { return await invoke<KidLive>("kid_control", { sid, action, minutes }); } catch (error) { throw new KidApplyError(String(error)); }
+}
 export const validKidName = (name: string) => /^[A-Za-z0-9._-]{1,20}$/.test(name);
 
 const DRAFT_KEY = "gameaccess.kidDraft";
@@ -76,7 +95,20 @@ export function setKidGameMinutes(appId: number, dailyMinutes: number) {
   setKidDraft({ games: draft.games.map(game => game.appId === appId ? { ...game, dailyMinutes } : game) });
 }
 
-export const kidMayPlay =(appId: number | null) => appId != null && draft.games.some(game => game.appId === appId);
+/** How many games the child has now (the confirmations say when a removal leaves them with none). */
+export const kidGameCount = () => draft.games.length;
+
+/** The child's games among these (a library game is leaving: the confirmation names them). */
+export const kidGamesAmong = (appIds: number[]): KidGame[] => draft.games.filter(game => appIds.includes(game.appId));
+
+/** A game left the library: it also leaves the child's list (the change waits for "Apply"). Returns the ones removed. */
+export function dropKidGames(appIds: number[]): KidGame[] {
+  const gone = kidGamesAmong(appIds);
+  if (gone.length) setKidDraft({ games: draft.games.filter(game => !appIds.includes(game.appId)) });
+  return gone;
+}
+
+export const kidMayPlay = (appId: number | null) => appId != null && draft.games.some(game => game.appId === appId);
 
 /** Shows or hides a library game for the child (the manager's toggle); its folder goes with it. */
 export function toggleKidGame(game: LibraryGame) {
@@ -128,6 +160,18 @@ export async function applyKidDraft(): Promise<void> {
     throw new KidApplyError(String(error));
   }
   draft = applied ?? kid;
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing kept */ }
+  emit();
+}
+
+/** Undoes kid mode: Windows asks for permission, the child's account and its profile are deleted, the family file and
+ *  the time files lose the child, and the screen goes back to how it was before the wizard. */
+export async function resetKidMode(): Promise<void> {
+  if (hasTauriRuntime() && applied) {
+    try { await invoke("kid_remove", { name: applied.name }); } catch (error) { throw new KidApplyError(String(error)); }
+  }
+  applied = null;
+  draft = { ...NEW_KID, games: [] };
   try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing kept */ }
   emit();
 }

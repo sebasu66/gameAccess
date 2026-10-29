@@ -18,7 +18,9 @@ change; no file on the disks is touched.
   specific rule wins, so one game's folder can be allowed inside a blocked one.
 - Logon hours (-Weekdays / -Weekend, local hours "from-to"); Windows itself keeps the child out of them.
 - -Allow lets one game folder run for this account, as the SYSTEM service will do (MN.6); -Disallow takes it back.
-- -Remove deletes the account and its profile (with everything above).
+- -Remove deletes the account and its profile (with everything above), and takes the child out of the family file.
+- -RemoveAll is what the uninstaller runs: every child in the family file loses its account and profile, and
+  %ProgramData%\GameAccess goes (a child's desktop without Game Access would be a black screen).
 - -FromFamily <file> is what the adult's Game Access runs (kid mode screen, kid_mode.rs): the settings of one child
   in a JSON file (name, enabled, dailyMinutes, weekdays, weekend, games with their folders). It sets the account up as
   above (no password for a new one), lets exactly those game folders run, and writes %ProgramData%\GameAccess  familia.json, which only administrators can change and every account reads. A failure is written to <file>.error.
@@ -45,7 +47,8 @@ param(
     [Parameter(ParameterSetName = 'Allow', Mandatory)][string]$Allow,
     [Parameter(ParameterSetName = 'Disallow', Mandatory)][string]$Disallow,
     [Parameter(ParameterSetName = 'Remove', Mandatory)][switch]$Remove,
-    [Parameter(ParameterSetName = 'Family', Mandatory)][string]$FromFamily
+    [Parameter(ParameterSetName = 'Family', Mandatory)][string]$FromFamily,
+    [Parameter(ParameterSetName = 'RemoveAll', Mandatory)][switch]$RemoveAll
 )
 $ErrorActionPreference = 'Stop'
 
@@ -104,6 +107,33 @@ public static extern int CreateProfile(string sid, string userName, System.Text.
     $result = [GameAccess.UserEnv]::CreateProfile($Sid.Value, $Name, $path, 260)
     if ($result -ne 0) { throw ('No se pudo crear el perfil de {0} (0x{1:X8}).' -f $Name, $result) }
     return $path.ToString()
+}
+
+# The family file's folder, and what the children leave in it: their time and the adult's live orders (uso\<sid>*).
+$FamilyDir = Join-Path $env:ProgramData 'GameAccess'
+
+function Read-FamilyKids {
+    $file = Join-Path $FamilyDir 'familia.json'
+    if (-not (Test-Path -LiteralPath $file)) { return @() }
+    return @((Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json).kids | Where-Object { $_ })
+}
+
+# Takes one child out of the family file and deletes its time and orders.
+function Remove-KidFromFamily([string]$SidValue) {
+    $left = @(Read-FamilyKids | Where-Object { $_.sid -ne $SidValue })
+    if (Test-Path -LiteralPath $FamilyDir) {
+        $family = [ordered]@{ version = 1; kids = $left }
+        [IO.File]::WriteAllText((Join-Path $FamilyDir 'familia.json'), (ConvertTo-Json -InputObject $family -Depth 8), (New-Object Text.UTF8Encoding $false))
+    }
+    Get-ChildItem -LiteralPath (Join-Path $FamilyDir 'uso') -Filter "$SidValue*" -ErrorAction SilentlyContinue | Remove-Item -Force
+}
+
+# The account and its profile (with its registry: every rule), then its entry in the family file. It fails while the
+# child is signed in (its profile is in use).
+function Remove-KidAccount([Security.Principal.SecurityIdentifier]$KidSid) {
+    Get-CimInstance Win32_UserProfile -Filter "SID='$($KidSid.Value)'" | Remove-CimInstance
+    Remove-LocalUser -SID $KidSid
+    Remove-KidFromFamily $KidSid.Value
 }
 
 # Runs $Write with the account's registry (HKCU) as a Registry:: path: its own hive when it is signed in, the
@@ -191,9 +221,17 @@ switch ($PSCmdlet.ParameterSetName) {
         $sid = Get-KidSid
         if (-not $PSCmdlet.ShouldProcess($Name, 'Borrar la cuenta y su perfil')) { return }
         # The profile holds the account's registry, and with it every rule above.
-        Get-CimInstance Win32_UserProfile -Filter "SID='$($sid.Value)'" | Remove-CimInstance
-        Remove-LocalUser -SID $sid
+        Remove-KidAccount $sid
         Write-Host "Cuenta $Name borrada."
+        return
+    }
+    'RemoveAll' {
+        foreach ($kid in Read-FamilyKids) {
+            $account = Get-LocalUser -SID $kid.sid -ErrorAction SilentlyContinue
+            if (-not $account) { continue }
+            try { Remove-KidAccount $account.SID } catch { Write-Warning "No se pudo borrar la cuenta $($account.Name): $($_.Exception.Message)" }
+        }
+        Remove-Item -LiteralPath $FamilyDir -Recurse -Force -ErrorAction SilentlyContinue
         return
     }
 }
@@ -272,6 +310,16 @@ function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Ga
     }
     $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier $UsersGroupSid), 'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
     (Get-Item -LiteralPath $dir).SetAccessControl($acl)
+    # The child's time and the adult's live orders (kid_mode.rs): the one folder every account may write, so the
+    # child's Game Access counts its time there and the adult's reads it and sends orders. Not a place for settings.
+    $shared = Join-Path $dir 'uso'
+    New-Item -ItemType Directory -Path $shared -Force | Out-Null
+    $open = New-Object Security.AccessControl.DirectorySecurity
+    $open.SetAccessRuleProtection($true, $false)
+    foreach ($account in 'S-1-5-18', 'S-1-5-32-544', $UsersGroupSid) {
+        $open.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier $account), $(if ($account -eq $UsersGroupSid) { 'Modify' } else { 'FullControl' }), 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
+    }
+    (Get-Item -LiteralPath $shared).SetAccessControl($open)
     $path = Join-Path $dir 'familia.json'
     $others = @()
     if (Test-Path -LiteralPath $path) {
@@ -293,6 +341,13 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
     try {
         $request = [IO.File]::ReadAllText($FromFamily) | ConvertFrom-Json
         $Name = [string]$request.name
+        if ($request.remove) {
+            # Undo kid mode for this child. The account may be gone already: its entry in the family file still goes.
+            $account = Get-LocalUser -Name $Name -ErrorAction SilentlyContinue
+            if ($account) { Remove-KidAccount $account.SID }
+            else { foreach ($kid in Read-FamilyKids | Where-Object { $_.name -eq $Name }) { Remove-KidFromFamily $kid.sid } }
+            exit 0
+        }
         $Weekdays = if ($request.weekdays) { [string]$request.weekdays } else { '0-24' }
         $Weekend = if ($request.weekend) { [string]$request.weekend } else { '0-24' }
         $NoPassword = $true
