@@ -53,7 +53,7 @@ export function useNewParentalPassword(current: string | undefined, onSaved: (pa
       <input type="password" autoComplete="new-password" value={first} autoFocus={autoFocus} disabled={busy} onChange={e => setFirst(e.target.value)} onKeyDown={onEnter} /></label>
     <label className="ga-field"><span>{t("parentalRepeatPassword")}</span>
       <input type="password" autoComplete="new-password" value={second} disabled={busy} onChange={e => setSecond(e.target.value)} onKeyDown={onEnter} /></label>
-    {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
+    {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
   </>;
   return { fields, save, busy, ready: Boolean(first) && !busy };
 }
@@ -110,13 +110,14 @@ export default function ParentalControlSection() {
     { id: "adult-only", label: t("parentalAdultOnly"), detail: t("parentalAdultOnlyDetail") },
     { id: "strict", label: t("parentalStrict"), detail: t("parentalStrictDetail") },
   ];
-  return <details className={"ga-filter-accordion ga-parental" + (locked ? " is-locked" : "")} open>
+  return <details className={"ga-disclosure ga-parental" + (locked ? " is-locked" : "")} open>
     <summary>
       {locked ? <Lock size={12} aria-hidden="true" /> : <ShieldCheck size={12} aria-hidden="true" />}
       {t("parentalTitle")}
       {locked ? <small className="ga-filter-locked-note">{t("uiActivo")}</small> : null}
     </summary>
-    <p className="ga-parental-note">
+    <div className="ga-stack">
+    <p className="ga-hint">
       {t("parentalNoteBefore")}<strong>{t("uiExcluyen")}</strong>{t("parentalNoteAfter")}
     </p>
     <div className="ga-parental-levels">
@@ -130,11 +131,11 @@ export default function ParentalControlSection() {
       <span>{t("uiOcultarTambienViolenciaY")}<small>{t("uiDescriptor2DeValve")}</small></span>
     </label>
     <div className="ga-parental-access">
-      <p className={"ga-parental-status" + (hasPassword ? " is-protected" : "")}>
+      <p className={"ga-status " + (hasPassword ? "is-ok" : "is-warn")}>
         <KeyRound size={13} aria-hidden="true" />{hasPassword ? t("parentalPasswordOn") : t("parentalPasswordMissing")}
       </p>
       {!editable ? <>
-        <p className="ga-parental-note">{t("parentalLockedHint")}</p>
+        <p className="ga-hint">{t("parentalLockedHint")}</p>
         <div className="ga-parental-unlock">
           <label className="ga-field"><span>{t("parentalPasswordField")}</span>
             <input type="password" autoComplete="current-password" value={typed} onChange={e => setTyped(e.target.value)}
@@ -143,8 +144,9 @@ export default function ParentalControlSection() {
         </div>
       </> : !hasPassword || changing ? <ParentalPasswordForm current={password} onSaved={next => { setPassword(next); setChanging(false); setNotice(t("parentalPasswordSaved")); }} />
         : <GaButton onClick={() => { setChanging(true); setNotice(""); }}>{t("parentalChangePassword")}</GaButton>}
-      {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
-      {notice ? <p className="ga-parental-saved" role="status">{notice}</p> : null}
+      {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
+      {notice ? <p className="ga-status is-ok" role="status">{notice}</p> : null}
+    </div>
     </div>
   </details>;
 }

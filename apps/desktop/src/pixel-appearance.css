@@ -17,16 +17,16 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .ga-settings-backdrop{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:600;background:rgba(0,0,0,.72);backdrop-filter:blur(12px);display:grid;place-items:center;padding:28px}
 .ga-settings-panel{display:flex;flex-direction:column;width:min(720px,100%);max-height:100%;background:linear-gradient(145deg,#25262bf5,#101114f8);border:1px solid #ffffff35;border-radius:18px;box-shadow:0 32px 100px #000a,inset 0 1px 0 #ffffff1c;color:#f4f4f2;overflow:hidden;font-family:Manrope,"Segoe UI",sans-serif}
 .ga-settings-panel header{padding:26px 30px 22px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ffffff16}
-.ga-settings-panel .eyebrow{color:#d79d5d;font-size:10px;letter-spacing:.18em}.ga-settings-panel h2{margin:5px 0;font-size:26px}.ga-settings-panel p{color:#a5a7ad;font-size:12px;margin:0}
+.ga-settings-panel .eyebrow{color:#d79d5d;font-size:10px;letter-spacing:.18em}.ga-settings-panel h2{margin:5px 0;font-size:26px}
 .ga-settings-panel button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#24262c;color:#fff;border:1px solid #ffffff32;border-radius:8px;padding:10px 12px;cursor:pointer;font:650 12px Manrope,"Segoe UI",sans-serif}
 .ga-settings-panel button:hover{background:#34363e;border-color:#d79d5d}.ga-settings-panel button:focus-visible{outline:2px solid #d79d5d;outline-offset:3px}
-.ga-settings-content{padding:22px 30px;overflow:auto}.ga-settings-content h3{font-size:14px;margin:0 0 20px}
-.ga-settings-panel fieldset{margin:0 0 22px;border:0;border-top:1px solid #ffffff16;padding:16px 0 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-.ga-settings-panel legend{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a5a7ad;padding-right:12px}
+.ga-settings-content{padding:22px 30px;overflow:auto}.ga-settings-content h3:not(:where(.ga-heading)){font-size:14px;margin:0 0 20px}
+.ga-settings-panel fieldset:not(:where(.ga-group)){margin:0 0 22px;border:0;border-top:1px solid #ffffff16;padding:16px 0 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.ga-settings-panel legend:not(:where(.ga-label)){font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#a5a7ad;padding-right:12px}
 .ga-style-control{display:grid;grid-template-columns:1fr auto;gap:13px 6px;font-size:12px}.ga-style-control output{color:#d79d5d;font-variant-numeric:tabular-nums}.ga-style-control input{grid-column:1/-1;width:100%;margin:0;accent-color:#d18e45;cursor:pointer}
 .ga-style-toggle,.ga-session-options label{display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.6}.ga-style-toggle input,.ga-session-options input{accent-color:#d18e45}
 .ga-settings-panel .ga-session-options{grid-template-columns:1fr;margin-top:24px;gap:8px}.ga-settings-panel footer{padding:20px 30px;border-top:1px solid #ffffff16;display:flex;align-items:center;justify-content:space-between;gap:18px}.ga-settings-panel footer>div{display:flex;gap:8px}
-@media(max-width:700px){.ga-settings-panel fieldset{grid-template-columns:1fr}.ga-settings-panel footer{align-items:flex-start;flex-direction:column}}
+@media(max-width:700px){.ga-settings-panel fieldset:not(:where(.ga-group)){grid-template-columns:1fr}.ga-settings-panel footer{align-items:flex-start;flex-direction:column}}
 
 body.ga-pixel-style .app-shell{background:transparent}
 .library-catalog-tabs>.ga-led-button,.library-catalog-filter-actions>.ga-led-button,.library-sort-dropdown>summary.ga-led-button{position:relative}

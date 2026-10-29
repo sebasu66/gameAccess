@@ -1,100 +1,53 @@
-/* Kid mode (kidMode.ts): the child's screen (KidScreen.tsx) and the adult's settings (KidModePanel.tsx). */
+/* The kids dialog (KidModePanel.tsx, ParentalControlSection.tsx, AdminKeySection.tsx). Text, spacing, labels, button rows
+   and disclosures come from the content layer (components/ga/content.css); only this dialog's own layout lives here.
+   The child's screen is kid-screen.css. */
 
-/* The child's screen: big picture mode over the whole window, with nothing else of the app. */
-body.ga-kid-screen { background: var(--ga-bg, #07090d); }
-.ga-kid-root { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; gap: 24px; padding: 36px 48px 96px; box-sizing: border-box;
-  overflow: auto; color: var(--ga-white, #f4f4f2); font-family: Manrope, "Segoe UI", sans-serif;
-  background: radial-gradient(ellipse at 20% 0%, #2a1d1499, transparent 60%), #07090d; }
-.ga-kid-head { display: flex; align-items: center; gap: 24px; }
-.ga-kid-head > div { flex: 1; min-width: 0; }
-.ga-kid-head .eyebrow { color: #d79d5d; font-size: 11px; letter-spacing: .18em; }
-.ga-kid-head h1 { margin: 4px 0 0; font: 400 clamp(34px, 4vw, 56px) "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #ff6a00); }
-.ga-kid-time { margin: 0; padding: 10px 18px; border-radius: 10px; border: 1px solid #ffffff2a; background: #ffffff0d; font-weight: 800; font-size: 18px; white-space: nowrap; }
-.ga-kid-time.is-low { border-color: var(--ga-orange, #ff6a00); color: #ffd0a0; }
-
-.ga-kid-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 24px; }
-.ga-kid-card { display: grid; gap: 10px; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
-.ga-kid-art { position: relative; display: grid; place-items: center; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 10px;
-  border: 1px solid #ffffff1f; background: linear-gradient(160deg, #2a2d33, #121418); color: #ffffff40; transition: transform .18s ease, box-shadow .18s ease; }
-.ga-kid-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.ga-kid-name { font-weight: 800; font-size: 15px; line-height: 1.25; }
-.ga-kid-card:hover .ga-kid-art, .ga-kid-card:focus-visible .ga-kid-art, .ga-kid-card:focus .ga-kid-art { transform: translateY(-4px); box-shadow: 0 14px 34px #000a; }
-.ga-kid-card:focus, .ga-kid-card:focus-visible { outline: none; }
-.ga-kid-card:focus .ga-kid-art, .ga-kid-card:focus-visible .ga-kid-art { outline: 3px solid var(--ga-orange, #ff6a00); outline-offset: 4px; }
-.ga-kid-card.is-playing .ga-kid-art { border-color: #7fcf8f; box-shadow: 0 0 0 2px #7fcf8f66; }
-.ga-kid-empty, .ga-kid-error { margin: 0; font-size: 17px; color: #c9ccd1; }
-.ga-kid-error { color: #ffb4a8; }
-@media (max-width: 1100px) { .ga-kid-root { padding: 24px 20px 120px; } .ga-kid-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; } }
-
-/* The day's time is over: over everything, its only button signs out. */
-.ga-kid-over { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #05080ce6; backdrop-filter: blur(10px); }
-.ga-kid-over section { display: grid; justify-items: center; gap: 14px; max-width: min(560px, calc(100vw - 48px)); padding: 40px 48px; text-align: center;
-  border-radius: 14px; border: 1px solid #d79e6080; background: linear-gradient(150deg, #2a1d14e6, #121518f2 60%); box-shadow: 0 30px 80px #000c; }
-.ga-kid-over h2 { margin: 0; font: 400 44px "Bebas Neue", sans-serif; color: var(--ga-orange, #ff6a00); letter-spacing: .03em; }
-.ga-kid-over p { margin: 0 0 8px; color: #dfe3e6; font-size: 16px; }
-
-/* The adult's settings: the settings dialog's frame. */
-.ga-kid-tab-body { display: grid; gap: 18px; }
-.ga-kid-tab-body fieldset { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; border: 0; }
-.ga-kid-tab-body legend { margin-bottom: 8px; padding: 0; color: #d79d5d; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.ga-kid-hint { margin: 0; color: #a5a7ad; font-size: 12px; }
+/* Controls of the time settings. */
 .ga-kid-hours { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
 .ga-kid-hours > span { min-width: 150px; font-weight: 700; }
-.ga-kid-hours label { display: inline-flex; align-items: center; gap: 6px; color: #c9ccd1; }
-.ga-kid-tab-body select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #ffffff2a; background: #15171b; color: var(--ga-white, #f4f4f2); font: 600 13px Manrope, "Segoe UI", sans-serif; }
+.ga-kid-hours label { display: inline-flex; align-items: center; gap: 6px; color: var(--ga-muted); }
+.ga-kid-panel select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-field-bg); color: var(--ga-white); font: 600 13px var(--ga-text-family); }
 .ga-kid-limit { justify-self: start; min-width: 180px; }
+
+/* The chosen games: pills with their own daily limit. */
 .ga-kid-chosen { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.ga-kid-chosen li { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid #ffffff24; background: #ffffff0d; font-size: 12px; font-weight: 700; }
+.ga-kid-chosen li { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid var(--ga-line); background: var(--ga-surface); font-size: 12px; font-weight: 700; }
 .ga-kid-chosen li select { font-size: 12px; }
-.ga-kid-card.is-spent { opacity: 0.45; }
-.ga-kid-card .ga-kid-left { font-size: 12px; font-weight: 700; opacity: 0.85; }
-.ga-kid-lead { margin: 0; font-size: 15px; line-height: 1.55; color: #dfe3e6; }
+
+/* The page that explains kid mode. */
 .ga-kid-benefits { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
 .ga-kid-benefits li { display: flex; gap: 14px; align-items: flex-start; }
 .ga-kid-benefits strong { font-size: 14px; }
-.ga-kid-benefits p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: #a5a7ad; }
-.ga-kid-benefit-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: var(--ga-orange, #cc8333); }
-.ga-kid-cta { display: flex; flex-wrap: wrap; gap: 10px; }
-.ga-kid-cta [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
-.ga-kid-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: #c9ccd1; }
-.ga-kid-summary strong { color: var(--ga-white, #f4f4f2); font-size: 15px; }
-.ga-kid-tab-body legend svg { vertical-align: -2px; }
+.ga-kid-benefit-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--ga-orange-line); background: var(--ga-orange-tint); color: var(--ga-orange); }
+.ga-kid-panel .ga-actions [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+
+/* The child's panel: summary line, the week's bars, the phone note. */
+.ga-kid-panel .ga-kid-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ga-kid-summary strong { color: var(--ga-white); font-size: 15px; }
 .ga-kid-week { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.ga-kid-week li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 88px; align-items: center; gap: 10px; font-size: 12px; }
-.ga-kid-week li > span:first-child { text-transform: capitalize; color: #a5a7ad; font-weight: 700; }
+.ga-kid-week li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 88px; align-items: center; gap: 10px; font-size: 13px; }
+.ga-kid-week li > span:first-child { text-transform: capitalize; color: var(--ga-muted); font-weight: 700; }
 .ga-kid-week b { text-align: right; font-weight: 800; }
-.ga-kid-bar { height: 10px; border-radius: 5px; background: #ffffff12; overflow: hidden; }
-.ga-kid-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ga-orange, #cc8333); }
-.ga-kid-live { display: flex; flex-wrap: wrap; gap: 10px; }
-.ga-kid-phone { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px dashed #ffffff2a; color: #a5a7ad; font-size: 12px; }
-.ga-kid-tab-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 16px; border-top: 1px solid #ffffff16; }
-.ga-kid-tab-foot p { margin: 0; color: #a5a7ad; font-size: 12px; }
-.ga-kid-plus { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-radius: 10px; border: 1px solid #d79e6066; background: #cc83331a; color: #ffd0a0; font-size: 13px; font-weight: 700; }
-.ga-kid-danger legend { color: #e1898f; }
+.ga-kid-bar { height: 10px; border-radius: 5px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-kid-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ga-orange); }
+.ga-kid-panel .ga-kid-phone { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--ga-line); }
 
-/* The kids screen is one dialog: the first question, the tabs, and the way back to "no children". */
-.ga-family-ask { justify-items: start; padding: 8px 0; }
-.ga-family-ask svg { color: var(--ga-orange, #cc8333); }
-.ga-family-ask h3 { margin: 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
-.ga-kid-step-head h3 { margin: 4px 0 0; font: 400 34px "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #cc8333); }
-.ga-kid-nomore { display: grid; justify-items: start; gap: 6px; margin-top: 18px; }
+/* The wizard's and panel's foot: status or Back on the left, the main action on the right. */
+.ga-kid-tab-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
 
-/* PLUS ended while kid mode or the parent's key were set up. */
-.ga-kid-lapsed { flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
+/* PLUS notes: a warm box (PLUS missing, PLUS ended, days without connection). */
+.ga-kid-panel .ga-kid-plus { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--ga-orange-line); background: var(--ga-orange-tint); color: var(--ga-orange-ink); }
+.ga-kid-lapsed { flex-wrap: wrap; }
 .ga-kid-lapsed > div { flex: 1; min-width: 220px; }
-.ga-kid-lapsed p { margin: 3px 0 0; font-weight: 500; color: #e9d9c6; }
 
-/* Parent's key tab (AdminKeySection.tsx): the word hidden like a wallet's balance, seen only while its eye is held. */
-.ga-adminkey { display: grid; gap: 16px; }
-.ga-adminkey .ga-adminkey-on { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ga-success, #a0d2b4); font-size: 14px; font-weight: 700; }
-.ga-adminkey-word { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 16px; border: 1px solid var(--ga-line); border-radius: 12px; background: #ffffff08; }
-.ga-adminkey-word-label { color: var(--ga-muted); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+/* The first question and the way back to "no children". */
+.ga-family-ask { justify-items: start; padding: 8px 0; }
+.ga-family-ask > svg { color: var(--ga-orange); }
+.ga-kid-nomore { justify-items: start; }
+
+/* Parent's key tab: the word hidden like a wallet's balance, seen only while its eye is held. */
+.ga-adminkey-word { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 16px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
 .ga-adminkey-secret { min-width: 0; overflow: hidden; color: var(--ga-white); font-size: 20px; font-weight: 800; letter-spacing: .2em; text-overflow: ellipsis; white-space: nowrap; user-select: none; }
 .ga-adminkey-secret.is-shown { color: var(--ga-orange); letter-spacing: .08em; }
 .ga-adminkey-word .ga-btn-secondary { touch-action: none; user-select: none; }
-.ga-adminkey-word .ga-kid-hint { grid-column: 1 / -1; }
-.ga-adminkey-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.ga-adminkey-form { display: grid; gap: 12px; }
-.ga-adminkey-form .ga-field { margin-top: 0; }
-.ga-adminkey-how summary { cursor: pointer; color: var(--ga-orange); font-size: 13px; font-weight: 700; }
-.ga-adminkey .ga-adminkey-how p { margin: 8px 0 0; color: var(--ga-muted); font-size: 13px; }
+.ga-adminkey-word .ga-hint { grid-column: 1 / -1; }

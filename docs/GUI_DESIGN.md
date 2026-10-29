@@ -17,6 +17,7 @@ Cada tipo de control tiene **una** plantilla: sus valores son variables en `:roo
 | Fondo detrás de un diálogo | `--ga-backdrop`, `--ga-backdrop-blur` | `AppDialog`, ajustes/ayuda/registro/opciones/recuperación, cancelar descarga, filtros, PLUS, diálogo central, importador y diálogos de alerta |
 | Panel de diálogo (vidrio esmerilado óxido y borde fino) | `--ga-dialog-bg`, `--ga-dialog-glass`, `--ga-dialog-ring`, `--ga-dialog-radius`, `--ga-dialog-shadow` | los mismos diálogos |
 | Encuadre dentro del marco | `--ga-frame-*` (las publica el marco) | todos los overlays (`device-frame.css`) |
+| Texto de los diálogos (regla general y roles) | `--ga-text-*`, `--ga-hint-*`, `--ga-label-*`, `--ga-status-font`, `--ga-space-*`, `--ga-row-gap` | todo párrafo dentro de un diálogo o panel (§4.25, `components/ga/content.css`) |
 
 Siguen teniendo estilo propio a propósito: botones del marco (teclas con relieve, `device-frame.css`), cubos y botones planos de la pantalla, `ga-close`, la ficha del juego (la referencia, con su imagen) y el diálogo de ejecutar un juego (con la imagen del juego de fondo).
 
@@ -34,6 +35,12 @@ Siguen teniendo estilo propio a propósito: botones del marco (teclas con reliev
 | `--ga-danger` | `#be4750` | cerrar (botón de cierre), acciones destructivas |
 | `--ga-danger-hover` | `#d65c65` | hover del botón de cierre |
 | `--ga-success` | `#a0d2b4` | estados completados |
+| `--ga-danger-ink` | `#e1898f` | borde del cierre, etiqueta de una sección peligrosa |
+| `--ga-ok` / `--ga-warn` / `--ga-error` | `--ga-success` / `--ga-orange` / `--ga-danger-hover` | colores de `ga-status` |
+| `--ga-label-ink` | `#d79d5d` | etiquetas de sección (`ga-label`), eyebrow de los diálogos |
+| `--ga-orange-ink` / `--ga-orange-tint` / `--ga-orange-line` | `#ffd0a0` / `#cc83331a` / `#d79e6066` | texto, fondo y borde de una nota cálida (p. ej. falta PLUS) |
+| `--ga-surface` / `--ga-surface-2` | `#ffffff08` / `#ffffff12` | fondo de una caja o una barra dentro de un diálogo |
+| `--ga-field-bg` | `#0d1114` | fondo de campos y selectores |
 | `--ga-frost` | `#a5cee9` | juegos congelados (copo de nieve y tamaño en la grilla; en el administrador de biblioteca, `frost` de Tailwind: tamaño en disco, real tachado, barra doble y ahorro) |
 
 Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cálido), nunca blanco.
@@ -210,6 +217,36 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Secuencia: el cerrojo aparece, gira un cuarto de vuelta hasta dejar el emblema derecho (0,95 s); el arco del candado salta, su luz se apaga y la A del emblema se ilumina en naranja. Al resolverse el acceso, las dos hojas se abren como un **portón** (1,3 s) y el cerrojo se va entero con la hoja derecha; la app aparece debajo (1,1 s).
 - Con "reducir movimiento" (o la animación del estilo pixel apagada) el cerrojo se ve abierto y el portón se va sin animar.
 
+### 4.25 Texto de los diálogos (plantilla única, `components/ga/content.css`)
+Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo por defecto; un estilo distinto es una excepción. No se arregla diálogo por diálogo.
+
+**1. Regla general (siempre se cumple).** Todo `<p>` dentro de un diálogo o panel (`ga-overlay-dialog`, `ga-dialog`, `ga-settings-panel`, `download-complete-dialog`, `ga-filter-dialog`, `ga-premium-dialog`, `central-dialog-card`, `ga-panel`) lleva, aunque la pantalla diga otra cosa (`!important`):
+- Fuente: Manrope (`--ga-text-family`).
+- Tamaño: 14 px (`--ga-text-size`), **nunca menos de 13 px** (`--ga-text-min`). Un diálogo solo puede agrandarlo con `--ga-p-size`.
+- Interlineado 1.5 (`--ga-text-leading`).
+- Sin márgenes: el espacio entre bloques lo da el `gap` del contenedor (`ga-stack`).
+- Alineado al inicio; un diálogo solo puede centrarlo con `--ga-p-align: center` (estados vacíos, §5.5).
+- La letra chica (`<small>`) tampoco baja de 13 px.
+
+**2. Aspecto por defecto (sin peso, cualquier clase lo cambia).** Color `--ga-text-ink` (blanco) y peso 400; el subtítulo del encabezado en `--ga-muted`. El color, el peso o un recuadro de una línea concreta son del diálogo: van en su CSS.
+
+**3. Roles y piezas (una clase cada uno, para no reescribirlas en cada pantalla):**
+| Clase | Qué es | Valores |
+|---|---|---|
+| `ga-stack` (`-sm`, `-lg`) | columna de bloques | `gap` 16 px (8 / 24); los hijos sin márgenes; un botón suelto no se estira |
+| `ga-hint` | texto secundario, pista | 13 px, `--ga-muted` |
+| `ga-status` + `is-ok` / `is-warn` / `is-error` | estado o resultado de una línea (con ícono) | Manrope 700 13 px, `--ga-ok` / `--ga-warn` / `--ga-error` |
+| `ga-label` | etiqueta de sección (`legend`, `span`) | 800 11 px, mayúsculas, `.14em`, `--ga-label-ink` (no es un párrafo: no lleva el mínimo) |
+| `ga-heading` | título de un paso o sección dentro del diálogo | Bebas Neue 34 px naranja |
+| `ga-group` (`ga-group-danger`) | etiqueta + controles (`fieldset`) | sin borde ni padding, `gap` 8 px; la etiqueta en rojo suave si es peligrosa |
+| `ga-actions` (`ga-actions-end`) | fila de botones | `gap` 10 px, misma altura, se parte si no entra |
+| `ga-disclosure` | `details`/`summary` plegable | flecha naranja propia (nunca el triángulo del navegador), cuerpo = un `ga-stack` |
+
+- Una pantalla no escribe reglas para `p` ni para títulos (`h1`–`h6`): ni margen, ni fuente, ni tamaño, ni alineación. Lo que necesite distinto va con su clase y es una excepción (color, peso, recuadro, o `--ga-p-size` / `--ga-p-align`).
+- Colores: solo tokens de `:root`. Un color suelto en un `.css` que no sea del tema no pasa el control.
+- **Control:** `npm run check:css` (y `npm test`, con `src/dialogCss.test.ts`) falla si un `.css` agrega reglas de párrafo o colores sueltos. La deuda vieja está contada por archivo en `apps/desktop/scripts/dialog-css-baseline.json`: puede bajar (`node scripts/check-dialog-css.mjs --update` al limpiar), nunca subir.
+- Sin componentes React para esto: `<p className="ga-hint">` es tan corto como un `<GaHint>`.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
@@ -221,6 +258,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 5c. Movimiento: GSAP desde `src/motion/gsap.ts`; respetar "reducir movimiento"; animar `transform` y `opacity`; reglas detalladas en `.claude/skills/gameaccess-motion-ui`.
 6. El tamaño grande (`.ga-big-screen`) aumenta la altura mínima de botones a 44 px; no reduce tipografía.
 7. No introducir nuevos colores: si falta uno, se agrega a la tabla de tokens.
+7b. El texto de un diálogo sigue la regla general (§4.25); una pantalla no define márgenes, fuente ni tamaño de sus párrafos.
 8. Tab recorre todos los botones y ningún otro control (§4.13).
 
 ## 6. Lista de comprobación para revisar una pantalla
@@ -231,6 +269,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - [ ] Los paneles tienen borde degradado y vidrio esmerilado.
 - [ ] Los títulos son Bebas naranja; el texto es Manrope.
 - [ ] Ningún texto está en un solo idioma fijo (revisar en `es` y en `en`).
+- [ ] Los párrafos no tienen reglas propias de margen, fuente ni tamaño; pistas con `ga-hint`, estados con `ga-status`, bloques en `ga-stack` (§4.25). `npm run check:css` pasa.
 - [ ] Probado en `es`, `en` y en ventana de 1024 px de ancho.
 
 ## 7. Estado de aplicación
@@ -240,6 +279,17 @@ Aplicado el 2026-10-19 (`apps/desktop/src/ga-design.css` y clases en los compone
 - `ga-btn-primary` en la acción "Activar" de premium.
 - `ga-panel` en el panel de fuentes (vidrio y borde degradado).
 - `ga-btn-secondary` definido en `ga-design.css` (2026-10-21) y usado en Configuración > Control parental ("Cambiar contraseña").
+
+Texto de los diálogos (§4.25), 2026-10-29:
+- La regla general ya alcanza a todos los diálogos de la lista de §4.25 (fuente, mínimo de 13 px, interlineado, sin márgenes, alineación). Se quitó la regla amplia `.ga-settings-panel p` (gris de 12 px).
+- Migrado entero (sin CSS propio de texto, solo disposición): diálogo **Niños en casa** (`KidModePanel`, `ParentalControlSection`, `AdminKeySection`; `kid-mode.css`). La pantalla del chico quedó aparte en `kid-screen.css`.
+- **Falta migrar** (siguen con clases propias de texto, `p` con márgenes en su CSS o el triángulo del navegador; con la regla general ya se ven parejos, pero sus reglas viejas cuentan en la línea de base):
+  - Configuración (`AppSettings`, `DigitalStorageSettings`, `SteamSettings`, `LanguageSwitch`): `.ga-storage-settings p`, `ga-style-hint`, Tailwind `text-sm text-muted-foreground`, el plegable "Biblioteca" con el triángulo del navegador.
+  - Ayuda (`AppHelp`): `ga-help-missing`.
+  - Registro del juego (`DigitalGameLog`), opciones del juego (`DigitalGameOptions`, `AutomationForm`) y recuperación (`GameRecoveryDialog`): `ga-settings-error` → `ga-status is-error`.
+  - Diálogo de la app (`AppDialog`, `ParentalSetupDialog`), cancelar descarga (`CancelDownloadDialog`), diálogo central (`central-dialog-hint`, `central-dialog-failure`), PLUS (`ga-premium-note`), filtros (`LibraryFilterDialog`, `ga-filter-accordion` con el triángulo del navegador), plugin (`PluginDownloadButton`).
+  - Importar juegos y plan de corrección (`ImportWizard`, `PlanDialog`): Tailwind `m-0 text-sm text-muted-foreground` → `ga-hint`.
+  - Fuera de la lista de moldes (la regla general todavía no los alcanza): pase de acceso (`ga-access-pass-panel`), Steam sin instalar (`session-card`), aviso único (`ga-notice`), paneles laterales (descargas, novedades).
 
 Sin cambios a propósito: **la ficha de juego** (referencia). Su botón de cierre y su fila de acciones se quedan como están.
 

@@ -8,7 +8,7 @@ import { GamepadInput } from "./gamepadInput";
 import { showNotice } from "./notice/notice";
 import { readKidSession, type KidGame, type KidSession } from "./kidMode";
 import "./big-picture.css";
-import "./kid-mode.css";
+import "./kid-screen.css";
 
 /**
  * A child's account (kidMode.ts): Game Access is the whole screen and stays in big picture mode, with only the games

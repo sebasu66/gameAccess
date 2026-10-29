@@ -48,13 +48,13 @@ function HiddenWord() {
     if (!down) hide(); else if (!event.repeat) show();
   };
   return <div className="ga-adminkey-word">
-    <span className="ga-adminkey-word-label">{t("adminKeyYourWord")}</span>
+    <span className="ga-label">{t("adminKeyYourWord")}</span>
     <output className={held && word ? "ga-adminkey-secret is-shown" : "ga-adminkey-secret"} aria-live="off">{held && word ? word : HIDDEN}</output>
     <GaButton icon={<Eye size={16} aria-hidden="true" />} aria-pressed={held}
       onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); show(); }}
       onPointerUp={hide} onPointerCancel={hide} onLostPointerCapture={hide} onBlur={hide} onContextMenu={event => event.preventDefault()}
       onKeyDown={event => key(event, true)} onKeyUp={event => key(event, false)}>{t("adminKeyHoldToSee")}</GaButton>
-    <p className="ga-kid-hint">{t("adminKeyHoldHint")}</p>
+    <p className="ga-hint">{t("adminKeyHoldHint")}</p>
   </div>;
 }
 
@@ -100,33 +100,33 @@ export default function AdminKeySection() {
     <input type="password" value={current} maxLength={40} autoComplete="off" spellCheck={false} data-lpignore="true" onChange={event => setCurrent(event.target.value)} /></label>;
   const wordField = <label className="ga-field"><span>{key.enabled ? t("adminKeyNewWord") : t("adminKeyWord")}</span>
     <input value={word} maxLength={20} autoComplete="off" spellCheck={false} placeholder={t("adminKeyWordPlaceholder")} onChange={event => setWord(event.target.value.replace(/\s/g, ""))} /></label>;
-  return <div className="ga-adminkey">
-    <p className="ga-kid-hint">{t("adminKeyIntro")}</p>
-    {key.enabled || ready ? null : <p className="ga-kid-hint" role="note">{t("adminKeyNeedsKidMode")}</p>}
+  return <div className="ga-adminkey ga-stack">
+    <p className="ga-hint">{t("adminKeyIntro")}</p>
+    {key.enabled || ready ? null : <p className="ga-hint" role="note">{t("adminKeyNeedsKidMode")}</p>}
     {key.enabled ? <>
-      <p className="ga-adminkey-on"><KeyRound size={16} aria-hidden="true" />{t("adminKeyActive")}</p>
+      <p className="ga-status is-ok"><KeyRound size={16} aria-hidden="true" />{t("adminKeyActive")}</p>
       {lapsed ? null : <HiddenWord />}
-      <div className="ga-adminkey-actions">
+      <div className="ga-adminkey-actions ga-actions">
         <GaButton onClick={() => open("change")} aria-expanded={mode === "change"}>{t("adminKeyChange")}</GaButton>
         <GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} onClick={() => open("remove")} aria-expanded={mode === "remove"}>{t("adminKeyRemove")}</GaButton>
       </div>
-      {mode === "change" ? <div className="ga-adminkey-form">
+      {mode === "change" ? <div className="ga-adminkey-form ga-stack">
         {currentField}{wordField}
-        <div><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!current.trim() || !validWord(word)} onClick={() => void save()}>{t("adminKeySaveNew")}</GaButton></div>
+        <div className="ga-actions"><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!current.trim() || !validWord(word)} onClick={() => void save()}>{t("adminKeySaveNew")}</GaButton></div>
       </div> : null}
-      {mode === "remove" ? <div className="ga-adminkey-form">
-        <p className="ga-kid-hint">{t("adminKeyRemoveText")}</p>
+      {mode === "remove" ? <div className="ga-adminkey-form ga-stack">
+        <p className="ga-hint">{t("adminKeyRemoveText")}</p>
         {currentField}
-        <div><GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} disabled={!current.trim()} onClick={() => void remove()}>{t("adminKeyRemove")}</GaButton></div>
+        <div className="ga-actions"><GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} disabled={!current.trim()} onClick={() => void remove()}>{t("adminKeyRemove")}</GaButton></div>
       </div> : null}
-    </> : ready ? <div className="ga-adminkey-form">
+    </> : ready ? <div className="ga-adminkey-form ga-stack">
       {wordField}
-      <div><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!validWord(word)} onClick={() => void save()}>{t("adminKeyActivate")}</GaButton></div>
+      <div className="ga-actions"><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!validWord(word)} onClick={() => void save()}>{t("adminKeyActivate")}</GaButton></div>
     </div> : null}
-    {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
-    <details className="ga-adminkey-how">
+    {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
+    <details className="ga-disclosure">
       <summary>{t("adminKeyHowTitle")}</summary>
-      <p>{t("adminKeyHow1")}</p><p>{t("adminKeyHow2")}</p><p>{t("adminKeyHow3")}</p><p>{t("adminKeyHow4")}</p>
+      <div className="ga-stack ga-stack-sm"><p className="ga-hint">{t("adminKeyHow1")}</p><p className="ga-hint">{t("adminKeyHow2")}</p><p className="ga-hint">{t("adminKeyHow3")}</p><p className="ga-hint">{t("adminKeyHow4")}</p></div>
     </details>
   </div>;
 }

@@ -18,6 +18,18 @@
   --ga-dialog-radius:12px; --ga-dialog-shadow:0 24px 60px #0008;
 }
 :root { --ga-btn-font:700 16px/1 Manrope,"Segoe UI",sans-serif; --ga-btn-case:none; --ga-btn-track:normal; --ga-btn-bg:var(--ga-orange); --ga-btn-bg-hover:#d69959; --ga-btn-ink:#140a02; --ga-frost:#a5cee9; --ga-orange:#cc8333; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
+/* Colour and content tokens (docs/GUI_DESIGN.md §1 and §4.25): the content layer (components/ga/content.css) reads only these. */
+:root {
+  --ga-orange-hover:#d69959; --ga-panel:rgba(21,25,29,.94);
+  --ga-danger:#be4750; --ga-danger-hover:#d65c65; --ga-danger-ink:#e1898f; --ga-success:#a0d2b4;
+  --ga-ok:var(--ga-success); --ga-warn:var(--ga-orange); --ga-error:var(--ga-danger-hover);
+  --ga-label-ink:#d79d5d; --ga-orange-ink:#ffd0a0; --ga-orange-tint:#cc83331a; --ga-orange-line:#d79e6066;
+  --ga-surface:#ffffff08; --ga-surface-2:#ffffff12; --ga-field-bg:#0d1114;
+  --ga-text-family:Manrope,"Segoe UI",sans-serif; --ga-text-min:13px; --ga-text-size:14px; --ga-hint-size:13px; --ga-text-leading:1.5;
+  --ga-text-ink:var(--ga-white); --ga-hint-font:400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
+  --ga-label-font:800 11px/1.3 Manrope,"Segoe UI",sans-serif; --ga-label-track:.14em; --ga-status-font:700 13px/1.4 Manrope,"Segoe UI",sans-serif;
+  --ga-space-1:8px; --ga-space-2:16px; --ga-space-3:24px; --ga-row-gap:10px;
+}
 /* Favorite/metadata sorting keeps the viewport fixed. Explicit keyboard
    selection is the only operation that reveals a card automatically. */
 .library-room-grid { overflow-anchor:none; scroll-behavior:auto; }
@@ -422,7 +434,6 @@ html body .ga-detail-dialog .library-detail-media.is-expanded .library-room-medi
 /* Parental criteria: negative only, so they never look like a search. */
 .ga-parental summary { display:flex; align-items:center; gap:7px; color:#f0f3f5; }
 .ga-parental.is-locked summary { color:var(--ga-orange); }
-.ga-parental-note { margin:9px 0 0; color:#aeb9c0; font-size:11px; line-height:1.55; }
 .ga-parental-levels { display:grid; gap:8px; margin-top:12px; }
 .ga-parental-levels label,.ga-parental-violence { display:flex; align-items:flex-start; gap:9px; cursor:pointer; color:#e3e9ec; font-size:12px; }
 .ga-parental-levels small,.ga-parental-violence small { display:block; color:#98a3aa; font-size:10px; margin-top:3px; }
@@ -431,15 +442,11 @@ html body .ga-detail-dialog .library-detail-media.is-expanded .library-room-medi
 .ga-parental input:disabled + span { opacity:.6; }
 .ga-parental-access { display:grid; gap:10px; margin-top:16px; padding-top:14px; border-top:1px solid #ffffff14; }
 .ga-parental-access > .ga-btn-secondary { justify-self:start; }
-.ga-parental-status { display:flex; align-items:center; gap:7px; margin:0; color:var(--ga-orange); font-size:12px; font-weight:700; }
-.ga-parental-status.is-protected { color:#a0d2b4; }
 .ga-parental-unlock { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; }
 .ga-parental-unlock .ga-field, .ga-parental-password .ga-field { margin-top:0; }
 .ga-parental-password { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; align-items:end; }
 .ga-parental-password > button { justify-self:start; grid-column:1 / -1; }
-.ga-parental-password > .ga-parental-error { grid-column:1 / -1; }
-.ga-parental-error { margin:0; color:#d65c65; font-size:12px; font-weight:700; }
-.ga-parental-saved { margin:0; color:#a0d2b4; font-size:12px; font-weight:700; }
+.ga-parental-password > .ga-status { grid-column:1 / -1; }
 .ga-filter-dialog input { accent-color:var(--ga-orange); width:16px; height:16px; flex-shrink:0; }
 .ga-filter-uncertain { flex-shrink:0; border-top:1px solid var(--ga-line); padding-top:18px; }
 .ga-filter-dialog footer { flex-shrink:0; display:flex; align-items:center; gap:12px; margin-top:24px; }

@@ -22,8 +22,9 @@ Si esta skill y ese documento se contradicen, manda el documento; avisa al usuar
 3. Usa tokens (`--ga-orange`, `--ga-danger`, `--ga-muted`, etc.), nunca colores sueltos nuevos.
 4. Un diálogo: un `ga-close` (círculo rojo 38 px), como mucho una acción principal naranja.
 5. Botones de una misma fila: misma altura (44 px; 54 px solo en la ficha de juego).
+5b. Texto de un diálogo (§4.25 del documento, `components/ga/content.css`): los párrafos ya salen bien sin CSS propio (Manrope, 14 px, nunca menos de 13, interlineado 1.5, sin márgenes, alineados al inicio). No escribas reglas para `p` ni títulos; usá `ga-stack` para el espacio, `ga-hint`, `ga-status is-ok|is-warn|is-error`, `ga-label`, `ga-heading`, `ga-group`, `ga-actions` y `ga-disclosure`. Lo distinto (color, peso, recuadro, `--ga-p-size` más grande) es una excepción con su clase. Colores solo con tokens. `npm run check:css` lo controla.
 6. Textos: siempre `t("clave")` con claves en `src/locales/es.ts` y `en.ts`. Nunca texto fijo en JSX ni en `aria-label`/`title`.
-7. Verifica con `npm run check:i18n`, `npx tsc --noEmit -p tsconfig.json` y `npx vitest run`.
+7. Verifica con `npm run check:i18n`, `npm run check:css`, `npx tsc --noEmit -p tsconfig.json` y `npx vitest run`.
 8. Si cambiaste el aspecto de una pantalla, pásala por la lista de comprobación (§6 del documento) antes de dar el cambio por terminado.
 
 ## Foco, Escape y pantallas completas
