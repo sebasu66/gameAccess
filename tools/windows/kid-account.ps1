@@ -211,6 +211,9 @@ Use-KidRegistry $sid {
     # Quoted: the path has spaces.
     Set-Value "$hkcu\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" Shell ('"{0}"' -f $Shell) String
     Set-Value "$policies\System" DisableTaskMgr 1 DWord
+    # Ctrl+Alt+Del cannot be taken away (Windows keeps it for itself): its screen only leaves "Sign out".
+    Set-Value "$policies\System" DisableLockWorkstation 1 DWord
+    Set-Value "$policies\System" DisableChangePassword 1 DWord
     Set-Value "$policies\Explorer" NoRun 1 DWord
     Set-Value "$policies\Explorer" NoDrives $AllDrives DWord
     Set-Value "$policies\Explorer" NoViewOnDrive $AllDrives DWord
@@ -222,6 +225,15 @@ Use-KidRegistry $sid {
     Set-Value "$hkcu\$Safer" AuthenticodeEnabled 0 DWord
     # Windows' own list of what counts as a program, without shortcuts (.lnk), which Windows opens by itself.
     Set-Value "$hkcu\$Safer" ExecutableTypes @('ADE', 'ADP', 'BAS', 'BAT', 'CHM', 'CMD', 'COM', 'CPL', 'CRT', 'EXE', 'HLP', 'HTA', 'INF', 'INS', 'ISP', 'MDB', 'MDE', 'MSC', 'MSI', 'MSP', 'MST', 'OCX', 'PCD', 'PIF', 'REG', 'SCR', 'SHS', 'URL', 'VB', 'WSC') MultiString
+    # The screen's scaling is kept per account: the child gets the adult's (the one running this script), not the
+    # default of a new account.
+    $scaling = 'HKCU:\Control Panel\Desktop\PerMonitorSettings'
+    if (Test-Path -LiteralPath $scaling) {
+        foreach ($monitor in Get-ChildItem -LiteralPath $scaling) {
+            $dpi = (Get-ItemProperty -LiteralPath $monitor.PSPath).DpiValue
+            if ($null -ne $dpi) { Set-Value "$hkcu\Control Panel\Desktop\PerMonitorSettings\$($monitor.PSChildName)" DpiValue $dpi DWord }
+        }
+    }
     foreach ($folder in $open) { Add-PathRule $hkcu Unrestricted $folder 'Windows y programas instalados' }
     foreach ($folder in $closed) { Add-PathRule $hkcu Disallowed $folder 'Juegos o navegador: cerrado salvo lo que habilite Game Access' }
 }
