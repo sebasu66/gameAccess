@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, Baby, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -27,7 +27,8 @@ import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import { GaBack, GaButton } from "../components/ga/Buttons";
-import { confirmNotice } from "../notice/notice";
+import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
+import { applyKidDraft, kidMayPlay, loadKidFamily, toggleKidGame, useKidState } from "../kidMode";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
 import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
@@ -96,11 +97,11 @@ function sourceOf(game: LibraryGame): string {
 
 const FILLED = { weight: "fill" as const };
 
-function IconAction({ label, onClick, disabled, tone, children }: { label: string; onClick: () => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; children: React.ReactNode }) {
+function IconAction({ label, onClick, disabled, tone, pressed, children }: { label: string; onClick: () => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; pressed?: boolean; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button type="button" className={`lm-act${tone ? ` ${tone}` : ""}`} aria-label={label} disabled={disabled} onClick={onClick}><IconContext.Provider value={FILLED}>{children}</IconContext.Provider></button>
+        <button type="button" className={`lm-act${tone ? ` ${tone}` : ""}`} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}><IconContext.Provider value={FILLED}>{children}</IconContext.Provider></button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
@@ -223,6 +224,15 @@ function StatusCell({ status }: { status: Status }) {
 
 /** A row of the grid: picture, name, state, folder, size, source, plays, days without playing and the row's actions.
  *  What a game still needs, or a problem it has, is in its log (the expanded row). */
+/** Shows or hides a game for the child; the change waits in a notice until it is applied (one Windows permission). */
+function chooseForKid(game: LibraryGame, c: LibraryCopy) {
+  toggleKidGame(game);
+  showNotice({ tone: "info", title: c.kidPending, timer: false, actions: [
+    { label: c.kidApplyNow, kind: "primary", run: () => { hideNotice(); void applyKidDraft().then(() => notify(c.kidApplied), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" })); } },
+    { label: c.kidLater, kind: "secondary", run: () => hideNotice() },
+  ] });
+}
+
 function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
   const id = game.app_id;
   const key = row.key;
@@ -238,6 +248,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const freezing = job && !job.queued ? job : undefined;
   const busyFreezing = Boolean(job && !job.outcome);
   const hosted = Boolean(freezing) && id != null;
+  // Kid mode (kidMode.ts): once a child account is set up, each game says whether the child sees it.
+  const kid = useKidState().draft;
+  const forKid = kidMayPlay(id);
   useEffect(() => {
     if (!hosted || id == null) return undefined;
     const release = hostFreezeJob(id);
@@ -285,6 +298,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
           {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
+          {kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
@@ -362,6 +376,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 }) {
   const { locale, t } = useI18n(); const c = copy[locale] ?? copy.es;
   const { games, summary, scanning, error } = useLibraryScan();
+  useEffect(() => { void loadKidFamily(); }, []);
   const members = useLibraryGames();
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>({ key: "size", dir: -1 });

@@ -1,0 +1,49 @@
+/* Kid mode (kidMode.ts): the child's screen (KidScreen.tsx) and the adult's settings (KidModePanel.tsx). */
+
+/* The child's screen: big picture mode over the whole window, with nothing else of the app. */
+body.ga-kid-screen { background: var(--ga-bg, #07090d); }
+.ga-kid-root { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; gap: 24px; padding: 36px 48px 96px; box-sizing: border-box;
+  overflow: auto; color: var(--ga-white, #f4f4f2); font-family: Manrope, "Segoe UI", sans-serif;
+  background: radial-gradient(ellipse at 20% 0%, #2a1d1499, transparent 60%), #07090d; }
+.ga-kid-head { display: flex; align-items: center; gap: 24px; }
+.ga-kid-head > div { flex: 1; min-width: 0; }
+.ga-kid-head .eyebrow { color: #d79d5d; font-size: 11px; letter-spacing: .18em; }
+.ga-kid-head h1 { margin: 4px 0 0; font: 400 clamp(34px, 4vw, 56px) "Bebas Neue", sans-serif; letter-spacing: .03em; color: var(--ga-orange, #ff6a00); }
+.ga-kid-time { margin: 0; padding: 10px 18px; border-radius: 10px; border: 1px solid #ffffff2a; background: #ffffff0d; font-weight: 800; font-size: 18px; white-space: nowrap; }
+.ga-kid-time.is-low { border-color: var(--ga-orange, #ff6a00); color: #ffd0a0; }
+
+.ga-kid-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 24px; }
+.ga-kid-card { display: grid; gap: 10px; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.ga-kid-art { position: relative; display: grid; place-items: center; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 10px;
+  border: 1px solid #ffffff1f; background: linear-gradient(160deg, #2a2d33, #121418); color: #ffffff40; transition: transform .18s ease, box-shadow .18s ease; }
+.ga-kid-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ga-kid-name { font-weight: 800; font-size: 15px; line-height: 1.25; }
+.ga-kid-card:hover .ga-kid-art, .ga-kid-card:focus-visible .ga-kid-art, .ga-kid-card:focus .ga-kid-art { transform: translateY(-4px); box-shadow: 0 14px 34px #000a; }
+.ga-kid-card:focus, .ga-kid-card:focus-visible { outline: none; }
+.ga-kid-card:focus .ga-kid-art, .ga-kid-card:focus-visible .ga-kid-art { outline: 3px solid var(--ga-orange, #ff6a00); outline-offset: 4px; }
+.ga-kid-card.is-playing .ga-kid-art { border-color: #7fcf8f; box-shadow: 0 0 0 2px #7fcf8f66; }
+.ga-kid-empty, .ga-kid-error { margin: 0; font-size: 17px; color: #c9ccd1; }
+.ga-kid-error { color: #ffb4a8; }
+@media (max-width: 1100px) { .ga-kid-root { padding: 24px 20px 120px; } .ga-kid-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; } }
+
+/* The day's time is over: over everything, its only button signs out. */
+.ga-kid-over { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #05080ce6; backdrop-filter: blur(10px); }
+.ga-kid-over section { display: grid; justify-items: center; gap: 14px; max-width: min(560px, calc(100vw - 48px)); padding: 40px 48px; text-align: center;
+  border-radius: 14px; border: 1px solid #d79e6080; background: linear-gradient(150deg, #2a1d14e6, #121518f2 60%); box-shadow: 0 30px 80px #000c; }
+.ga-kid-over h2 { margin: 0; font: 400 44px "Bebas Neue", sans-serif; color: var(--ga-orange, #ff6a00); letter-spacing: .03em; }
+.ga-kid-over p { margin: 0 0 8px; color: #dfe3e6; font-size: 16px; }
+
+/* The adult's settings: the settings dialog's frame. */
+.ga-kid-panel-body { display: grid; gap: 18px; padding: 22px 30px; overflow: auto; }
+.ga-settings-panel.ga-kid-panel fieldset { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; border: 0; }
+.ga-kid-panel legend { margin-bottom: 8px; padding: 0; color: #d79d5d; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.ga-kid-hint { margin: 0; color: #a5a7ad; font-size: 12px; }
+.ga-kid-hours { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+.ga-kid-hours > span { min-width: 150px; font-weight: 700; }
+.ga-kid-hours label { display: inline-flex; align-items: center; gap: 6px; color: #c9ccd1; }
+.ga-kid-panel select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #ffffff2a; background: #15171b; color: var(--ga-white, #f4f4f2); font: 600 13px Manrope, "Segoe UI", sans-serif; }
+.ga-kid-limit { justify-self: start; min-width: 180px; }
+.ga-kid-chosen { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-chosen li { padding: 4px 10px; border-radius: 999px; border: 1px solid #ffffff24; background: #ffffff0d; font-size: 12px; font-weight: 700; }
+.ga-kid-panel footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 30px; border-top: 1px solid #ffffff16; }
+.ga-kid-panel footer p { margin: 0; color: #a5a7ad; font-size: 12px; }

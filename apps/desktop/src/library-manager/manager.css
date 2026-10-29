@@ -171,3 +171,5 @@
 /* Source: the DD / Steam / folder mark, then who provided the download or which Steam account owns the game. */
 .lm-source { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; min-width: 0; }
 .lm-source-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #c9ced2; }
+/* A switch in the row (kid mode: the game is shown in the child's account): on, it is filled orange. */
+.lm-act[aria-pressed="true"] { background: #cc833333; border-color: #d79e60; color: #ffd0a0; }

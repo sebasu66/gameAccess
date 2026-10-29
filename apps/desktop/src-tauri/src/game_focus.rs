@@ -72,7 +72,7 @@ mod win {
 
 /// The processes running from `folder`.
 #[cfg(windows)]
-fn game_processes(folder: &str) -> Vec<u32> {
+pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
     use win::*;
     let mut found = Vec::new();
     unsafe {

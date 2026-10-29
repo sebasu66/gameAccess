@@ -90,6 +90,14 @@ def test_repair_action_marks_ready_or_error_and_writes_the_log(tmp_path):
     assert runner.run("game-analyze", 1, "My Game")["analysis"]["ready"]
 
 
+def test_kid_entry_names_the_executable_a_child_account_starts(tmp_path):
+    storage, folder = make(tmp_path, {"MyGame.exe": b"g"})
+    runner = DigitalProcessRunner(storage)
+    entry = runner.run("kid-entry", 1, "My Game")["entry"]
+    assert entry["steam"] is False and entry["folder"] == str(storage.folder(1, "My Game"))
+    assert entry["executable"].lower().endswith("mygame.exe") and entry["arguments"] == []
+
+
 def test_a_download_with_nothing_runnable_is_not_a_game(tmp_path):
     from game_execution_manager.executables import not_a_game
     extras = tmp_path / "extras"

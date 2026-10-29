@@ -29,6 +29,8 @@ import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
+import KidScreen from "./KidScreen";
+import { readKidSession, type KidSession } from "./kidMode";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
@@ -131,14 +133,25 @@ void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalo
 const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");
 
-if (libraryDemo()) {
-  ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
-} else ReactDOM.createRoot(root).render(
-  <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
-    <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
-  </React.StrictMode>,
-);
+// A sample child for design work in the browser (`?kidDemo=1`, dev builds only).
+const demoKid = (): KidSession | null => import.meta.env.DEV && new URLSearchParams(window.location.search).has("kidDemo") ? {
+  kid: { name: "Juan", sid: "", enabled: true, dailyMinutes: 60, weekdays: "16-20", weekend: "10-21", games: [620, 413150, 881100, 1145360, 1942280].map((appId, index) => ({ appId, name: ["Portal 2", "Stardew Valley", "Noita", "Hades", "Brotato"][index], folder: "", executable: "", arguments: [], steam: false })) },
+  playedSeconds: 1500, remainingSeconds: 2100, playing: null, timeUp: new URLSearchParams(window.location.search).has("timeUp"),
+} : null;
+
+// A child's Windows account (kidMode.ts) gets only its games, in big picture mode, and nothing else of the app.
+void (libraryDemo() ? Promise.resolve(null) : readKidSession()).then(session => session ?? demoKid()).then(kid => {
+  if (kid) {
+    ReactDOM.createRoot(root).render(<><KidScreen initial={kid} demo={!kid.kid.sid} /><GaNotice /></>);
+  } else if (libraryDemo()) {
+    ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
+  } else ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
+      <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
+    </React.StrictMode>,
+  );
+});
 
 void startLocalAutomation();
 // The native watchdog installs a pending update by itself if the interface never gets this far.

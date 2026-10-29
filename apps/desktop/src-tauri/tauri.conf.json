@@ -54,7 +54,8 @@
     "resources": {
       "runtime/launcher": "runtime/launcher",
       "runtime/python": "runtime/python",
-      "../../../deploy/catalog-cache": "runtime/catalog"
+      "../../../deploy/catalog-cache": "runtime/catalog",
+      "../../../tools/windows/kid-account.ps1": "runtime/kid-account.ps1"
     },
     "icon": [
       "icons/icon.ico"

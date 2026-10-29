@@ -41,6 +41,28 @@ class DigitalProcessRunner:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
 
+    def kid_entry(self, app_id, name, linked) -> dict:
+        """What a child's account needs to start this game by itself (kid mode, vault/Modo niño.md): that account
+        cannot read this library, so the folder, the executable and its arguments go in the family file."""
+        if linked:
+            folder = Path(linked["path"])
+            if linked["kind"] == "steam":
+                return {"folder": str(folder), "executable": "", "arguments": [], "steam": True}
+            candidates = self.get_candidates(folder, name, "")
+        else:
+            folder = self.storage.folder(app_id, name)
+            options = DigitalGameOptions(self.storage).load(app_id)
+            extra = parse_arguments(options["arguments"])
+            if options["executable"]:
+                candidates = [(checked_executable(folder, options["executable"]), extra)]
+            else:
+                patterns = load_profile(self.storage.launcher, app_id).get("executablePatterns", [])
+                candidates = [(exe, [*arguments, *extra]) for exe, arguments in self.get_candidates(folder, name, "", patterns)]
+        if not candidates:
+            raise ValueError("No se encontró ningún ejecutable del juego.")
+        executable, arguments = candidates[0]
+        return {"folder": str(folder), "executable": str(executable), "arguments": [str(item) for item in arguments], "steam": False}
+
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
         return repair_language(folder, language, logger, known_only=True)
@@ -149,6 +171,8 @@ class DigitalProcessRunner:
             if owner and int(owner.get("app_id", -1)) == int(app_id) and action not in ("status", "snapshot", "game-log", "open-folder", "game-options"):
                 raise ValueError("Se está congelando o descongelando este juego: esperá a que termine o cancelalo.")
             linked_record = self.storage.linked.get(app_id)
+            if action == "kid-entry":
+                return {**result, "ok": True, "entry": self.kid_entry(app_id, name, linked_record)}
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
                 outcome = run_linked(action, linked_record, self.storage.linked, logger,
@@ -343,7 +367,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

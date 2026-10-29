@@ -17,11 +17,11 @@ import BigPictureIntro, { MenuKey } from "./BigPictureIntro";
 type Props = { footerTarget?: HTMLDivElement | null; enabled: boolean; onToggle: () => void; onDirection: () => void; onAccept: (gameId: number) => void };
 
 const CARDS = ".ga-bento-card";
-const visibleCards = () => Array.from(document.querySelectorAll<HTMLElement>(CARDS)).filter(node => node.getClientRects().length > 0);
+const visibleCards = (selector = CARDS) => Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(node => node.getClientRects().length > 0);
 
 /** The nearest card in that direction from the focused one (or the first card when none is focused). */
-export function focusCard(direction: "left" | "right" | "up" | "down") {
-  const nodes = visibleCards();
+export function focusCard(direction: "left" | "right" | "up" | "down", selector = CARDS) {
+  const nodes = visibleCards(selector);
   const active = document.activeElement as HTMLElement | null;
   if (!active || !nodes.includes(active)) { nodes[0]?.focus(); nodes[0]?.scrollIntoView({ block: "nearest" }); return; }
   const rect = active.getBoundingClientRect(), x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;

@@ -30,10 +30,13 @@ mod game_focus;
 mod webview_rest;
 mod window_fit;
 mod process_control;
+mod kid_mode;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    // The child's desktop (kid_mode.rs): this process only watches the real app.
+    if kid_mode::run_shell_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
     app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
@@ -61,6 +64,8 @@ fn main() {
                 if *focused { window_fit::refit(window); }
             }
             tauri::WindowEvent::Resized(_) => webview_rest::reconcile(window, None),
+            // In a child's account closing Game Access (Alt+F4 too) signs the child out (kid_mode.rs).
+            tauri::WindowEvent::CloseRequested { .. } if kid_mode::kid_account().is_some() => kid_mode::sign_out(),
             _ => {}
         })
         .setup(|app| {
@@ -70,8 +75,11 @@ fn main() {
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
-            plugin_registry::start_registered_plugins();
-            app_update::start_watchdog(app.handle().clone());
+            // A child's account cannot install updates or plugins: the adult's Game Access does.
+            if kid_mode::kid_account().is_none() {
+                plugin_registry::start_registered_plugins();
+                app_update::start_watchdog(app.handle().clone());
+            }
             Ok(())
         })
         .manage(automation_state)
@@ -158,7 +166,12 @@ fn main() {
             digital_commands::freeze_signal,
             digital_commands::import_scan_progress,
             digital_commands::import_scan_stop,
-            digital_commands::query_digital_options
+            digital_commands::query_digital_options,
+            kid_mode::kid_session,
+            kid_mode::kid_play,
+            kid_mode::kid_sign_out,
+            kid_mode::kid_family,
+            kid_mode::kid_apply
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
