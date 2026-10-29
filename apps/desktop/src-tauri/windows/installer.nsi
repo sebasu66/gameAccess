@@ -915,8 +915,15 @@ SectionEnd
 
 Function RestorePreviousInstallLocation
   ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
-  StrCmp $4 "" +2 0
+  StrCmp $4 "" restore_done 0
+  ; GameAccess: the previous folder is offered again only inside Program Files. There a standard account (a child's,
+  ; kid mode) cannot change the program that is its desktop; an older install elsewhere (C:\gameAccess) moves to
+  ; the default folder. StrCmp ignores case.
+  StrLen $5 "$PROGRAMFILES64\"
+  StrCpy $6 $4 $5
+  StrCmp $6 "$PROGRAMFILES64\" 0 restore_done
     StrCpy $INSTDIR $4
+  restore_done:
 FunctionEnd
 
 Function Skip

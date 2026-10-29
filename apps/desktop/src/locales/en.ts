@@ -1157,5 +1157,6 @@ export const en: Record<keyof typeof es, string> = {
   kidFiveMinutesText: "Save your game: it is going to close.",
   kidTimeUpTitle: "Today's time is over",
   kidNeedsPlus: "Kid mode is part of PLUS. Activate PLUS to create the child's account and apply changes.",
+  kidNotProgramFiles: "Game Access must be installed in C:\\Program Files\\gameAccess for kid mode (in another folder the child could change the program). Install it there again.",
   kidTimeUpText: "The game was closed. There is more tomorrow.",
 };

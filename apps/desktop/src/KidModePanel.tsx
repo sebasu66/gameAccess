@@ -43,7 +43,7 @@ function KidModeDialog({ onClose }: { onClose: () => void }) {
       showNotice({ tone: "ok", title: t("kidApplied", { name: draft.name }) });
     } catch (failure) {
       const code = failure instanceof KidApplyError ? failure.code : String(failure);
-      setError(code === "cancelled" ? t("kidApplyCancelled") : code === "needs_plus" ? t("kidNeedsPlus") : code === "bad_name" ? t("kidBadName") : t("kidApplyFailed", { error: code }));
+      setError(code === "cancelled" ? t("kidApplyCancelled") : code === "needs_plus" ? t("kidNeedsPlus") : code === "not_program_files" ? t("kidNotProgramFiles") : code === "bad_name" ? t("kidBadName") : t("kidApplyFailed", { error: code }));
     } finally { setBusy(false); }
   };
   return <div className="ga-settings-backdrop" onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>

@@ -1155,5 +1155,6 @@ export const es = {
   kidFiveMinutesText: "Guardá la partida: el juego se va a cerrar.",
   kidTimeUpTitle: "Se terminó el tiempo de hoy",
   kidNeedsPlus: "El modo niño es parte de PLUS. Activá PLUS para crear la cuenta del niño y aplicar los cambios.",
+  kidNotProgramFiles: "Game Access tiene que estar instalado en C:\\Program Files\\gameAccess para el modo niño (en otra carpeta el niño podría cambiar el programa). Volvé a instalarlo ahí.",
   kidTimeUpText: "El juego se cerró. Mañana hay más.",
 } as const;

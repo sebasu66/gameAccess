@@ -261,6 +261,14 @@ fn script_path() -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
+/// The child's desktop must be a program the child cannot change: inside Program Files, not an older install such
+/// as `C:\gameAccess` (any account may change files in a folder made straight under `C:\`).
+fn in_program_files() -> bool {
+    let (Ok(exe), Some(root)) = (std::env::current_exe(), std::env::var_os("ProgramFiles")) else { return false };
+    let root = root.to_string_lossy().trim_end_matches('\\').to_lowercase();
+    exe.to_string_lossy().to_lowercase().starts_with(&format!("{root}\\"))
+}
+
 fn valid_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 20 && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
@@ -271,6 +279,7 @@ fn valid_name(name: &str) -> bool {
 pub async fn kid_apply(kid: Kid) -> Result<Family, String> {
     if kid_account().is_some() { return Err("not_allowed".into()); }
     if !valid_name(&kid.name) { return Err("bad_name".into()); }
+    if !cfg!(debug_assertions) && !in_program_files() { return Err("not_program_files".into()); }
     tauri::async_runtime::spawn_blocking(move || apply_elevated(&kid)).await.map_err(|error| error.to_string())?
 }
 
