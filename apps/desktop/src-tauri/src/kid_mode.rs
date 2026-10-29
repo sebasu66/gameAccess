@@ -11,6 +11,7 @@
 //! in the child's own `%LOCALAPPDATA%` (version 1: no desktop or explorer to reach it; the SYSTEM service keeps it later).
 
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::{Mutex, OnceLock};
@@ -39,6 +40,8 @@ pub struct KidGame {
     #[serde(deserialize_with = "one_or_many")]
     pub arguments: Vec<String>,
     pub steam: bool,
+    /// Most minutes per day for this game, inside the daily limit; 0: only the daily limit applies.
+    pub daily_minutes: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -132,8 +135,10 @@ pub fn run_shell_if_requested() -> bool {
     true
 }
 
+/// `games`: seconds played today per game (by AppID); the day's `seconds` is the total of all of them.
 #[derive(Serialize, Deserialize, Default, Clone)]
-struct Usage { date: String, seconds: u64 }
+#[serde(default)]
+struct Usage { date: String, seconds: u64, games: HashMap<String, u64> }
 
 fn usage_path() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|base| PathBuf::from(base).join("gameAccess").join("kid-time.json"))
@@ -141,24 +146,44 @@ fn usage_path() -> Option<PathBuf> {
 
 fn today() -> String { chrono::Local::now().format("%Y-%m-%d").to_string() }
 
-fn played_today() -> u64 {
-    let Some(path) = usage_path() else { return 0 };
+fn usage_today() -> Usage {
+    let Some(path) = usage_path() else { return Usage::default() };
     let usage: Usage = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default();
-    if usage.date == today() { usage.seconds } else { 0 }
+    if usage.date == today() { usage } else { Usage::default() }
 }
 
-fn add_played(seconds: u64) -> u64 {
-    let total = played_today() + seconds;
+fn played_today() -> u64 { usage_today().seconds }
+
+/// Counts `seconds` of `app_id` in the day's total and in that game's own time; returns both totals.
+fn add_played(app_id: i64, seconds: u64) -> (u64, u64) {
+    let mut usage = usage_today();
+    usage.date = today();
+    usage.seconds += seconds;
+    let game = usage.games.entry(app_id.to_string()).or_insert(0);
+    *game += seconds;
+    let game = *game;
+    let total = usage.seconds;
     if let Some(path) = usage_path() {
         if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
-        let _ = std::fs::write(path, serde_json::to_string(&Usage { date: today(), seconds: total }).unwrap_or_default());
+        let _ = std::fs::write(path, serde_json::to_string(&usage).unwrap_or_default());
     }
-    total
+    (total, game)
 }
 
 /// What is left today, in seconds; None without a daily limit.
 fn remaining(kid: &Kid, played: u64) -> Option<u64> {
     (kid.daily_minutes > 0).then(|| (kid.daily_minutes as u64 * 60).saturating_sub(played))
+}
+
+/// What is left today of one game's own limit; None when it has none.
+fn game_remaining(game: &KidGame, played: u64) -> Option<u64> {
+    (game.daily_minutes > 0).then(|| (game.daily_minutes as u64 * 60).saturating_sub(played))
+}
+
+/// What is left to play `game` today: the least of its own limit and the day's.
+fn left_for(kid: &Kid, game: &KidGame, usage: &Usage) -> Option<u64> {
+    let own = game_remaining(game, usage.games.get(&game.app_id.to_string()).copied().unwrap_or(0));
+    match (own, remaining(kid, usage.seconds)) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) }
 }
 
 struct Playing { app_id: i64, child: Option<Child> }
@@ -173,16 +198,21 @@ pub struct KidSession {
     remaining_seconds: Option<u64>,
     playing: Option<i64>,
     time_up: bool,
+    /// Seconds left today of each game that has its own limit (by AppID), for the games screen.
+    game_remaining: HashMap<i64, u64>,
 }
 
 /// The child's session, or None in any other account (the app then opens as always).
 #[tauri::command]
 pub fn kid_session() -> Option<KidSession> {
     let kid = kid_account()?;
-    let played = played_today();
+    let usage = usage_today();
+    let played = usage.seconds;
     let playing = PLAYING.lock().ok().and_then(|playing| playing.as_ref().map(|game| game.app_id));
     let time_up = TIME_UP.lock().map(|flag| *flag).unwrap_or(false) || remaining(&kid, played) == Some(0);
-    Some(KidSession { remaining_seconds: remaining(&kid, played), played_seconds: played, playing, time_up, kid })
+    let game_remaining = kid.games.iter().filter(|game| game.daily_minutes > 0)
+        .filter_map(|game| Some((game.app_id, game_remaining(game, usage.games.get(&game.app_id.to_string()).copied().unwrap_or(0))?))).collect();
+    Some(KidSession { remaining_seconds: remaining(&kid, played), played_seconds: played, playing, time_up, game_remaining, kid })
 }
 
 /// Starts one of the child's games, if it is one of them and there is time left.
@@ -190,7 +220,9 @@ pub fn kid_session() -> Option<KidSession> {
 pub fn kid_play(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
     let game = kid.games.iter().find(|game| game.app_id == app_id).cloned().ok_or("not_allowed")?;
-    if remaining(&kid, played_today()) == Some(0) { return Err("time_up".into()); }
+    let usage = usage_today();
+    if remaining(&kid, usage.seconds) == Some(0) { return Err("time_up".into()); }
+    if left_for(&kid, &game, &usage) == Some(0) { return Err("game_time_up".into()); }
     let mut playing = PLAYING.lock().map_err(|_| "busy")?;
     if playing.is_some() { return Err("already_playing".into()); }
     let child = if game.steam {
@@ -221,9 +253,14 @@ fn watch(kid: Kid, game: KidGame) {
         seen |= alive;
         if !alive && (seen || started.elapsed() > APPEAR_GRACE) { break; }
         if !alive { continue; }
-        let total = add_played(TICK.as_secs());
+        let (total, own) = add_played(game.app_id, TICK.as_secs());
         if remaining(&kid, total) == Some(0) {
             if let Ok(mut flag) = TIME_UP.lock() { *flag = true; }
+            close_game(&pids);
+            break;
+        }
+        // Only this game's own time is over: it closes, the child may still play the others.
+        if game_remaining(&game, own) == Some(0) {
             close_game(&pids);
             break;
         }
@@ -329,5 +366,23 @@ mod tests {
         assert_eq!(remaining(&kid, 90), Some(0));
         assert_eq!(remaining(&Kid::default(), 9999), None);
         assert!(valid_name("Prueba") && !valid_name("Juan Pérez") && !valid_name(""));
+    }
+
+    #[test]
+    fn a_game_limit_lives_inside_the_daily_one() {
+        let kid = Kid { daily_minutes: 180, ..Default::default() };
+        let roblox = KidGame { app_id: -1, daily_minutes: 60, ..Default::default() };
+        let paint = KidGame { app_id: -2, ..Default::default() };
+        let mut usage = Usage { seconds: 3000, ..Default::default() };
+        usage.games.insert("-1".into(), 3000);
+        assert_eq!(left_for(&kid, &roblox, &usage), Some(600));
+        assert_eq!(left_for(&kid, &paint, &usage), Some(180 * 60 - 3000));
+        usage.games.insert("-1".into(), 3600);
+        assert_eq!(left_for(&kid, &roblox, &usage), Some(0));
+        // The day's total is the smaller one: it wins over a game's larger own limit.
+        usage.seconds = 180 * 60 - 60;
+        usage.games.insert("-1".into(), 0);
+        assert_eq!(left_for(&kid, &roblox, &usage), Some(60));
+        assert_eq!(left_for(&Kid::default(), &paint, &usage), None);
     }
 }

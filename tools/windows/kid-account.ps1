@@ -282,7 +282,7 @@ function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Ga
         weekdays = $Weekdays; weekend = $Weekend
         games = @($Games | ForEach-Object {
             [ordered]@{ appId = [int]$_.appId; name = [string]$_.name; folder = [string]$_.folder; executable = [string]$_.executable
-                arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam }
+                arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam; dailyMinutes = [int]$_.dailyMinutes }
         })
     }
     $family = [ordered]@{ version = 1; kids = @($others + $kid) }

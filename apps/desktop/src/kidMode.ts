@@ -12,10 +12,14 @@ import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
  * opens the kid screen instead of the library.
  */
 /** `appId`: a library game's Steam AppID, or `-id` for a shortcut to another program (appShortcuts.ts). */
-export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean }
+export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean;
+  /** Most minutes per day for this game, inside the daily limit; 0 or missing: only the daily limit applies. */
+  dailyMinutes?: number }
 export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[] }
 export interface Family { version: number; kids: Kid[] }
-export interface KidSession { kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean }
+export interface KidSession { kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
+  /** Seconds left today of each game that has its own limit, by appId. */
+  gameRemaining?: Record<string, number> }
 
 export const NEW_KID: Kid = { name: "", sid: "", enabled: true, dailyMinutes: 120, weekdays: "0-24", weekend: "0-24", games: [] };
 export const validKidName = (name: string) => /^[A-Za-z0-9._-]{1,20}$/.test(name);
@@ -45,8 +49,9 @@ export async function loadKidFamily(): Promise<void> {
   emit();
 }
 
-const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...left, games: left.games.map(game => game.appId).sort() })
-  === JSON.stringify({ ...right, games: right.games.map(game => game.appId).sort() });
+const gameKey = (game: KidGame) => `${game.appId}:${game.dailyMinutes ?? 0}`;
+const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...left, games: left.games.map(gameKey).sort() })
+  === JSON.stringify({ ...right, games: right.games.map(gameKey).sort() });
 
 export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean }
 let snapshot: KidState = { draft, applied, dirty: false };
@@ -66,7 +71,12 @@ export function setKidDraft(change: Partial<Kid>) {
   emit();
 }
 
-export const kidMayPlay = (appId: number | null) => appId != null && draft.games.some(game => game.appId === appId);
+/** Sets (or, with 0, clears) one game's own daily limit. */
+export function setKidGameMinutes(appId: number, dailyMinutes: number) {
+  setKidDraft({ games: draft.games.map(game => game.appId === appId ? { ...game, dailyMinutes } : game) });
+}
+
+export const kidMayPlay =(appId: number | null) => appId != null && draft.games.some(game => game.appId === appId);
 
 /** Shows or hides a library game for the child (the manager's toggle); its folder goes with it. */
 export function toggleKidGame(game: LibraryGame) {

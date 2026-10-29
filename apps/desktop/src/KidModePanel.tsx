@@ -5,7 +5,7 @@ import { useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
 import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
 import { showNotice } from "./notice/notice";
-import { applyKidDraft, KidApplyError, loadKidFamily, setKidDraft, useKidState, usePlus, validKidName } from "./kidMode";
+import { applyKidDraft, KidApplyError, loadKidFamily, setKidDraft, setKidGameMinutes, useKidState, usePlus, validKidName } from "./kidMode";
 import "./kid-mode.css";
 
 /**
@@ -15,6 +15,7 @@ import "./kid-mode.css";
  */
 const HOURS = Array.from({ length: 25 }, (_, hour) => hour);
 const LIMITS = [0, 30, 60, 90, 120, 180, 240];
+const GAME_LIMITS = [0, 15, 30, 45, 60, 90, 120];
 const range = (value: string): [number, number] => { const [from, to] = value.split("-").map(Number); return [Number.isFinite(from) ? from : 0, Number.isFinite(to) ? to : 24]; };
 
 function Hours({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
@@ -68,8 +69,11 @@ function KidModeDialog({ onClose }: { onClose: () => void }) {
           </select>
         </fieldset>
         <fieldset><legend>{t("kidGames", { count: String(draft.games.length) })}</legend>
-          {draft.games.length ? <ul className="ga-kid-chosen">{draft.games.map(game => <li key={game.appId}>{game.name}</li>)}</ul> : null}
-          <p className="ga-kid-hint">{t("kidGamesHint")}</p>
+          {draft.games.length ? <ul className="ga-kid-chosen">{draft.games.map(game => <li key={game.appId}><span>{game.name}</span>
+            <select aria-label={t("kidGameLimitAria", { name: game.name })} value={game.dailyMinutes ?? 0} onChange={event => setKidGameMinutes(game.appId, Number(event.target.value))}>
+              {GAME_LIMITS.map(minutes => <option key={minutes} value={minutes}>{minutes ? t("kidGameMax", { minutes: String(minutes) }) : t("kidGameDailyOnly")}</option>)}
+            </select></li>)}</ul> : null}
+          <p className="ga-kid-hint">{t("kidGamesHint")} {t("kidGameLimitHint")}</p>
         </fieldset>
         {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
       </div>

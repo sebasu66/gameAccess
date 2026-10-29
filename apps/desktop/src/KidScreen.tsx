@@ -54,15 +54,20 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     return () => window.clearTimeout(timer);
   }, [session.timeUp, demo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Seconds left of a game's own limit today; undefined when it has none. */
+  const gameLeft = (game: KidGame) => game.dailyMinutes ? session.gameRemaining?.[String(game.appId)] ?? game.dailyMinutes * 60 : undefined;
+  const spent = (game: KidGame) => gameLeft(game) === 0;
+
   const play = async (game: KidGame) => {
     setError("");
     if (session.timeUp) return;
+    if (spent(game)) { setError(t("kidGameSpent")); return; }
     try {
       if (!demo) await invoke("kid_play", { appId: game.appId });
       setSession(current => ({ ...current, playing: game.appId }));
     } catch (failure) {
       const code = String(failure);
-      setError(code === "time_up" ? t("kidTimeUpTitle") : code === "already_playing" ? t("kidAlreadyPlaying") : t("kidPlayFailed", { name: game.name }));
+      setError(code === "time_up" ? t("kidTimeUpTitle") : code === "game_time_up" ? t("kidGameSpent") : code === "already_playing" ? t("kidAlreadyPlaying") : t("kidPlayFailed", { name: game.name }));
     }
   };
   const latest = useRef({ play, games: session.kid.games }); latest.current = { play, games: session.kid.games };
@@ -111,9 +116,10 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
       <GaButton icon={<LogOut size={18} aria-hidden="true" />} onClick={signOut}>{t("kidLeave")}</GaButton>
     </header>
     {session.kid.games.length ? <div className="ga-kid-grid">
-      {session.kid.games.map(game => <button key={game.appId} type="button" className={game.appId === session.playing ? "ga-kid-card is-playing" : "ga-kid-card"} data-kid-game={game.appId} onClick={() => void play(game)} aria-label={t("kidPlayAria", { name: game.name })}>
+      {session.kid.games.map(game => <button key={game.appId} type="button" className={`ga-kid-card${game.appId === session.playing ? " is-playing" : ""}${spent(game) ? " is-spent" : ""}`} data-kid-game={game.appId} onClick={() => void play(game)} aria-label={t("kidPlayAria", { name: game.name })}>
         <span className="ga-kid-art">{game.appId > 0 ? <Gamepad2 size={40} aria-hidden="true" /> : <AppWindow size={40} aria-hidden="true" />}{game.appId > 0 ? <img src={cover(game.appId)} alt="" draggable={false} onError={event => { event.currentTarget.hidden = true; }} /> : null}</span>
         <span className="ga-kid-name">{game.name}</span>
+        {gameLeft(game) != null ? <span className="ga-kid-left">{spent(game) ? t("kidGameSpent") : t("kidGameLeft", { minutes: String(Math.ceil(gameLeft(game)! / 60)) })}</span> : null}
       </button>)}
     </div> : <p className="ga-kid-empty">{t("kidNoGames")}</p>}
     {error ? <p className="ga-kid-error" role="alert">{error}</p> : null}
