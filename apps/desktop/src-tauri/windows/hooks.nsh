@@ -237,12 +237,12 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; The restrictor's settings folder is open to Users: the child uses the parent's same Windows account (the parent's
-  ; key in Game Access is the barrier), and the parent's Game Access writes it without asking Windows for permission.
-  ; Then the service is registered (or pointed at this executable), restarted if it ever stops, and started.
+  ; The restrictor owns its settings folder: users only read it (the parent's Game Access asks the service for every
+  ; change, with the parent's key: restrictor_pipe.rs), SYSTEM and administrators change it. The service narrows it again
+  ; at every start. Then the service is registered (or pointed at this executable), restarted if it stops, and started.
   ReadEnvStr $1 ProgramData
   CreateDirectory "$1\GameAccess\restriccion"
-  nsExec::Exec `icacls "$1\GameAccess\restriccion" /grant *S-1-5-32-545:(OI)(CI)M`
+  nsExec::Exec `icacls "$1\GameAccess\restriccion" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /T /Q`
   Pop $0
   nsExec::Exec `sc.exe create ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto DisplayName= "Game Access kid mode"`
   Pop $0

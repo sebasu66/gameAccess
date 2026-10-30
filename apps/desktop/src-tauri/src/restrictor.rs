@@ -86,15 +86,17 @@ fn blocks_path() -> PathBuf { dir().join("bloqueos.json") }
 fn notice_path() -> PathBuf { dir().join("aviso.json") }
 fn parent_path() -> PathBuf { dir().join("padre.json") }
 
-/// How long the parent's presence lasts without a new word from Game Access (it says it every 30 s in parent mode).
-const PARENT_FRESH_MS: u64 = 60_000;
+use crate::restrictor_pipe::PARENT_FRESH_MS;
 
-/// Whether Game Access is in parent mode now (Seba, 2026-10-30): its last word about it is fresh. While it is, kid mode
-/// pauses; once Game Access leaves parent mode, closes, or stops saying it, kid mode restricts again within a minute.
+/// Whether Game Access is in parent mode now (Seba, 2026-10-30): its last word about it, with the parent's key, is
+/// fresh. While it is, kid mode pauses; once Game Access leaves parent mode, closes, or stops saying it, kid mode
+/// restricts again within a minute. The service keeps it in memory (restrictor_pipe.rs); the file is only a development
+/// build's, written without the service (users cannot write that folder once the service has locked it down).
 fn parent_present() -> bool {
+    let now = now_ms();
+    if crate::restrictor_pipe::PARENT_UNTIL.load(Ordering::SeqCst) > now { return true; }
     let at = std::fs::read_to_string(parent_path()).ok().and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
         .and_then(|value| value.get("at").and_then(serde_json::Value::as_u64)).unwrap_or(0);
-    let now = now_ms();
     at <= now + 5_000 && now.saturating_sub(at) < PARENT_FRESH_MS
 }
 
@@ -103,7 +105,7 @@ pub fn read_config() -> Option<Restriction> {
     serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
 }
 
-fn now_ms() -> u64 { SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|time| time.as_millis() as u64).unwrap_or(0) }
+pub(crate) fn now_ms() -> u64 { SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|time| time.as_millis() as u64).unwrap_or(0) }
 
 fn norm(value: &str) -> String { value.replace('/', "\\").trim_end_matches('\\').to_lowercase() }
 
@@ -595,9 +597,15 @@ impl Watcher {
 }
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
+/// Tests that point the settings folder elsewhere (an environment variable) take turns.
+#[cfg(test)]
+pub(crate) static TEST_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn run_loop(as_service: bool) {
     let _ = std::fs::create_dir_all(dir());
+    // The service owns its settings: users only read them, and change them through the pipe with the parent's key.
+    if as_service { crate::restrictor_pipe::AS_SERVICE.store(true, Ordering::SeqCst); crate::restrictor_pipe::lock_down(); }
+    std::thread::spawn(crate::restrictor_pipe::serve);
     log(&format!("Restrictor started ({}).", if as_service { "service" } else { "console" }));
     let mut watcher = Watcher::new(as_service);
     while !STOP.load(Ordering::SeqCst) {
@@ -696,35 +704,56 @@ pub async fn restriction_state() -> RestrictionState {
         .unwrap_or(RestrictionState { config: None, service: "missing".into(), writable: false })
 }
 
-/// Saves the parent's settings (the restrictor reads them at its next look).
+/// Writes the settings (the service, which owns them; or a development build without the service).
+pub(crate) fn write_config(config: &Restriction) -> Result<(), String> {
+    std::fs::create_dir_all(dir()).map_err(|_| "not_writable".to_string())?;
+    let text = serde_json::to_string_pretty(&Restriction { version: 1, ..config.clone() }).map_err(|error| error.to_string())?;
+    let temp = config_path().with_extension("tmp");
+    std::fs::write(&temp, text).and_then(|_| std::fs::rename(&temp, config_path())).map_err(|_| "not_writable".to_string())
+}
+
+/// Removes the settings and what was closed (kid mode undone).
+pub(crate) fn remove_settings() -> Result<(), String> {
+    for path in [config_path(), blocks_path(), notice_path(), parent_path()] {
+        if let Err(error) = std::fs::remove_file(&path) { if error.kind() != std::io::ErrorKind::NotFound { return Err(error.to_string()); } }
+    }
+    Ok(())
+}
+
+/// Asks the service with the parent's key that Game Access holds while in parent mode (admin_key.rs). A development
+/// build with no service does it itself, as before the service owned its settings.
+fn through_service(request: serde_json::Value, by_hand: impl FnOnce() -> Result<(), String>) -> Result<(), String> {
+    if crate::kid_mode::kid_account().is_some() { return Err("not_allowed".into()); }
+    let mut request = request;
+    request["key"] = serde_json::Value::String(crate::admin_key::verified_key().unwrap_or_default());
+    match crate::restrictor_pipe::ask(&request) {
+        Err(error) if error == "service_missing" && cfg!(debug_assertions) => by_hand(),
+        other => other.map(|_| ()),
+    }
+}
+
+/// Saves the parent's settings: the service checks the parent's key and writes them (it reads them at its next look).
 #[tauri::command]
 pub fn restriction_save(config: Restriction) -> Result<RestrictionState, String> {
-    if crate::kid_mode::kid_account().is_some() { return Err("not_allowed".into()); }
-    std::fs::create_dir_all(dir()).map_err(|_| "not_writable".to_string())?;
-    let text = serde_json::to_string_pretty(&Restriction { version: 1, ..config }).map_err(|error| error.to_string())?;
-    let temp = config_path().with_extension("tmp");
-    std::fs::write(&temp, text).and_then(|_| std::fs::rename(&temp, config_path())).map_err(|_| "not_writable".to_string())?;
+    let request = serde_json::json!({ "op": "save", "config": config });
+    through_service(request, || write_config(&config))?;
     Ok(RestrictionState { config: read_config(), service: service_state(), writable: true })
 }
 
 /// Undoes the setup: kid mode is off and starts again from the wizard. The list of what was closed goes too.
 #[tauri::command]
 pub fn restriction_clear() -> Result<(), String> {
-    if crate::kid_mode::kid_account().is_some() { return Err("not_allowed".into()); }
-    for path in [config_path(), blocks_path(), notice_path()] {
-        if let Err(error) = std::fs::remove_file(&path) { if error.kind() != std::io::ErrorKind::NotFound { return Err(error.to_string()); } }
-    }
-    Ok(())
+    through_service(serde_json::json!({ "op": "clear" }), remove_settings)
 }
 
-/// Game Access in parent mode says so every 30 s (`present`), and that it left (`false`): kid mode pauses meanwhile.
+/// Game Access in parent mode says so every 30 s (`present`, with the parent's key), and that it left (`false`): kid
+/// mode pauses meanwhile.
 #[tauri::command]
 pub fn restriction_parent(present: bool) -> Result<(), String> {
-    if crate::kid_mode::kid_account().is_some() { return Err("not_allowed".into()); }
-    if !present {
-        return match std::fs::remove_file(parent_path()) { Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()), _ => Ok(()) };
-    }
-    std::fs::write(parent_path(), serde_json::json!({ "at": now_ms() }).to_string()).map_err(|_| "not_writable".to_string())
+    through_service(serde_json::json!({ "op": "parent", "present": present }), || {
+        if !present { return match std::fs::remove_file(parent_path()) { Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()), _ => Ok(()) }; }
+        std::fs::write(parent_path(), serde_json::json!({ "at": now_ms() }).to_string()).map_err(|_| "not_writable".to_string())
+    })
 }
 
 /// What the restrictor closed, the latest first (the parent may allow it from there).
@@ -1038,6 +1067,7 @@ mod tests {
         let blocked = root.join("tools");
         std::fs::create_dir_all(&settings).unwrap();
         std::fs::create_dir_all(&blocked).unwrap();
+        let _env = TEST_ENV.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         std::env::set_var("GAMEACCESS_RESTRICTION_DIR", &settings);
         let config = Restriction { version: 1, enabled: true, ..Default::default() };
         std::fs::write(settings.join("config.json"), serde_json::to_string(&config).unwrap()).unwrap();

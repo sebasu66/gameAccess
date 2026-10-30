@@ -20,6 +20,8 @@ export default function KidModeBadge() {
   const { t } = useI18n();
   const on = useKidAssigned() !== null;
   const parent = useAccessRole() === "admin";
+  // Back in the player's mode Game Access no longer holds the parent's key (kid mode's service asks for it).
+  useEffect(() => { if (!parent && hasTauriRuntime()) void invoke("admin_key_forget").catch(() => undefined); }, [parent]);
   useEffect(() => {
     if (!on || !hasTauriRuntime()) return undefined;
     const say = (present: boolean) => { void invoke("restriction_parent", { present }).catch(() => undefined); };

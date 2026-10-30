@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { HelpCircle, KeyRound, Power, PowerOff, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { hasTauriRuntime } from "./native";
+import { HelpCircle, KeyRound, LockKeyhole, Power, PowerOff, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
 import KidPrograms, { KidBlocked } from "./KidPrograms";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
@@ -41,10 +43,35 @@ function TimeTab({ sid }: { sid: string }) {
   </>;
 }
 
+/** Windows' password for administrator tasks (uac_password.rs): without it the child, on the same account, could stop
+ *  kid mode's service by only saying "Yes". The parent's choice; Windows asks for permission to change it. */
+function WindowsPassword() {
+  const { t } = useI18n();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { if (hasTauriRuntime()) void invoke<boolean>("uac_password_state").then(setOn).catch(() => setOn(false)); else setOn(false); }, []);
+  const change = async (next: boolean) => {
+    setBusy(true); setError("");
+    try { setOn(await invoke<boolean>("uac_password_set", { on: next })); }
+    catch (failure) { setError(String(failure) === "cancelled" ? t("kidWinPasswordCancelled") : t("kidApplyFailed", { error: String(failure) })); }
+    finally { setBusy(false); }
+  };
+  return <fieldset className="ga-group"><legend className="ga-label"><LockKeyhole size={13} aria-hidden="true" />{t("kidWinPasswordTitle")}</legend>
+    <p className="ga-hint">{t("kidWinPasswordText")}</p>
+    {on === null ? null : <p className={on ? "ga-status is-ok" : "ga-status is-warn"}>{on ? t("kidWinPasswordOn") : t("kidWinPasswordOff")}</p>}
+    <div className="ga-actions">{on
+      ? <GaButton disabled={busy || !hasTauriRuntime()} onClick={() => void change(false)}>{t("kidWinPasswordTurnOff")}</GaButton>
+      : <GaButton variant="primary" icon={<LockKeyhole size={16} aria-hidden="true" />} disabled={busy || on === null || !hasTauriRuntime()} onClick={() => void change(true)}>{t("kidWinPasswordTurnOn")}</GaButton>}</div>
+    {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
+  </fieldset>;
+}
+
 function SupportTab({ busy, onReset }: { busy: boolean; onReset: () => void }) {
   const { t } = useI18n();
   return <>
     <fieldset className="ga-group"><legend className="ga-label"><KeyRound size={13} aria-hidden="true" />{t("adminKeyTab")}</legend><AdminKeySection /></fieldset>
+    <WindowsPassword />
     <fieldset className="ga-group"><legend className="ga-label"><HelpCircle size={13} aria-hidden="true" />{t("kidHelpTitle")}</legend>
       <p className="ga-hint">{t("kidHelpText")}</p>
       <p className="ga-hint">{t("kidHelpContact")}</p>

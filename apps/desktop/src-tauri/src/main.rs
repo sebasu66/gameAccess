@@ -33,6 +33,8 @@ mod window_fit;
 mod process_control;
 mod kid_mode;
 mod restrictor;
+mod restrictor_pipe;
+mod uac_password;
 mod app_shortcuts;
 
 use std::{env, sync::Mutex};
@@ -197,6 +199,9 @@ fn main() {
             restrictor::restriction_notice,
             restrictor::restriction_programs,
             restrictor::restriction_parent,
+            admin_key::admin_key_forget,
+            uac_password::uac_password_state,
+            uac_password::uac_password_set,
             kid_mode::kid_live,
             kid_mode::kid_control,
             kid_mode::kid_plus_set,

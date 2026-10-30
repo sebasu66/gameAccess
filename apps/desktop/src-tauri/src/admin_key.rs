@@ -13,6 +13,12 @@
 //! left by an unfinished wizard is asleep: the opening does not ask for it, and the wizard may replace it.
 use std::{env, fs, io, path::{Path, PathBuf}};
 
+/// The parent's key as last typed and checked, while Game Access runs: kid mode's service asks for it on every change
+/// (restrictor_pipe.rs). Forgotten when Game Access goes back to the player's mode.
+static VERIFIED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+pub fn verified_key() -> Option<String> { VERIFIED.lock().ok().and_then(|value| value.clone()) }
+fn remember(key: &str) { if let Ok(mut value) = VERIFIED.lock() { *value = Some(key.trim().to_string()); } }
+
 const MIN_WORD: usize = 4;
 const MAX_WORD: usize = 40;
 
@@ -106,17 +112,37 @@ pub async fn admin_key_state() -> Result<AdminKeyState, String> {
 /// Whether what was typed is the password. There is no limit on tries: the gate asks on every change once the length fits.
 #[tauri::command]
 pub async fn admin_key_check(attempt: String) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || check_at(&store_path()?, &attempt)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let ok = check_at(&store_path()?, &attempt)?;
+        if ok { remember(&attempt); }
+        Ok(ok)
+    }).await.map_err(|e| e.to_string())?
 }
+
+/// Back to the player's mode: the key is no longer held (ParentModeButton.tsx).
+#[tauri::command]
+pub fn admin_key_forget() { if let Ok(mut value) = VERIFIED.lock() { *value = None; } }
 
 #[tauri::command]
 pub async fn admin_key_set(word: String, current: Option<String>) -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = set_at(&store_path()?, &word, current.as_deref(), set_up())?;
+        // Kid mode's service keeps its own copy: it follows, proven by the key it knew.
+        let previous = current.clone().or_else(verified_key);
+        crate::restrictor_pipe::sync_key(previous.as_deref(), Some(&word));
+        remember(&word);
+        Ok(state)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        clear_at(&store_path()?, current.as_deref(), set_up())?;
+        crate::restrictor_pipe::sync_key(current.as_deref().or(verified_key().as_deref()), None);
+        admin_key_forget();
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 /// The password, for the parent's key tab: shown only while its eye is held pressed. That tab is reachable only as
