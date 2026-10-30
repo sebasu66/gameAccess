@@ -184,3 +184,7 @@
 .lm-apps-name { font-weight: 800; font-size: 13px; }
 .lm-apps-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #929ba2; font: 12px Consolas, monospace; }
 .lm-apps .lm-acts { display: flex; gap: 6px; }
+/* A move into the library (FreezeBar): the cubes stay in place and light up in orange as the bytes are copied. */
+.lm-fbar.is-move .lm-fbar-cubes i.is-packed, .lm-fbar.is-move.is-done .lm-fbar-cubes i.is-packed { border-color: color-mix(in srgb, var(--ga-orange) 70%, transparent); background: color-mix(in srgb, var(--ga-orange) 22%, transparent); }
+.lm-fbar.is-move .lm-fbar-cubes i.is-next { border-color: var(--ga-orange); animation-name: lm-fbar-next-move; }
+@keyframes lm-fbar-next-move { 50% { background: color-mix(in srgb, var(--ga-orange) 25%, transparent); } }

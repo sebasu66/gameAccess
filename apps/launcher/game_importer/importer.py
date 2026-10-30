@@ -110,11 +110,13 @@ class GameImporter:
         return app_id, f"{app_id}-{title}", state
 
     # -- doing it ------------------------------------------------------------------------------
-    def import_game(self, app_id: int, name: str, path: str, mode: str = "link", kind: str = "folder", executable: str = "") -> dict:
+    def import_game(self, app_id: int, name: str, path: str, mode: str = "link", kind: str = "folder", executable: str = "",
+                    progress=None, checkpoint=lambda: None) -> dict:
         """Bring a game that lives elsewhere into the library.
 
         link: it stays where it is; Game Access only launches it and counts its plays (always the case for Steam games).
-        move: its files move into the games folder and are adopted like any other game (never for Steam libraries)."""
+        move: its files move into the games folder and are adopted like any other game (never for Steam libraries).
+        `progress` / `checkpoint`: the move's progress file and the app's cancel or pause (game_library_manager.mover)."""
         source = Path(path)
         if not source.is_dir() or source.is_symlink():
             raise ValueError("La carpeta del juego no existe.")
@@ -156,12 +158,15 @@ class GameImporter:
             self.log.error("AppID %s: move refused, %s", app_id, message)
             return {"ok": False, "error": message}
         self.storage.root.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(target))
+        from game_library_manager.mover import move_folder   # here: the package imports this module at load time
+        moved = move_folder(source, target, progress, checkpoint)
         self.storage.register(app_id, name)
         journal.note(target, "importado", f"movido desde {source}; el historial de antes no está disponible")
         self.log.info("AppID %s (%s): moved from %s into %s", app_id, name, source, target.name)
+        if progress is not None:
+            progress.step("adopt")
         outcome = self.adopt(app_id, name)
-        return {"mode": "move", **outcome}
+        return {"mode": "move", "moved_bytes": moved["bytes"], "renamed": moved["renamed"], **outcome}
 
     def adopt(self, app_id: int, name: str, progress=lambda text: None) -> dict:
         folder = self.storage.folder(app_id, name)

@@ -81,6 +81,14 @@ Código: `apps/api/app/accounts.py`, `account_admin_routes.py`, `admin/index.htm
 - [ ] **La llave de "Sin pagar"** no se puede activar ("This activation key has expired").
 - Comprobado por HTTP el 2026-10-29 (sin la app): Pagado ve PLUS hasta su fecha; No pagado da `401 expired`; al volver a pagar la misma sesión vuelve a PLUS.
 
+## 7c. Mover un juego vinculado a la biblioteca 🖥️ (nuevo)
+Código: `apps/launcher/game_library_manager/mover.py`, `manager._linked_move`, `apps/desktop/src/freezeJobs.ts` (modo `move`).
+- [ ] **De otro disco**: en el Administrador de biblioteca, un juego vinculado desde otra unidad → "Mover a la carpeta de juegos" → confirmar. El aviso se cierra enseguida; la fila dice "Moviendo a la biblioteca", el historial muestra los pasos y la barra se va encendiendo en naranja con los GB copiados. Al terminar, el aviso dice cuánto y en cuánto tiempo, y el juego queda como uno más de la biblioteca.
+- [ ] **Cancelar** a mitad de camino (la X de la fila): se borra la copia a medias y el juego sigue vinculado donde estaba.
+- [ ] **Mismo disco**: es instantáneo (solo cambia de carpeta).
+- [ ] **Cerrar la app a mitad**: al abrirla de nuevo avisa que la mudanza se interrumpió y el juego sigue vinculado.
+- [ ] **En cola**: con un congelado en marcha, la mudanza espera su turno y arranca sola.
+
 ## 8. Cosas que no se pudieron comprobar y conviene mirar con atención
 - [ ] **DPAPI real**: la palabra de la clave se guarda cifrada en el perfil del adulto (`%LOCALAPPDATA%\GameAccess\parental\admin-key.dpapi`). Los tests pasan en Windows, falta verlo en la app instalada. Otro adulto en la misma PC no tendría esa clave.
 - [ ] **El portón de arranque con clave dentro de Tauri**: la lógica está probada con tests y en el navegador, falta verlo en la app (sonido incluido: se genera con la placa de sonido, sin archivo).

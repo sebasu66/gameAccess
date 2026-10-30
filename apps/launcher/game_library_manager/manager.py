@@ -15,7 +15,7 @@ import shutil
 import time
 from pathlib import Path
 import game_journal as journal
-from .freeze_control import holder as freeze_holder
+from .freeze_control import FreezeBusy, FreezeCancelled, holder as freeze_holder
 import app_log
 from game_execution_manager import GameExecutionManager
 from disk_space import allocated_size, check_download, check_space, disk_info, folder_size
@@ -489,17 +489,7 @@ class GameLibraryManager:
         folder = Path(record["path"])
         try:
             if action == "linked_move":
-                # The link goes first (the importer refuses a game that is still linked) and comes back on failure.
-                self.storage.linked.unlink(app_id, hide=False)
-                try:
-                    outcome = self.importer.import_game(app_id, record["name"], str(folder), "move", "folder")
-                except (OSError, ValueError, RuntimeError):
-                    if folder.is_dir():
-                        self.storage.linked.link(app_id, record["name"], str(folder), "folder", record.get("executable", ""))
-                    raise
-                if not outcome.get("ok", True) and folder.is_dir():
-                    self.storage.linked.link(app_id, record["name"], str(folder), "folder", record.get("executable", ""))
-                return {"ok": True, **outcome}
+                return self._linked_move(app_id, record, folder)
             keep = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"]), self.storage.launcher,
                     *(Path(r["path"]) for r in self.storage.linked.all() if int(r["app_id"]) != int(app_id))]
             reason = deletable_reason(folder, keep)
@@ -512,6 +502,53 @@ class GameLibraryManager:
         except (OSError, ValueError, RuntimeError) as error:
             self.log.error("Linked %s AppID %s failed: %s", action, app_id, error)
             return {"ok": False, "error": str(error)}
+
+    def _linked_move(self, app_id: int, record: dict, folder: Path) -> dict:
+        """A linked game moved into the games folder, shown like a freeze: one heavy disk job at a time (the freeze
+        lock), its progress in `<appid>.progress.json` (the game's row in the desktop), cancel and pause from the app,
+        and every step in the game's log with how long it took. Cancelled or failed, the game stays linked where it was."""
+        name, executable = record["name"], record.get("executable", "")
+        control = self.freezer._control(app_id)
+        try:
+            control.acquire("move")
+        except FreezeBusy as error:
+            return {"ok": False, "error": str(error)}
+        progress = self.freezer._progress(app_id, "move", folder)
+        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        # What a later start needs to put a move cut short right (GameFreezer.recover).
+        progress.state.update(source=str(folder), target=str(target), name=name, executable=executable)
+        started = time.time()
+        relink = lambda: folder.is_dir() and self.storage.linked.link(app_id, name, str(folder), "folder", executable)
+        # Until it is in the library its log is the linked game's (never a file written into the player's folder).
+        log = self.storage.linked.log_dir(app_id)
+        log.mkdir(parents=True, exist_ok=True)
+        journal.note(log, "move", f"moviendo a la biblioteca: {target}")
+        # The link goes first (the importer refuses a game that is still linked) and comes back on failure.
+        self.storage.linked.unlink(app_id, hide=False)
+        try:
+            outcome = self.importer.import_game(app_id, name, str(folder), "move", "folder", progress=progress, checkpoint=control.checkpoint)
+        except FreezeCancelled:
+            relink()
+            progress.finish(False, cancelled=True)
+            journal.note(log, "move", "cancelado: el juego sigue vinculado donde estaba")
+            return {"ok": False, "cancelled": True}
+        except (OSError, ValueError, RuntimeError) as error:
+            relink()
+            progress.finish(False, error=str(error))
+            journal.note(log, "move", f"no se pudo mover: {error}")
+            raise
+        finally:
+            control.release()
+        seconds = round(time.time() - started, 1)
+        if not outcome.get("ok", True):
+            relink()
+            progress.finish(False, error=outcome.get("error", ""))
+            return {"ok": False, **outcome}
+        progress.finish(True, moved=outcome.get("moved_bytes", 0), seconds=seconds)
+        moved_to = self.storage.folder(app_id, name)
+        if moved_to.is_dir():
+            journal.note(moved_to, "move", f"movido a la biblioteca en {seconds:.0f} s ({outcome.get('moved_bytes', 0)} bytes)")
+        return {"ok": True, **outcome, "seconds": seconds}
 
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Snowflake } from "lucide-react";
 import { GaClose } from "./components/ga/Buttons";
-import { cancelFreezeJob, collapseFreezeConsole, dismissFreezeJob, openFreezeConsole, useFreezeConsole, type FreezeJob } from "./freezeJobs";
+import { cancelFreezeJob, collapseFreezeConsole, dismissFreezeJob, jobCancelKey, jobLabelKey, openFreezeConsole, useFreezeConsole, type FreezeJob } from "./freezeJobs";
 import { formatBytes } from "./GenericDownloadProgress";
 import { useI18n, type TranslationKey } from "./i18n";
 import type { FreezeEvent, FreezeProgress } from "./native";
@@ -11,8 +11,9 @@ export type Translate = ReturnType<typeof useI18n>["t"];
 export const STEP_KEYS: Record<string, TranslationKey> = {
   scan: "freezeStepScan", compress: "freezeStepCompress", verify: "freezeStepVerify", clear: "freezeStepClear",
   decompress: "freezeStepDecompress", extract: "freezeStepExtract", check: "freezeStepCheck",
+  move: "freezeStepMove", adopt: "freezeStepAdopt",
 };
-export const STEPS_OF = { freeze: ["scan", "compress"], deep: ["scan", "compress", "verify", "clear"], thaw: ["decompress"] } as const;
+export const STEPS_OF = { freeze: ["scan", "compress"], deep: ["scan", "compress", "verify", "clear"], thaw: ["decompress"], move: ["move", "clear", "adopt"] } as const;
 
 export const clock = (seconds: number) => {
   const whole = Math.max(0, Math.round(seconds));
@@ -24,7 +25,10 @@ export const clock = (seconds: number) => {
 export function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): string {
   const size = (value: unknown) => formatBytes(Number(value) || 0);
   switch (event.kind) {
-    case "start": return t(job.mode === "thaw" ? "freezeEvStartThaw" : job.mode === "deep" ? "freezeEvStartDeep" : "freezeEvStartFreeze");
+    case "start": return t(job.mode === "move" ? "freezeEvStartMove" : job.mode === "thaw" ? "freezeEvStartThaw" : job.mode === "deep" ? "freezeEvStartDeep" : "freezeEvStartFreeze");
+    case "renamed": return t("freezeEvRenamed");
+    case "copied": return t("freezeEvCopied", { size: size(event.bytes), time: clock(Number(event.seconds) || 0) });
+    case "leftover": return t("freezeEvLeftover", { folder: String(event.folder ?? "") });
     case "files": return t("freezeEvFiles", { count: String(event.count ?? 0), size: size(event.bytes) });
     case "threads": return t("freezeEvThreads", { count: String(event.count ?? 1) });
     case "step": return `→ ${t(STEP_KEYS[String(event.name)] ?? "freezeStepCompress")}`;
@@ -33,7 +37,8 @@ export function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): str
     case "skipped": return t("freezeEvSkipped", { name: String(event.name) });
     case "archived": return t("freezeEvArchived", { size: size(event.bytes) });
     case "verified": return t("freezeEvVerified");
-    case "done": return event.original != null ? t("freezeEvDone", { original: size(event.original), stored: size(event.stored), time: clock(Number(event.seconds) || 0) })
+    case "done": return event.moved != null ? t("freezeEvDoneMove", { size: size(event.moved), time: clock(Number(event.seconds) || 0) })
+      : event.original != null ? t("freezeEvDone", { original: size(event.original), stored: size(event.stored), time: clock(Number(event.seconds) || 0) })
       : t("freezeEvDoneThaw", { time: clock(Number(event.seconds) || 0) });
     case "failed": return t("freezeEvFailed", { error: String(event.error ?? "") });
     default: return event.kind;
@@ -140,7 +145,7 @@ export default function FreezeConsole() {
   if (!jobs.length) return null;
   const job = jobs.find(item => item.appId === focus) ?? jobs[jobs.length - 1];
   const working = jobs.filter(item => !item.outcome);
-  const title = t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze");
+  const title = t(jobLabelKey(job.mode));
   if (!open) {
     const shown = working[0] ?? job;
     return (
@@ -163,7 +168,7 @@ export default function FreezeConsole() {
       </div> : null}
       <JobView key={job.appId} job={job} t={t} />
       {job.outcome ? null : <button type="button" className="gfc-cancel" disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}>
-        {job.cancelling ? t("freezeCancelling") : t(job.mode === "thaw" ? "thawCancel" : "freezeCancel")}</button>}
+        {job.cancelling ? t("freezeCancelling") : t(jobCancelKey(job.mode))}</button>}
     </aside>
   );
 }

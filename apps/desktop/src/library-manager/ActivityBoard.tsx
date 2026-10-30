@@ -1,4 +1,4 @@
-import { useFreezeConsole } from "../freezeJobs";
+import { jobLabelKey, useFreezeConsole } from "../freezeJobs";
 import { useI18n } from "../i18n";
 
 export interface ActivityTask { key: string; label: string; detail?: string; percent: number | null }
@@ -26,7 +26,7 @@ export default function ActivityBoard({ scanning, working }: { scanning: boolean
     ...jobs.filter(job => !job.outcome).map(job => ({
       key: `freeze-${job.appId}`, percent: job.queued ? 0 : job.progress?.percent ?? null, detail: job.name,
       label: job.queued ? t("lmActivityQueued") : paused ? t("lmActivityPaused")
-        : t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze"),
+        : t(jobLabelKey(job.mode)),
     })),
     ...(working ? [{ key: "batch", label: t("lmActivityWorking"), percent: null }] : []),
     ...(scanning ? [{ key: "scan", label: t("lmActivityScan"), percent: null }] : []),

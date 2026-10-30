@@ -10,6 +10,8 @@ import { confirmNotice, hideNotice, showNotice, type NoticeAction } from "./noti
 import { noticeGame } from "./notice/noticeGame";
 import type { FreezeMode } from "./FreezeDialog";
 import type { CatalogGame } from "./types";
+import type { TranslationKey } from "./i18n";
+import { clock } from "./FreezeConsole";
 
 /**
  * Freezing a big game takes minutes. The work belongs to the app, not to what asked for it: one freeze or thaw at a
@@ -18,10 +20,20 @@ import type { CatalogGame } from "./types";
  * it ends. The job is shown in the game's row of the Library Manager or in the floating console, from the launcher's
  * progress read a few times a second; its result is told in the app's notice, and when the notice goes, so does the
  * job. After a closed app, the launcher puts every cut freeze back in a safe state and the notice says what happened.
+ *
+ * Moving a linked game into the library is the same kind of work (minutes of disk, one at a time, cancellable) and is
+ * a job of this same queue with mode "move": the launcher writes its progress in the same file (mover.py), so the
+ * game's row, its log, the console and the notice show it the same way.
  */
+export type JobMode = FreezeMode | "move";
+
+/** What each kind of job is called (the row's status, the log's group, the console). */
+export const jobLabelKey = (mode: JobMode): TranslationKey =>
+  mode === "move" ? "freezeConsoleMove" : mode === "thaw" ? "freezeConsoleThaw" : mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze";
+export const jobCancelKey = (mode: JobMode): TranslationKey => mode === "move" ? "moveCancel" : mode === "thaw" ? "thawCancel" : "freezeCancel";
 export interface FreezeOutcome { ok: boolean; detail: string; cancelled?: boolean }
 export interface FreezeJob {
-  appId: number; name: string; mode: FreezeMode; game: CatalogGame; startedAt: number;
+  appId: number; name: string; mode: JobMode; game: CatalogGame; startedAt: number;
   done: Promise<FreezeOutcome>; progress?: FreezeProgress; outcome?: FreezeOutcome;
   /** Waiting for the one going on to end. */
   queued?: boolean;
@@ -48,8 +60,8 @@ const emit = () => {
 };
 const isDemo = () => (uiDemo() || libraryDemo()) && !hasTauriRuntime();
 
-export const freezeTitle = (mode: FreezeMode, name: string) =>
-  translate(mode === "thaw" ? "thawTitle" : mode === "deep" ? "deepFreezeTitle" : "freezeTitle", { name });
+export const freezeTitle = (mode: JobMode, name: string) =>
+  translate(mode === "move" ? "moveTitle" : mode === "thaw" ? "thawTitle" : mode === "deep" ? "deepFreezeTitle" : "freezeTitle", { name });
 
 /** The job of a game that is waiting or working (a finished one does not stop a new freeze). */
 export function freezeJob(appId: number): FreezeJob | undefined {
@@ -104,8 +116,9 @@ function pump(): void {
   if (next) starters.get(next.appId)?.();
 }
 
-const resultTitle = (mode: FreezeMode, outcome: FreezeOutcome) =>
-  translate(outcome.cancelled ? (mode === "thaw" ? "lmThawCancelled" : "lmFreezeCancelled")
+const resultTitle = (mode: JobMode, outcome: FreezeOutcome) =>
+  translate(mode === "move" ? (outcome.cancelled ? "lmMoveCancelled" : outcome.ok ? "lmMoveComplete" : "lmMoveIncomplete")
+    : outcome.cancelled ? (mode === "thaw" ? "lmThawCancelled" : "lmFreezeCancelled")
     : outcome.ok ? (mode === "thaw" ? "lmThawComplete" : mode === "deep" ? "lmDeepFreezeComplete" : "lmFreezeComplete") : "lmFreezeIncomplete");
 
 /** The result, told like every result in the app's notice: an OK that presses itself after a moment (an error waits
@@ -114,13 +127,13 @@ function announce(job: FreezeJob, outcome: FreezeOutcome): void {
   const good = outcome.ok || Boolean(outcome.cancelled);
   showNotice({
     game: noticeGame(job.game), title: resultTitle(job.mode, outcome), text: outcome.detail,
-    tone: outcome.cancelled ? "info" : outcome.ok ? "frost" : "error", timer: good, onDismiss: () => dismissFreezeJob(job.appId),
-    actions: [{ label: translate("noticeOk"), kind: outcome.ok ? "frost" : "secondary", run: () => hideNotice() }],
+    tone: outcome.cancelled ? "info" : outcome.ok ? (job.mode === "move" ? "ok" : "frost") : "error", timer: good, onDismiss: () => dismissFreezeJob(job.appId),
+    actions: [{ label: translate("noticeOk"), kind: outcome.ok ? (job.mode === "move" ? "primary" : "frost") : "secondary", run: () => hideNotice() }],
   });
 }
 
 /** Freeze (either level) or thaw a game: at once when nothing else is working, else queued after it. */
-export function startFreezeJob(game: CatalogGame, mode: FreezeMode): FreezeJob {
+export function startFreezeJob(game: CatalogGame, mode: JobMode): FreezeJob {
   const appId = game.app_id ?? game.id;
   const existing = freezeJob(appId);
   if (existing) { openFreezeConsole(appId); return existing; }
@@ -141,15 +154,21 @@ export function startFreezeJob(game: CatalogGame, mode: FreezeMode): FreezeJob {
       }).catch(() => undefined);
     }, POLL_MS);
     const work = async (): Promise<FreezeOutcome> => {
+      if (mode === "move") return demo ? demoMove() : moveIntoLibrary(appId);
       try {
-        const result = (demo ? await demoFreeze(mode, progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId))
-          : mode === "thaw" ? await digitalProcessManager.thaw(game) : await digitalProcessManager.freeze(game, mode)) as { cancelled?: boolean; frozen?: { stored_bytes?: number; original_bytes?: number } };
+        const result = (demo ? await demoFreeze(mode as FreezeMode, progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId))
+          : mode === "thaw" ? await digitalProcessManager.thaw(game) : await digitalProcessManager.freeze(game, mode as "freeze" | "deep")) as { cancelled?: boolean; frozen?: { stored_bytes?: number; original_bytes?: number } };
         if (result.cancelled) return { ok: false, cancelled: true, detail: translate(mode === "thaw" ? "lmThawCancelledText" : "lmFreezeCancelledText") };
         const frozen = result.frozen;
         return { ok: true, detail: frozen ? translate("freezeDone", { stored: formatBytes(frozen.stored_bytes), original: formatBytes(frozen.original_bytes) }) : translate("thawDone") };
       } catch (error) {
         return { ok: false, detail: translate("freezeFailed", { error: error instanceof Error ? error.message : String(error) }) };
       }
+    };
+    // The demo move borrows the freeze's simulated progress.
+    const demoMove = async (): Promise<FreezeOutcome> => {
+      const result = await demoFreeze("freeze", progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId)) as { cancelled?: boolean };
+      return result.cancelled ? { ok: false, cancelled: true, detail: translate("lmMoveCancelledText") } : { ok: true, detail: translate("moveDone", { size: formatBytes(job.progress?.total_bytes ?? 0), time: clock((Date.now() - job.startedAt) / 1000) }) };
     };
     void work().then(async outcome => {
       if (poll) window.clearInterval(poll);
@@ -179,6 +198,19 @@ export function startFreezeJob(game: CatalogGame, mode: FreezeMode): FreezeJob {
   focus = appId;
   emit();
   return job;
+}
+
+/** A linked game moved into the games folder (the launcher's library batch, which asks for the parent's key first). */
+async function moveIntoLibrary(appId: number): Promise<FreezeOutcome> {
+  try {
+    const { results } = await digitalProcessManager.libraryBatch("linked_move", [appId]) as { results?: Array<{ ok: boolean; cancelled?: boolean; error?: string; moved_bytes?: number; seconds?: number }> };
+    const row = results?.[0];
+    if (row?.cancelled) return { ok: false, cancelled: true, detail: translate("lmMoveCancelledText") };
+    if (!row?.ok) return { ok: false, detail: translate("freezeFailed", { error: row?.error ?? "" }) };
+    return { ok: true, detail: translate("moveDone", { size: formatBytes(row.moved_bytes ?? 0), time: clock(row.seconds ?? 0) }) };
+  } catch (error) {
+    return { ok: false, detail: translate("freezeFailed", { error: error instanceof Error ? error.message : String(error) }) };
+  }
 }
 
 /** Stop a game's freeze or thaw: a queued one just leaves the queue; one working is asked to put the game back. */
@@ -242,6 +274,9 @@ export async function recoverFreezes(): Promise<void> {
     } else if (item.outcome === "discarded") {
       text = translate("freezeCutDiscarded", { percent });
       actions.push({ label: translate("freezeCutAgain"), kind: "frost", run: () => { hideNotice(); startFreezeJob(game, "deep"); } });
+    } else if (item.action === "move") {
+      if (item.outcome === "restored" || item.outcome === "completed") { text = translate(item.outcome === "restored" ? "moveCutRestored" : "moveCutCompleted", { percent }); timer = true; }
+      else { text = translate("freezeFailed", { error: item.error ?? "" }); tone = "error"; }
     } else if (item.outcome === "completed") {
       text = translate("freezeCutCompleted"); tone = "frost"; timer = true;
     } else if (item.outcome === "retry") {
@@ -250,7 +285,7 @@ export async function recoverFreezes(): Promise<void> {
     } else {
       text = translate("freezeFailed", { error: item.error ?? "" }); tone = "error";
     }
-    notices.push(() => showNotice({ game: noticeGame(game), title: translate("freezeCutTitle", { name: game.name }), text, tone, timer, actions, onDismiss: () => window.setTimeout(next, 300) }));
+    notices.push(() => showNotice({ game: noticeGame(game), title: translate(item.action === "move" ? "moveCutTitle" : "freezeCutTitle", { name: game.name }), text, tone, timer, actions, onDismiss: () => window.setTimeout(next, 300) }));
   }
   if (recovered.some(item => item.outcome !== "running")) void scanLibrary().catch(() => undefined);
   next();
@@ -259,7 +294,7 @@ export async function recoverFreezes(): Promise<void> {
 /** A freeze the launcher is still doing in its own process (the app was reopened meanwhile): shown until it ends. */
 function follow(game: CatalogGame, action: string): void {
   const appId = game.app_id ?? game.id;
-  const mode: FreezeMode = action === "deep" ? "deep" : action.startsWith("thaw") ? "thaw" : "freeze";
+  const mode: JobMode = action === "move" ? "move" : action === "deep" ? "deep" : action.startsWith("thaw") ? "thaw" : "freeze";
   let settle: (outcome: FreezeOutcome) => void = () => undefined;
   const job: FreezeJob = { appId, name: game.name, mode, game, startedAt: 0, done: new Promise(resolve => { settle = resolve; }) };
   jobs.set(appId, job);
@@ -270,7 +305,8 @@ function follow(game: CatalogGame, action: string): void {
       if (progress.finished && !job.outcome) {
         window.clearInterval(poll);
         const end = progress.events.at(-1);
-        const outcome: FreezeOutcome = progress.cancelled ? { ok: false, cancelled: true, detail: translate("lmFreezeCancelledText") }
+        const outcome: FreezeOutcome = progress.cancelled ? { ok: false, cancelled: true, detail: translate(mode === "move" ? "lmMoveCancelledText" : "lmFreezeCancelledText") }
+          : progress.ok && mode === "move" ? { ok: true, detail: translate("moveDone", { size: formatBytes(Number(end?.moved ?? 0)), time: clock(Number(end?.seconds ?? 0)) }) }
           : progress.ok ? { ok: true, detail: end?.stored != null ? translate("freezeDone", { stored: formatBytes(Number(end.stored)), original: formatBytes(Number(end.original)) }) : translate("thawDone") }
           : { ok: false, detail: translate("freezeFailed", { error: String(end?.error ?? "") }) };
         job.outcome = outcome;

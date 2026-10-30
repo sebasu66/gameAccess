@@ -192,7 +192,7 @@ export default function DigitalGameContextMenu({
           <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
           {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
-          {freezeWork ? <button type="button" role="menuitem" onClick={() => setFreezing(freezeWork.mode)}><Snowflake size={16} /> {t(freezeWork.mode === "thaw" ? "thawRunning" : "freezeRunning")}</button> : null}
+          {freezeWork && freezeWork.mode !== "move" ? <button type="button" role="menuitem" onClick={() => setFreezing(freezeWork.mode as FreezeMode)}><Snowflake size={16} /> {t(freezeWork.mode === "thaw" ? "thawRunning" : "freezeRunning")}</button> : null}
           {canFreeze && !freezeWork && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
           {canFreeze && !freezeWork && entry?.frozen !== "deep" ? <button type="button" role="menuitem" onClick={() => setFreezing("deep")}><Snowflake size={16} /> {t("deepFreezeMenu")}</button> : null}
           {canFreeze && !freezeWork && entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("thaw")}><Flame size={16} /> {t("thawMenu")}</button> : null}

@@ -50,7 +50,9 @@ SEVEN_ZIP_PROGRESS = re.compile(r"^\s*(\d{1,3})%(?:\s+\d+)?(?:\s+[+=TUR-]\s+(.*?
 STEPS = {"freeze": (("scan", 1), ("compress", 99)),
          "deep": (("scan", 1), ("compress", 82), ("verify", 15), ("clear", 2)),
          "thaw": (("decompress", 100),),
-         "thaw-deep": (("extract", 97), ("check", 3))}
+         "thaw-deep": (("extract", 97), ("check", 3)),
+         # A linked game moved into the library (mover.py): copied, the original removed, adopted to the standard.
+         "move": (("move", 96), ("clear", 2), ("adopt", 2))}
 MAX_EVENTS = 80
 
 
@@ -549,6 +551,8 @@ class GameFreezer:
                         ("discarded"); cut while removing the files: the archive is complete, the removal ends ("completed")
             thaw-deep   what had been extracted goes, the archive is still the game ("retry")
             thaw        part of the files is back to normal, the game plays ("retry")
+            move        cut while copying: the half-made copy goes and the game stays linked where it was
+                        ("restored"); cut after the copy: the game is in the library already ("completed")
 
         A freeze whose process is still running (the app was closed, the work went on) is reported as "running"."""
         found: list[dict] = []
@@ -582,6 +586,16 @@ class GameFreezer:
                     else:
                         (folder / (DEEP_ARCHIVE + ".tmp")).unlink(missing_ok=True)
                         entry["outcome"] = "discarded"
+                elif action == "move":
+                    source, target = Path(state.get("source") or ""), Path(state.get("target") or "")
+                    if state.get("source") and source.is_dir() and state.get("step") == "move":
+                        if state.get("target") and target.is_dir():
+                            shutil.rmtree(target)
+                        self.storage.linked.link(app_id, state.get("name") or f"#{app_id}", str(source), "folder", state.get("executable") or "")
+                        entry["outcome"] = "restored"
+                    else:
+                        entry["outcome"] = "completed"
+                    folder = source if entry["outcome"] == "restored" else target
                 elif action == "thaw-deep":
                     if (folder / DEEP_ARCHIVE).is_file():
                         self._clear(folder)
@@ -591,7 +605,7 @@ class GameFreezer:
             except OSError as error:
                 entry.update(outcome="failed", error=str(error))
             if folder.is_dir():
-                journal.note(folder, "freeze", f"interrumpido al {percent:.0f} % (la app se cerró): {entry['outcome']}")
+                journal.note(folder, "move" if action == "move" else "freeze", f"interrumpido al {percent:.0f} % (la app se cerró): {entry['outcome']}")
             state.update(finished=True, ok=False, interrupted=True)
             write_json(path, state)
             found.append(entry)

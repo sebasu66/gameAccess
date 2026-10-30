@@ -21,7 +21,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
-import { cancelFreezeJob, dismissFreezeJob, freezeJob, hostFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
+import { cancelFreezeJob, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
@@ -81,7 +81,7 @@ function statusOf(game: LibraryGame, c: LibraryCopy, t: Translate): Status {
 /** The state of a game being frozen, thawed or waiting for that. */
 function freezeStatus(job: FreezeJob, tr: typeof translate): Status {
   if (job.queued) return { rank: 1, label: tr("lmActivityQueued"), tone: "busy" };
-  return { rank: 0, label: tr(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze"), tone: "frost",
+  return { rank: 0, label: tr(jobLabelKey(job.mode)), tone: job.mode === "move" ? "busy" : "frost",
     icon: <Loader2 className="animate-spin" /> };
 }
 
@@ -138,7 +138,7 @@ function History({ game, c, job }: { game: LibraryGame; c: LibraryCopy; job?: Fr
     <div ref={box} className="lm-history" tabIndex={-1}>
       {text === null ? <p>{c.working}</p> : !lines.length && !job ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
       {job ? <div className={`lm-log-group is-${job.outcome ? (job.outcome.ok ? "done" : "failed") : "working"}`}>
-        <p className="lm-log-head">{t(job.mode === "thaw" ? "freezeConsoleThaw" : job.mode === "deep" ? "freezeConsoleDeep" : "freezeConsoleFreeze")}{job.outcome ? "" : ` · ${Math.floor(job.progress?.percent ?? 0)} %`}</p>
+        <p className="lm-log-head">{t(jobLabelKey(job.mode))}{job.outcome ? "" : ` · ${Math.floor(job.progress?.percent ?? 0)} %`}</p>
         {events.map((event, index) => <p key={index} className={`is-${event.kind}`}>{eventText(event, job, t)}</p>)}
         {job.outcome ? <p className="lm-log-foot">{job.outcome.detail}</p> : null}
       </div> : null}
@@ -319,7 +319,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td className="lm-acts">
         {busyFreezing && job ? <>
           {/* While it is frozen, thawed or waiting for that, the game only offers to cancel it (nothing else touches it). */}
-          <IconAction label={job.cancelling ? translate("freezeCancelling") : translate(job.mode === "thaw" ? "thawCancel" : "freezeCancel")} tone="danger"
+          <IconAction label={job.cancelling ? translate("freezeCancelling") : translate(jobCancelKey(job.mode))} tone="danger"
             disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}><X /></IconAction>
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
         </> : unfinished && !game.transfer_active ? <>
@@ -492,7 +492,18 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     if (current.kind === "plan") await runBatch("adopt", current.ids);
     else if (current.kind === "uninstall") releaseKidGames(await runBatch("uninstall", current.ids));
     else if (current.kind === "steam_uninstall") releaseKidGames(await runBatch("steam_uninstall", [current.game.app_id as number]));
-    else if (current.kind === "linked_delete" || current.kind === "linked_move") releaseKidGames(await runBatch(current.kind, [current.game.app_id as number]));
+    else if (current.kind === "linked_delete") releaseKidGames(await runBatch(current.kind, [current.game.app_id as number]));
+    else if (current.kind === "linked_move") {
+      // Minutes of disk when it goes to another disk: a job like a freeze (freezeJobs.ts), shown in the game's row
+      // with its log and bar, cancellable, told in the notice when it ends. The confirmation goes at once.
+      const id = current.game.app_id as number;
+      hideNotice();
+      setPending(null);
+      void startFreezeJob(findCatalogGame(current.game) ?? asGame(current.game), "move").done.then(outcome => {
+        if (outcome.ok) releaseKidGames([id]);
+        notifyLibraryChanged();
+      });
+    }
     else {
       const catalogGame = findCatalogGame(current.game);
       await runBatch("discard_transfer", [current.game.app_id as number]);
