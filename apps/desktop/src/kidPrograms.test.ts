@@ -21,7 +21,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   }),
 }));
 
-import { allowBlocked, applyKidDraft, loadDetectedPrograms, loadKidFamily, setKidDraft, setKidModeEnabled, toggleKidProgram } from "./kidMode";
+import { allowBlocked, applyKidDraft, loadDetectedPrograms, loadKidFamily, setKidDraft, setKidModeEnabled, toggleKidProgram, toggleKnownProgram } from "./kidMode";
 import { blockNotice } from "./restrictionNotice";
 
 describe("programas permitidos del modo niño", () => {
@@ -47,6 +47,17 @@ describe("programas permitidos del modo niño", () => {
     const saved = calls.find(([command]) => command === "restriction_save")![1] as { config: { enabled: boolean; kid: { name: string } } };
     expect(saved.config.enabled).toBe(false);
     expect(saved.config.kid.name).toBe("Fran");
+  });
+
+  it("los programas comunes empiezan en Sí; el que se pone en No viaja bloqueado, con su nombre de programa", async () => {
+    calls.length = 0;
+    toggleKnownProgram("Google Chrome");
+    await applyKidDraft();
+    const saved = calls.find(([command]) => command === "restriction_save")![1] as { config: { allowedExes: Array<{ exe: string; marks: string[] }>; blockedExes: Array<{ exe: string; marks: string[] }>; blockedDefaults: string[] } };
+    expect(saved.config.blockedExes).toEqual([{ exe: "chrome.exe", marks: ["google chrome"] }]);
+    expect(saved.config.blockedDefaults).toEqual(["Google Chrome"]);
+    expect(saved.config.allowedExes.map(item => item.exe)).toContain("Discord.exe");
+    expect(saved.config.allowedExes.map(item => item.exe)).not.toContain("chrome.exe");
   });
 
   it("el aviso dice qué hacer: un juego va a la biblioteca, un programa a los permitidos", () => {

@@ -5,6 +5,7 @@ import { hasTauriRuntime } from "./native";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
+import { knownExes, type KnownExe } from "./knownPrograms";
 import { setPlusGraceDays, setPlusLapsed, useAccessRole } from "./accessRole";
 
 /**
@@ -68,7 +69,9 @@ export interface AllowedProgram { name: string; folder: string }
  *  come from the library) but may be ticked; "windows" is always allowed. */
 export interface DetectedProgram extends AllowedProgram { publisher: string; kind: "program" | "game" | "launcher" | "windows" }
 /** What the restrictor reads (restrictor.rs `Restriction`). */
-export interface Restriction { version: number; enabled: boolean; kid: Kid; programs: AllowedProgram[] }
+export interface Restriction { version: number; enabled: boolean; kid: Kid; programs: AllowedProgram[];
+  /** The common programs (knownPrograms.ts) left on and turned off, and the names of those turned off. */
+  allowedExes?: KnownExe[]; blockedExes?: KnownExe[]; blockedDefaults?: string[] }
 /** The restrictor itself: its service ("missing" with an installer older than the new model) and whether the settings
  *  can be written here; `enabled`: kid mode is on (the big switch). */
 export interface RestrictionStatus { service: "running" | "stopped" | "missing"; writable: boolean; enabled: boolean }
@@ -84,6 +87,9 @@ let appliedPrograms: AllowedProgram[] = [];
 /** The programs ticked now; null until the parent (or the first detection) chose. */
 let programs: AllowedProgram[] | null = null;
 let detected: DetectedProgram[] | null = null;
+/** The common programs turned off (their names in knownPrograms.ts): all start on. */
+let knownOff: string[] = [];
+let appliedKnownOff: string[] = [];
 let status: RestrictionStatus = { service: "missing", writable: false, enabled: false };
 let loaded = false;
 const listeners = new Set<() => void>();
@@ -103,6 +109,8 @@ export async function loadKidFamily(): Promise<void> {
       const read = await invoke<{ config: Restriction | null; service: RestrictionStatus["service"]; writable: boolean }>("restriction_state");
       applied = read.config?.kid ?? null;
       appliedPrograms = read.config?.programs ?? [];
+      appliedKnownOff = read.config?.blockedDefaults ?? [];
+      knownOff = appliedKnownOff;
       status = { service: read.service, writable: read.writable, enabled: read.config?.enabled ?? false };
     } catch { applied = null; }
   }
@@ -133,6 +141,15 @@ export function toggleKidProgram(program: AllowedProgram) {
   emit();
 }
 
+/** Turns one common program on or off (the change waits for "Apply"). */
+export function toggleKnownProgram(name: string) {
+  knownOff = knownOff.includes(name) ? knownOff.filter(item => item !== name) : [...knownOff, name];
+  emit();
+}
+
+/** What the restrictor's settings say about the common programs. */
+const knownSettings = (off: string[]) => ({ ...knownExes(off), blockedDefaults: off });
+
 /** Ticks exactly these programs ("All" and "None"). */
 export function setKidPrograms(list: AllowedProgram[]) {
   programs = list;
@@ -155,7 +172,7 @@ export async function readRestrictionBlocks(): Promise<RestrictionBlock[]> {
 export async function setKidModeEnabled(enabled: boolean): Promise<void> {
   if (!applied) return;
   if (hasTauriRuntime()) {
-    try { await invoke("restriction_save", { config: { version: 1, enabled, kid: applied, programs: appliedPrograms } }); }
+    try { await invoke("restriction_save", { config: { version: 1, enabled, kid: applied, programs: appliedPrograms, ...knownSettings(appliedKnownOff) } }); }
     catch (error) { throw reportKidFailure(enabled ? "turning kid mode on" : "turning kid mode off", error); }
   }
   status = { ...status, enabled };
@@ -169,13 +186,16 @@ const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...le
 const NO_PROGRAMS: AllowedProgram[] = [];
 const programKeys = (list: AllowedProgram[]) => list.map(item => item.folder.toLowerCase()).sort().join("|");
 
-export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean; programs: AllowedProgram[]; detected: DetectedProgram[] | null; status: RestrictionStatus }
-let snapshot: KidState = { draft, applied, dirty: false, programs: [], detected, status };
+export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean; programs: AllowedProgram[]; detected: DetectedProgram[] | null; status: RestrictionStatus;
+  /** The common programs turned off now. */
+  knownOff: string[] }
+let snapshot: KidState = { draft, applied, dirty: false, programs: [], detected, status, knownOff };
 function state(): KidState {
   const chosen = programs ?? NO_PROGRAMS;
-  const dirty = (!sameKid(applied, draft) || (applied !== null && programKeys(appliedPrograms) !== programKeys(chosen))) && (applied !== null || draft.name !== "");
-  if (snapshot.draft !== draft || snapshot.applied !== applied || snapshot.dirty !== dirty || snapshot.programs !== chosen || snapshot.detected !== detected || snapshot.status !== status) {
-    snapshot = { draft, applied, dirty, programs: chosen, detected, status };
+  const knownChanged = [...knownOff].sort().join("|") !== [...appliedKnownOff].sort().join("|");
+  const dirty = (!sameKid(applied, draft) || (applied !== null && (programKeys(appliedPrograms) !== programKeys(chosen) || knownChanged))) && (applied !== null || draft.name !== "");
+  if (snapshot.draft !== draft || snapshot.applied !== applied || snapshot.dirty !== dirty || snapshot.programs !== chosen || snapshot.detected !== detected || snapshot.status !== status || snapshot.knownOff !== knownOff) {
+    snapshot = { draft, applied, dirty, programs: chosen, detected, status, knownOff };
   }
   return snapshot;
 }
@@ -282,12 +302,13 @@ export async function applyKidDraft(): Promise<void> {
   await loadDetectedPrograms();
   const windows = (detected ?? []).filter(item => item.kind === "windows" && !(programs ?? []).some(chosen => sameFolder(chosen.folder, item.folder)));
   const chosen = [...(programs ?? []), ...windows.map(({ name, folder }) => ({ name, folder }))];
-  if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; appliedPrograms = chosen; status = { ...status, enabled }; emit(); return; }
+  if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; appliedPrograms = chosen; appliedKnownOff = knownOff; status = { ...status, enabled }; emit(); return; }
   const kid = { ...draft, games: await withEntries(draft.games) };
   try {
-    const saved = await invoke<{ config: Restriction | null; service: RestrictionStatus["service"]; writable: boolean }>("restriction_save", { config: { version: 1, enabled, kid, programs: chosen } });
+    const saved = await invoke<{ config: Restriction | null; service: RestrictionStatus["service"]; writable: boolean }>("restriction_save", { config: { version: 1, enabled, kid, programs: chosen, ...knownSettings(knownOff) } });
     applied = saved.config?.kid ?? kid;
     appliedPrograms = saved.config?.programs ?? chosen;
+    appliedKnownOff = saved.config?.blockedDefaults ?? knownOff;
     status = { service: saved.service, writable: saved.writable, enabled: saved.config?.enabled ?? enabled };
   } catch (error) {
     throw reportKidFailure("saving kid mode", error);
@@ -314,6 +335,8 @@ export async function resetKidMode(): Promise<void> {
   applied = null;
   appliedPrograms = [];
   programs = null;
+  knownOff = [];
+  appliedKnownOff = [];
   status = { ...status, enabled: false };
   draft = { ...NEW_KID, games: [] };
   try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(PROGRAMS_KEY); } catch { /* nothing kept */ }

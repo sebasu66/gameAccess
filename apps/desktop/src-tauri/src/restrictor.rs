@@ -34,6 +34,16 @@ pub struct AllowedProgram {
     pub folder: String,
 }
 
+/// A common program known by its executable (Seba, 2026-10-30): `chrome.exe`, and words its properties (product,
+/// description, company, original name) must hold: "google chrome". Allowed only when both match, so a game renamed to
+/// `chrome.exe` does not pass; closed when either its name or its original name (which renaming does not change) is it.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KnownExe {
+    pub exe: String,
+    pub marks: Vec<String>,
+}
+
 /// What the parent set: the child (its games, as in the old family file) and the programs allowed besides them.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
@@ -43,6 +53,12 @@ pub struct Restriction {
     pub enabled: bool,
     pub kid: crate::kid_mode::Kid,
     pub programs: Vec<AllowedProgram>,
+    /// The common programs left on (browsers, chat, tools: the wizard's list), wherever they are installed.
+    pub allowed_exes: Vec<KnownExe>,
+    /// The common programs the parent turned off: closed even when Windows' own (Notepad, Edge, the Store).
+    pub blocked_exes: Vec<KnownExe>,
+    /// For the parent's screen only: which common programs were turned off (by their name in the list).
+    pub blocked_defaults: Vec<String>,
 }
 
 /// One process that was closed, for the parent's list and for the notice.
@@ -121,7 +137,7 @@ const ALWAYS_PARTS: &[&str] = &[
 ];
 
 /// The allow list, as folders.
-#[derive(Default, Debug)]
+
 pub struct Rules {
     /// Windows, Microsoft's programs, Game Access and Steam's client.
     always: Vec<String>,
@@ -131,7 +147,84 @@ pub struct Rules {
     steam_games: Vec<String>,
     games: Vec<(i64, String)>,
     programs: Vec<String>,
+    allowed_exes: Vec<KnownExe>,
+    blocked_exes: Vec<KnownExe>,
+    /// An executable's properties as one lower-case text (`properties`; tests give their own).
+    props: fn(&str) -> Properties,
 }
+
+impl Default for Rules {
+    fn default() -> Self {
+        Rules { always: Vec::new(), always_parts: Vec::new(), steam_games: Vec::new(), games: Vec::new(), programs: Vec::new(),
+                allowed_exes: Vec::new(), blocked_exes: Vec::new(), props: properties }
+    }
+}
+
+/// Programming tools and local servers that always run wherever they are installed (Seba, 2026-10-30), checked by
+/// their properties like the common programs; besides the folders in `ALWAYS_PARTS` (cargo and rustc have no
+/// properties: they pass by their folder).
+const ALWAYS_EXES: &[(&str, &[&str])] = &[("node.exe", &["node.js"]), ("git.exe", &["git"]), ("gh.exe", &["github"]), ("python.exe", &["python"]),
+    ("pythonw.exe", &["python"]), ("py.exe", &["python"]), ("pwsh.exe", &["powershell"]), ("claude.exe", &["claude", "anthropic"]),
+    ("gameaccess-desktop.exe", &["gameaccess"])];
+
+fn exe_name(path: &str) -> String {
+    path.replace('/', "\\").rsplit('\\').next().unwrap_or("").to_lowercase()
+}
+
+/// What an executable says about itself: its original name (".mui" dropped) and the rest of its properties, lower case.
+#[derive(Default, Clone, Debug)]
+pub struct Properties { pub original: String, pub text: String }
+
+impl Properties {
+    fn holds(&self, marks: &[String]) -> bool { marks.iter().any(|mark| !mark.is_empty() && self.text.contains(&mark.to_lowercase())) }
+}
+
+/// Reads an executable's version properties (OriginalFilename, ProductName, FileDescription, CompanyName) from Windows.
+#[cfg(windows)]
+pub fn properties(path: &str) -> Properties {
+    #[link(name = "version", kind = "raw-dylib")]
+    extern "system" {
+        fn GetFileVersionInfoSizeW(file: *const u16, handle: *mut u32) -> u32;
+        fn GetFileVersionInfoW(file: *const u16, handle: u32, size: u32, data: *mut u8) -> i32;
+        fn VerQueryValueW(block: *const u8, sub: *const u16, buffer: *mut *mut u8, length: *mut u32) -> i32;
+    }
+    let wide = |text: &str| -> Vec<u16> { text.encode_utf16().chain(std::iter::once(0)).collect() };
+    let file = wide(path);
+    unsafe {
+        let mut ignored = 0u32;
+        let size = GetFileVersionInfoSizeW(file.as_ptr(), &mut ignored);
+        if size == 0 { return Properties::default(); }
+        let mut data = vec![0u8; size as usize];
+        if GetFileVersionInfoW(file.as_ptr(), 0, size, data.as_mut_ptr()) == 0 { return Properties::default(); }
+        let mut pointer: *mut u8 = std::ptr::null_mut();
+        let mut length = 0u32;
+        let mut languages = Vec::new();
+        if VerQueryValueW(data.as_ptr(), wide("\\VarFileInfo\\Translation").as_ptr(), &mut pointer, &mut length) != 0 && length >= 4 {
+            let pairs = std::slice::from_raw_parts(pointer as *const u16, (length / 2) as usize);
+            for pair in pairs.chunks(2) { if pair.len() == 2 { languages.push(format!("{:04x}{:04x}", pair[0], pair[1])); } }
+        }
+        languages.extend(["040904b0".to_string(), "040904e4".to_string()]);
+        let read = |language: &str, name: &str| -> String {
+            let mut value: *mut u8 = std::ptr::null_mut();
+            let mut chars = 0u32;
+            let key = wide(&format!("\\StringFileInfo\\{language}\\{name}"));
+            if VerQueryValueW(data.as_ptr(), key.as_ptr(), &mut value, &mut chars) == 0 || chars == 0 { return String::new(); }
+            let text = std::slice::from_raw_parts(value as *const u16, chars as usize);
+            String::from_utf16_lossy(text).trim_end_matches('\0').to_string()
+        };
+        for language in &languages {
+            let original = read(language, "OriginalFilename");
+            let rest = ["ProductName", "FileDescription", "CompanyName", "InternalName"].iter().map(|name| read(language, name)).collect::<Vec<_>>().join(" ");
+            if !original.is_empty() || !rest.trim().is_empty() {
+                let original = original.to_lowercase();
+                return Properties { original: original.trim_end_matches(".mui").to_string(), text: format!("{original} {}", rest.to_lowercase()) };
+            }
+        }
+        Properties::default()
+    }
+}
+#[cfg(not(windows))]
+pub fn properties(_path: &str) -> Properties { Properties::default() }
 
 impl Rules {
     pub fn new(config: &Restriction, always: Vec<String>, steam_games: Vec<String>) -> Self {
@@ -141,6 +234,9 @@ impl Rules {
             steam_games,
             games: config.kid.games.iter().filter(|game| !game.folder.trim().is_empty()).map(|game| (game.app_id, game.folder.clone())).collect(),
             programs: config.programs.iter().map(|program| program.folder.clone()).filter(|folder| !folder.trim().is_empty()).collect(),
+            allowed_exes: config.allowed_exes.iter().filter(|known| !known.exe.trim().is_empty()).cloned().collect(),
+            blocked_exes: config.blocked_exes.iter().filter(|known| !known.exe.trim().is_empty()).cloned().collect(),
+            props: properties,
         }
     }
 
@@ -170,6 +266,19 @@ impl Rules {
     pub fn classify(&self, path: &str, parent_game: Option<i64>) -> Verdict {
         if let Some((app_id, _)) = self.games.iter().find(|(_, folder)| inside(folder, path)) { return Verdict::Game(*app_id); }
         if let Some(app_id) = parent_game { return Verdict::Game(app_id); }
+        // The common programs: the parent's "No" closes one by its name or its original name, even inside Windows; "Yes"
+        // lets it run anywhere when its name and its properties both say it is that program.
+        let exe = exe_name(path);
+        let named = |known: &str| known.trim().eq_ignore_ascii_case(&exe);
+        let wanted = self.blocked_exes.iter().chain(self.allowed_exes.iter()).any(|known| named(&known.exe)) || ALWAYS_EXES.iter().any(|(known, _)| named(known));
+        let props = if wanted || !self.blocked_exes.is_empty() { (self.props)(path) } else { Properties::default() };
+        if self.blocked_exes.iter().any(|known| named(&known.exe) || (!props.original.is_empty() && known.exe.eq_ignore_ascii_case(&props.original))) {
+            return Verdict::Block { game: false };
+        }
+        if self.allowed_exes.iter().any(|known| named(&known.exe) && props.holds(&known.marks))
+            || ALWAYS_EXES.iter().any(|(known, marks)| named(known) && props.holds(&marks.iter().map(|mark| mark.to_string()).collect::<Vec<_>>())) {
+            return Verdict::Allow;
+        }
         let lower = norm(path);
         // What the parent ticked, even inside a Steam library (Blender through Steam).
         if self.programs.iter().any(|folder| inside(folder, path)) { return Verdict::Allow; }
@@ -788,12 +897,27 @@ mod tests {
             enabled: true,
             kid: Kid { games: vec![KidGame { app_id: 311690, name: "Enter the Gungeon".into(), folder: r"C:\juegos\311690-Enter the Gungeon-ready".into(), ..Default::default() },
                                    KidGame { app_id: 620, name: "Portal 2".into(), folder: r"D:\SteamLibrary\steamapps\common\Portal 2".into(), steam: true, ..Default::default() }], ..Default::default() },
+            allowed_exes: vec![KnownExe { exe: "Discord.exe".into(), marks: vec!["discord".into()] }, KnownExe { exe: "chrome.exe".into(), marks: vec!["google chrome".into()] }],
+            blocked_exes: vec![KnownExe { exe: "notepad.exe".into(), marks: vec!["notepad".into()] }, KnownExe { exe: "msedge.exe".into(), marks: vec!["microsoft edge".into()] }],
             programs: vec![AllowedProgram { name: "Blender".into(), folder: r"C:\Program Files\Blender Foundation\Blender 4.2".into() },
                            AllowedProgram { name: "Blender (Steam)".into(), folder: r"D:\SteamLibrary\steamapps\common\Blender".into() }],
             ..Default::default()
         };
-        Rules::new(&config, vec![r"C:\Windows".into(), r"C:\Program Files\Microsoft Office".into(), r"C:\Program Files\gameAccess".into(), r"C:\Program Files (x86)\Steam".into()],
-                   vec![r"C:\Program Files (x86)\Steam\steamapps".into(), r"D:\SteamLibrary\steamapps".into()])
+        Rules { props: fake_properties, ..Rules::new(&config, vec![r"C:\Windows".into(), r"C:\Program Files\Microsoft Office".into(), r"C:\Program Files\gameAccess".into(), r"C:\Program Files (x86)\Steam".into()],
+                   vec![r"C:\Program Files (x86)\Steam\steamapps".into(), r"D:\SteamLibrary\steamapps".into()]) }
+    }
+
+    /// What the test executables say about themselves: the real program, or a game renamed after one.
+    fn fake_properties(path: &str) -> Properties {
+        let lower = path.to_lowercase();
+        let (original, text) = if lower.contains("renamed") { ("hades.exe", "hades supergiant games") }
+            else if lower.ends_with("discord.exe") { ("discord.exe", "discord discord inc.") }
+            else if lower.ends_with("chrome.exe") { ("chrome.exe", "google chrome google llc") }
+            else if lower.ends_with("node.exe") { ("node.exe", "node.js node.js javascript runtime") }
+            else if lower.ends_with("notepad.exe") || lower.ends_with("bloc.exe") { ("notepad.exe", "bloc de notas notepad microsoft") }
+            else if lower.ends_with("msedge.exe") { ("msedge.exe", "microsoft edge") }
+            else { ("", "") };
+        Properties { original: original.into(), text: format!("{original} {text}") }
     }
 
     #[test]
@@ -808,7 +932,7 @@ mod tests {
     #[test]
     fn windows_microsoft_game_access_steam_and_ticked_programs_run() {
         let rules = rules();
-        for path in [r"C:\Windows\explorer.exe", r"C:\Windows\System32\notepad.exe", r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+        for path in [r"C:\Windows\explorer.exe", r"C:\Windows\System32\calc.exe", r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
                      r"C:\Program Files\gameAccess\gameaccess-desktop.exe", r"C:\Program Files (x86)\Steam\steam.exe",
                      r"C:\Program Files (x86)\Steam\bin\cef\cef.win7x64\steamwebhelper.exe", r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
                      r"D:\SteamLibrary\steamapps\common\Blender\blender.exe",
@@ -826,6 +950,25 @@ mod tests {
                      r"C:\Users\Seba\AppData\Local\Microsoft\OneDrive\OneDrive.exe"] {
             assert_eq!(rules.classify(path, None), Verdict::Allow, "{path}");
         }
+    }
+
+    #[test]
+    fn common_programs_go_by_their_name() {
+        let rules = rules();
+        // On by name, wherever they are installed.
+        assert_eq!(rules.classify(r"C:\Users\Seba\AppData\Local\Discord\app-1.0.9\Discord.exe", None), Verdict::Allow);
+        assert_eq!(rules.classify(r"D:\Portable\Chrome\chrome.exe", None), Verdict::Allow);
+        // Off: closed even inside Windows.
+        assert_eq!(rules.classify(r"C:\Windows\System32\notepad.exe", None), Verdict::Block { game: false });
+        assert_eq!(rules.classify(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", None), Verdict::Block { game: false });
+        // Programming tools by name, anywhere.
+        assert_eq!(rules.classify(r"E:\tools\node-v24\node.exe", None), Verdict::Allow);
+        // A game renamed after an allowed program: its properties still say what it is.
+        assert_eq!(rules.classify(r"D:\renamed\chrome.exe", None), Verdict::Block { game: false });
+        // A blocked program renamed: its original name still says what it is.
+        assert_eq!(rules.classify(r"D:\copies\bloc.exe", None), Verdict::Block { game: false });
+        // The child's own game is still the child's, whatever it is called.
+        assert_eq!(rules.classify(r"C:\juegos\311690-Enter the Gungeon-ready\notepad.exe", None), Verdict::Game(311690));
     }
 
     #[test]

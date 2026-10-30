@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { CheckCheck, ShieldOff, X } from "lucide-react";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
-import { allowBlocked, loadDetectedPrograms, readRestrictionBlocks, setKidPrograms, toggleKidProgram, useKidState, type AllowedProgram, type RestrictionBlock } from "./kidMode";
+import { allowBlocked, loadDetectedPrograms, readRestrictionBlocks, setKidPrograms, toggleKidProgram, toggleKnownProgram, useKidState, type AllowedProgram, type RestrictionBlock } from "./kidMode";
+import { KNOWN_PROGRAMS } from "./knownPrograms";
 import "./library-manager/manager.css";
 
 /**
@@ -16,7 +17,7 @@ const sameFolder = (left: string, right: string) => left.replace(/[\\/]+$/, "").
 
 export default function KidPrograms() {
   const { t } = useI18n();
-  const { detected, programs } = useKidState();
+  const { detected, programs, knownOff } = useKidState();
   useEffect(() => { void loadDetectedPrograms(); }, []);
   if (!detected) return <p className="ga-hint" role="status">{t("kidProgramsLoading")}</p>;
   const allowed = (folder: string) => programs.some(item => sameFolder(item.folder, folder));
@@ -41,7 +42,24 @@ export default function KidPrograms() {
       })}</tbody>
     </table>
   </div>;
+  const common = <fieldset className="ga-group"><legend className="ga-label">{t("kidKnownTitle")}</legend>
+    <p className="ga-hint">{t("kidKnownText")}</p>
+    <div className="lm-grid-wrap ga-kid-games">
+      <table className="lm-grid">
+        <thead><tr><th>{t("kidColProgram")}</th><th>{t("kidColAllowed")}</th></tr></thead>
+        <tbody>{KNOWN_PROGRAMS.map(program => {
+          const on = !knownOff.includes(program.name);
+          return <tr key={program.name} className={on ? "lm-row is-selected" : "lm-row"}>
+            <td className="lm-cell-name"><div className="lm-name">{program.name}</div><div className="ga-hint">{t(`kidKnownGroup_${program.group}`)}</div></td>
+            <td><button type="button" className="ga-kid-switch" aria-pressed={on} aria-label={t("kidProgramAria", { name: program.name })} onClick={() => toggleKnownProgram(program.name)}>
+              <span>{on ? t("kidYes") : t("kidNo")}</span></button></td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>
+  </fieldset>;
   return <div className="ga-stack">
+    {common}
     <p className="ga-hint">{t("kidProgramsWindows", { count: String(windows) })}</p>
     {rows.length ? <>
       <div className="ga-actions">
