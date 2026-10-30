@@ -134,3 +134,7 @@
    what it means and the one button that turns it on or off. */
 .ga-kid-power { padding: 14px 16px; border: 1px solid var(--ga-orange-line); border-radius: 12px; background: var(--ga-orange-tint); }
 .ga-kid-power-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* The corner badge while kid mode restricts (KidModeBadge.tsx): inside the frame, top right. */
+.ga-kid-badge { position: fixed; z-index: 60; top: calc(var(--ga-frame-top, 0px) + 12px); right: calc(var(--ga-frame-right, 0px) + 16px); display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--ga-restricted-line); border-radius: 8px; background: var(--ga-restricted-tint); color: var(--ga-restricted-ink); pointer-events: none; }
+.ga-kid-badge.is-paused { opacity: .45; border-style: dashed; }

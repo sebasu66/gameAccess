@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, Lock, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, Baby, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
@@ -24,13 +24,12 @@ import DigitalGameOptions from "../DigitalGameOptions";
 import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
-import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import MoveArt, { moveLeft } from "./MoveArt";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 import { requestAdmin, useAccessRole } from "../accessRole";
-import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus } from "../kidMode";
+import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus, useKidAssigned } from "../kidMode";
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
@@ -300,6 +299,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const admin = useAccessRole() === "admin";
   const plus = usePlus();
   const forKid = kidMayPlay(id);
+  // While kid mode restricts, a game not assigned to the child is marked: a yellow row and a lock by its name.
+  const kidOnly = useKidAssigned();
+  const restricted = Boolean(kidOnly && id != null && !kidOnly.has(id));
   useEffect(() => {
     if (!hosted || id == null) return undefined;
     const release = hostFreezeJob(id);
@@ -307,11 +309,11 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
-    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
+    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${restricted ? " is-restricted" : ""}`} data-app-id={id ?? undefined}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
       <td><span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span></td>
       <td className="lm-cell-name">
-        <div className="lm-name" title={game.name}>{game.name}</div>
+        <div className="lm-name" title={game.name}>{restricted ? <Lock className="lm-restricted-lock" size={13} aria-label={translate("kidRestrictedGame")} /> : null}{game.name}</div>
       </td>
       <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
@@ -581,7 +583,6 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           {summary ? <section className="lm-summary">
             <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
           </section> : null}
-          <ActivityBoard scanning={scanning} working={busy} />
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => void requestAdmin().then(admin => { if (admin) setImportOpen(true); })}>{c.importGames}</GaButton>

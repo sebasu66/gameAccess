@@ -1,11 +1,11 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { narrate } from "./narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import { hasTauriRuntime } from "./native";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
-import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
+import { setPlusGraceDays, setPlusLapsed, useAccessRole } from "./accessRole";
 
 /**
  * Kid mode (vault/Modo niño.md). New model (2026-10-30, src-tauri/src/restrictor.rs): one child, the parent's same
@@ -188,6 +188,20 @@ export function setKidDraft(change: Partial<Kid>) {
   draft = { ...draft, ...change };
   saveDraft();
   emit();
+}
+
+/** While kid mode is on (the big switch), in parent mode too: the AppIDs of the games assigned to the child. The library
+ *  manager marks the others (yellow, with a lock); null while it is off (or not set up). */
+export function useKidAssigned(): Set<number> | null {
+  const { applied, status } = useKidState();
+  return useMemo(() => status.enabled && applied ? new Set(applied.games.map(game => game.appId)) : null, [applied, status.enabled]);
+}
+
+/** While kid mode restricts now: on, and not paused by the parent mode (Seba, 2026-10-30: in parent mode the restrictor
+ *  pauses and the library shows every game again). The only games the library shows; null otherwise. */
+export function useKidRestriction(): Set<number> | null {
+  const assigned = useKidAssigned();
+  return useAccessRole() === "admin" ? null : assigned;
 }
 
 /** Changes one day of the week (0: Sunday). */

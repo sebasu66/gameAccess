@@ -5,6 +5,7 @@ import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
 import KidModePanel from "./KidModePanel";
 import ParentModeButton from "./ParentModeButton";
+import KidModeBadge from "./KidModeBadge";
 import GamesScreenButton from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
@@ -664,6 +665,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {/* The app as the screen of a device: a bezel with tabs and GAME / ACCESS
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
+      <KidModeBadge />
       <header ref={headerRef} className="topbar topbar-glass">
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />

@@ -1,3 +1,4 @@
+import { useKidRestriction } from "./kidMode";
 import { usePlayerFrame } from "./ParentModeButton";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { SCREEN_CHANGE_EVENT } from "./appScreen";
@@ -249,6 +250,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
     return state.installed || state.prepared;
   }, [effectiveDownloads]);
+  const kidOnly = useKidRestriction();
   const catalogCollection = useMemo(() => {
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
@@ -286,7 +288,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
         hiddenInstalled: queried.length - sourceItems.length,
       };
     }
-    const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
+    // While kid mode restricts, the library shows only the child's games (the others would be closed anyway).
+    const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters).filter(game => !kidOnly || (game.app_id != null && kidOnly.has(game.app_id)));
     return buildLibraryCollection(
       downloadManager.pinGames(nonCatalogGames, effectiveDownloads, trackedAppIds),
       effectiveDownloads,
@@ -296,7 +299,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring]);
+  }, [kidOnly, libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;

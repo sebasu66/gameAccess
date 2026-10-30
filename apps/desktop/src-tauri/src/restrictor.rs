@@ -66,6 +66,19 @@ pub fn dir() -> PathBuf {
 fn config_path() -> PathBuf { dir().join("config.json") }
 fn blocks_path() -> PathBuf { dir().join("bloqueos.json") }
 fn notice_path() -> PathBuf { dir().join("aviso.json") }
+fn parent_path() -> PathBuf { dir().join("padre.json") }
+
+/// How long the parent's presence lasts without a new word from Game Access (it says it every 30 s in parent mode).
+const PARENT_FRESH_MS: u64 = 60_000;
+
+/// Whether Game Access is in parent mode now (Seba, 2026-10-30): its last word about it is fresh. While it is, kid mode
+/// pauses; once Game Access leaves parent mode, closes, or stops saying it, kid mode restricts again within a minute.
+fn parent_present() -> bool {
+    let at = std::fs::read_to_string(parent_path()).ok().and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value.get("at").and_then(serde_json::Value::as_u64)).unwrap_or(0);
+    let now = now_ms();
+    at <= now + 5_000 && now.saturating_sub(at) < PARENT_FRESH_MS
+}
 
 pub fn read_config() -> Option<Restriction> {
     let text = std::fs::read_to_string(config_path()).ok()?;
@@ -379,11 +392,13 @@ pub struct Watcher {
     opened: HashMap<u32, u64>,
     /// Tests only: look at the children of this process and nothing else on the PC.
     only_children_of: Option<u32>,
+    /// The parent is in parent mode in Game Access: nothing is closed meanwhile.
+    paused: bool,
 }
 
 impl Watcher {
     pub fn new(as_service: bool) -> Self {
-        Watcher { as_service, config: None, config_stamp: None, rules: Rules::default(), seen: HashMap::new(), baseline: true, opened: HashMap::new(), only_children_of: None }
+        Watcher { as_service, config: None, config_stamp: None, rules: Rules::default(), seen: HashMap::new(), baseline: true, opened: HashMap::new(), only_children_of: None, paused: false }
     }
 
     fn reload(&mut self) {
@@ -402,6 +417,13 @@ impl Watcher {
     pub fn tick(&mut self) {
         self.reload();
         if !self.on() { self.seen.clear(); self.baseline = true; return; }
+        // The parent in parent mode: kid mode pauses. Back to restricting, what the parent left running stays (baseline).
+        let parent = parent_present();
+        if parent != self.paused {
+            self.paused = parent;
+            log(if parent { "The parent is in parent mode: kid mode paused." } else { "The parent left parent mode: kid mode restricts again." });
+        }
+        if parent { self.seen.clear(); self.baseline = true; return; }
         let all = processes();
         let alive: std::collections::HashSet<u32> = all.iter().map(|proc| proc.pid).collect();
         self.seen.retain(|pid, _| alive.contains(pid));
@@ -564,6 +586,16 @@ pub fn restriction_clear() -> Result<(), String> {
         if let Err(error) = std::fs::remove_file(&path) { if error.kind() != std::io::ErrorKind::NotFound { return Err(error.to_string()); } }
     }
     Ok(())
+}
+
+/// Game Access in parent mode says so every 30 s (`present`), and that it left (`false`): kid mode pauses meanwhile.
+#[tauri::command]
+pub fn restriction_parent(present: bool) -> Result<(), String> {
+    if crate::kid_mode::kid_account().is_some() { return Err("not_allowed".into()); }
+    if !present {
+        return match std::fs::remove_file(parent_path()) { Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()), _ => Ok(()) };
+    }
+    std::fs::write(parent_path(), serde_json::json!({ "at": now_ms() }).to_string()).map_err(|_| "not_writable".to_string())
 }
 
 /// What the restrictor closed, the latest first (the parent may allow it from there).
@@ -843,6 +875,16 @@ mod tests {
         let mut allowed = std::process::Command::new(std::path::Path::new(&std::env::var("SystemRoot").unwrap()).join("System32").join("PING.EXE"))
             .args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
         // `notify` would open Game Access; as a "service" with no user token here it does nothing.
+        // First with the parent in parent mode: nothing is closed.
+        std::fs::write(settings.join("padre.json"), serde_json::json!({ "at": now_ms() }).to_string()).unwrap();
+        watcher.tick();
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(child.try_wait().unwrap().is_none(), "paused while the parent is in parent mode");
+        // The parent leaves: kid mode restricts again; the copy started before is part of the baseline, so a new one is run.
+        std::fs::remove_file(settings.join("padre.json")).unwrap();
+        watcher.tick();
+        let _ = child.kill();
+        let mut child = std::process::Command::new(&copy).args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
         watcher.tick();
         let closed = (0..20).any(|_| { std::thread::sleep(Duration::from_millis(100)); child.try_wait().ok().flatten().is_some() });
         assert!(closed, "the copy outside the allow list is closed");

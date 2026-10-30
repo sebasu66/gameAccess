@@ -187,6 +187,7 @@ fn main() {
             restrictor::restriction_blocks,
             restrictor::restriction_notice,
             restrictor::restriction_programs,
+            restrictor::restriction_parent,
             kid_mode::kid_live,
             kid_mode::kid_control,
             kid_mode::kid_plus_set,

@@ -3,6 +3,11 @@
 .lm-root:not(.is-embedded) .lm-content { width: min(1100px, 100%); margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
 /* Summary on the left, the main buttons stacked in a column on the right. */
 .lm-top { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+/* The activity board (ActivityBoard.tsx) left the header (Seba, 2026-10-30; it goes elsewhere later): the buttons keep the last column. */
+.lm-top > .lm-actions { grid-column: -2 / -1; }
+/* Kid mode restricting: a game not assigned to the child, yellow with a lock by its name (GameLibraryManager.tsx). */
+.lm-row.is-restricted > td { background: var(--ga-restricted-tint); }
+.lm-restricted-lock { display: inline-block; margin-right: 6px; vertical-align: -2px; color: var(--ga-restricted-ink); }
 /* The activity board: faint lines and letters on the background, like the side word; a little clearer while busy. */
 .lm-activity { align-self: center; justify-self: center; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; min-width: 0; opacity: .38; transition: opacity .4s; }
 .lm-activity.is-busy { opacity: .7; }

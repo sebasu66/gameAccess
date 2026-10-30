@@ -59,6 +59,7 @@ Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nue
 | `--ga-orange-ink` / `--ga-orange-tint` / `--ga-orange-line` | `#ffd0a0` / `#cc83331a` / `#d79e6066` | texto, fondo y borde de una nota cálida (p. ej. falta PLUS) |
 | `--ga-surface` / `--ga-surface-2` | `#ffffff08` / `#ffffff12` | fondo de una caja o una barra dentro de un diálogo |
 | `--ga-field-bg` | `#0d1114` | fondo de campos y selectores |
+| `--ga-restricted-tint` / `--ga-restricted-line` / `--ga-restricted-ink` | `#e3bf3a26` / `#e3bf3a73` / `#f1d46a` | modo niño restringiendo: fila amarilla de un juego no asignado al niño en el Library Manager (con candado junto al nombre) y el símbolo de niño arriba a la derecha (`KidModeBadge.tsx`) |
 | `--ga-frost` | `#a5cee9` | juegos congelados (copo de nieve y tamaño en la grilla; en el administrador de biblioteca, `frost` de Tailwind: tamaño en disco, real tachado, barra doble y ahorro) |
 
 Naranja sobre fondo oscuro: el texto sobre naranja es `#140a02` (casi negro cálido), nunca blanco.
