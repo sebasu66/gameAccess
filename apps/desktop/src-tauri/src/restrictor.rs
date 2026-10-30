@@ -287,8 +287,13 @@ impl Rules {
             return Verdict::Allow;
         }
         let lower = norm(path);
-        // What the parent ticked, even inside a Steam library (Blender through Steam).
-        if self.programs.iter().any(|folder| inside(folder, path)) { return Verdict::Allow; }
+        // What the parent ticked, even inside a Steam library (Blender through Steam). But a program whose folder holds a
+        // library (Steam itself, at C:\Program Files (x86)\Steam) does not let that library's games through: only a
+        // program that is itself inside the library does (Seba, 2026-10-30: No Man's Sky opened with kid mode on).
+        let in_library = self.steam_games.iter().any(|library| inside(library, path));
+        if self.programs.iter().any(|folder| inside(folder, path) && (!in_library || self.steam_games.iter().any(|library| inside(library, folder)))) {
+            return Verdict::Allow;
+        }
         // A Steam game is in its library under Steam's own folder, which otherwise runs: the game is not Steam.
         if self.steam_games.iter().any(|folder| inside(folder, path)) { return Verdict::Block { game: true }; }
         if self.always.iter().any(|folder| inside(folder, path)) || self.always_parts.iter().any(|part| lower.contains(part.as_str())) {
@@ -1020,7 +1025,9 @@ mod tests {
             allowed_exes: vec![KnownExe { exe: "Discord.exe".into(), marks: vec!["discord".into()] }, KnownExe { exe: "chrome.exe".into(), marks: vec!["google chrome".into()] }],
             blocked_exes: vec![KnownExe { exe: "notepad.exe".into(), marks: vec!["notepad".into()] }, KnownExe { exe: "msedge.exe".into(), marks: vec!["microsoft edge".into()] }],
             programs: vec![AllowedProgram { name: "Blender".into(), folder: r"C:\Program Files\Blender Foundation\Blender 4.2".into() },
-                           AllowedProgram { name: "Blender (Steam)".into(), folder: r"D:\SteamLibrary\steamapps\common\Blender".into() }],
+                           AllowedProgram { name: "Blender (Steam)".into(), folder: r"D:\SteamLibrary\steamapps\common\Blender".into() },
+                           // Steam itself in the list (Game Access sends it as one of Windows' programs).
+                           AllowedProgram { name: "Steam".into(), folder: r"C:\Program Files (x86)\Steam".into() }],
             ..Default::default()
         };
         Rules { props: fake_properties, ..Rules::new(&config, vec![r"C:\Windows".into(), r"C:\Program Files\Microsoft Office".into(), r"C:\Program Files\gameAccess".into(), r"C:\Program Files (x86)\Steam".into()],
@@ -1108,6 +1115,10 @@ mod tests {
         // A Steam game not assigned to the child, even though it is under Steam's own folder.
         assert_eq!(rules.classify(r"C:\Program Files (x86)\Steam\steamapps\common\Hades\x64\Hades.exe", None), Verdict::Block { game: true });
         assert_eq!(rules.classify(r"D:\SteamLibrary\steamapps\common\Noita\noita.exe", None), Verdict::Block { game: true });
+        // Steam allowed as a program does not let its library's games through (Seba's No Man's Sky, 2026-10-30), while
+        // Steam's own client keeps running.
+        assert_eq!(rules.classify(r"C:\Program Files (x86)\Steam\steamapps\common\No Man's Sky\Binaries\NMS.exe", None), Verdict::Block { game: true });
+        assert_eq!(rules.classify(r"C:\Program Files (x86)\Steam\steam.exe", None), Verdict::Allow);
         // A Game Access folder of a game that is not the child's.
         assert_eq!(rules.classify(r"C:\juegos\881100-Noita-ready\noita.exe", None), Verdict::Block { game: true });
         // Something downloaded: closed, and not taken for a game.
