@@ -46,7 +46,7 @@
 .lm-message { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #ffffff1c; background: #ffffff08; font-size: 13px; }
 .lm-message.is-error { border-color: #be475080; background: #be47501a; color: #e8a1a6; }
 /* Grid (table): sortable headers, one line per game, the row's actions at the right. */
-.lm-grid-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #ffffff14; background: #ffffff04; }
+.lm-grid-wrap { container-type: inline-size; overflow-x: auto; border-radius: 12px; border: 1px solid #ffffff14; background: #ffffff04; }
 .lm-grid { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .lm-grid th { padding: 0 8px; height: 40px; text-align: left; background: #15191d; border-bottom: 1px solid #ffffff20; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #929ba2; }
 .lm-grid td { padding: 8px; vertical-align: middle; border-bottom: 1px solid #ffffff0d; }
@@ -84,6 +84,8 @@
 .lm-row.is-selected > td.lm-acts { background: #22201d; }
 .lm-detail-row > td { padding: 0 8px 12px 120px; background: #ffffff05; }
 .lm-detail { display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
+/* A grid wider than its window scrolls sideways: the open row's detail stays in the visible part, as wide as it. */
+.lm-detail { position: sticky; left: 120px; max-width: calc(100cqw - 136px); }
 .lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
 .lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #a5cee966, #a5cee91a); pointer-events: none; }
 .lm-size { margin-top: 4px; }
@@ -188,15 +190,17 @@
 /* A move into the library (MoveArt.tsx), in the place of the freeze bar: half the row, the cover and the folder about
    as high as the log, files flowing between them. The cover empties from the top, the folder's copy fills from the
    bottom (clip-path set from the share). */
-.lm-move { flex: 0 0 50%; height: 13rem; display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
-.lm-move-cover { position: relative; flex: none; height: 100%; aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
+.lm-move { flex: 0 1 50%; height: 13rem; display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; container-type: inline-size; }
+/* The cover and the folder shrink together to fit the room (cover 2:3 + folder 6:5 + the gap with the files + the
+   readout), up to the log's height; centred in their half. */
+.lm-move-cover { position: relative; flex: none; height: min(13rem, calc((100cqw - 180px) / 1.87)); aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
   border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--ga-white) 4%, transparent); }
 .lm-move-cover img, .lm-move-inner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: clip-path .4s linear; }
 .lm-move-flow { position: relative; flex: none; width: 76px; height: 40px; overflow: hidden; }
 .lm-move-file { position: absolute; top: 10px; left: 0; width: 16px; height: 20px; fill: none; stroke: var(--ga-orange); stroke-width: 1.4;
   stroke-linejoin: round; opacity: 0; animation: lm-move-file 1.8s linear infinite; }
 @keyframes lm-move-file { 0% { transform: translate(-16px, 6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(30px, -6px); } 80% { opacity: 1; } 100% { transform: translate(76px, 6px); opacity: 0; } }
-.lm-move-folder { position: relative; flex: none; height: 100%; aspect-ratio: 6 / 5; }
+.lm-move-folder { position: relative; flex: none; height: min(13rem, calc((100cqw - 180px) / 1.87)); aspect-ratio: 6 / 5; }
 .lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
 .lm-move-inner { position: absolute; left: 50%; top: 56%; height: 64%; aspect-ratio: 2 / 3; transform: translate(-50%, -50%); border-radius: 5px; overflow: hidden;
   outline: 1px dashed color-mix(in srgb, var(--ga-white) 22%, transparent); outline-offset: 2px; }
