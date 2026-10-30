@@ -106,6 +106,22 @@ Las estadísticas y las órdenes en vivo tienen que poder consultarse desde la a
 - **Emparejar el celular con la PC**: código corto que muestra Game Access en el panel del niño; el celular lo canjea y queda ligado a la cuenta del usuario (US.1). Cada orden lleva usuario, PC y niño, y el servidor comprueba que el usuario sea el dueño.
 - **Tabla de usuarios (US.1)**: `user` con correo, nombre, idioma y fecha de alta; sus llaves de acceso (`AccessKey` pasa a tener `user_id`), la membresía PLUS (vigencia) y **pagado / no pagado** con fecha y nota, que Seba cambia a mano en el panel de administración (sin pasarela de pago por ahora). El acceso a PLUS sale de la vigencia y de esa marca.
 
+### Celular en el modelo nuevo (Seba, 2026-10-30) — MN.9
+Lo de arriba sigue valiendo (la PC hace cumplir, el servidor es buzón e historial, sin puertos abiertos, emparejar con un código). Con el servicio restrictor cambia quién habla y qué se cuenta:
+- **Quién habla con el servidor: el servicio**, no la ventana de Game Access. Corre siempre, aunque Game Access esté cerrado, así que las órdenes llegan igual. Se identifica con una credencial de la PC que obtiene al emparejarla con la cuenta del padre (US.1) y que guarda donde solo él puede leerla.
+- **El servidor conoce el estado, no cada bloqueo.** La PC sube:
+  - la configuración vigente: encendido o apagado, horario por día, tiempo, juegos y programas;
+  - el estado de ahora: bloqueando, en pausa (el padre en modo padre) o desbloqueado hasta tal hora;
+  - un resumen del día: tiempo jugado y cuántas veces se bloqueó algo.
+  Con eso el celular muestra, por ejemplo, "Bloqueado ahora · se desbloquea a las 16" sin pedirle nada a la PC. Cada bloqueo suelto no viaja; como mucho, un contador.
+- **Órdenes desde el celular**: "Desbloquear ahora", "Desbloquear por 1 hora" (o N minutos), "Bloquear ahora" y "Apagar o encender el modo niño". Más adelante: cambiar horario, tiempo y listas. El servidor las guarda en una cola por PC; el servicio las toma, las aplica y confirma, y el celular ve el estado nuevo.
+- **"Desbloquear por N minutos" vence solo, por hora**: la PC lo cumple aunque se corte internet. Si la PC está sin conexión, sigue con lo último que sabía.
+- **Cada cuánto consulta la PC**: cada 30 s mientras el modo niño está encendido, y cada pocos minutos si no. Así una orden tarda como mucho medio minuto; si hiciera falta inmediato, después se agrega una conexión que quede abierta (long polling).
+- **Lo que necesita antes**:
+  - el servicio como autoridad de la configuración, con la clave verificada por él (el endurecimiento pendiente);
+  - el horario y el tiempo en el servicio (MN.20);
+  - las cuentas de usuario (US.1, ya en el servidor).
+
 ## Cuando PLUS se apaga (Seba, 2026-10-29) — MN.15
 El modo niño y la clave de padre son parte de PLUS. Si el usuario los tenía configurados y PLUS deja de estar activo:
 - **Modo niño**: queda **en pausa**, no se borra. La cuenta del niño sigue existiendo pero Game Access no lo deja jugar ("El modo niño está en pausa") y cierra la sesión al minuto. La PC del niño se entera por `C:\ProgramData\GameAccess\uso\plus.json`, que escribe el Game Access del adulto tras cada verificación (sin permiso de administrador); si el archivo falta o no se entiende, el modo niño sigue (una PC que nunca reportó, o una versión vieja, no se rompe). Si el adulto nunca vuelve a abrir Game Access la pausa no llega: eso lo resuelven las órdenes desde el servidor (MN.9).
