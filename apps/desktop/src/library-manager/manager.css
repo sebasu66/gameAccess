@@ -184,7 +184,27 @@
 .lm-apps-name { font-weight: 800; font-size: 13px; }
 .lm-apps-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #929ba2; font: 12px Consolas, monospace; }
 .lm-apps .lm-acts { display: flex; gap: 6px; }
-/* A move into the library (FreezeBar): the cubes stay in place and light up in orange as the bytes are copied. */
-.lm-fbar.is-move .lm-fbar-cubes i.is-packed, .lm-fbar.is-move.is-done .lm-fbar-cubes i.is-packed { border-color: color-mix(in srgb, var(--ga-orange) 70%, transparent); background: color-mix(in srgb, var(--ga-orange) 22%, transparent); }
-.lm-fbar.is-move .lm-fbar-cubes i.is-next { border-color: var(--ga-orange); animation-name: lm-fbar-next-move; }
-@keyframes lm-fbar-next-move { 50% { background: color-mix(in srgb, var(--ga-orange) 25%, transparent); } }
+
+/* A move into the library (MoveArt.tsx), in the place of the freeze bar: half the row, the cover and the folder about
+   as high as the log, files flowing between them. The cover empties from the top, the folder's copy fills from the
+   bottom (clip-path set from the share). */
+.lm-move { flex: 0 0 50%; height: 13rem; display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; }
+.lm-move-cover { position: relative; flex: none; height: 100%; aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
+  border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--ga-white) 4%, transparent); }
+.lm-move-cover img, .lm-move-inner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: clip-path .4s linear; }
+.lm-move-flow { position: relative; flex: none; width: 76px; height: 40px; overflow: hidden; }
+.lm-move-file { position: absolute; top: 10px; left: 0; width: 16px; height: 20px; fill: none; stroke: var(--ga-orange); stroke-width: 1.4;
+  stroke-linejoin: round; opacity: 0; animation: lm-move-file 1.8s linear infinite; }
+@keyframes lm-move-file { 0% { transform: translate(-16px, 6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(30px, -6px); } 80% { opacity: 1; } 100% { transform: translate(76px, 6px); opacity: 0; } }
+.lm-move-folder { position: relative; flex: none; height: 100%; aspect-ratio: 6 / 5; }
+.lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
+.lm-move-inner { position: absolute; left: 50%; top: 56%; height: 64%; aspect-ratio: 2 / 3; transform: translate(-50%, -50%); border-radius: 5px; overflow: hidden;
+  outline: 1px dashed color-mix(in srgb, var(--ga-white) 22%, transparent); outline-offset: 2px; }
+.lm-move-readout { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-left: 20px; }
+.lm-move-readout b { font: 400 40px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange); }
+.lm-move-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
+.lm-move-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
+.lm-move.is-failed .lm-move-cover, .lm-move.is-failed .lm-move-inner { border-color: var(--ga-danger); outline-color: var(--ga-danger); }
+.lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
+.lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); }
+@media (prefers-reduced-motion: reduce) { .lm-move-file { animation: none; display: none; } .lm-move-cover img, .lm-move-inner img { transition: none; } }

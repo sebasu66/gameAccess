@@ -1,0 +1,43 @@
+type State = "working" | "done" | "failed";
+
+/**
+ * A linked game moving into the library, beside the game's log (in the place of the freeze bar): the game's portrait
+ * cover on the left, in its frame, and a folder drawn as a plain outline on the right, about as high, with a short
+ * gap between them where files keep flowing from the cover into the folder. As the bytes are copied the cover empties
+ * from the top down (the frame stays) and the same cover, smaller and centred in the folder, fills from the bottom up:
+ * at 100 % the frame on the left is empty and the folder full. Cancelled, the caller passes 0 % (the game is back where
+ * it was); a failure stands still with a red frame. The share and the size are written beside the folder.
+ */
+export default function MoveArt({ cover, fallback, percent, state, size }: { cover: string; fallback: string; percent: number; state: State; size: string }) {
+  const share = Math.max(0, Math.min(100, percent));
+  const swap = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    // A game without a portrait cover on Steam: its landscape picture, cropped to the frame.
+    if (fallback && event.currentTarget.src !== fallback) event.currentTarget.src = fallback;
+  };
+  return (
+    <div className={`lm-move is-${state}`} aria-hidden="true">
+      <div className="lm-move-cover">
+        <img src={cover} alt="" draggable={false} onError={swap} style={{ clipPath: `inset(${share}% 0 0 0)` }} />
+      </div>
+      <div className="lm-move-flow">
+        {state === "working" ? [0, 1, 2, 3].map(index => (
+          <svg key={index} className="lm-move-file" viewBox="0 0 16 20" style={{ animationDelay: `${index * -0.45}s` }}>
+            <path d="M1 1 H10 L15 6 V19 H1 Z M10 1 V6 H15" />
+          </svg>
+        )) : null}
+      </div>
+      <div className="lm-move-folder">
+        <svg className="lm-move-outline" viewBox="0 0 120 100" preserveAspectRatio="none">
+          <path d="M3 14 V94 a3 3 0 0 0 3 3 H114 a3 3 0 0 0 3 -3 V24 a3 3 0 0 0 -3 -3 H54 L45 9 H6 a3 3 0 0 0 -3 3 Z" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div className="lm-move-inner">
+          <img src={cover} alt="" draggable={false} onError={swap} style={{ clipPath: `inset(${100 - share}% 0 0 0)` }} />
+        </div>
+      </div>
+      <div className="lm-move-readout">
+        <b>{Math.floor(share)}<small>%</small></b>
+        {size ? <span>{size}</span> : null}
+      </div>
+    </div>
+  );
+}

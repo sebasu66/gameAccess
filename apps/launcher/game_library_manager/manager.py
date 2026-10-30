@@ -11,10 +11,12 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
+import json
 import shutil
 import time
 from pathlib import Path
 import game_journal as journal
+from atomic_json import write_json
 from .freeze_control import FreezeBusy, FreezeCancelled, holder as freeze_holder
 import app_log
 from game_execution_manager import GameExecutionManager
@@ -28,7 +30,10 @@ from game_download_manager.ui_text import ui
 
 # linked_delete / linked_move: a game linked from a folder of the player's (never a Steam one) deleted from disk, or
 # moved into the games folder and adopted (renamed to <AppID>-<name>-ready, like any game Game Access installs).
-BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer", "linked_delete", "linked_move")
+# linked_move_resume / linked_move_discard: a move cut short goes on from its half-made copy, or that copy is deleted.
+BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer", "linked_delete", "linked_move",
+                 "linked_move_resume", "linked_move_discard")
+MOVE_ACTIONS = ("linked_move", "linked_move_resume", "linked_move_discard")
 
 
 def play_dates(folder: Path) -> list[str]:
@@ -101,8 +106,13 @@ class GameLibraryManager:
         self.freezer = freezer or GameFreezer(storage, self.log)
 
     # -- inventory -------------------------------------------------------------------------
+    def _moving_into(self) -> set[Path]:
+        """The half-made copies of moves cut short: not games of their own (the game is still the linked one)."""
+        pending = (self.pending_move(r["app_id"]) for r in self.storage.linked.all() if r.get("kind") == "folder")
+        return {Path(p["target"]).resolve() for p in pending if p}
+
     def game_folders(self) -> list[Path]:
-        linked_paths = {Path(r["path"]).resolve() for r in self.storage.linked.all()}
+        linked_paths = {Path(r["path"]).resolve() for r in self.storage.linked.all()} | self._moving_into()
         found = []
         for root in self.storage.roots:
             if root.is_dir():
@@ -115,7 +125,7 @@ class GameLibraryManager:
         games = []
         records = self.storage.linked.all()
         # A folder linked where it is (a game left in an old games folder) is listed once, as the linked game.
-        linked_paths = {Path(r["path"]).resolve() for r in records}
+        linked_paths = {Path(r["path"]).resolve() for r in records} | self._moving_into()
         for root in self.storage.roots:
             if not root.is_dir():
                 continue
@@ -259,6 +269,10 @@ class GameLibraryManager:
                  "size_bytes": self._linked_size(record, folder, with_sizes, steam_owner), "issues": [], "standard": True,
                  "reclaimable_bytes": 0, "warning": status.get("error", ""), "label": str(record.get("label") or ""),
                  **play_history(self.storage.linked.log_dir(record["app_id"]))}
+        if record["kind"] == "folder":
+            pending = self.pending_move(record["app_id"])
+            if pending:
+                entry["move_pending"] = pending
         if record["kind"] == "steam" and steam_owner is not None:
             entry["steam_owner"] = _owner(steam_owner)
             if not status["installed"]:
@@ -488,8 +502,10 @@ class GameLibraryManager:
             return {"ok": False, "error": ui("linkedIsSteam")}
         folder = Path(record["path"])
         try:
-            if action == "linked_move":
-                return self._linked_move(app_id, record, folder)
+            if action in ("linked_move", "linked_move_resume"):
+                return self._linked_move(app_id, record, folder, resume=action == "linked_move_resume")
+            if action == "linked_move_discard":
+                return self._discard_move(app_id)
             keep = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"]), self.storage.launcher,
                     *(Path(r["path"]) for r in self.storage.linked.all() if int(r["app_id"]) != int(app_id))]
             reason = deletable_reason(folder, keep)
@@ -503,10 +519,39 @@ class GameLibraryManager:
             self.log.error("Linked %s AppID %s failed: %s", action, app_id, error)
             return {"ok": False, "error": str(error)}
 
-    def _linked_move(self, app_id: int, record: dict, folder: Path) -> dict:
+    def pending_move(self, app_id: int) -> dict | None:
+        """A move into the library cut short whose half-made copy is still there: {"percent", "target", "bytes"}."""
+        try:
+            state = json.loads((self.freezer.records / f"{int(app_id)}.progress.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        target = Path(state.get("target") or "")
+        if state.get("action") != "move" or not state.get("resumable") or not state.get("target") or not target.is_dir():
+            return None
+        return {"percent": float(state.get("percent") or 0), "target": str(target), "bytes": int(state.get("done_bytes") or 0)}
+
+    def _discard_move(self, app_id: int) -> dict:
+        """The half-made copy of a move cut short goes (only a folder of this game inside the games folder)."""
+        pending = self.pending_move(app_id)
+        if not pending:
+            return {"ok": True, "discarded": False}
+        target = Path(pending["target"])
+        inside = any(target.resolve().parent == root.resolve() for root in self.storage.roots)
+        if not inside or not target.name.startswith(f"{int(app_id)}-"):
+            return {"ok": False, "error": "La copia a medias no está en la carpeta de juegos."}
+        shutil.rmtree(target)
+        path = self.freezer.records / f"{int(app_id)}.progress.json"
+        state = json.loads(path.read_text(encoding="utf-8"))
+        state.update(resumable=False, discarded=True)
+        write_json(path, state)
+        journal.note(self.storage.linked.log_dir(app_id), "move", f"copia a medias descartada: {target}")
+        return {"ok": True, "discarded": True}
+
+    def _linked_move(self, app_id: int, record: dict, folder: Path, resume: bool = False) -> dict:
         """A linked game moved into the games folder, shown like a freeze: one heavy disk job at a time (the freeze
         lock), its progress in `<appid>.progress.json` (the game's row in the desktop), cancel and pause from the app,
-        and every step in the game's log with how long it took. Cancelled or failed, the game stays linked where it was."""
+        and every step in the game's log with how long it took. Cancelled or failed, the game stays linked where it was.
+        A copy cut short by an error keeps what it copied (`resumable`): `resume` goes on from there."""
         name, executable = record["name"], record.get("executable", "")
         control = self.freezer._control(app_id)
         try:
@@ -522,11 +567,11 @@ class GameLibraryManager:
         # Until it is in the library its log is the linked game's (never a file written into the player's folder).
         log = self.storage.linked.log_dir(app_id)
         log.mkdir(parents=True, exist_ok=True)
-        journal.note(log, "move", f"moviendo a la biblioteca: {target}")
+        journal.note(log, "move", f"{'retomando la mudanza' if resume else 'moviendo a la biblioteca'}: {target}")
         # The link goes first (the importer refuses a game that is still linked) and comes back on failure.
         self.storage.linked.unlink(app_id, hide=False)
         try:
-            outcome = self.importer.import_game(app_id, name, str(folder), "move", "folder", progress=progress, checkpoint=control.checkpoint)
+            outcome = self.importer.import_game(app_id, name, str(folder), "move", "folder", progress=progress, checkpoint=control.checkpoint, resume=resume)
         except FreezeCancelled:
             relink()
             progress.finish(False, cancelled=True)
@@ -534,6 +579,8 @@ class GameLibraryManager:
             return {"ok": False, "cancelled": True}
         except (OSError, ValueError, RuntimeError) as error:
             relink()
+            # What was copied stays for a later "Continue" (pending_move), unless nothing was.
+            progress.state["resumable"] = target.is_dir() and folder.is_dir()
             progress.finish(False, error=str(error))
             journal.note(log, "move", f"no se pudo mover: {error}")
             raise
@@ -575,7 +622,7 @@ class GameLibraryManager:
             if action == "steam_uninstall":
                 results.append({"app_id": app_id, **self._steam_uninstall(app_id)})
                 continue
-            if action in ("linked_delete", "linked_move"):
+            if action == "linked_delete" or action in MOVE_ACTIONS:
                 results.append({"app_id": app_id, **self._linked_folder_action(action, app_id)})
                 continue
             if app_id in steam_only:

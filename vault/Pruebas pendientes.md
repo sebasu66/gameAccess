@@ -86,7 +86,9 @@ Código: `apps/launcher/game_library_manager/mover.py`, `manager._linked_move`, 
 - [ ] **De otro disco**: en el Administrador de biblioteca, un juego vinculado desde otra unidad → "Mover a la carpeta de juegos" → confirmar. El aviso se cierra enseguida; la fila dice "Moviendo a la biblioteca", el historial muestra los pasos y la barra se va encendiendo en naranja con los GB copiados. Al terminar, el aviso dice cuánto y en cuánto tiempo, y el juego queda como uno más de la biblioteca.
 - [ ] **Cancelar** a mitad de camino (la X de la fila): se borra la copia a medias y el juego sigue vinculado donde estaba.
 - [ ] **Mismo disco**: es instantáneo (solo cambia de carpeta).
-- [ ] **Cerrar la app a mitad**: al abrirla de nuevo avisa que la mudanza se interrumpió y el juego sigue vinculado.
+- [ ] **El dibujo**: mientras copia, a la derecha del historial se ve la carátula vertical vaciándose de arriba hacia abajo, archivos que viajan y la carpeta llenándose desde abajo con la misma carátula más chica.
+- [ ] **Cortarla de verdad** (cerrar Game Access, o apagar la PC, a mitad de una copia entre discos): al abrir, el aviso dice que se cortó al N % y ofrece **Continuar** o **Descartar la copia**; la fila dice "Mudanza sin terminar (N %)" con los mismos dos botones y el juego se puede jugar desde su carpeta. **Continuar** sigue desde lo copiado (el historial dice "Retomada: X GB ya estaban copiados"); **Descartar** borra la copia a medias.
+- [ ] **Cancelar a propósito** (la X) sí borra la copia a medias.
 - [ ] **En cola**: con un congelado en marcha, la mudanza espera su turno y arranca sola.
 
 ## 8. Cosas que no se pudieron comprobar y conviene mirar con atención

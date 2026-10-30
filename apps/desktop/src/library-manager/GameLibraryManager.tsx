@@ -21,11 +21,12 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
-import { cancelFreezeJob, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
+import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
+import MoveArt from "./MoveArt";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 import { requestAdmin, useAccessRole } from "../accessRole";
@@ -56,6 +57,7 @@ const retryable = (game: LibraryGame) => game.state === "ERROR" && (Boolean(game
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 const landscape = (appId: number | null | undefined) => appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : "";
+const portrait = (appId: number) => `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900.jpg`;
 
 type Translate = ReturnType<typeof useI18n>["t"];
 type StatusTone = "frost" | "warn" | "busy" | "muted";
@@ -66,6 +68,7 @@ function statusOf(game: LibraryGame, c: LibraryCopy, t: Translate): Status {
   const spin = <Loader2 className="animate-spin" />;
   if (game.frozen) return { rank: game.frozen === "deep" ? 8 : 7, label: game.frozen === "deep" ? c.deepFrozen : c.frozen, tone: "frost", icon: <Snowflake /> };
   if (isSteamOwned(game)) return { rank: 10, label: t("lmStatusSteamOwned"), tone: "muted" };
+  if (game.move_pending) return { rank: 2, label: t("lmMovePending", { percent: String(Math.floor(game.move_pending.percent)) }), tone: "warn", icon: <AlertTriangle /> };
   if (game.linked) return { rank: 9, label: c.linked, tone: "muted" };
   if ((game.partial || game.unfinished || isUnfinished(game)) && !game.stalled) {
     if (game.transfer_active) return { rank: 0, label: c.downloading, tone: "busy", icon: spin };
@@ -350,7 +353,11 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
           {/* A game linked from a folder of the player's: moved into the games folder (renamed to the standard, then
               handled like any game Game Access installed) or deleted from disk with its folder. */}
-          {game.link_kind === "folder" && game.installed && id != null ? <>
+          {/* A move cut short (the app or the PC went off): it goes on from what it copied, or that copy is deleted. */}
+          {game.move_pending && id != null ? <>
+            <IconAction label={translate("moveResume")} tone="accent" disabled={busy} onClick={() => void requestAdmin().then(admin => { if (admin) startFreezeJob(catalogGame ?? asGame(game), "move", { resume: true }); })}><ArrowSquareIn /></IconAction>
+            <IconAction label={translate("moveDiscard")} tone="danger" disabled={busy} onClick={() => void confirmNotice({ title: translate("moveDiscardTitle", { name: game.name }), text: translate("moveDiscardText"), confirmLabel: translate("moveDiscard"), cancelLabel: c.cancel, kind: "danger" }).then(ok => { if (ok) { hideNotice(); void discardMove(catalogGame ?? asGame(game)); } })}><Trash /></IconAction>
+          </> : game.link_kind === "folder" && game.installed && id != null ? <>
             <IconAction label={c.linkedMove} tone="accent" disabled={busy} onClick={() => setPending({ kind: "linked_move", game })}><ArrowSquareIn /></IconAction>
             <IconAction label={c.linkedDelete} tone="danger" disabled={busy} onClick={() => setPending({ kind: "linked_delete", game })}><Trash /></IconAction>
           </> : null}
@@ -366,7 +373,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
         <History game={game} c={c} job={freezing} />
         {/* Cancelled, the cubes go back where they were: the game is as it was. */}
-        {freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+        {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} fallback={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} />
+          : freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode as FreezeMode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}

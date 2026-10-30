@@ -551,8 +551,8 @@ class GameFreezer:
                         ("discarded"); cut while removing the files: the archive is complete, the removal ends ("completed")
             thaw-deep   what had been extracted goes, the archive is still the game ("retry")
             thaw        part of the files is back to normal, the game plays ("retry")
-            move        cut while copying: the half-made copy goes and the game stays linked where it was
-                        ("restored"); cut after the copy: the game is in the library already ("completed")
+            move        cut while copying: the game stays linked where it was and the half-made copy waits to go on
+                        ("resumable"); cut after the copy: the game is in the library already ("completed")
 
         A freeze whose process is still running (the app was closed, the work went on) is reported as "running"."""
         found: list[dict] = []
@@ -588,14 +588,21 @@ class GameFreezer:
                         entry["outcome"] = "discarded"
                 elif action == "move":
                     source, target = Path(state.get("source") or ""), Path(state.get("target") or "")
+                    name = state.get("name") or f"#{app_id}"
                     if state.get("source") and source.is_dir() and state.get("step") == "move":
-                        if state.get("target") and target.is_dir():
-                            shutil.rmtree(target)
-                        self.storage.linked.link(app_id, state.get("name") or f"#{app_id}", str(source), "folder", state.get("executable") or "")
-                        entry["outcome"] = "restored"
+                        # Cut while copying: the game is played from where it was meanwhile; the copy waits for "Continue".
+                        self.storage.linked.link(app_id, name, str(source), "folder", state.get("executable") or "")
+                        state["resumable"] = bool(state.get("target")) and target.is_dir()
+                        entry["outcome"] = "resumable" if state["resumable"] else "restored"
+                        folder = source
                     else:
+                        # Cut after the copy: the game is in the games folder; what is left of the original goes.
+                        if state.get("source") and source.is_dir():
+                            shutil.rmtree(source, ignore_errors=True)
+                        if target.is_dir():
+                            self.storage.register(app_id, name)
                         entry["outcome"] = "completed"
-                    folder = source if entry["outcome"] == "restored" else target
+                        folder = target
                 elif action == "thaw-deep":
                     if (folder / DEEP_ARCHIVE).is_file():
                         self._clear(folder)

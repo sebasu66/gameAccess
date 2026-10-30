@@ -27,6 +27,7 @@ export function eventText(event: FreezeEvent, job: FreezeJob, t: Translate): str
   switch (event.kind) {
     case "start": return t(job.mode === "move" ? "freezeEvStartMove" : job.mode === "thaw" ? "freezeEvStartThaw" : job.mode === "deep" ? "freezeEvStartDeep" : "freezeEvStartFreeze");
     case "renamed": return t("freezeEvRenamed");
+    case "resumed": return t("freezeEvResumed", { size: size(event.bytes) });
     case "copied": return t("freezeEvCopied", { size: size(event.bytes), time: clock(Number(event.seconds) || 0) });
     case "leftover": return t("freezeEvLeftover", { folder: String(event.folder ?? "") });
     case "files": return t("freezeEvFiles", { count: String(event.count ?? 0), size: size(event.bytes) });

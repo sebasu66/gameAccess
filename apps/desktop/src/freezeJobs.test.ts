@@ -92,6 +92,14 @@ describe("moving a linked game into the library: a job like a freeze", () => {
     hideNotice();
   });
 
+  it("continuing a move cut short asks the launcher to resume it, not to start over", async () => {
+    libraryBatch.mockReset();
+    libraryBatch.mockResolvedValueOnce({ results: [{ app_id: 9, ok: true, moved_bytes: 1024 ** 3, resumed_bytes: 512 * 1024 ** 2, seconds: 30 }] });
+    expect((await startFreezeJob(game(9, "Iota"), "move", { resume: true }).done).ok).toBe(true);
+    expect(libraryBatch).toHaveBeenCalledWith("linked_move_resume", [9]);
+    hideNotice();
+  });
+
   it("a cancelled move says the game stays linked; a refused one says why", async () => {
     libraryBatch.mockReset();
     libraryBatch.mockResolvedValueOnce({ results: [{ app_id: 7, ok: false, cancelled: true }] });

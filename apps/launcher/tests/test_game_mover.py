@@ -39,7 +39,7 @@ def test_to_another_disk_each_byte_copied_moves_the_bar_and_the_original_goes_la
     source, target, progress = tmp_path / "Eta", tmp_path / "lib" / "8-Eta", Recorder()
     total = game(source)
     result = move_folder(source, target, progress)
-    assert result == {"renamed": False, "bytes": total, "files": 2}
+    assert result == {"renamed": False, "bytes": total, "files": 2, "resumed_bytes": 0}
     assert not source.exists() and (target / "data" / "pack.bin").stat().st_size == 20_000_000
     assert progress.steps == ["move", "clear"] and progress.size == total
     assert len(progress.shares) > 3 and progress.shares == sorted(progress.shares)
@@ -97,17 +97,72 @@ def test_the_library_move_writes_its_progress_file_and_log_and_a_cancel_leaves_i
     assert state["finished"] and state["cancelled"]
 
 
-def test_a_move_cut_by_a_closed_app_goes_back_to_linked(tmp_path):
+def test_a_resumed_copy_skips_whole_files_and_goes_on_from_the_end_of_the_half_copied_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "rename", lambda *a: (_ for _ in ()).throw(OSError(17, "different disk")))
+    source, target, progress = tmp_path / "Eta", tmp_path / "lib" / "8-Eta", Recorder()
+    total = game(source)
+    # What a copy cut short left: the small file whole, the big one half written.
+    import shutil
+    (target / "data").mkdir(parents=True)
+    shutil.copy2(source / "game.exe", target / "game.exe")
+    (target / "data" / "pack.bin").write_bytes((source / "data" / "pack.bin").read_bytes()[:12_000_000])
+    result = move_folder(source, target, progress, resume=True)
+    assert result["resumed_bytes"] == 3_000_000 + 12_000_000 and result["bytes"] == total
+    assert (target / "data" / "pack.bin").stat().st_size == 20_000_000 and not source.exists()
+    assert "resumed" in progress.events
+
+
+def test_a_half_copied_file_that_does_not_match_is_copied_again(tmp_path):
+    from game_library_manager.mover import resume_offset
+    original, copy = tmp_path / "a.bin", tmp_path / "b.bin"
+    original.write_bytes(os.urandom(5_000_000))
+    copy.write_bytes(original.read_bytes()[:3_000_000])
+    assert resume_offset(original, copy) == 3_000_000
+    copy.write_bytes(b"x" * 3_000_000)
+    assert resume_offset(original, copy) == 0
+
+
+def cut_move(tmp_path, step="move"):
+    """A library whose move of game 8 was cut by a closed app while copying, with 4 MB copied."""
     storage = DigitalGameStorage(tmp_path)
     lib = GameLibraryManager(storage)
     source, target = tmp_path / "outside" / "Eta", storage.root / "8-Eta"
     game(source)
     (target / "data").mkdir(parents=True)
-    (target / "game.exe").write_bytes(b"half")
+    (target / "game.exe").write_bytes((source / "game.exe").read_bytes()[:4_000_000] if (source / "game.exe").stat().st_size > 4_000_000 else (source / "game.exe").read_bytes())
     lib.freezer.records.mkdir(parents=True, exist_ok=True)
     (lib.freezer.records / "8.progress.json").write_text(json.dumps({
-        "action": "move", "pid": 999999, "step": "move", "percent": 40, "finished": False,
+        "action": "move", "pid": 999999, "step": step, "percent": 40, "finished": False, "done_bytes": 4_000_000,
         "folder": str(source), "source": str(source), "target": str(target), "name": "Eta", "executable": ""}), encoding="utf-8")
+    return storage, lib, source, target
+
+
+def test_a_move_cut_by_a_closed_app_keeps_its_copy_and_can_go_on(tmp_path, monkeypatch):
+    # Another disk for the mover only (adopting renames the folder to "-ready" with the real os.rename).
+    import types, game_library_manager.mover as mover
+    monkeypatch.setattr(mover, "os", types.SimpleNamespace(rename=lambda *a: (_ for _ in ()).throw(OSError(17, "different disk"))))
+    storage, lib, source, target = cut_move(tmp_path)
     [entry] = lib.freezer.recover()
-    assert entry["action"] == "move" and entry["outcome"] == "restored"
-    assert not target.exists() and storage.linked.get(8)["path"] == str(source.resolve())
+    assert entry["action"] == "move" and entry["outcome"] == "resumable"
+    # Meanwhile the game plays from where it was, and the library says the move is pending.
+    assert target.is_dir() and storage.linked.get(8)["path"] == str(source.resolve())
+    listed = next(g for g in lib.list_games(with_sizes=False) if g["app_id"] == 8)
+    assert listed["move_pending"]["percent"] == 40
+    result = lib.batch("linked_move_resume", [8])[0]
+    assert result["ok"], result
+    assert result["resumed_bytes"] > 0 and not source.exists() and storage.linked.get(8) is None
+    assert (storage.folder(8, "Eta") / "data" / "pack.bin").stat().st_size == 20_000_000
+
+
+def test_the_half_made_copy_of_a_cut_move_can_be_discarded(tmp_path):
+    storage, lib, source, target = cut_move(tmp_path)
+    lib.freezer.recover()
+    assert lib.batch("linked_move_discard", [8])[0] == {"app_id": 8, "ok": True, "discarded": True}
+    assert not target.exists() and source.is_dir() and storage.linked.get(8)
+    assert "move_pending" not in next(g for g in lib.list_games(with_sizes=False) if g["app_id"] == 8)
+
+
+def test_a_move_cut_after_the_copy_ends_by_itself(tmp_path):
+    storage, lib, source, target = cut_move(tmp_path, step="clear")
+    [entry] = lib.freezer.recover()
+    assert entry["outcome"] == "completed" and not source.exists() and target.is_dir()

@@ -133,7 +133,7 @@ function announce(job: FreezeJob, outcome: FreezeOutcome): void {
 }
 
 /** Freeze (either level) or thaw a game: at once when nothing else is working, else queued after it. */
-export function startFreezeJob(game: CatalogGame, mode: JobMode): FreezeJob {
+export function startFreezeJob(game: CatalogGame, mode: JobMode, options: { resume?: boolean } = {}): FreezeJob {
   const appId = game.app_id ?? game.id;
   const existing = freezeJob(appId);
   if (existing) { openFreezeConsole(appId); return existing; }
@@ -154,7 +154,7 @@ export function startFreezeJob(game: CatalogGame, mode: JobMode): FreezeJob {
       }).catch(() => undefined);
     }, POLL_MS);
     const work = async (): Promise<FreezeOutcome> => {
-      if (mode === "move") return demo ? demoMove() : moveIntoLibrary(appId);
+      if (mode === "move") return demo ? demoMove() : moveIntoLibrary(appId, Boolean(options.resume));
       try {
         const result = (demo ? await demoFreeze(mode as FreezeMode, progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId))
           : mode === "thaw" ? await digitalProcessManager.thaw(game) : await digitalProcessManager.freeze(game, mode as "freeze" | "deep")) as { cancelled?: boolean; frozen?: { stored_bytes?: number; original_bytes?: number } };
@@ -201,9 +201,9 @@ export function startFreezeJob(game: CatalogGame, mode: JobMode): FreezeJob {
 }
 
 /** A linked game moved into the games folder (the launcher's library batch, which asks for the parent's key first). */
-async function moveIntoLibrary(appId: number): Promise<FreezeOutcome> {
+async function moveIntoLibrary(appId: number, resume: boolean): Promise<FreezeOutcome> {
   try {
-    const { results } = await digitalProcessManager.libraryBatch("linked_move", [appId]) as { results?: Array<{ ok: boolean; cancelled?: boolean; error?: string; moved_bytes?: number; seconds?: number }> };
+    const { results } = await digitalProcessManager.libraryBatch(resume ? "linked_move_resume" : "linked_move", [appId]) as { results?: Array<{ ok: boolean; cancelled?: boolean; error?: string; moved_bytes?: number; seconds?: number }> };
     const row = results?.[0];
     if (row?.cancelled) return { ok: false, cancelled: true, detail: translate("lmMoveCancelledText") };
     if (!row?.ok) return { ok: false, detail: translate("freezeFailed", { error: row?.error ?? "" }) };
@@ -211,6 +211,19 @@ async function moveIntoLibrary(appId: number): Promise<FreezeOutcome> {
   } catch (error) {
     return { ok: false, detail: translate("freezeFailed", { error: error instanceof Error ? error.message : String(error) }) };
   }
+}
+
+/** The half-made copy of a move cut short is deleted; the game stays linked where it was. */
+export async function discardMove(game: CatalogGame): Promise<void> {
+  const appId = game.app_id ?? game.id;
+  try {
+    const { results } = await digitalProcessManager.libraryBatch("linked_move_discard", [appId]) as { results?: Array<{ ok: boolean; error?: string }> };
+    if (results?.[0] && !results[0].ok) throw new Error(results[0].error);
+    showNotice({ game: noticeGame(game), title: translate("moveDiscarded"), tone: "info", timer: true });
+  } catch (error) {
+    showNotice({ game: noticeGame(game), title: translate("lmMoveIncomplete"), text: translate("freezeFailed", { error: error instanceof Error ? error.message : String(error) }), tone: "error" });
+  }
+  await scanLibrary().catch(() => undefined);
 }
 
 /** Stop a game's freeze or thaw: a queued one just leaves the queue; one working is asked to put the game back. */
@@ -275,7 +288,11 @@ export async function recoverFreezes(): Promise<void> {
       text = translate("freezeCutDiscarded", { percent });
       actions.push({ label: translate("freezeCutAgain"), kind: "frost", run: () => { hideNotice(); startFreezeJob(game, "deep"); } });
     } else if (item.action === "move") {
-      if (item.outcome === "restored" || item.outcome === "completed") { text = translate(item.outcome === "restored" ? "moveCutRestored" : "moveCutCompleted", { percent }); timer = true; }
+      if (item.outcome === "resumable") {
+        text = translate("moveCutResumable", { percent });
+        actions.splice(0, 1, { label: translate("moveDiscard"), kind: "secondary", run: () => { hideNotice(); void discardMove(game); } },
+          { label: translate("moveResume"), kind: "primary", run: () => { hideNotice(); startFreezeJob(game, "move", { resume: true }); } });
+      } else if (item.outcome === "restored" || item.outcome === "completed") { text = translate(item.outcome === "restored" ? "moveCutRestored" : "moveCutCompleted", { percent }); timer = true; }
       else { text = translate("freezeFailed", { error: item.error ?? "" }); tone = "error"; }
     } else if (item.outcome === "completed") {
       text = translate("freezeCutCompleted"); tone = "frost"; timer = true;
@@ -329,6 +346,8 @@ export function guardAppClose(): void {
     const window = getCurrentWindow();
     void window.onCloseRequested(async event => {
       const working = runningFreezeJob();
+      // A move is not cancelled by closing: what it copied is kept and it goes on from there (recoverFreezes).
+      if (working?.mode === "move" && ![...jobs.values()].some(job => job.queued && job.mode !== "move")) return;
       if (!working && ![...jobs.values()].some(job => job.queued)) return;
       event.preventDefault();
       const ok = await confirmNotice({ game: working ? noticeGame(working.game) : undefined, title: translate("freezeCloseTitle"), text: translate("freezeCloseText"),
@@ -336,7 +355,7 @@ export function guardAppClose(): void {
       if (!ok) return;
       hideNotice();
       [...jobs.values()].filter(job => job.queued).forEach(job => cancelFreezeJob(job.appId));
-      if (working) {
+      if (working && working.mode !== "move") {
         cancelFreezeJob(working.appId);
         await Promise.race([working.done, new Promise(resolve => setTimeout(resolve, 20000))]);
       }

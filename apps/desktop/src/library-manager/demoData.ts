@@ -16,6 +16,7 @@ export const demoGames: LibraryGame[] = [
   row(3844750, "FlatOut 4: Total Insanity VR", 54.8, legacy({ reclaimable_bytes: 19.5 * GB, plays: 3, issues: [{ code: "no_status", message: "Carpeta con formato anterior." }, { code: "obsolete_backup", message: "Guarda una copia comprimida que duplica el juego entero.", bytes: 19.5 * GB }] })),
   row(1145360, "Hades", 15, { state: "linked", linked: true, link_kind: "steam", folder: "D:\\SteamLibrary\\steamapps\\common\\Hades", plays: 4, last_played: "2026-10-16 20:00:00" }),
   row(105600, "Terraria", 0.4, { state: "linked", linked: true, link_kind: "folder", folder: "E:\\Juegos\\Terraria", plays: 9, last_played: "2026-10-27 19:30:00" }),
+  row(367520, "Hollow Knight", 9.1, { state: "linked", linked: true, link_kind: "folder", folder: "F:\\Juegos\\Hollow Knight", plays: 3, move_pending: { percent: 42, target: "C:\\games\\367520-Hollow Knight", bytes: 3.8 * GB } }),
   row(620, "Portal 2", 14.6, { plays: 12, last_played: "2026-10-15 21:10:00", source_title: "Portal 2 v2.0.0.1 + All DLCs - Repack", source_provider: "SteamRIP" }),
   row(284160, "BeamNG.drive", 50, { frozen: "freeze", frozen_bytes: 20.9 * GB, original_bytes: 50 * GB, plays: 6, last_played: "2026-10-22 05:36:44" }),
   row(413150, "Stardew Valley", 0.7, { plays: 31, last_played: "2026-10-16 18:02:00" }),
