@@ -26,7 +26,7 @@ import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
-import MoveArt from "./MoveArt";
+import MoveArt, { moveLeft } from "./MoveArt";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 import { requestAdmin, useAccessRole } from "../accessRole";
@@ -374,7 +374,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         <History game={game} c={c} job={freezing} />
         {/* Cancelled, the cubes go back where they were: the game is as it was. */}
         {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} fallback={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} />
+          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={moveLeft(freezing.progress, freezing.outcome ? "done" : "working")} />
           : freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode as FreezeMode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}

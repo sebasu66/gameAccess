@@ -47,7 +47,6 @@ export default function FreezeBar({ src, mode, percent, state, size }: { src: st
 export function freezeSize(progress: { done_bytes: number; total_bytes: number; events: Array<{ kind: string; [value: string]: unknown }> } | undefined): string {
   if (!progress?.total_bytes) return "";
   const end = progress.events.find(event => event.kind === "done");
-  if (end && end.moved != null) return formatBytes(Number(end.moved));
   if (end && end.original != null && end.stored != null) return `${formatBytes(Number(end.original))} → ${formatBytes(Number(end.stored))}`;
   return `${formatBytes(progress.done_bytes)} / ${formatBytes(progress.total_bytes)}`;
 }

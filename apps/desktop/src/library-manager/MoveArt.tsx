@@ -1,4 +1,12 @@
+import { formatBytes } from "../GenericDownloadProgress";
+
 type State = "working" | "done" | "failed";
+
+/** The one size the picture shows: what is still left to copy (nothing once it ended). */
+export function moveLeft(progress: { done_bytes: number; total_bytes: number; finished?: boolean } | undefined, state: State): string {
+  if (!progress?.total_bytes || state !== "working") return "";
+  return formatBytes(Math.max(0, progress.total_bytes - progress.done_bytes));
+}
 
 /**
  * A linked game moving into the library, beside the game's log (in the place of the freeze bar): the game's portrait
@@ -6,7 +14,7 @@ type State = "working" | "done" | "failed";
  * gap between them where files keep flowing from the cover into the folder. As the bytes are copied the cover empties
  * from the top down (the frame stays) and the same cover, smaller and centred in the folder, fills from the bottom up:
  * at 100 % the frame on the left is empty and the folder full. Cancelled, the caller passes 0 % (the game is back where
- * it was); a failure stands still with a red frame. The share and the size are written under the flowing files.
+ * it was); a failure stands still with a red frame. The share and what is left to copy are written under the flowing files.
  */
 export default function MoveArt({ cover, fallback, percent, state, size }: { cover: string; fallback: string; percent: number; state: State; size: string }) {
   const share = Math.max(0, Math.min(100, percent));
