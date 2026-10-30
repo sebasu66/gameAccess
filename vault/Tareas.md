@@ -66,6 +66,23 @@ Guía completa, valores y orden: `docs/TAREA-interfaz-nueva.md` (leerla entera a
 - [x] T15 · Revisión final (movimiento reducido, anchos, mando, teclado, rendimiento, app instalada).
 - [x] T16 · Marco de dispositivo en la app (Seba, 2026-10-25): bisel con pestañas, logo animado en la esquina y GAME / ACCESS dibujado en la columna derecha, activado por defecto (antes solo `?deviceFrame=1` en desarrollo); en la ventana de escritorio empieza debajo de la barra de título. `?deviceFrame=0` lo apaga; tablet y TV no lo usan. Falta verlo en la app Tauri.
 
+## Pantallas, modos y diálogos (Seba, 2026-10-30)
+Guía completa, decisiones y orden: `docs/TAREA-pantallas-y-modos.md` (leerla entera antes de empezar). Inventario de lo que existe hoy: proyecto "Game Access" de claude.ai, `claude/inventario-pantallas.md`. Reglas: `docs/GUI_DESIGN.md` (se actualiza en P0). Modelo: **pantalla/modo** (cambia todo el contenido, sin modal), **panel lateral** ("Procesos y descargas"), **diálogo** (bloquea, chico, nunca apilados), **gate** y **aviso**. Trabajar en prototipo primero (sin logs, docs ni i18n) y pulir después de que Seba lo pruebe.
+- [x] P0 · Escribir en `docs/GUI_DESIGN.md` los niveles (pantalla, panel, diálogo, gate, aviso) y la regla "un solo modal a la vez".
+- [ ] P1 · Apertura: mostrar el campo de la clave de padre solo si el modo padre está activo y configurado (hoy `SplashScreen.tsx` ya pregunta por `admin_key_state`; primero reproducir qué devuelve en la PC de Seba) y abrir sin clave si no, con el globo, el candado y el portón de siempre.
+- [ ] P2 · Apertura: quitar la grilla de portadas (`GameCoverBackdrop.tsx`, usado en `ActivationGate.tsx`) y sus estilos `.activation-showcase*`.
+- [x] P3 · (provisorio) Un solo modal a la vez: `modalStack.ts` oculta el diálogo de abajo; ancho de los diálogos de ajustes 720 -> 920 px. Falta que ningún diálogo abra otro (definitivo).
+- [ ] P4 · Niños en casa como **pantalla** (con el asistente de un paso por vez, ya en prototipo en `KidWizard.tsx`).
+- [ ] P5 · Configuración como **pantalla**.
+- [ ] P6 · Panel lateral único "Procesos y descargas": Descargas como hoy y, debajo, Tareas (solo mientras corren: nombre y progreso, cancelar, clic lleva a la tarea en el Library Manager). Entra la actualización del plugin.
+- [ ] P7 · Library Manager como modo de Librería (botón grande en pantalla, fuera del marco).
+- [ ] P8 · Home: saludo, novedades (reemplaza la campanita), últimas versiones y cambios, estado PLUS/base, ayuda y contacto (Patreon, Mercado Pago).
+- [ ] P9 · PLUS siempre visible en el marco: "Activar PLUS" o estado de la suscripción (hasta cuándo, darse de baja).
+- [ ] P10 · Refrescar juegos pasa al Catálogo/Librería; Big Picture queda en el marco, diferenciado; la palabra grande de la sección se nota más.
+- [ ] P11 · Ayuda contextual: botón de ayuda en cada pantalla principal que enciende y apaga una capa con la explicación de cada zona y botón (textos en la sección 7 de `docs/TAREA-pantallas-y-modos.md`). Reemplaza la tarea de ayuda contextual del 2026-10-28.
+- [ ] P12 · Verificar la restauración de la importación y que todos los procesos largos sean atómicos y retomables (importar: la lista es descartable; crear registros es juego por juego y sin duplicar).
+- Importar y la actualización de la base de datos son diálogos **bloqueantes sin minimizar**; el aviso de tarea terminada es el aviso único (OK con autoclic, sin autocierre si hubo error), como hoy.
+
 ## Cola de funciones (de más fácil a más difícil)
 - [ ] Aviso "¿descarga lenta?" (monitor de velocidad del torrent + planes de aceleración). Necesita el texto completo del plan de 4 USD (Seba).
 - [ ] Registro de tiempo de juego (solo grabar, sin límites todavía).
@@ -203,7 +220,7 @@ Ordenadas a partir de las notas sueltas de Seba y de lo conversado ese día.
 - [x] La animación que escribe GAME / ACCESS en la columna derecha se detenía al volver de un juego o del modo de bajo consumo y no volvía; ahora retoma su ciclo (`2db1f43`). Falta confirmarlo en la app.
 
 **Ayuda contextual**
-- [ ] Reemplazar la ayuda aislada de su panel por ayuda contextual: en cada pantalla un ícono de ayuda; al mantenerlo apretado aparecen textos como tooltips sobre los botones y el propósito general de la pantalla o función. Objetivo: que se note que es fácil de usar, también para padres y chicos.
+- [ ] (Reemplazada por P11 del 2026-10-30.) Reemplazar la ayuda aislada de su panel por ayuda contextual: en cada pantalla un ícono de ayuda; al mantenerlo apretado aparecen textos como tooltips sobre los botones y el propósito general de la pantalla o función. Objetivo: que se note que es fácil de usar, también para padres y chicos.
 
 **Plugins en su propia pantalla**
 - [ ] Un botón 3D más en el borde de la tablet (abajo a la derecha) que lleva a **Plugins**: la lista de plugins instalados, con los ajustes de cada uno.

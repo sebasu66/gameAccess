@@ -21,6 +21,22 @@ Cada tipo de control tiene **una** plantilla: sus valores son variables en `:roo
 
 Siguen teniendo estilo propio a propósito: botones del marco (teclas con relieve, `device-frame.css`), cubos y botones planos de la pantalla, `ga-close`, la ficha del juego (la referencia, con su imagen) y el diálogo de ejecutar un juego (con la imagen del juego de fondo).
 
+## 0b. Niveles de interfaz (Seba, 2026-10-30; plan en `docs/TAREA-pantallas-y-modos.md`)
+
+Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nuevo se decide su nivel; si no encaja en ninguno, se pregunta.
+
+| Nivel | Qué es | Reglas |
+|---|---|---|
+| **Pantalla / modo** | Cambia todo el contenido principal. Se elige desde el marco: Home, Juegos (Catálogo / Librería, alternados junto al buscador), Configuración, Niños en casa. | Ancho completo, sin fondo de superposición y sin `ga-close`. Se sale cambiando de modo; un subpaso (p. ej. Library Manager dentro de Librería) vuelve con `ga-back` (§4.11). |
+| **Panel lateral** | Columna a la derecha que no bloquea. | Hay uno solo: **Procesos y descargas** (Descargas arriba como hoy; Tareas debajo, solo mientras alguna corre: nombre, progreso, cancelar, y clic lleva a la tarea en el Library Manager). §4.17. |
+| **Diálogo** | Bloquea para confirmar, avisar, validar, pedir un dato corto o seguir un proceso crítico con progreso (Importar, actualización de la base de juegos). | Chico, `ga-close`, como mucho un botón principal (§4.6). **Uno solo a la vez:** ningún diálogo abre otro; si hace falta algo más, se cierra el primero o se resuelve como pantalla. Los procesos críticos no se minimizan. |
+| **Gate** | Cubre toda la app hasta resolverse: clave de padre, actualización, activación. | Uno solo a la vez, por encima de todo. |
+| **Aviso** | No bloquea y se cierra solo. | Un único sistema: `GaNotice` (§4.9). El fin de una tarea larga se avisa ahí, no con una línea que queda en el panel. |
+
+**Home** (pantalla de inicio): saludo con el nombre del usuario, novedades (reemplazan la campanita), últimas versiones con sus cambios, estado de PLUS o del modo base explicado, y al final ayuda y contacto (Patreon, Mercado Pago). Lo que no tenga otro lugar va en Home.
+
+**Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Refrescar juegos, Library Manager y ayuda **no** van en el marco.
+
 ## 1. Tokens
 
 | Token | Valor | Uso |
@@ -101,6 +117,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Sombra `0 24px 60px #0008`.
 - Encabezado estándar: eyebrow + título Bebas + subtítulo muted, botón `ga-close` arriba a la derecha, separador `--ga-line` debajo.
 - **Diálogo superpuesto** `ga-overlay-dialog` (importar juegos, plan de corrección y los que vengan): un solo molde, vidrio esmerilado marrón óxido oscuro (translúcido con desenfoque, un poco más cálido arriba a la izquierda) y el mismo borde fino con degradé de la ficha del juego.
+- **Un solo diálogo a la vez** (§0b): nunca se apilan. Mientras quede alguno que abre otro, `modalStack.ts` oculta el de abajo (provisorio); la meta es que ningún diálogo abra otro.
 
 ### 4.7 Fondo de superposición `ga-backdrop`
 - `#05080ccc` con `backdrop-filter: blur(10px)`. Cierra al pulsar fuera o con Esc (salvo procesos en curso).
@@ -132,6 +149,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.12 Overlay y pantalla completa
 - **Overlay** (panel flotante, con borde): tiene `ga-close` arriba a la derecha, vidrio esmerilado y borde degradado (§4.6). Escape lo cierra.
 - **Pantalla completa** (gestor de descargas, gestor de biblioteca): no tiene cerrar sino `ga-back` (§4.11). Escape vuelve.
+- **Pantalla / modo** (§0b: Home, Juegos, Configuración, Niños en casa): ocupa toda la zona principal sin fondo de superposición y no tiene cerrar ni volver; se sale eligiendo otro modo en el marco. Configuración y Niños en casa dejan de ser diálogos.
 - **Excepción:** los diálogos chicos que muestran la imagen del juego (p. ej. ejecutar un juego) conservan su fondo difuminado con la imagen. No se cambian.
 
 ### 4.13 Foco por teclado (Tab)
@@ -262,9 +280,11 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 7. No introducir nuevos colores: si falta uno, se agrega a la tabla de tokens.
 7b. El texto de un diálogo sigue la regla general (§4.25); una pantalla no define márgenes, fuente ni tamaño de sus párrafos.
 8. Tab recorre todos los botones y ningún otro control (§4.13).
+9. Cada cosa nueva tiene su nivel (§0b): una pantalla no es un diálogo grande, y un diálogo nunca abre otro diálogo.
 
 ## 6. Lista de comprobación para revisar una pantalla
 
+- [ ] Su nivel es el correcto (§0b): una pantalla no tiene `ga-close`; un diálogo no abre otro.
 - [ ] Hay un solo botón de cierre, circular, rojo, 38 px.
 - [ ] Los botones de la misma fila tienen el mismo alto.
 - [ ] La acción principal es naranja; la de peligro, roja; el resto, secundario.
