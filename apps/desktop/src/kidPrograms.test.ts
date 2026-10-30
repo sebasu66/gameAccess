@@ -16,6 +16,7 @@ vi.mock("@tauri-apps/api/core", () => ({
       { name: "Microsoft 365", publisher: "Microsoft", folder: "C:\\Program Files\\Microsoft Office", kind: "windows" },
     ];
     if (command === "restriction_save") return { config: (args as { config: unknown }).config, service: "running", writable: true };
+    if (command === "uac_password_undo") return true;
     if (command === "run_digital_process") return { ok: false };
     return null;
   }),

@@ -91,7 +91,12 @@ function KidSwitch() {
   const [error, setError] = useState("");
   const turn = async (on: boolean) => {
     setBusy(true); setError("");
-    try { await setKidModeEnabled(on); } catch (failure) { setError(t("kidApplyFailed", { error: failure instanceof KidApplyError ? failure.code : String(failure) })); } finally { setBusy(false); }
+    try {
+      // Turning it off also gives back Windows' password for administrator tasks if Game Access turned it on; when the
+      // permission is refused it stays on and the parent is told where to change it.
+      const kept = await setKidModeEnabled(on);
+      if (!on && kept) showNotice({ tone: "error", title: t("kidSwitchOff"), text: t("kidResetWinPasswordKept") });
+    } catch (failure) { setError(t("kidApplyFailed", { error: failure instanceof KidApplyError ? failure.code : String(failure) })); } finally { setBusy(false); }
   };
   const service = status.service === "missing" ? t("kidServiceMissing") : status.service === "stopped" ? t("kidServiceStopped") : "";
   return <section className="ga-kid-power ga-stack ga-stack-sm" aria-live="polite">

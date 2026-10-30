@@ -198,6 +198,7 @@ fn main() {
             admin_key::admin_key_forget,
             uac_password::uac_password_state,
             uac_password::uac_password_set,
+            uac_password::uac_password_undo,
             kid_mode::kid_live,
             kid_mode::kid_control,
             kid_mode::kid_plus_set,

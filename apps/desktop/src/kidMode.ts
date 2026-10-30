@@ -168,15 +168,27 @@ export async function readRestrictionBlocks(): Promise<RestrictionBlock[]> {
   return invoke<RestrictionBlock[]>("restriction_blocks").catch(() => []);
 }
 
-/** The big switch: kid mode's restrictor on or off, saved at once (only for a kid mode already set up). */
-export async function setKidModeEnabled(enabled: boolean): Promise<void> {
-  if (!applied) return;
+/** The big switch: kid mode's restrictor on or off, saved at once (only for a kid mode already set up). Turning it off
+ *  also gives back Windows' password for administrator tasks when Game Access turned it on (`uac_password.rs`), because
+ *  with nothing blocked it only makes every administrator task ask for the password. Returns whether it stayed on. */
+export async function setKidModeEnabled(enabled: boolean): Promise<boolean> {
+  if (!applied) return false;
   if (hasTauriRuntime()) {
     try { await invoke("restriction_save", { config: { version: 1, enabled, kid: applied, programs: appliedPrograms, ...knownSettings(appliedKnownOff) } }); }
     catch (error) { throw reportKidFailure(enabled ? "turning kid mode on" : "turning kid mode off", error); }
   }
   status = { ...status, enabled };
   emit();
+  return enabled ? false : undoWindowsPassword();
+}
+
+/**
+ * Puts Windows' password for administrator tasks back when Game Access turned it on (the module keeps a note of that);
+ * a Windows setting the parent chose by hand is left alone. Windows asks for permission. `true`: it stayed on.
+ */
+async function undoWindowsPassword(): Promise<boolean> {
+  if (!hasTauriRuntime()) return false;
+  try { return !(await invoke<boolean>("uac_password_undo")); } catch { return true; }
 }
 
 const gameKey = (game: KidGame) => `${game.appId}:${game.dailyMinutes ?? 0}`;
@@ -330,18 +342,17 @@ function reportKidFailure(what: string, error: unknown): KidApplyError {
 /**
  * Undoes kid mode, all of it (Seba, 2026-10-30): the restrictor's settings, what it closed and its copy of the key go
  * (nothing is closed any more), the parent's key goes (it exists only for kid mode), and Windows' password for
- * administrator tasks goes back to its default when it had been turned on (Windows asks for permission; saying no keeps
- * it, and the rest is undone anyway). The screen goes back to the wizard. Returns whether that Windows setting stayed on.
+ * administrator tasks goes back when Game Access had turned it on (Windows asks for permission; saying no keeps it, and
+ * the rest is undone anyway). The screen goes back to the wizard. Returns whether that Windows setting stayed on.
  */
 export async function resetKidMode(): Promise<boolean> {
-  let windowsPasswordKept = false;
+  // Windows' password goes first: it belongs to this app, not to the restrictor's settings (a parent can turn it on
+  // without ever applying kid mode, and then nothing else would give it back), and it is the one felt everywhere.
+  let windowsPasswordKept = await undoWindowsPassword();
   if (hasTauriRuntime() && applied) {
     try { await invoke("restriction_clear"); } catch (error) { throw reportKidFailure("removing kid mode", error); }
     try { await invoke("admin_key_clear", { current: null }); setAdminKey({ enabled: false, length: 0 }); }
     catch (error) { void narrate(`Kid mode removed, but the parent's key was not: ${String(error)}`, { area: "KID_MODE", level: "WARN" }); }
-    try {
-      if (await invoke<boolean>("uac_password_state")) windowsPasswordKept = await invoke<boolean>("uac_password_set", { on: false });
-    } catch { windowsPasswordKept = true; }
   }
   applied = null;
   appliedPrograms = [];
