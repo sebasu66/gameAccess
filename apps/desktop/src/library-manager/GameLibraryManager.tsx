@@ -373,7 +373,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}${freezing?.mode === "move" ? " has-move" : ""}`}>
         <History game={game} c={c} job={freezing} />
         {/* Cancelled, the cubes go back where they were: the game is as it was. */}
-        {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} fallback={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+        {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={moveLeft(freezing.progress, freezing.outcome ? "done" : "working")} />
           : freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode as FreezeMode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}

@@ -210,8 +210,8 @@
   stroke-linejoin: round; opacity: 0; animation: lm-move-file 1.8s linear infinite; }
 @keyframes lm-move-file { 0% { transform: translate(-16px, 6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(30px, -6px); } 80% { opacity: 1; } 100% { transform: translate(76px, 6px); opacity: 0; } }
 .lm-move-folder { position: relative; flex: none; height: min(100%, calc((100cqw - 100px) / 1.87)); aspect-ratio: 6 / 5; }
-.lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
-.lm-move-inner { position: absolute; left: 50%; top: 56%; height: 64%; aspect-ratio: 2 / 3; transform: translate(-50%, -50%); border-radius: 5px; overflow: hidden;
+.lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: color-mix(in srgb, var(--ga-white) 7%, transparent); stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
+.lm-move-inner { position: absolute; left: 50%; top: 59%; width: 80%; aspect-ratio: 460 / 215; transform: translate(-50%, -50%); border-radius: 4px; overflow: hidden;
   outline: 1px dashed color-mix(in srgb, var(--ga-white) 22%, transparent); outline-offset: 2px; }
 .lm-move-readout { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; text-align: center; }
 .lm-move-readout b { font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange); }
@@ -219,5 +219,5 @@
 .lm-move-readout span { font-size: 10px; font-weight: 700; letter-spacing: .08em; line-height: 1.4; text-transform: uppercase; font-variant-numeric: tabular-nums; opacity: .85; }
 .lm-move.is-failed .lm-move-cover, .lm-move.is-failed .lm-move-inner { border-color: var(--ga-danger); outline-color: var(--ga-danger); }
 .lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
-.lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); }
+.lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); fill: color-mix(in srgb, var(--ga-orange) 10%, transparent); }
 @media (prefers-reduced-motion: reduce) { .lm-move-file { animation: none; display: none; } .lm-move-cover img, .lm-move-inner img { transition: none; } }
