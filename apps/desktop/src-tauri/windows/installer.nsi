@@ -1,5 +1,6 @@
 ; Tauri 2.11.4 NSIS template (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi at tauri-cli-v2.11.4)
-; with one GameAccess addition after MUI_PAGE_DIRECTORY. Re-sync with upstream when upgrading the Tauri CLI.
+; with GameAccess additions (marked "GameAccess:"): the folders page after MUI_PAGE_DIRECTORY, Steam required, and the
+; app always installed inside Program Files (no folder page). Re-sync with upstream when upgrading the Tauri CLI.
 Unicode true
 ManifestDPIAware true
 ; Add in `dpiAwareness` `PerMonitorV2` to manifest for Windows 10 1607+ (note this should not affect lower versions since they should be able to ignore this and pick up `dpiAware` `true` set by `ManifestDPIAware true`)
@@ -394,7 +395,9 @@ Function PageLeaveReinstall
 FunctionEnd
 
 ; 5. Choose install directory page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+; GameAccess: never shown. The app always goes inside Program Files: kid mode needs a desktop that a child's (standard)
+; account cannot change, and anywhere else any account may change it (Seba, 2026-10-30).
+!define MUI_PAGE_CUSTOMFUNCTION_PRE Skip
 !insertmacro MUI_PAGE_DIRECTORY
 
 ; GameAccess: game and download folders page (defined in windows/hooks.nsh)
@@ -530,6 +533,8 @@ Function .onInit
 
     Call RestorePreviousInstallLocation
   ${EndIf}
+  ; GameAccess: a folder given with /D= outside Program Files falls back to the default one.
+  Call KeepInProgramFiles
 
 
   !if "${INSTALLMODE}" == "both"
@@ -924,6 +929,15 @@ Function RestorePreviousInstallLocation
   StrCmp $6 "$PROGRAMFILES64\" 0 restore_done
     StrCpy $INSTDIR $4
   restore_done:
+FunctionEnd
+
+; GameAccess: the install folder is always inside Program Files (see the folder page above).
+Function KeepInProgramFiles
+  StrLen $5 "$PROGRAMFILES64\"
+  StrCpy $6 $INSTDIR $5
+  StrCmp $6 "$PROGRAMFILES64\" keep_done 0
+    StrCpy $INSTDIR "$PROGRAMFILES64\${PRODUCTNAME}"
+  keep_done:
 FunctionEnd
 
 Function Skip

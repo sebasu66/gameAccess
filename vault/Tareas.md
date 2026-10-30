@@ -81,6 +81,7 @@ Guía completa, decisiones y orden: `docs/TAREA-pantallas-y-modos.md` (leerla en
 - [ ] P10 · Refrescar juegos pasa al Catálogo/Librería; Big Picture queda en el marco, diferenciado; la palabra grande de la sección se nota más.
 - [ ] P11 · Ayuda contextual: botón de ayuda en cada pantalla principal que enciende y apaga una capa con la explicación de cada zona y botón (textos en la sección 7 de `docs/TAREA-pantallas-y-modos.md`). Reemplaza la tarea de ayuda contextual del 2026-10-28.
 - [ ] P12 · Verificar la restauración de la importación y que todos los procesos largos sean atómicos y retomables (importar: la lista es descartable; crear registros es juego por juego y sin duplicar).
+- [ ] P13 · Instalador sin elegir carpeta: siempre en Program Files (el modo niño necesita un escritorio que la cuenta del niño no pueda cambiar). Hecho en `windows/installer.nsi` (la página de carpeta no se muestra; `/D=` fuera de Program Files vuelve a la carpeta por defecto); compila con makensis. Falta verlo al instalar la próxima versión (0.1.5 todavía muestra la página).
 - Importar y la actualización de la base de datos son diálogos **bloqueantes sin minimizar**; el aviso de tarea terminada es el aviso único (OK con autoclic, sin autocierre si hubo error), como hoy.
 
 ## Cola de funciones (de más fácil a más difícil)
