@@ -63,13 +63,13 @@ function useKeyStep(onDone: () => void) {
   };
   const keep = async () => {
     if (key.enabled) return;
-    const next = hasTauriRuntime() ? await invoke<AdminKeyState>("admin_key_set", { word: word.trim(), current: null }) : { enabled: true, length: word.trim().length + 6 };
+    const next = hasTauriRuntime() ? await invoke<AdminKeyState>("admin_key_set", { word: word.trim(), current: null }) : { enabled: true, length: word.trim().length };
     setAdminKey(next);
   };
   const body = <>
     <p>{t("kidKeyText")}</p>
     {key.enabled ? <p className="ga-status is-ok">{t("kidKeyAlready")}</p> : <label className="ga-field"><span>{t("adminKeyWord")}</span>
-      <input value={word} maxLength={20} autoComplete="off" spellCheck={false} placeholder={t("adminKeyWordPlaceholder")} onChange={event => setWord(event.target.value.replace(/\s/g, ""))} /></label>}
+      <input value={word} maxLength={40} autoComplete="off" spellCheck={false} placeholder={t("adminKeyWordPlaceholder")} onChange={event => setWord(event.target.value.replace(/\s/g, ""))} /></label>}
     <p className="ga-hint">{t("adminKeyHow1")}</p>
     {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
   </>;

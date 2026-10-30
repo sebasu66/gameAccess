@@ -10,15 +10,14 @@ import { useKidState, usePlus } from "./kidMode";
 
 /**
  * The parent's key tab of the kids screen. It can be turned on once PLUS has kid mode running (a child's account
- * exists): until then there is no child to protect. The key is a word only the parent knows, woven with the date every
- * day (admin_key.rs); how is explained here and nowhere else, for the parent's eyes, with an invented example.
+ * exists): until then there is no child to protect. The key is a plain password the parent chooses (admin_key.rs).
  *
- * The parent's own word stays hidden like a wallet's balance: it shows only while its eye is held pressed and hides
- * again on release, so nothing is left on screen for a child walking by. The day's key itself is never shown.
- * Changing or removing the key asks for the word or today's key (whichever the parent remembers). This screen is only
+ * It stays hidden like a wallet's balance: it shows only while its eye is held pressed and hides again on release, so
+ * nothing is left on screen for a child walking by. Changing or removing the key asks for it. This screen is only
  * reachable as the administrator (accessRole.ts); with PLUS ended everyone is, so the eye is not offered then.
  */
-export const validWord = (word: string) => /^\p{L}{3,20}$/u.test(word.trim());
+/** The parent's password: 4 to 40 characters, no spaces (admin_key.rs). */
+export const validWord = (word: string) => /^\S{4,40}$/u.test(word.trim());
 const HIDDEN = "••••••";
 
 /** The word, hidden until its eye is held pressed (pointer, Space or Enter) and hidden again on release. */
@@ -99,7 +98,7 @@ export default function AdminKeySection() {
   const currentField = <label className="ga-field"><span>{t("adminKeyCurrent")}</span>
     <input type="password" value={current} maxLength={40} autoComplete="off" spellCheck={false} data-lpignore="true" onChange={event => setCurrent(event.target.value)} /></label>;
   const wordField = <label className="ga-field"><span>{key.enabled ? t("adminKeyNewWord") : t("adminKeyWord")}</span>
-    <input value={word} maxLength={20} autoComplete="off" spellCheck={false} placeholder={t("adminKeyWordPlaceholder")} onChange={event => setWord(event.target.value.replace(/\s/g, ""))} /></label>;
+    <input value={word} maxLength={40} autoComplete="off" spellCheck={false} placeholder={t("adminKeyWordPlaceholder")} onChange={event => setWord(event.target.value.replace(/\s/g, ""))} /></label>;
   return <div className="ga-adminkey ga-stack">
     <p className="ga-hint">{t("adminKeyIntro")}</p>
     {key.enabled || ready ? null : <p className="ga-hint" role="note">{t("adminKeyNeedsKidMode")}</p>}
@@ -124,9 +123,6 @@ export default function AdminKeySection() {
       <div className="ga-actions"><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!validWord(word)} onClick={() => void save()}>{t("adminKeyActivate")}</GaButton></div>
     </div> : null}
     {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
-    <details className="ga-disclosure">
-      <summary>{t("adminKeyHowTitle")}</summary>
-      <div className="ga-stack ga-stack-sm"><p className="ga-hint">{t("adminKeyHow1")}</p><p className="ga-hint">{t("adminKeyHow2")}</p><p className="ga-hint">{t("adminKeyHow3")}</p><p className="ga-hint">{t("adminKeyHow4")}</p></div>
-    </details>
+    <p className="ga-hint">{t("adminKeyHow1")}</p>
   </div>;
 }

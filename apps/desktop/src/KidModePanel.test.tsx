@@ -109,7 +109,7 @@ describe("Niños en casa", () => {
     // 4. The games, then finish: kid mode is on and the screen is the control panel.
     expect(text()).toMatch(/qué juegos verá tu hijo|which games your child will see/);
     await press(/Crear la cuenta|Create the account/);
-    expect(getAdminKey()).toEqual({ enabled: true, length: 11 });
+    expect(getAdminKey()).toEqual({ enabled: true, length: 5 });
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
     expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
       expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
@@ -169,7 +169,7 @@ describe("Niños en casa", () => {
     await finishWizard();
     await press(/Soporte|Support/);
     expect(text()).toMatch(/Ayuda y contacto|Help & contact/);
-    expect(text()).toMatch(/cambia cada día|changes every day/);
+    expect(text()).toMatch(/elegís vos|you choose/);
     await press(/Quitar el modo niño|Remove kid mode/);
     expect(document.querySelector(".ga-kid-intro")).not.toBeNull();
     expect(JSON.parse(localStorage.getItem("gameaccess.kidDraft") ?? "null")).toBeNull();

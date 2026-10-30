@@ -75,11 +75,11 @@ export function setAdminKey(next: AdminKeyState) {
 }
 
 /** In the dev browser (no Tauri, so no stored word) the gate can be tried with the design's own example: perro on 11-11-26. */
-export const DEV_DEMO_KEY = "P1E1R1R1O26";
+export const DEV_DEMO_KEY = "perro";
 
-/** Whether what was typed is today's key. */
+/** Whether what was typed is the parent's key. */
 export async function checkAdminKey(attempt: string): Promise<boolean> {
-  if (!hasTauriRuntime()) return import.meta.env.DEV && attempt.trim().toUpperCase() === DEV_DEMO_KEY;
+  if (!hasTauriRuntime()) return import.meta.env.DEV && attempt.trim().toLowerCase() === DEV_DEMO_KEY;
   try { return await invoke<boolean>("admin_key_check", { attempt }); } catch { return false; }
 }
 
@@ -125,7 +125,7 @@ export async function requireAdmin(): Promise<void> {
   if (!(await requestAdmin())) throw new AdminRequiredError();
 }
 
-/** Dev only: `gaGateDemo()` in the browser console closes the gate asking for the example key (P1E1R1R1O26), as a player. */
+/** Dev only: `gaGateDemo()` in the browser console closes the gate asking for the example key (perro), as a player. */
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as { gaGateDemo: () => Promise<boolean> }).gaGateDemo = () => {
     setAdminKey({ enabled: true, length: DEV_DEMO_KEY.length });

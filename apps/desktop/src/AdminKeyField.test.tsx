@@ -28,7 +28,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.useRealTimers(); });
 
 describe("portón: el campo de la clave de padre", () => {
-  it("solo pregunta cuando lo escrito tiene el largo de la clave de hoy", async () => {
+  it("solo pregunta cuando lo escrito tiene el largo de la clave", async () => {
     await type("A"); await type("AB"); await type("AB1"); await type("AB12");
     expect(asked).toEqual([]);
     await type("AB124");

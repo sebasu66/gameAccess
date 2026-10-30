@@ -43,8 +43,8 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => root.unmount()); host.remove(); });
 
-describe("clave de padre: la palabra oculta", () => {
-  it("se ve solo mientras se mantiene apretado el ojo, y la clave de hoy nunca se pide", async () => {
+describe("clave de padre: oculta", () => {
+  it("se ve solo mientras se mantiene apretado el ojo", async () => {
     await render();
     expect(secret()).toBe("••••••");
     await act(async () => { eye().dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); });
@@ -65,7 +65,7 @@ describe("clave de padre: la palabra oculta", () => {
     expect(document.querySelector(".ga-adminkey-word")).toBeNull();
   });
 
-  it("cambiar la palabra pide la actual (o la clave de hoy) escrita por el padre", async () => {
+  it("cambiarla pide la actual, escrita por el padre", async () => {
     await render();
     await act(async () => { document.querySelector<HTMLButtonElement>(".ga-adminkey-actions button")!.click(); });
     const [current, word] = [...document.querySelectorAll<HTMLInputElement>(".ga-adminkey-form input")];
