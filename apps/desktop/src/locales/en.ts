@@ -1365,7 +1365,7 @@ export const en: Record<keyof typeof es, string> = {
   kidReadOnly: "Changing anything needs the parent's key.",
   kidUnlockEdit: "Enter the key",
   kidHelpTitle: "Help & contact",
-  kidHelpText: "Changes to games, programs and time are saved with the Apply button. Right now orders arrive in seconds.",
+  kidHelpText: "Changes to games, programs and time are saved with the Apply button.",
   kidHelpContact: "Something not working? Write to us from Game Access's help (the ? button in the footer).",
   parentalByAdminKey: "Your parent's key protects it.",
   kidGameMax: "Max {{minutes}} min",

@@ -1363,7 +1363,7 @@ export const es = {
   kidReadOnly: "Para cambiar algo hace falta la clave de padre.",
   kidUnlockEdit: "Ingresar la clave",
   kidHelpTitle: "Ayuda y contacto",
-  kidHelpText: "Los cambios de juegos, programas y tiempo se guardan con el botón Aplicar. Las órdenes de Ahora mismo llegan en segundos.",
+  kidHelpText: "Los cambios de juegos, programas y tiempo se guardan con el botón Aplicar.",
   kidHelpContact: "¿Algo no funciona? Escribinos desde la ayuda de Game Access (el botón ? del pie).",
   parentalByAdminKey: "Lo protege tu clave de padre.",
   kidGameMax: "Máx. {{minutes}} min",

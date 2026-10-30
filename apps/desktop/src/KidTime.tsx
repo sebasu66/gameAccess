@@ -64,6 +64,8 @@ export function Week({ live, draft }: { live: KidLive; draft: Kid }) {
 }
 
 /** Live orders: take effect in seconds, without applying anything to Windows. */
+/** The live orders (stop, close the day, more minutes). Not on the kids screen any more (Seba, 2026-10-30: they are for
+ *  the parent's phone, MN.9); kept as the reference for that app. */
 export function LiveControls({ sid, live, onLive }: { sid: string; live: KidLive; onLive: (live: KidLive) => void }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);

@@ -11,7 +11,7 @@ import GaTabs from "./GaTabs";
 import ParentalControlSection from "./ParentalControlSection";
 import AdminKeySection from "./AdminKeySection";
 import KidGamesGrid from "./KidGamesGrid";
-import { DaySchedule, LiveControls, Week } from "./KidTime";
+import { DaySchedule, Week } from "./KidTime";
 import { applyErrorText } from "./KidWizard";
 import { applyKidDraft, EMPTY_LIVE, KidApplyError, readKidLive, resetKidMode, setKidModeEnabled, useKidState, usePlus, type KidLive } from "./kidMode";
 
@@ -39,7 +39,6 @@ function TimeTab({ sid }: { sid: string }) {
   return <>
     <DaySchedule draft={draft} />
     <Week live={live} draft={draft} />
-    <LiveControls sid={sid} live={live} onLive={setLive} />
   </>;
 }
 
