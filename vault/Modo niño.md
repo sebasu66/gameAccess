@@ -18,18 +18,15 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 
 ### Piezas
 1. **Servicio de Game Access** (servicio de Windows, corre como SYSTEM, arranca con Windows, lo instala el instalador). Difícil de detener: su lista de permisos niega Detener y Pausar a todos salvo SYSTEM, y Windows lo reinicia si se cae. Hace cuatro cosas: vigila los procesos, cuenta el tiempo, guarda el estado del modo restrictivo y habla con Game Access por una tubería local (named pipe); más adelante, también con el servidor para el celular (MN.9).
-2. **Vigilante de procesos.** El servicio se entera de cada programa que arranca (ETW de procesos del núcleo; WMI `Win32_ProcessStartTrace` como alternativa) y lo clasifica:
-   - **Juego permitido**: lo lanzó Game Access en esta sesión (antes de lanzar le avisa al servicio "permití el AppID X, carpeta Y"); un juego de Steam arranca con `steam.exe` como padre y se acepta si su carpeta es la de un juego permitido. Corre y su tiempo cuenta.
-   - **Juego que no lanzó Game Access**: el servicio lo cierra enseguida (como SYSTEM puede cerrar también los que corren como administrador) y abre Game Access en la sesión del usuario, o le avisa si ya está abierto, con el mensaje **"La restricción actual impide abrir juegos fuera de Game Access"**. Cubre también los juegos que el niño instale por su cuenta.
-   - **Cualquier otro programa**: corre. No es un quiosco: el escritorio de Windows sigue usable.
-3. **Cómo reconoce que un proceso es un juego.** El catálogo tiene 45.690 juegos con **nombre y AppID, pero no los nombres de sus .exe** (comprobado en `catalog_game`, 2026-10-30), así que no alcanza con buscar el .exe en una lista. Se prueba en este orden, con caché por ruta de .exe:
-   1. la carpeta es de la biblioteca de Game Access (`<appid>-…-ready`, juegos vinculados);
-   2. está en una biblioteca de Steam: `steamapps\common\<carpeta>` da el AppID por su `appmanifest_*.acf`; lo mismo con los manifiestos de Epic y GOG;
-   3. hay un `steam_appid.txt` junto al .exe o más arriba;
-   4. el nombre de producto del .exe (ProductName, FileDescription) o el de su carpeta coincide con un juego del catálogo (nombres normalizados);
-   5. señales de motor de juego: `UnityPlayer.dll`, `*-Win64-Shipping.exe` de Unreal, etc.
-   
-   Fuera de Steam hace falta una lista corta a mano: Roblox, Minecraft, Fortnite/Epic, launchers. Nunca se toca lo de Windows ni lo firmado por Microsoft. Hay una lista de excepciones para falsos positivos (un programa que se llame como un juego).
+2. **Vigilante de procesos con lista blanca** (Seba, 2026-10-30: "una lista blanca en vez de negra"). En modo restrictivo, el servicio se entera de cada programa que arranca (ETW de procesos del núcleo; WMI `Win32_ProcessStartTrace` como alternativa) y **solo deja correr lo permitido; todo lo demás lo cierra enseguida**. Como SYSTEM, puede cerrar también lo que corre como administrador. Se decide por la ruta del .exe, sin importar quién lo abrió. Permitido:
+   - **Windows**: lo que está en `C:\Windows` y lo firmado por Microsoft, esté donde esté (OneDrive, Teams).
+   - **Programas instalados**: `Program Files` y `Program Files (x86)`, **salvo las carpetas de juegos** (`steamapps` de cada biblioteca de Steam, Epic Games, GOG Games) y lo que el adulto saque de la lista.
+   - **Game Access** y su runtime, y **Steam** (`steam.exe`, `steamwebhelper.exe`), para que pueda iniciar sesión y lanzar juegos.
+   - **Los juegos habilitados para el niño**: los procesos de su carpeta, y lo que ese juego abra (anti-cheat, lanzadores propios). Esa regla de "lo que abre" vale solo para los juegos, no para Steam: si no, cualquier juego de Steam pasaría.
+   - **Programas que el adulto agregue** (Roblox, Minecraft, un programa de dibujo): la lista de accesos directos que ya existe.
+
+   Un juego que el niño instale por su cuenta queda afuera solo, porque no está en la lista: **no hace falta reconocer qué es un juego**. El reconocimiento queda únicamente para elegir el mensaje: si lo cerrado parece un juego (carpeta de Steam o de la biblioteca, `steam_appid.txt`, nombre del catálogo), el servicio abre Game Access, o le avisa si ya está abierto, con **"La restricción actual impide abrir juegos fuera de Game Access"**; si no, con "Este programa no está permitido en modo niño".
+3. **Programas bloqueados, para permitirlos con un toque.** El servicio anota lo que cerró: ruta, nombre, cuántas veces, última vez. La pantalla del adulto lo muestra con un botón **"Permitir"**. Así se resuelve el caso de un programa legítimo que quedó afuera, por ejemplo la utilidad de la placa de video o de los auriculares instalada en `AppData`. El aviso al niño no se repite para los programas que se cierran solos en segundo plano.
 4. **Game Access abre en modo niño por defecto.** Arranca al iniciar sesión (lo abre el servicio) y muestra solo los juegos habilitados, con su tiempo; las pantallas de adulto no se ven.
    - Un botón **"Ingresar clave"** (el portón con la clave de padre de MN.10) desbloquea todos los juegos y pantallas de Game Access.
    - Un interruptor **"Apagar el modo restrictivo hasta la próxima sesión"**: el servicio deja de cerrar juegos y de contar tiempo hasta el próximo inicio de sesión de Windows.
@@ -41,11 +38,12 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 **Qué se gana:** Steam funciona tal cual (los "recordarme" y el cambio automático de cuenta del adulto), los juegos usan la misma biblioteca y los mismos permisos, los que piden administrador andan, y configurar es elegir juegos, horario y tiempo.
 
 ### Para decidir (Seba)
-- **¿Bloquear además partes de Windows** (tecla Windows, Alt+Tab, Administrador de tareas, el Explorador), como un quiosco? Para los juegos no hace falta, porque el vigilante los cierra. Sí haría falta para que el niño no use el navegador u otros programas: hoy el filtro de contenido va por separado.
+- **¿Bloquear además partes de Windows** (tecla Windows, Alt+Tab, Administrador de tareas, el Explorador), como un quiosco? Con la lista blanca no hace falta para los programas. Quedaría para que el niño no vea el escritorio.
+- **¿Los navegadores entran en la lista?** Están en `Program Files`, así que por defecto pasan. Sacarlos cierra la vía de jugar en el navegador (Roblox web, juegos online); dejarlos permite la tarea escolar. Hoy el filtro de contenido va por separado.
 - **La tienda de Steam y la tarjeta guardada.** El niño juega con las cuentas de Steam del adulto: desde la superposición (Shift+Tab) llega a la tienda, y una tarjeta guardada compra sin contraseña. Opciones: que en modo restrictivo el servicio cierre las ventanas de tienda de Steam, o desactivar la superposición.
 - **Varios niños.** Con una sola cuenta de Windows, Game Access no sabe qué niño juega. ¿Se elige el perfil del niño al abrir, cada uno con su tiempo?
 - **Detener el servicio.** Si la cuenta del adulto es administradora, Windows solo pide "Sí" (sin contraseña) para tareas de administrador. Con el escritorio libre, alguien que sepa podría cambiar los permisos del servicio y detenerlo. Para chicos de menos de 12 se acepta; un quiosco lo cerraría.
-- **Reconocimiento.** Algún juego chico sin manifiesto ni motor conocido puede pasar sin ser reconocido. ¿Alcanza con poder agregarlo a mano desde la pantalla del adulto?
+- **Lo que la lista blanca puede romper.** Un programa legítimo fuera de `Program Files` se cierra hasta que el adulto lo permite: utilidades de periféricos, Discord, Spotify, actualizadores. Y un juego dentro de `Program Files` que no sea de Steam, Epic o GOG pasaría. ¿Alcanza con la lista de bloqueados y su "Permitir" del punto 3, y con poder sacar carpetas de `Program Files`?
 
 ## Idea central: Game Access como escritorio de la cuenta del niño (modo quiosco) — reemplazado 2026-10-30, ver arriba
 1. El niño tiene **su propia cuenta local estándar de Windows** (sin permisos de administrador).
