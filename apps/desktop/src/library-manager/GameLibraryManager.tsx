@@ -370,7 +370,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       {open && game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
         <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
-      {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}`}>
+      {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}${freezing?.mode === "move" ? " has-move" : ""}`}>
         <History game={game} c={c} job={freezing} />
         {/* Cancelled, the cubes go back where they were: the game is as it was. */}
         {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} fallback={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}

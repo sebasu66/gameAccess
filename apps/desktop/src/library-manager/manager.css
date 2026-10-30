@@ -187,27 +187,36 @@
 .lm-apps-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #929ba2; font: 12px Consolas, monospace; }
 .lm-apps .lm-acts { display: flex; gap: 6px; }
 
-/* A move into the library (MoveArt.tsx), in the place of the freeze bar: half the row, the cover and the folder about
-   as high as the log, files flowing between them. The cover empties from the top, the folder's copy fills from the
-   bottom (clip-path set from the share). */
-.lm-move { flex: 0 1 50%; height: 13rem; display: flex; align-items: center; justify-content: center; gap: 0; min-width: 0; container-type: inline-size; }
-/* The cover and the folder shrink together to fit the room (cover 2:3 + folder 6:5 + the gap with the files + the
-   readout), up to the log's height; centred in their half. */
-.lm-move-cover { position: relative; flex: none; height: min(13rem, calc((100cqw - 180px) / 1.87)); aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
+/* A move into the library (MoveArt.tsx), in the place of the freeze bar: the row splits in two equal halves, the log
+   on the left and on the right a box of the log's size (same top, same 13rem) drawn as faint guide lines, like the
+   ones behind the GAME ACCESS word (brand-sketch.css), fading at the edges. Over it the cover and the folder, as high
+   as the box allows (12 px inside, like the log's padding) and shrinking together when the half is narrow; the share
+   in the box's corner. The cover empties from the top, the folder's copy fills from the bottom (clip-path). */
+.lm-history-row.has-move { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.lm-history-row.has-move > .lm-history { max-width: none; height: 13rem; }
+.lm-move { position: relative; height: 13rem; display: flex; align-items: center; justify-content: center; min-width: 0; padding: 12px; box-sizing: border-box; container-type: inline-size; }
+.lm-move::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  --guide: color-mix(in srgb, var(--ga-white) 9%, transparent);
+  background: linear-gradient(var(--guide) 1px, transparent 1px) 0 -1px / 100% 26px, linear-gradient(90deg, var(--guide) 1px, transparent 1px) -1px 0 / 26px 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 14%, black 86%, transparent), linear-gradient(transparent, black 10%, black 90%, transparent);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent, black 14%, black 86%, transparent), linear-gradient(transparent, black 10%, black 90%, transparent);
+  mask-composite: intersect; }
+.lm-move-cover { position: relative; flex: none; height: min(100%, calc((100cqw - 100px) / 1.87)); aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
   border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--ga-white) 4%, transparent); }
 .lm-move-cover img, .lm-move-inner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: clip-path .4s linear; }
-.lm-move-flow { position: relative; flex: none; width: 76px; height: 40px; overflow: hidden; }
+.lm-move-middle { flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lm-move-flow { position: relative; width: 76px; height: 40px; overflow: hidden; }
 .lm-move-file { position: absolute; top: 10px; left: 0; width: 16px; height: 20px; fill: none; stroke: var(--ga-orange); stroke-width: 1.4;
   stroke-linejoin: round; opacity: 0; animation: lm-move-file 1.8s linear infinite; }
 @keyframes lm-move-file { 0% { transform: translate(-16px, 6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(30px, -6px); } 80% { opacity: 1; } 100% { transform: translate(76px, 6px); opacity: 0; } }
-.lm-move-folder { position: relative; flex: none; height: min(13rem, calc((100cqw - 180px) / 1.87)); aspect-ratio: 6 / 5; }
+.lm-move-folder { position: relative; flex: none; height: min(100%, calc((100cqw - 100px) / 1.87)); aspect-ratio: 6 / 5; }
 .lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
 .lm-move-inner { position: absolute; left: 50%; top: 56%; height: 64%; aspect-ratio: 2 / 3; transform: translate(-50%, -50%); border-radius: 5px; overflow: hidden;
   outline: 1px dashed color-mix(in srgb, var(--ga-white) 22%, transparent); outline-offset: 2px; }
-.lm-move-readout { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-left: 20px; }
-.lm-move-readout b { font: 400 40px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange); }
+.lm-move-readout { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; text-align: center; }
+.lm-move-readout b { font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange); }
 .lm-move-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
-.lm-move-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
+.lm-move-readout span { font-size: 10px; font-weight: 700; letter-spacing: .08em; line-height: 1.4; text-transform: uppercase; font-variant-numeric: tabular-nums; opacity: .85; }
 .lm-move.is-failed .lm-move-cover, .lm-move.is-failed .lm-move-inner { border-color: var(--ga-danger); outline-color: var(--ga-danger); }
 .lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
 .lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); }
