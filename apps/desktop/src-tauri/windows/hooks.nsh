@@ -227,7 +227,33 @@ Function GaFoldersLeave
 FunctionEnd
 !macroend
 
+; Kid mode's restrictor (src-tauri/src/restrictor.rs) is this same executable run by Windows as a service: it is
+; stopped before the files are replaced (an update included), or the executable could not be overwritten.
+!define GA_RESTRICTOR "GameAccessRestrictor"
+!macro NSIS_HOOK_PREINSTALL
+  nsExec::Exec `sc.exe stop ${GA_RESTRICTOR}`
+  Pop $0
+  Sleep 1500
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
+  ; The restrictor's settings folder is open to Users: the child uses the parent's same Windows account (the parent's
+  ; key in Game Access is the barrier), and the parent's Game Access writes it without asking Windows for permission.
+  ; Then the service is registered (or pointed at this executable), restarted if it ever stops, and started.
+  ReadEnvStr $1 ProgramData
+  CreateDirectory "$1\GameAccessestriccion"
+  nsExec::Exec `icacls "$1\GameAccessestriccion" /grant *S-1-5-32-545:(OI)(CI)M`
+  Pop $0
+  nsExec::Exec `sc.exe create ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto DisplayName= "Game Access kid mode"`
+  Pop $0
+  nsExec::Exec `sc.exe config ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto`
+  Pop $0
+  nsExec::Exec `sc.exe description ${GA_RESTRICTOR} "Kid mode: only the allowed games and programs run while it is on."`
+  Pop $0
+  nsExec::Exec `sc.exe failure ${GA_RESTRICTOR} reset= 86400 actions= restart/1000/restart/1000/restart/1000`
+  Pop $0
+  nsExec::Exec `sc.exe start ${GA_RESTRICTOR}`
+  Pop $0
   ${If} $GaShown == 1
     SetRegView 64
     WriteRegStr HKLM "${GA_REGKEY}" "GamesDir" $GaGamesDir
@@ -246,6 +272,14 @@ FunctionEnd
 ; account whose desktop is Game Access would be a black screen without it. Runs before the files go (the script is
 ; in the install folder) and never in an update, which would otherwise erase the account at every new version.
 !macro NSIS_HOOK_PREUNINSTALL
+  ; The restrictor is stopped in any case (its executable goes), and removed unless this is an update.
+  nsExec::Exec `sc.exe stop ${GA_RESTRICTOR}`
+  Pop $0
+  Sleep 1500
+  ${If} $UpdateMode <> 1
+    nsExec::Exec `sc.exe delete ${GA_RESTRICTOR}`
+    Pop $0
+  ${EndIf}
   ${If} $UpdateMode <> 1
   ${AndIf} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
     nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -RemoveAll`

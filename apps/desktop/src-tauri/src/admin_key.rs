@@ -94,10 +94,13 @@ fn clear_at(path: &Path, current: Option<&str>, set_up: bool) -> Result<(), Stri
     match fs::remove_file(path) { Ok(()) => Ok(()), Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()), Err(err) => Err(err.to_string()) }
 }
 
+/// Kid mode was set up: in the new model (restrictor.rs) or with a child's account (kid_mode.rs).
+fn set_up() -> bool { crate::restrictor::set_up() || crate::kid_mode::kid_mode_set_up() }
+
 // DPAPI runs off the window's thread, like the parental control's commands.
 #[tauri::command]
 pub async fn admin_key_state() -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, set_up())).await.map_err(|e| e.to_string())?
 }
 
 /// Whether what was typed is the password. There is no limit on tries: the gate asks on every change once the length fits.
@@ -108,12 +111,12 @@ pub async fn admin_key_check(attempt: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn admin_key_set(word: String, current: Option<String>) -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), set_up())).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), set_up())).await.map_err(|e| e.to_string())?
 }
 
 /// The password, for the parent's key tab: shown only while its eye is held pressed. That tab is reachable only as

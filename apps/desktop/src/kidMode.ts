@@ -8,10 +8,11 @@ import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
 
 /**
- * Kid mode (vault/Modo niño.md, src-tauri/src/kid_mode.rs). The family file says which Windows accounts are children
- * and what each may play; only an administrator writes it. In the adult's account the kid mode screen and the library
- * manager edit a draft here, and "Apply" sends it to Windows (one permission question). In a child's account the app
- * opens the kid screen instead of the library.
+ * Kid mode (vault/Modo niño.md). New model (2026-10-30, src-tauri/src/restrictor.rs): one child, the parent's same
+ * Windows account, and a service that while kid mode is on lets only the allow list run: the child's library games, the
+ * installed programs the parent leaves ticked, and Windows. The kids screen and the library manager edit a draft here;
+ * "Apply" saves it to the restrictor's settings (no Windows permission question). The earlier model, a Windows account
+ * for the child (kid_mode.rs and its family file), still runs in a child's account until the parent deletes it.
  */
 /** `appId`: a library game's Steam AppID, or `-id` for a shortcut to another program (appShortcuts.ts). */
 export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean;
@@ -61,40 +62,121 @@ export async function sendKidControl(sid: string, action: KidControlAction, minu
 }
 export const validKidName = (name: string) => /^[A-Za-z0-9._-]{1,20}$/.test(name);
 
-const DRAFT_KEY = "gameaccess.kidDraft";
+/** An installed program the parent allows besides the child's games (everything under its folder runs). */
+export interface AllowedProgram { name: string; folder: string }
+/** One program of Windows' list: "program" starts allowed; "game" and "launcher" (a game store) start not allowed (games
+ *  come from the library) but may be ticked; "windows" is always allowed. */
+export interface DetectedProgram extends AllowedProgram { publisher: string; kind: "program" | "game" | "launcher" | "windows" }
+/** What the restrictor reads (restrictor.rs `Restriction`). */
+export interface Restriction { version: number; enabled: boolean; kid: Kid; programs: AllowedProgram[] }
+/** The restrictor itself: its service ("missing" with an installer older than the new model) and whether the settings
+ *  can be written here; `enabled`: kid mode is on (the big switch). */
+export interface RestrictionStatus { service: "running" | "stopped" | "missing"; writable: boolean; enabled: boolean }
+/** One process the restrictor closed. */
+export interface RestrictionBlock { at: number; name: string; path: string; game: boolean; count: number }
+
+// "2": the new model starts its wizard from zero; a draft of the child's Windows account is not carried over.
+const DRAFT_KEY = "gameaccess.kidDraft2";
+const PROGRAMS_KEY = "gameaccess.kidPrograms2";
 let applied: Kid | null = null;
 let draft: Kid = NEW_KID;
+let appliedPrograms: AllowedProgram[] = [];
+/** The programs ticked now; null until the parent (or the first detection) chose. */
+let programs: AllowedProgram[] | null = null;
+let detected: DetectedProgram[] | null = null;
+let status: RestrictionStatus = { service: "missing", writable: false, enabled: false };
 let loaded = false;
 const listeners = new Set<() => void>();
 const emit = () => { for (const listener of listeners) listener(); };
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* the draft is a convenience */ }
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); localStorage.setItem(PROGRAMS_KEY, JSON.stringify(programs)); } catch { /* the draft is a convenience */ }
 }
 
-/** Reads the family file once (the first child is the one the screen edits) and any unapplied draft. */
+/** Reads the restrictor's settings once (the child and the allowed programs) and any unapplied draft. */
 export async function loadKidFamily(): Promise<void> {
   if (loaded) return;
   loaded = true;
   if (hasTauriRuntime()) {
-    try { applied = (await invoke<Family>("kid_family")).kids[0] ?? null; } catch { applied = null; }
+    try {
+      const read = await invoke<{ config: Restriction | null; service: RestrictionStatus["service"]; writable: boolean }>("restriction_state");
+      applied = read.config?.kid ?? null;
+      appliedPrograms = read.config?.programs ?? [];
+      status = { service: read.service, writable: read.writable, enabled: read.config?.enabled ?? false };
+    } catch { applied = null; }
   }
   let stored: Kid | null = null;
-  try { stored = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null"); } catch { stored = null; }
+  let storedPrograms: AllowedProgram[] | null = null;
+  try { stored = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null"); storedPrograms = JSON.parse(localStorage.getItem(PROGRAMS_KEY) ?? "null"); } catch { stored = null; }
   draft = stored ?? applied ?? NEW_KID;
+  programs = storedPrograms ?? (applied ? appliedPrograms : null);
+  emit();
+}
+
+/** Windows' list of installed programs, read once. The first time (nothing chosen yet) every program starts allowed. */
+export async function loadDetectedPrograms(): Promise<void> {
+  if (detected) return;
+  detected = hasTauriRuntime() ? await invoke<DetectedProgram[]>("restriction_programs").catch(() => []) : [];
+  if (programs === null) programs = detected.filter(item => item.kind === "program").map(({ name, folder }) => ({ name, folder }));
+  emit();
+}
+
+const sameFolder = (left: string, right: string) => left.replace(/[\\/]+$/, "").toLowerCase() === right.replace(/[\\/]+$/, "").toLowerCase();
+export const programAllowed = (folder: string) => (programs ?? []).some(item => sameFolder(item.folder, folder));
+
+/** Ticks or unticks an installed program. */
+export function toggleKidProgram(program: AllowedProgram) {
+  const list = programs ?? [];
+  programs = programAllowed(program.folder) ? list.filter(item => !sameFolder(item.folder, program.folder)) : [...list, { name: program.name, folder: program.folder }];
+  saveDraft();
+  emit();
+}
+
+/** Ticks exactly these programs ("All" and "None"). */
+export function setKidPrograms(list: AllowedProgram[]) {
+  programs = list;
+  saveDraft();
+  emit();
+}
+
+/** Allows what the restrictor closed: the folder of that program (the change waits for "Apply"). */
+export function allowBlocked(block: RestrictionBlock) {
+  const folder = block.path.replace(/[\\/][^\\/]*$/, "");
+  if (!programAllowed(folder)) toggleKidProgram({ name: block.name, folder });
+}
+
+export async function readRestrictionBlocks(): Promise<RestrictionBlock[]> {
+  if (!hasTauriRuntime()) return [];
+  return invoke<RestrictionBlock[]>("restriction_blocks").catch(() => []);
+}
+
+/** The big switch: kid mode's restrictor on or off, saved at once (only for a kid mode already set up). */
+export async function setKidModeEnabled(enabled: boolean): Promise<void> {
+  if (!applied) return;
+  if (hasTauriRuntime()) {
+    try { await invoke("restriction_save", { config: { version: 1, enabled, kid: applied, programs: appliedPrograms } }); }
+    catch (error) { throw reportKidFailure(enabled ? "turning kid mode on" : "turning kid mode off", error); }
+  }
+  status = { ...status, enabled };
   emit();
 }
 
 const gameKey = (game: KidGame) => `${game.appId}:${game.dailyMinutes ?? 0}`;
 const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...left, library: undefined, games: left.games.map(gameKey).sort() })
   === JSON.stringify({ ...right, library: undefined, games: right.games.map(gameKey).sort() });
+/** One empty list, so the state snapshot stays the same while nothing is chosen (useSyncExternalStore). */
+const NO_PROGRAMS: AllowedProgram[] = [];
+const programKeys = (list: AllowedProgram[]) => list.map(item => item.folder.toLowerCase()).sort().join("|");
 
-export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean }
-let snapshot: KidState = { draft, applied, dirty: false };
+export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean; programs: AllowedProgram[]; detected: DetectedProgram[] | null; status: RestrictionStatus }
+let snapshot: KidState = { draft, applied, dirty: false, programs: [], detected, status };
 function state(): KidState {
-  const dirty = !sameKid(applied, draft) && (applied !== null || draft.name !== "");
-  if (snapshot.draft !== draft || snapshot.applied !== applied || snapshot.dirty !== dirty) snapshot = { draft, applied, dirty };
+  const chosen = programs ?? NO_PROGRAMS;
+  const dirty = (!sameKid(applied, draft) || (applied !== null && programKeys(appliedPrograms) !== programKeys(chosen))) && (applied !== null || draft.name !== "");
+  if (snapshot.draft !== draft || snapshot.applied !== applied || snapshot.dirty !== dirty || snapshot.programs !== chosen || snapshot.detected !== detected || snapshot.status !== status) {
+    snapshot = { draft, applied, dirty, programs: chosen, detected, status };
+  }
   return snapshot;
 }
 
@@ -175,20 +257,26 @@ async function withEntries(games: KidGame[]): Promise<KidGame[]> {
 
 export class KidApplyError extends Error { constructor(readonly code: string) { super(code); } }
 
-/** Sends the draft to Windows: creates or updates the child's account and writes the family file. */
+/** Saves the draft to the restrictor's settings: the child, its games (with their folders, asked to the launcher now)
+ *  and the allowed programs. Setting it up the first time turns kid mode on. */
 export async function applyKidDraft(): Promise<void> {
   if (getActivationTier() !== "plus" && hasTauriRuntime()) throw new KidApplyError("needs_plus");
   if (!validKidName(draft.name)) throw new KidApplyError("bad_name");
-  if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; emit(); return; }
+  const enabled = applied ? status.enabled : true;
+  const chosen = programs ?? [];
+  if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; appliedPrograms = chosen; status = { ...status, enabled }; emit(); return; }
   const kid = { ...draft, games: await withEntries(draft.games) };
   try {
-    const family = await invoke<Family>("kid_apply", { kid });
-    applied = family.kids.find(item => item.name.toLowerCase() === kid.name.toLowerCase()) ?? null;
+    const saved = await invoke<{ config: Restriction | null; service: RestrictionStatus["service"]; writable: boolean }>("restriction_save", { config: { version: 1, enabled, kid, programs: chosen } });
+    applied = saved.config?.kid ?? kid;
+    appliedPrograms = saved.config?.programs ?? chosen;
+    status = { service: saved.service, writable: saved.writable, enabled: saved.config?.enabled ?? enabled };
   } catch (error) {
-    throw reportKidFailure("creating the child's account", error);
+    throw reportKidFailure("saving kid mode", error);
   }
-  draft = applied ?? kid;
-  try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing kept */ }
+  draft = applied;
+  programs = appliedPrograms;
+  try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(PROGRAMS_KEY); } catch { /* nothing kept */ }
   emit();
 }
 
@@ -200,15 +288,17 @@ function reportKidFailure(what: string, error: unknown): KidApplyError {
   return new KidApplyError(code);
 }
 
-/** Undoes kid mode: Windows asks for permission, the child's account and its profile are deleted, the family file and
- *  the time files lose the child, and the screen goes back to how it was before the wizard. */
+/** Undoes kid mode: the restrictor's settings go (nothing is closed any more) and the screen goes back to the wizard. */
 export async function resetKidMode(): Promise<void> {
   if (hasTauriRuntime() && applied) {
-    try { await invoke("kid_remove", { name: applied.name }); } catch (error) { throw reportKidFailure("removing kid mode", error); }
+    try { await invoke("restriction_clear"); } catch (error) { throw reportKidFailure("removing kid mode", error); }
   }
   applied = null;
+  appliedPrograms = [];
+  programs = null;
+  status = { ...status, enabled: false };
   draft = { ...NEW_KID, games: [] };
-  try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing kept */ }
+  try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(PROGRAMS_KEY); } catch { /* nothing kept */ }
   emit();
 }
 

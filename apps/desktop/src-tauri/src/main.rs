@@ -32,11 +32,14 @@ mod webview_rest;
 mod window_fit;
 mod process_control;
 mod kid_mode;
+mod restrictor;
 mod app_shortcuts;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    // Kid mode's restrictor (restrictor.rs): the Windows service, or the same loop in a console.
+    if restrictor::run_if_requested() { return; }
     // The child's desktop (kid_mode.rs): this process only watches the real app.
     if kid_mode::run_shell_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
@@ -178,6 +181,12 @@ fn main() {
             kid_mode::kid_play,
             kid_mode::kid_sign_out,
             kid_mode::kid_family,
+            restrictor::restriction_state,
+            restrictor::restriction_save,
+            restrictor::restriction_clear,
+            restrictor::restriction_blocks,
+            restrictor::restriction_notice,
+            restrictor::restriction_programs,
             kid_mode::kid_live,
             kid_mode::kid_control,
             kid_mode::kid_plus_set,

@@ -129,3 +129,8 @@
 .ga-kid-schedule tbody th { color: var(--ga-white); font: var(--ga-status-font); letter-spacing: 0; text-transform: capitalize; }
 .ga-kid-schedule td { padding: 0 var(--ga-space-2) 0 0; }
 .ga-kid-schedule select { width: 100%; min-width: 120px; }
+
+/* The big kid mode switch, first thing on the parental control screen (KidControlPanel.tsx): a box with the state,
+   what it means and the one button that turns it on or off. */
+.ga-kid-power { padding: 14px 16px; border: 1px solid var(--ga-orange-line); border-radius: 12px; background: var(--ga-orange-tint); }
+.ga-kid-power-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }

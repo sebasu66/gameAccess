@@ -41,10 +41,11 @@ const finishWizard = async (name = "Juan") => {
   await press(/^Empezar|^Start/);
   await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
   await press(/Siguiente: filtro|Next: content filter/);
-  await press(/Siguiente: la cuenta|Next: your child/);
+  await press(/Siguiente: tu hijo|Next: your child/);
   await act(async () => { setKidDraft({ name }); });
   await press(/Siguiente: sus juegos|Next: their games/);
-  await press(/Crear la cuenta|Create the account/);
+  await press(/Siguiente: programas|Next: programs/);
+  await press(/Encender el modo niño|Turn kid mode on/);
 };
 
 beforeEach(async () => {
@@ -95,7 +96,7 @@ describe("Niños en casa", () => {
     await press(/^Empezar|^Start/);
     expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("perro");
     await press(/Siguiente: filtro|Next: content filter/);
-    await press(/Siguiente: la cuenta|Next: your child/);
+    await press(/Siguiente: tu hijo|Next: your child/);
     // 3. The account: Next waits for a valid name.
     expect(button(/Siguiente: sus juegos|Next: their games/)!.disabled).toBe(true);
     await act(async () => { setKidDraft({ name: "Juan" }); });
@@ -103,16 +104,17 @@ describe("Niños en casa", () => {
     const chip = (index: string) => [...panel().querySelectorAll<HTMLButtonElement>(".ga-kid-progress button")].find(item => item.textContent === index)!;
     await act(async () => { chip("2").click(); });
     expect(panel().querySelector(".ga-kid-step h3")!.textContent).toMatch(/Filtro de contenido|content filter/i);
-    await press(/Siguiente: la cuenta|Next: your child/);
+    await press(/Siguiente: tu hijo|Next: your child/);
     expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("Juan");
     await press(/Siguiente: sus juegos|Next: their games/);
     // 4. The games, then finish: kid mode is on and the screen is the control panel.
     expect(text()).toMatch(/qué juegos verá tu hijo|which games your child will see/);
-    await press(/Crear la cuenta|Create the account/);
+    await press(/Siguiente: programas|Next: programs/);
+    await press(/Encender el modo niño|Turn kid mode on/);
     expect(getAdminKey()).toEqual({ enabled: true, length: 5 });
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
     expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
-      expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
+      expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Programas|Programs/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
     ]);
   });
 
@@ -122,7 +124,7 @@ describe("Niños en casa", () => {
     await press(/^Empezar|^Start/);
     await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
     await press(/Siguiente: filtro|Next: content filter/);
-    await press(/Siguiente: la cuenta|Next: your child/);
+    await press(/Siguiente: tu hijo|Next: your child/);
     // Monday first: two hours from 12 to 21; Saturday and Sunday three hours from 9 to 22.
     const rows = [...panel().querySelectorAll<HTMLTableRowElement>(".ga-kid-schedule tbody tr")];
     expect(rows).toHaveLength(7);

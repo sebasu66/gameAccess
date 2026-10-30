@@ -2,6 +2,7 @@ import ActivityConsole from "./ActivityConsole";
 import GaNotice from "./notice/GaNotice";
 import { usePlayerFrame } from "./ParentModeButton";
 import { startDownloadNotifications } from "./downloadNotifications";
+import { startRestrictionNotices } from "./restrictionNotice";
 import RenderProbe from "./RenderProbe";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -134,6 +135,7 @@ function CatalogShell() {
 
 startClientErrorReporting();
 startDownloadNotifications();
+startRestrictionNotices();
 startModalStack();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 

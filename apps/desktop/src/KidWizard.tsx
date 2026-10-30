@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, ArrowRight, Check, EyeOff, Lock, MonitorPlay, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import KidPrograms from "./KidPrograms";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { showNotice } from "./notice/notice";
@@ -16,12 +17,13 @@ import { DaySchedule } from "./KidTime";
 /**
  * Kids screen while kid mode is off (vault/Modo niño.md): the page that explains the features always comes first,
  * with or without PLUS. "Start" (PLUS only) opens the steps, one at a time in a stage of fixed height (the dialog never
- * grows): the parent's key, the adult content filter, the child's account and the child's games. Back returns without
- * losing anything; finishing saves the parent's key and creates the account, and only then kid mode and the parent's
+ * grows): the parent's key, the adult content filter, the child (name and time), the child's games and the programs
+ * allowed besides them (detected from Windows, all ticked). Back returns without losing anything; finishing saves the
+ * parent's key and the restrictor's settings with kid mode on (restrictor.rs), and only then kid mode and the parent's
  * key are on (an unfinished wizard leaves nothing that the opening asks for, admin_key.rs).
  * Stage: prototype (docs, logs, new translations and unit tests still pending).
  */
-type Step = 0 | 1 | 2 | 3 | 4;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
 /** Translates a failed "create the account" into words. */
 export function applyErrorText(failure: unknown, t: ReturnType<typeof useI18n>["t"]): string {
@@ -93,7 +95,7 @@ export default function KidWizard({ onPlus }: { onPlus: () => void }) {
     if (!validKidName(draft.name)) { setError(t("kidBadName")); return; }
     setBusy(true); setError("");
     try {
-      // The key first: until the account exists it stays asleep, and a failed account leaves kid mode off.
+      // The key first: until kid mode is saved it stays asleep, and a failed save leaves kid mode off.
       try { await keyStep.keep(); } catch (failure) { setError(t("adminKeyFailed", { error: String(failure) })); return; }
       await applyKidDraft();
       if (hasTauriRuntime()) await loadAdminKey().catch(() => undefined);
@@ -117,7 +119,7 @@ export default function KidWizard({ onPlus }: { onPlus: () => void }) {
     gsap.fromTo(el.firstElementChild, { autoAlpha: 0, y: step > from ? 32 : -32 },
       { autoAlpha: 1, y: 0, duration: dur(0.32), ease: "power2.out", overwrite: "auto", clearProps: "transform,opacity,visibility" });
   }, { scope: stage, dependencies: [step] });
-  const views: Record<1 | 2 | 3 | 4, StepView> = {
+  const views: Record<1 | 2 | 3 | 4 | 5, StepView> = {
     1: { title: t("kidKeyTitle"), body: keyStep.body, next: keyStep.save, nextLabel: t("kidKeyNext"), nextDisabled: !keyStep.ready },
     2: { title: t("kidFilterTitle"), body: <><p>{t("kidFilterText")}</p><ParentalControlSection /></>, next: () => go(3), nextLabel: t("kidFilterNext") },
     3: {
@@ -126,22 +128,28 @@ export default function KidWizard({ onPlus }: { onPlus: () => void }) {
         <ul className="ga-kid-how">{[t("kidHow1"), t("kidHow2"), t("kidHow3"), t("kidHow4")].map(line => <li key={line}><UserRound size={16} aria-hidden="true" /><p className="ga-hint">{line}</p></li>)}</ul>
         <label className="ga-field"><span>{t("kidStep1Label")}</span>
           <input value={draft.name} maxLength={20} placeholder={t("kidAccountPlaceholder")} onChange={event => setKidDraft({ name: event.target.value.trim() })} /></label>
-        <p className="ga-hint">{t("kidAccountNoPassword")}</p>
         <DaySchedule draft={draft} />
       </>,
     },
     4: {
-      title: t("kidGamesTitle"), next: () => void finish(), nextLabel: busy ? t("kidApplying") : t("kidFinish"), nextIcon: <ShieldCheck size={16} aria-hidden="true" />, nextDisabled: busy || !plus,
+      title: t("kidGamesTitle"), next: () => go(5), nextLabel: t("kidGamesNext"),
       body: <>
         <p>{t("kidGamesText")}</p>
         <KidGamesGrid />
+      </>,
+    },
+    5: {
+      title: t("kidProgramsTitle"), next: () => void finish(), nextLabel: busy ? t("kidApplying") : t("kidFinish"), nextIcon: <ShieldCheck size={16} aria-hidden="true" />, nextDisabled: busy || !plus,
+      body: <>
+        <p>{t("kidProgramsText")}</p>
+        <KidPrograms />
         <p className="ga-hint">{t("kidFinishHint")}</p>
       </>,
     },
   };
   const view = step === 0 ? null : views[step];
   return <div className="ga-kid-wizard" data-stage="prototype">
-    {view ? <ol className="ga-kid-progress">{([1, 2, 3, 4] as const).map(index => {
+    {view ? <ol className="ga-kid-progress">{([1, 2, 3, 4, 5] as const).map(index => {
       const done = step > index;
       const label = done ? t("kidStepDone", { step: String(index) }) : t("kidStepOf", { step: String(index) });
       return <li key={index} aria-label={label} aria-current={step === index ? "step" : undefined}>

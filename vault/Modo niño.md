@@ -38,6 +38,8 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 5. **Tiempo.** Lo cuenta el servicio, por los procesos de los juegos permitidos, aunque Game Access esté cerrado. Al terminarse, el servicio cierra el juego y Game Access muestra que se acabó.
 6. **Celular** (MN.9): el padre ve el tiempo y manda órdenes (más tiempo, cerrar el día, apagar el modo restrictivo) a través del servidor; el servicio las recibe.
 
+**Hecho (2026-10-30, sin probar instalado):** el servicio y la lista blanca (MN.17 y MN.18), el asistente de cinco pasos (clave, filtro, tu hijo, sus juegos, programas permitidos) y el interruptor grande. Un solo niño por ahora (Seba): varios niños necesitarían un perfil cada uno, con su horario. El asistente arranca de cero (no toma el borrador de la cuenta vieja). Todavía no: el tiempo y los horarios en el servicio (MN.20).
+
 **Qué se va:** la cuenta de Windows del niño, `kid-account.ps1`, las directivas de restricción, y `familia.json` como está hoy. La configuración pasa a `ProgramData\GameAccess`, escrita por el servicio. Para migrar: "Quitar el modo niño" borra la cuenta de Fran.
 
 **Qué se gana:** Steam funciona tal cual (los "recordarme" y el cambio automático de cuenta del adulto), los juegos usan la misma biblioteca y los mismos permisos, los que piden administrador andan, y configurar es elegir juegos, horario y tiempo.

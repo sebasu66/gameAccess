@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { HelpCircle, KeyRound, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import { HelpCircle, KeyRound, Power, PowerOff, ShieldCheck, Smartphone, Trash2, UserRound } from "lucide-react";
+import KidPrograms, { KidBlocked } from "./KidPrograms";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { confirmNotice, showNotice } from "./notice/notice";
@@ -10,11 +11,13 @@ import AdminKeySection from "./AdminKeySection";
 import KidGamesGrid from "./KidGamesGrid";
 import { DaySchedule, LiveControls, Week } from "./KidTime";
 import { applyErrorText } from "./KidWizard";
-import { applyKidDraft, EMPTY_LIVE, KidApplyError, readKidLive, resetKidMode, setKidDraft, useKidState, usePlus, type KidLive } from "./kidMode";
+import { applyKidDraft, EMPTY_LIVE, KidApplyError, readKidLive, resetKidMode, setKidModeEnabled, useKidState, usePlus, type KidLive } from "./kidMode";
 
 /**
- * Kids screen once kid mode is on (vault/Modo niño.md): one control panel with four tabs, the child's games, time,
- * the content filter and support & settings. Anyone sees it; only the administrator (the parent's key) can change it.
+ * Kids screen once kid mode is set up (vault/Modo niño.md): first of all the big switch that turns kid mode's
+ * restrictor on or off (restrictor.rs; the parent mode itself does not turn it off), then one control panel with five
+ * tabs: the child's games, the allowed programs (with what was blocked), time, the content filter and support & settings.
+ * Only the parent mode reaches this screen (ParentModeButton.tsx).
  */
 function Locked({ admin, children }: { admin: boolean; children: ReactNode }) {
   return <fieldset className="ga-kid-scope ga-stack" disabled={!admin}>{children}</fieldset>;
@@ -32,7 +35,6 @@ function TimeTab({ sid }: { sid: string }) {
     return () => { stopped = true; window.clearInterval(timer); };
   }, [sid]);
   return <>
-    <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={draft.enabled} onChange={event => setKidDraft({ enabled: event.target.checked })} />{t("kidModeOn")}</label>
     <DaySchedule draft={draft} />
     <Week live={live} draft={draft} />
     <LiveControls sid={sid} live={live} onLive={setLive} />
@@ -53,6 +55,29 @@ function SupportTab({ busy, onReset }: { busy: boolean; onReset: () => void }) {
       <div className="ga-actions"><GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} disabled={busy} onClick={onReset}>{t("kidReset")}</GaButton></div>
     </fieldset>
   </>;
+}
+
+/** The big switch: kid mode on (only the allow list runs) or off (nothing is closed). Saved at once. */
+function KidSwitch() {
+  const { t } = useI18n();
+  const { status } = useKidState();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const turn = async (on: boolean) => {
+    setBusy(true); setError("");
+    try { await setKidModeEnabled(on); } catch (failure) { setError(t("kidApplyFailed", { error: failure instanceof KidApplyError ? failure.code : String(failure) })); } finally { setBusy(false); }
+  };
+  const service = status.service === "missing" ? t("kidServiceMissing") : status.service === "stopped" ? t("kidServiceStopped") : "";
+  return <section className="ga-kid-power ga-stack ga-stack-sm" aria-live="polite">
+    <div className="ga-kid-power-row">
+      <div className="ga-stack ga-stack-sm"><h3 className="ga-heading">{status.enabled ? t("kidSwitchOn") : t("kidSwitchOff")}</h3><p className="ga-hint">{status.enabled ? t("kidSwitchOnHint") : t("kidSwitchOffHint")}</p></div>
+      {status.enabled
+        ? <GaButton variant="danger" icon={<PowerOff size={16} aria-hidden="true" />} disabled={busy} onClick={() => void turn(false)}>{t("kidSwitchTurnOff")}</GaButton>
+        : <GaButton variant="primary" icon={<Power size={16} aria-hidden="true" />} disabled={busy} onClick={() => void turn(true)}>{t("kidSwitchTurnOn")}</GaButton>}
+    </div>
+    {service ? <p className="ga-status is-warn" role="note">{service}</p> : null}
+    {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
+  </section>;
 }
 
 export default function KidControlPanel() {
@@ -80,6 +105,7 @@ export default function KidControlPanel() {
     } finally { setBusy(false); }
   };
   return <div className="ga-stack">
+    <KidSwitch />
     <p className="ga-kid-summary ga-hint"><UserRound size={16} aria-hidden="true" /><strong>{draft.name}</strong>
       <span>{draft.dailyMinutes ? t("kidMinutes", { minutes: String(draft.dailyMinutes) }) : t("kidNoLimit")} · {t("kidGames", { count: String(draft.games.length) })}</span></p>
     {admin ? null : <div className="ga-kid-plus ga-status" role="note"><KeyRound size={16} aria-hidden="true" /><span>{t("kidReadOnly")}</span>
@@ -87,6 +113,7 @@ export default function KidControlPanel() {
     {plus ? null : <p className="ga-kid-plus ga-status" role="note">{t("kidNeedsPlus")}</p>}
     <GaTabs label={t("familyTitle")} tabs={[
       { id: "games", label: t("kidTabGames"), content: <Locked admin={admin}><p className="ga-hint">{t("kidGamesHint")} {t("kidGameLimitHint")}</p><KidGamesGrid /></Locked> },
+      { id: "programs", label: t("kidTabPrograms"), content: <Locked admin={admin}><KidPrograms /><fieldset className="ga-group"><legend className="ga-label">{t("kidBlockedTitle")}</legend><KidBlocked /></fieldset></Locked> },
       { id: "time", label: t("kidTabTime"), content: <Locked admin={admin}><TimeTab sid={sid} /></Locked> },
       { id: "filter", label: t("familyTabFilter"), content: <Locked admin={admin}><ParentalControlSection /></Locked> },
       { id: "support", label: t("kidTabSupport"), content: <Locked admin={admin}><SupportTab busy={busy} onReset={() => void reset()} /></Locked> },
