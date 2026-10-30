@@ -99,3 +99,5 @@
 /* A game whose folder has a problem (the library manager's issue): an alert in the top left corner, its text on hover.
    The card stays where it is, so the library and the manager show the same games. */
 .ga-bento-alert { position: absolute; top: 10px; left: 10px; z-index: 3; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #ffcf5a; background: #241a06d9; box-shadow: 0 0 0 1px #ffcf5a77, 0 0 14px #ffcf5a44; pointer-events: auto; }
+/* The library with no game at all: what to do, with the two ways to add games right there. */
+.ga-library-empty { justify-items: center; max-width: 560px; margin: 12vh auto 0; text-align: center; }

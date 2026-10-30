@@ -15,7 +15,7 @@ import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { gsap, motionOk, useGSAP } from "./motion/gsap";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, Download, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, Download, FolderInput, HardDrive, LayoutGrid, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -37,7 +37,7 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
-import { GaClose, GaIconButton } from "./components/ga/Buttons";
+import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
 import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
@@ -199,6 +199,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const catalogSort = props.catalogSort ?? "steam-popularity";
   const onCatalogSortChange = props.onCatalogSortChange ?? (() => undefined);
   const searchQuery = props.searchQuery ?? "";
+  // The library has no game at all (not one hidden by a search or a filter): say so and offer the two ways to add games.
+  const libraryEmpty = view === "library" && getCatalogMode() === "digital" && !props.hasInstalled && !displaySection.games.length && !searchQuery.trim();
   const onSearchQueryChange = props.onSearchQueryChange ?? (() => undefined);
   const allGames = props.allGames ?? props.games;
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
@@ -208,6 +210,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
+  // "Import" in the empty library: the manager opens with its import already started.
+  const [importOnOpen, setImportOnOpen] = useState(false);
   // With the manager shown, the round scrollbar moves its games' rows; the rest of the manager stays put.
   const managerScrollRef = useRef<HTMLDivElement>(null);
   const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
@@ -519,9 +523,16 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         {showManager ? (
           <div className="ga-manager-view">
             <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>
-            <GameLibraryManager embedded focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+            <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
           </div>
-        ) : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
+        ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">
+          <h2 id="ga-library-empty-title" className="ga-heading">{t("libraryEmptyTitle")}</h2>
+          <p>{t("libraryEmptyText")}</p>
+          <div className="ga-actions">
+            <GaButton variant="primary" icon={<FolderInput size={16} aria-hidden="true" />} onClick={() => { setImportOnOpen(true); toggleManager(true); }}>{t("libraryEmptyImport")}</GaButton>
+            <GaButton icon={<LayoutGrid size={16} aria-hidden="true" />} onClick={() => onViewChange("catalog")}>{t("tabCatalog")}</GaButton>
+          </div>
+        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
       {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>

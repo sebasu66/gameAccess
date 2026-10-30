@@ -417,8 +417,10 @@ function SortHeader({ id, label, title, sort, setSort, t }: { id: SortKey; label
   );
 }
 
-export default function GameLibraryManager({ onClose, catalog = [], onInstall, onPlay, focusAppId, embedded = false, query = "", scrollRef }: {
-  onClose: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
+export default function GameLibraryManager({ onClose, catalog = [], onInstall, onPlay, focusAppId, embedded = false, query = "", scrollRef, startImport = false, onImportStarted }: {
+  onClose: () => void;
+  /** Opened from the empty library's "Import": the import starts at once (after the parent's key, as its button). */
+  startImport?: boolean; onImportStarted?: () => void; catalog?: CatalogGame[]; onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   /** Highlights this game's row and scrolls to it ("Manage" on the back of a library card). */
   focusAppId?: number | null;
   /** Inside a desk panel (T10): the panel draws the title and the close button and handles Esc. */
@@ -444,6 +446,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
   useEffect(() => { void scanLibrary(); }, []);
+  useEffect(() => {
+    if (!startImport) return;
+    onImportStarted?.();
+    void requestAdmin().then(admin => { if (admin) setImportOpen(true); });
+  }, [startImport]); // eslint-disable-line react-hooks/exhaustive-deps
   const importSteam = async () => {
     setBusy(true);
     try {
