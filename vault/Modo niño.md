@@ -1,7 +1,7 @@
 ---
 tipo: diseño
-actualizado: 2026-10-29
-estado: diseñado, sin implementar
+actualizado: 2026-10-30
+estado: rediseñado 2026-10-30 (misma cuenta y servicio vigilante), sin implementar
 ---
 # Modo niño — control de acceso y tiempo para chicos
 
@@ -10,7 +10,44 @@ estado: diseñado, sin implementar
 ## Objetivo
 Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le habilita, en los horarios y con el tiempo que el adulto define, **sin poder saltearlo** abriendo los ejecutables por fuera de Game Access ni instalando juegos nuevos (por ejemplo Roblox desde el navegador o siguiendo instrucciones de una IA). En la misma PC, otro usuario (adulto) usa Game Access normal, sin restricciones.
 
-## Idea central: Game Access como escritorio de la cuenta del niño (modo quiosco)
+## Modelo nuevo (Seba, 2026-10-30): misma cuenta de Windows y un servicio vigilante
+
+> **Reemplaza a la cuenta de Windows separada** (secciones "Idea central…" y "Nada se ejecuta salvo…", que quedan como historia). Todavía sin implementar: tareas MN.17 a MN.20 en [[Tareas]].
+
+**Por qué cambia.** La cuenta separada rompía lo que más importa: Steam no recuerda el inicio de sesión del adulto en otra cuenta de Windows (lo cifra por usuario), la cuenta del niño necesitaba permisos en cada carpeta de juego y en la biblioteca, los juegos que piden administrador pedían hacerla administradora, y armarla requería pasos. La prioridad de Seba: **que los juegos anden, que el tiempo se cuente bien y que sea simple de configurar**. Un hueco de seguridad menor es aceptable: es para chicos de menos de 12. Es el enfoque de los programas de cibercafé.
+
+### Piezas
+1. **Servicio de Game Access** (servicio de Windows, corre como SYSTEM, arranca con Windows, lo instala el instalador). Difícil de detener: su lista de permisos niega Detener y Pausar a todos salvo SYSTEM, y Windows lo reinicia si se cae. Hace cuatro cosas: vigila los procesos, cuenta el tiempo, guarda el estado del modo restrictivo y habla con Game Access por una tubería local (named pipe); más adelante, también con el servidor para el celular (MN.9).
+2. **Vigilante de procesos.** El servicio se entera de cada programa que arranca (ETW de procesos del núcleo; WMI `Win32_ProcessStartTrace` como alternativa) y lo clasifica:
+   - **Juego permitido**: lo lanzó Game Access en esta sesión (antes de lanzar le avisa al servicio "permití el AppID X, carpeta Y"); un juego de Steam arranca con `steam.exe` como padre y se acepta si su carpeta es la de un juego permitido. Corre y su tiempo cuenta.
+   - **Juego que no lanzó Game Access**: el servicio lo cierra enseguida (como SYSTEM puede cerrar también los que corren como administrador) y abre Game Access en la sesión del usuario, o le avisa si ya está abierto, con el mensaje **"La restricción actual impide abrir juegos fuera de Game Access"**. Cubre también los juegos que el niño instale por su cuenta.
+   - **Cualquier otro programa**: corre. No es un quiosco: el escritorio de Windows sigue usable.
+3. **Cómo reconoce que un proceso es un juego.** El catálogo tiene 45.690 juegos con **nombre y AppID, pero no los nombres de sus .exe** (comprobado en `catalog_game`, 2026-10-30), así que no alcanza con buscar el .exe en una lista. Se prueba en este orden, con caché por ruta de .exe:
+   1. la carpeta es de la biblioteca de Game Access (`<appid>-…-ready`, juegos vinculados);
+   2. está en una biblioteca de Steam: `steamapps\common\<carpeta>` da el AppID por su `appmanifest_*.acf`; lo mismo con los manifiestos de Epic y GOG;
+   3. hay un `steam_appid.txt` junto al .exe o más arriba;
+   4. el nombre de producto del .exe (ProductName, FileDescription) o el de su carpeta coincide con un juego del catálogo (nombres normalizados);
+   5. señales de motor de juego: `UnityPlayer.dll`, `*-Win64-Shipping.exe` de Unreal, etc.
+   
+   Fuera de Steam hace falta una lista corta a mano: Roblox, Minecraft, Fortnite/Epic, launchers. Nunca se toca lo de Windows ni lo firmado por Microsoft. Hay una lista de excepciones para falsos positivos (un programa que se llame como un juego).
+4. **Game Access abre en modo niño por defecto.** Arranca al iniciar sesión (lo abre el servicio) y muestra solo los juegos habilitados, con su tiempo; las pantallas de adulto no se ven.
+   - Un botón **"Ingresar clave"** (el portón con la clave de padre de MN.10) desbloquea todos los juegos y pantallas de Game Access.
+   - Un interruptor **"Apagar el modo restrictivo hasta la próxima sesión"**: el servicio deja de cerrar juegos y de contar tiempo hasta el próximo inicio de sesión de Windows.
+5. **Tiempo.** Lo cuenta el servicio, por los procesos de los juegos permitidos, aunque Game Access esté cerrado. Al terminarse, el servicio cierra el juego y Game Access muestra que se acabó.
+6. **Celular** (MN.9): el padre ve el tiempo y manda órdenes (más tiempo, cerrar el día, apagar el modo restrictivo) a través del servidor; el servicio las recibe.
+
+**Qué se va:** la cuenta de Windows del niño, `kid-account.ps1`, las directivas de restricción, y `familia.json` como está hoy. La configuración pasa a `ProgramData\GameAccess`, escrita por el servicio. Para migrar: "Quitar el modo niño" borra la cuenta de Fran.
+
+**Qué se gana:** Steam funciona tal cual (los "recordarme" y el cambio automático de cuenta del adulto), los juegos usan la misma biblioteca y los mismos permisos, los que piden administrador andan, y configurar es elegir juegos, horario y tiempo.
+
+### Para decidir (Seba)
+- **¿Bloquear además partes de Windows** (tecla Windows, Alt+Tab, Administrador de tareas, el Explorador), como un quiosco? Para los juegos no hace falta, porque el vigilante los cierra. Sí haría falta para que el niño no use el navegador u otros programas: hoy el filtro de contenido va por separado.
+- **La tienda de Steam y la tarjeta guardada.** El niño juega con las cuentas de Steam del adulto: desde la superposición (Shift+Tab) llega a la tienda, y una tarjeta guardada compra sin contraseña. Opciones: que en modo restrictivo el servicio cierre las ventanas de tienda de Steam, o desactivar la superposición.
+- **Varios niños.** Con una sola cuenta de Windows, Game Access no sabe qué niño juega. ¿Se elige el perfil del niño al abrir, cada uno con su tiempo?
+- **Detener el servicio.** Si la cuenta del adulto es administradora, Windows solo pide "Sí" (sin contraseña) para tareas de administrador. Con el escritorio libre, alguien que sepa podría cambiar los permisos del servicio y detenerlo. Para chicos de menos de 12 se acepta; un quiosco lo cerraría.
+- **Reconocimiento.** Algún juego chico sin manifiesto ni motor conocido puede pasar sin ser reconocido. ¿Alcanza con poder agregarlo a mano desde la pantalla del adulto?
+
+## Idea central: Game Access como escritorio de la cuenta del niño (modo quiosco) — reemplazado 2026-10-30, ver arriba
 1. El niño tiene **su propia cuenta local estándar de Windows** (sin permisos de administrador).
 2. En esa cuenta, **Game Access reemplaza al escritorio de Windows** (shell personalizado): al iniciar sesión se abre Game Access y no hay escritorio, barra de tareas, menú Inicio, explorador de archivos ni navegador. Sin eso, el niño no puede buscar ejecutables ni descargar juegos.
 3. **Salir de Game Access cierra la sesión de Windows.** Si Game Access se cuelga, se relanza o se cierra la sesión (si no, queda la pantalla en negro).
@@ -26,7 +63,7 @@ Que un chico de **6 a 12 años** solo pueda jugar a los juegos que el adulto le 
 - **Administrador de tareas deshabilitado** en la cuenta del niño (política `DisableTaskMgr`), para cerrar la vía Ctrl+Alt+Supr → "Ejecutar nueva tarea".
 - **La cuenta del adulto debe tener contraseña**; si no, el niño cambia de usuario desde la pantalla de inicio.
 
-### Nada se ejecuta salvo lo que Game Access habilita (Seba, 2026-10-29)
+### Nada se ejecuta salvo lo que Game Access habilita (Seba, 2026-10-29) — reemplazado 2026-10-30
 En la cuenta del niño Game Access corre **como el niño**: no puede tener más permisos que él, así que lo que Game Access pudiera habilitar solo, también lo podría el niño. Seba tiene juegos en varios discos (C:, E:, F:, G:), Steam con 3 bibliotecas, Epic, RetroBat y Roblox (que se instala en el `AppData` de cada cuenta): bloquear carpeta por carpeta deja abierta cualquiera que se olvide y obliga a cambiar permisos de millones de archivos. Por eso se le quitan los permisos **al usuario**, todo en su propio registro bajo `Policies` (una cuenta estándar no lo puede cambiar) y sin tocar archivos:
 - **Cambio 2026-10-30 (Seba): sin SRP.** Lo importante es que los juegos anden y que el tiempo se cuente; el kiosco (Game Access como escritorio, sin Administrador de tareas ni Ejecutar, discos ocultos) alcanza para chicos de menos de 12. `kid-account.ps1` ya no pone directivas de restricción de software y las saca de una cuenta armada antes. El niño juega con la **misma biblioteca y el mismo `play`** que el adulto (fix, idioma, pasos previos, cambio de cuenta de Steam, administrador): `familia.json` guarda la ruta de la biblioteca (`library`) y la cuenta del niño puede escribir en ella y en las carpetas de sus juegos. Si un juego pide administrador, la cuenta del niño es administradora (Windows le pide confirmar, sin contraseña). Al acabarse el tiempo, un juego que no se deja cerrar hace cerrar la sesión. Lo de abajo sobre SRP queda como historia.
 - **Directivas de restricción de software** (SRP, `HKCU\Software\Policies\Microsoft\Windows\Safer\CodeIdentifiers`): por defecto nada se ejecuta (`DefaultLevel` 0); se permiten `C:\Windows`, `Program Files` y `Program Files (x86)`, salvo las carpetas de juegos de los launchers que instalan ahí (`steamapps` de Steam, `Epic Games`, `GOG Galaxy\Games`) y los navegadores. Gana la regla más específica: habilitar un juego = una regla "sin restricción" para su carpeta, aunque esté dentro de una cerrada. Juegos nuevos, otros discos y Roblox quedan bloqueados solos.
