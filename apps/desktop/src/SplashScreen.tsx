@@ -8,12 +8,11 @@ import { hasTauriRuntime } from "./native";
 import { loadAdminKey, setAccessRole, usePlusLapsed } from "./accessRole";
 import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
 import "./admin-gate.css";
-// The opening sound ends with silence; the closed gate never waits for it longer than this.
-export const HOLD_MAX_MS = 900;
-// The lock: its lines are drawn, then it turns a quarter to unlock; the gate opens once access is settled.
+// The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound and
+// the quarter turn start together, and the gate opens as the turn ends. The sound is never heard on its own.
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
-// With the parent's key set (admin_key.rs) the gate stays shut after the lock is drawn, asking for it: the key unlocks the lock (it turns, the padlock goes out) and opens the gate; "enter as a player" opens it with the lock still shut.
-const UNLOCK_MS = TURN_MS + 450;
+// With the parent's key set (admin_key.rs) the shut lock asks for it: the key turns it (with the sound) and the gate
+// opens; "enter as a player" opens the gate with the lock still shut, the sound going with the gate.
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
 // The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
@@ -147,8 +146,8 @@ export function Leaf({ side, children }: { side: "left" | "right"; children?: Re
  * The opening: a metal cover, made like the device frame around it, closes the screen. On its seam lies a round lock
  * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and the backlit
  * padlock beside it goes out. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
- * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (drawn and unlocked), hold
- * (the opening sound), dock (the gate opens).
+ * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (the lock drawn, shut), hold
+ * (shut while access is settled or the key is asked for), dock (sound, turn and gate, one after the other).
  */
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
@@ -157,7 +156,8 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
  const [keyGate, setKeyGate] = useState<"checking" | "asking" | "done">(hasTauriRuntime() ? "checking" : "done");
- const [lock, setLock] = useState<"free" | "sealed" | "unlocking">("free");
+ const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const [lock, setLock] = useState<"sealed" | "turning">(reduced ? "turning" : "sealed");
  const [keyLength, setKeyLength] = useState(0);
  const forgot = useForgotAdminKey();
  const lapsed = usePlusLapsed();
@@ -165,9 +165,13 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
+ const asPlayer = useRef(false);
  const phase = !formed ? "intro" : stage === "intro" ? "hold" : "dock";
- const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
  const reducedRef = useRef(reduced);
+ // The mechanism's steps are not undone by a re-render: only leaving the opening stops them.
+ const timers = useRef<number[]>([]);
+ const later = (step: () => void, ms: number) => { timers.current.push(window.setTimeout(step, ms)); };
+ useEffect(() => () => timers.current.forEach(timer => window.clearTimeout(timer)), []);
  const finishDock = useCallback(() => {
   if (finished.current) return;
   finished.current = true;
@@ -184,11 +188,18 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    if (!live) return;
    if (!state.enabled) { setKeyGate("done"); return; }
    // The app is a player's until the key says otherwise.
-   setAccessRole("player"); setKeyLength(state.length); setLock("sealed"); setKeyGate("asking");
+   setAccessRole("player"); setKeyLength(state.length); setKeyGate("asking");
   }).catch(() => { if (live) { setAccessRole("player"); setKeyGate("done"); } });
   return () => { live = false; };
  }, []);
- const unlock = () => { setLock("unlocking"); window.setTimeout(() => { setAccessRole("admin"); setKeyGate("done"); }, reduced ? 0 : UNLOCK_MS); };
+ const play = () => {
+  const audio = sound.current;
+  if (!audio || reducedRef.current) return;
+  audio.currentTime = 0;
+  void audio.play().catch(() => setAudioState("blocked"));
+ };
+ const turn = () => { setLock("turning"); play(); };
+ const unlock = () => { turn(); later(() => { setAccessRole("admin"); setKeyGate("done"); }, reduced ? 0 : TURN_MS); };
  useEffect(() => {
   document.body.classList.add("ga-splash-active");
   return () => {
@@ -206,37 +217,37 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   audio.onplaying = () => setAudioState("playing");
   audio.onended = () => setAudioState("ended");
   audio.onerror = () => setAudioState("error");
-  // The sound starts with the drawing of the lock.
-  if (!reduced) void audio.play().catch(() => setAudioState("blocked"));
+  // Loaded now, played only with the mechanism (turn).
   return () => { sound.current = null; };
  }, []); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => {
   if (phase === "intro") {
-   // Drawn, then turned: the lock is open.
-   const timer = window.setTimeout(() => setFormed(true), reduced ? 0 : DRAW_MS + TURN_MS + 250);
+   // Drawn: the lock is there, shut.
+   const timer = window.setTimeout(() => setFormed(true), reduced ? 0 : DRAW_MS + 150);
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
-   if (keyGate !== "done") return;
-   // Keep the cover closed until the opening sound has finished (never longer than HOLD_MAX_MS).
-   const audio = sound.current;
-   const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
-   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
-   return () => clearTimeout(timer);
+   if (keyGate === "done") onIntroReady();
+   return;
   }
   if (started.current) return;
   started.current = true;
-  onDockStart();
-  if (reduced) { finishDock(); return; }
   // The gate opens; the app (fading in under it) is there when it is gone.
-  setOpening(true);
-  const timer = window.setTimeout(finishDock, OPEN_MS + 100);
-  return () => clearTimeout(timer);
- }, [phase, reduced, audioState, keyGate, onIntroReady, onDockStart, finishDock]);
+  const open = () => {
+   onDockStart();
+   if (reducedRef.current) { finishDock(); return; }
+   setOpening(true);
+   later(finishDock, OPEN_MS + 100);
+  };
+  if (reduced || lock === "turning") { open(); return; }
+  if (asPlayer.current) { play(); open(); return; }
+  turn();
+  later(open, TURN_MS + 100);
+ }, [phase, reduced, keyGate, lock, onIntroReady, onDockStart, finishDock]); // eslint-disable-line react-hooks/exhaustive-deps
  const cls = `gameaccess-splash gs-gate phase-${phase}${lock === "sealed" ? " is-sealed" : ""}${keyGate === "asking" && formed ? " is-asking" : ""}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
  return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}
-  style={{ "--gs-draw": lock === "unlocking" ? "0ms" : `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
-  <Leaf side="left">{keyGate === "asking" && formed ? <AdminKeyField length={keyLength} onSuccess={unlock} onPlayer={() => setKeyGate("done")} onForgot={forgot} /> : null}</Leaf>
+  style={{ "--gs-draw": lock === "turning" ? "0ms" : `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
+  <Leaf side="left">{keyGate === "asking" && formed ? <AdminKeyField length={keyLength} onSuccess={unlock} onPlayer={() => { asPlayer.current = true; setKeyGate("done"); }} onForgot={forgot} /> : null}</Leaf>
   <Leaf side="right" />
  </div>;
 }

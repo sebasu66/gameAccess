@@ -1,9 +1,10 @@
 /* The parent's key at the gate (AdminKeyField.tsx, AdminGate.tsx, SplashScreen.tsx). */
 
-/* The gate asking for the key: it takes the clicks, and the lock is shut (turned, padlock lit) until the key opens it. */
+/* The lock waits shut (padlock lit, emblem not turned) until it turns: with the key, or once access is settled
+   (SplashScreen.tsx). Only its drawing plays meanwhile. The gate asking for the key takes the clicks. */
 .gameaccess-splash.is-asking, .gs-admin-gate:not(.is-opening) { pointer-events: auto; }
 .gs-admin-gate { z-index: 700; }
-.gs-gate.is-sealed :is(.gs-lock, .gs-emblem, .gs-lock-turn, .gs-glass.is-a, .gs-padlock-body, .gs-padlock-shackle) { animation: none; }
+.gs-gate.is-sealed :is(.gs-lock-turn, .gs-glass.is-a, .gs-padlock-body, .gs-padlock-shackle) { animation: none; }
 .gs-gate.is-sealed .gs-lock-turn { transform: rotate(90deg); }
 .gs-gate.is-sealed .gs-glass.is-a { opacity: 0; }
 /* Reduced motion draws the padlock open; sealed it must stay lit and shut. */
