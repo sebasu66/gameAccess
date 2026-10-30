@@ -44,6 +44,15 @@ pub struct KidGame {
     pub daily_minutes: u32,
 }
 
+/// One day of the week: most minutes of play (0: no limit) and the hours the child may sign in, `from` to `to`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct KidDayLimit {
+    pub minutes: u32,
+    pub from: u8,
+    pub to: u8,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Kid {
@@ -56,6 +65,8 @@ pub struct Kid {
     pub weekdays: String,
     pub weekend: String,
     pub games: Vec<KidGame>,
+    /// Each day of the week, Sunday first; when all seven are there they rule over `daily_minutes` and the two windows.
+    pub days: Vec<KidDayLimit>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -233,8 +244,14 @@ fn read_control(sid: &str) -> Control {
     std::fs::read_to_string(control_path(sid)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
 }
 
-/// The child as limited today: the daily limit plus the minutes the adult added (no limit stays no limit).
+/// The child as limited today: that day's limit (or the daily one) plus the minutes the adult added (no limit stays no limit).
 fn with_control(mut kid: Kid, control: &Control, today: &str) -> Kid {
+    if kid.days.len() == 7 {
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d") {
+            use chrono::Datelike;
+            kid.daily_minutes = kid.days[date.weekday().num_days_from_sunday() as usize].minutes;
+        }
+    }
     if kid.daily_minutes > 0 && control.extra_date == today { kid.daily_minutes += control.extra_minutes; }
     kid
 }
@@ -464,10 +481,25 @@ fn valid_name(name: &str) -> bool {
 /// creates or updates the account and writes the family file. Returns the family as it is afterwards.
 #[tauri::command]
 pub async fn kid_apply(kid: Kid) -> Result<Family, String> {
-    if kid_account().is_some() { return Err("not_allowed".into()); }
-    if !valid_name(&kid.name) { return Err("bad_name".into()); }
-    if !cfg!(debug_assertions) && !in_program_files() { return Err("not_program_files".into()); }
+    let exe = std::env::current_exe().map(|path| path.display().to_string()).unwrap_or_default();
+    let days = kid.days.iter().map(|day| format!("{}m {}-{}", day.minutes, day.from, day.to)).collect::<Vec<_>>().join(", ");
+    log("INFO", format!("Create or update the child's account {:?}: {} game(s), enabled {}, days (Sunday first) [{days}]; app at {exe} ({} build).",
+        kid.name, kid.games.len(), kid.enabled, if cfg!(debug_assertions) { "debug" } else { "release" }));
+    if kid_account().is_some() { return Err(refused("not_allowed", "this app runs inside a child's account")); }
+    if !valid_name(&kid.name) { return Err(refused("bad_name", "the name has characters a Windows account cannot have")); }
+    if !cfg!(debug_assertions) && !in_program_files() { return Err(refused("not_program_files", &format!("the app is not inside Program Files ({exe}); the child's desktop must be a program the child cannot change"))); }
     tauri::async_runtime::spawn_blocking(move || apply_elevated(&kid)).await.map_err(|error| error.to_string())?
+}
+
+/// Kid mode's log (gameaccess.log, area KID_MODE): the account is made out of sight, so every step is written down.
+fn log(level: &str, message: String) {
+    let _ = crate::activity_log::append_narration_lines(vec![message], "KID_MODE".into(), level.into());
+}
+
+/// A request refused before Windows is asked: logged with its reason, and its code goes back to the interface.
+fn refused(code: &str, why: &str) -> String {
+    log("WARN", format!("Refused ({code}): {why}."));
+    code.to_string()
 }
 
 fn apply_elevated(kid: &Kid) -> Result<Family, String> {
@@ -478,18 +510,22 @@ fn apply_elevated(kid: &Kid) -> Result<Family, String> {
 /// deletes the account and its profile and takes the child out of the family file and the time folder.
 #[tauri::command]
 pub async fn kid_remove(name: String) -> Result<Family, String> {
-    if kid_account().is_some() { return Err("not_allowed".into()); }
-    if !valid_name(&name) { return Err("bad_name".into()); }
+    log("INFO", format!("Remove kid mode for {name:?}."));
+    if kid_account().is_some() { return Err(refused("not_allowed", "this app runs inside a child's account")); }
+    if !valid_name(&name) { return Err(refused("bad_name", "the name has characters a Windows account cannot have")); }
     let request = serde_json::json!({ "name": name, "remove": true }).to_string();
     tauri::async_runtime::spawn_blocking(move || run_script(request)).await.map_err(|error| error.to_string())?
 }
 
 /// Runs the script elevated with this request (a JSON file it reads); a failure comes back as its `.error` file.
 fn run_script(request_json: String) -> Result<Family, String> {
-    let script = script_path().ok_or("missing_script")?;
+    let Some(script) = script_path() else { return Err(refused("missing_script", "kid-account.ps1 is not next to the app (in runtime or tools/windows)")); };
     let request = std::env::temp_dir().join(format!("gameaccess-kid-{}.json", uuid::Uuid::new_v4()));
     let error_file = PathBuf::from(format!("{}.error", request.display()));
+    // The script writes each of its steps here; they are copied into the app's log below.
+    let step_file = PathBuf::from(format!("{}.log", request.display()));
     std::fs::write(&request, request_json).map_err(|error| error.to_string())?;
+    log("INFO", format!("Asking Windows for permission to run {} (request {}).", script.display(), request.display()));
     let inner = format!("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{}\" -FromFamily \"{}\"", script.display(), request.display());
     let outer = format!("$p = Start-Process powershell -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '{}'; exit $p.ExitCode", inner.replace('\'', "''"));
     let mut command = Command::new("powershell");
@@ -498,13 +534,27 @@ fn run_script(request_json: String) -> Result<Family, String> {
     command.creation_flags(CREATE_NO_WINDOW);
     let output = command.output().map_err(|error| error.to_string());
     let failure = std::fs::read_to_string(&error_file).ok();
-    let _ = std::fs::remove_file(&request);
-    let _ = std::fs::remove_file(&error_file);
-    let output = output?;
-    if let Some(message) = failure { return Err(message.trim().to_string()); }
-    // Start-Process fails when the person says no to Windows' permission question.
-    if !output.status.success() { return Err("cancelled".into()); }
-    Ok(read_family(&family_path()))
+    let steps = std::fs::read_to_string(&step_file).unwrap_or_default();
+    for line in steps.lines().filter(|line| !line.trim().is_empty()) { log("INFO", format!("script: {}", line.trim())); }
+    for path in [&request, &error_file, &step_file] { let _ = std::fs::remove_file(path); }
+    let output = output.inspect_err(|error| log("ERROR", format!("PowerShell could not be started: {error}.")))?;
+    if let Some(message) = failure {
+        log("ERROR", format!("The script failed: {}", message.trim()));
+        return Err(message.trim().to_string());
+    }
+    if !output.status.success() {
+        let said = String::from_utf8_lossy(&output.stderr).split_whitespace().collect::<Vec<_>>().join(" ");
+        // Start-Process fails this way when the person says no to Windows' permission question.
+        if said.contains("canceled by the user") || said.contains("cancelada por el usuario") || said.contains("cancelado por el usuario") {
+            log("WARN", "The person said no to Windows' permission question.".into());
+            return Err("cancelled".into());
+        }
+        log("ERROR", format!("The script ended with code {:?} and no error file; PowerShell said: {said}", output.status.code()));
+        return Err(format!("script_failed: {}", if said.is_empty() { format!("code {:?}", output.status.code()) } else { said }));
+    }
+    let family = read_family(&family_path());
+    log("INFO", format!("Done: the family file has {} child(ren) ({}).", family.kids.len(), family.kids.iter().map(|kid| kid.name.as_str()).collect::<Vec<_>>().join(", ")));
+    Ok(family)
 }
 
 #[cfg(test)]
@@ -544,6 +594,10 @@ mod tests {
         assert_eq!(apply_control(control.clone(), "extend", 10, "2026-10-30", 1).unwrap().extra_minutes, 10);
         // No limit stays no limit.
         assert_eq!(with_control(Kid::default(), &control, "2026-10-29").daily_minutes, 0);
+        // With the seven days, today's limit is that day's: 2026-10-31 is a Saturday, 2026-10-29 a Thursday.
+        let week = Kid { days: (0..7).map(|day| KidDayLimit { minutes: if day == 0 || day == 6 { 180 } else { 120 }, from: 9, to: 21 }).collect(), ..Kid::default() };
+        assert_eq!(with_control(week.clone(), &Control::default(), "2026-10-31").daily_minutes, 180);
+        assert_eq!(with_control(week, &control, "2026-10-29").daily_minutes, 120 + 45);
         let locked = apply_control(control, "lock", 0, "2026-10-29", 1).unwrap();
         assert_eq!(locked.lock_date, "2026-10-29");
         assert!(apply_control(locked.clone(), "unlock", 0, "2026-10-29", 1).unwrap().lock_date.is_empty());

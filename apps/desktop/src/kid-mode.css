@@ -52,10 +52,24 @@
 .ga-adminkey-word .ga-btn-secondary { touch-action: none; user-select: none; }
 .ga-adminkey-word .ga-hint { grid-column: 1 / -1; }
 
-/* The wizard: steps added one under the other; a finished one stays, quieter. */
-.ga-kid-step { padding-top: var(--ga-space-3); border-top: 1px solid var(--ga-line); }
-.ga-kid-step.is-done { opacity: .62; }
-.ga-kid-step .eyebrow svg { vertical-align: -1px; }
+/* The wizard (KidWizard.tsx): one step at a time on a stage of fixed height, so the dialog never grows. The stage scrolls
+   inside itself when a step is longer; the step chips above and Back / Next below stay put. */
+.ga-kid-panel .ga-kid-wizard { display: flex; flex-direction: column; gap: 16px; height: min(560px, calc(100dvh - 300px)); min-height: 360px; }
+/* On its screen the wizard takes all the height down to the footer: the steps scroll inside, the buttons stay at the bottom. */
+.ga-screen.ga-kid-panel .ga-kid-content { display: flex; flex-direction: column; }
+.ga-screen.ga-kid-panel .ga-kid-wizard { flex: 1 1 auto; height: auto; }
+.ga-kid-panel .ga-kid-stage { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-right: 8px; }
+.ga-kid-panel .ga-kid-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
+
+/* Step chips (the filter-chip template, 32 px): the current one orange, the finished ones are buttons that go back. */
+.ga-kid-panel .ga-kid-progress { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-panel .ga-kid-progress li { display: flex; align-items: center; flex: 1 1 0; gap: 8px; }
+.ga-kid-panel .ga-kid-progress li:last-child { flex: 0 0 auto; }
+.ga-kid-panel .ga-kid-progress li:not(:last-child)::after { content: ""; flex: 1 1 auto; height: 2px; border-radius: 1px; background: var(--ga-line); }
+.ga-kid-panel .ga-kid-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--ga-line); background: transparent; color: var(--ga-muted); font: 700 12px var(--ga-text-family); }
+.ga-kid-panel .ga-kid-chip.is-current { border-color: var(--ga-orange); background: var(--ga-orange); color: var(--ga-btn-ink); }
+.ga-kid-panel .ga-kid-chip.is-done { border-color: var(--ga-orange-line); background: transparent; color: var(--ga-orange-ink); cursor: pointer; }
+.ga-kid-panel .ga-kid-chip.is-done:hover { border-color: var(--ga-orange); background: var(--ga-surface-2); }
 .ga-kid-how { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .ga-kid-how li { display: flex; gap: 10px; align-items: flex-start; color: var(--ga-orange); }
 
@@ -79,3 +93,39 @@
 .ga-kid-spinner output { min-width: 56px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 /* Four tabs whose names differ in length: each as wide as its name, filling the row. */
 .ga-kid-panel .ga-tabs .ga-tab { flex: 1 1 auto; }
+
+/* Wizard step 2 (prototype): the filter levels as selectable cards, readable sizes. Scoped to the wizard so the other dialogs that share ParentalControlSection stay as they are. */
+.ga-kid-wizard .ga-parental-levels { gap: 12px; margin-top: 0; }
+.ga-kid-wizard .ga-parental-levels label { align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; background: var(--ga-surface); box-shadow: inset 0 0 0 1px var(--ga-line); transition: box-shadow .16s ease, background .16s ease; }
+.ga-kid-wizard .ga-parental-levels label:hover { background: var(--ga-surface-2); }
+.ga-kid-wizard .ga-parental-levels label:has(input:checked) { background: var(--ga-orange-tint); box-shadow: inset 0 0 0 2px var(--ga-orange); }
+.ga-kid-wizard .ga-parental-levels small, .ga-kid-wizard .ga-parental-violence small { font-size: 13px; font-weight: 500; line-height: 1.45; color: var(--ga-muted); margin-top: 4px; }
+.ga-kid-wizard .ga-parental-levels input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--ga-orange); flex: none; }
+.ga-kid-wizard .ga-parental-violence { align-items: center; gap: 14px; font-size: 14px; font-weight: 700; }
+.ga-kid-wizard .ga-parental-violence input { width: 20px; height: 20px; margin: 0; accent-color: var(--ga-orange); flex: none; }
+.ga-kid-wizard .ga-parental summary { font-size: 14px; }
+
+/* Look of the kid panel (prototype): warm, nearly solid dark panel; the explaining page as cards; footer actions on the right with the main one last; primary button with cut corners. */
+.ga-kid-panel .ga-kid-benefits { gap: 12px; }
+.ga-kid-panel .ga-kid-benefits li { gap: 16px; padding: 16px; border-radius: 12px; background: var(--ga-surface); box-shadow: inset 0 0 0 1px var(--ga-line); }
+.ga-kid-panel .ga-kid-benefits strong { font-size: 18px; line-height: 1.35; color: var(--ga-white); }
+.ga-kid-panel .ga-kid-benefit-icon { width: 48px; height: 48px; }
+.ga-kid-panel .ga-kid-foot .ga-actions { width: 100%; justify-content: flex-end; flex-direction: row-reverse; }
+
+/* On its screen (GaScreen) the kids' controls follow the screen's scale (docs/GUI_DESIGN.md §4.25): fields and chips
+   as tall as buttons, their text from the screen's tokens. */
+.ga-screen.ga-kid-panel select { height: 44px; padding: 0 12px; font: var(--ga-status-font); }
+.ga-screen.ga-kid-panel .ga-kid-chip { height: 40px; min-width: 52px; font: var(--ga-status-font); }
+.ga-screen.ga-kid-panel .ga-kid-benefits strong { font: 700 20px/1.35 var(--ga-text-family); }
+.ga-screen .ga-kid-wizard .ga-parental-levels label,
+.ga-screen .ga-kid-wizard .ga-parental-violence,
+.ga-screen .ga-kid-wizard .ga-parental summary { font: var(--ga-status-font); }
+.ga-screen .ga-kid-wizard .ga-parental-levels small,
+.ga-screen .ga-kid-wizard .ga-parental-violence small { font: var(--ga-hint-font); }
+
+/* Each day of the week on its row (KidTime.tsx DaySchedule): day, most time, from, to. */
+.ga-kid-schedule { width: 100%; max-width: 760px; border-collapse: separate; border-spacing: 0 var(--ga-space-1); }
+.ga-kid-schedule th { padding: 0 var(--ga-space-2) 0 0; text-align: start; color: var(--ga-label-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-kid-schedule tbody th { color: var(--ga-white); font: var(--ga-status-font); letter-spacing: 0; text-transform: capitalize; }
+.ga-kid-schedule td { padding: 0 var(--ga-space-2) 0 0; }
+.ga-kid-schedule select { width: 100%; min-width: 120px; }

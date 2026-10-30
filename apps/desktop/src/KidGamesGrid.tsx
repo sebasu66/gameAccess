@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { Minus, Plus } from "lucide-react";
+import { CheckCheck, Minus, Plus, X } from "lucide-react";
+import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import { scanLibrary, useLibraryScan } from "./libraryScan";
 import { loadShortcuts, useShortcuts } from "./appShortcuts";
-import { setKidGameMinutes, toggleKidGame, toggleKidShortcut, useKidState, type Kid } from "./kidMode";
+import { kidDays, setKidDraft, setKidGameMinutes, toggleKidGame, toggleKidShortcut, useKidState, type Kid } from "./kidMode";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import "./library-manager/manager.css";
@@ -12,6 +13,7 @@ import "./library-manager/manager.css";
  * The child's games (vault/Modo niño.md): the library manager's table with four columns only. Each installed game of
  * the library (and each shortcut to another program) can be shown to the child or not, and have its own limit:
  * "general" (free within the daily time) or a specific one, in steps of 30 minutes up to the daily time.
+ * "All" and "None" above the table choose every game at once, or clear the choice.
  */
 const STEP = 30;
 /** Without a daily limit a game's own limit still needs a ceiling. */
@@ -56,9 +58,17 @@ export default function KidGamesGrid() {
   const { draft } = useKidState();
   useEffect(() => { void scanLibrary(); void loadShortcuts().catch(() => undefined); }, []);
   const rows = useRows(draft);
-  const ceiling = draft.dailyMinutes || NO_DAILY_CEILING;
+  // A game's own limit goes up to the longest day (no ceiling of its own when some day has no limit).
+  const longest = Math.max(...kidDays(draft).map(day => day.minutes || NO_DAILY_CEILING));
+  const ceiling = longest || NO_DAILY_CEILING;
   if (!rows.length) return <p className="ga-hint">{t("kidGamesEmpty")}</p>;
-  return <div className="lm-grid-wrap ga-kid-games">
+  const chosen = new Set(draft.games.map(game => game.appId));
+  return <div className="ga-stack">
+    <div className="ga-actions">
+      <GaButton icon={<CheckCheck size={16} aria-hidden="true" />} disabled={rows.every(row => chosen.has(row.appId))} onClick={() => { for (const row of rows) if (!chosen.has(row.appId)) row.toggle(); }}>{t("kidGamesAll")}</GaButton>
+      <GaButton icon={<X size={16} aria-hidden="true" />} disabled={!draft.games.length} onClick={() => setKidDraft({ games: [] })}>{t("kidGamesNone")}</GaButton>
+    </div>
+    <div className="lm-grid-wrap ga-kid-games">
     <table className="lm-grid">
       <thead><tr>
         <th><span className="sr-only">{t("lmColCover")}</span></th>
@@ -77,5 +87,6 @@ export default function KidGamesGrid() {
         </tr>;
       })}</tbody>
     </table>
+    </div>
   </div>;
 }

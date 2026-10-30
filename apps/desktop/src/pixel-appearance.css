@@ -15,7 +15,7 @@ body.ga-pixel-style .library-room:not(.surface-tablet):not(.surface-display){bac
 .library-catalog-tabs > .ga-led-button{position:relative;border-radius:31px!important;text-shadow:0 1px 2px #000,0 2px 6px #000,0 0 3px #000}
 .ga-settings-fab{position:fixed;z-index:130;bottom:8px;right:82px;width:34px;height:34px;display:grid;place-items:center;padding:0;cursor:pointer}
 .ga-settings-backdrop{position:fixed;inset:var(--window-chrome-height,34px) 0 0;z-index:600;background:rgba(0,0,0,.72);backdrop-filter:blur(12px);display:grid;place-items:center;padding:28px}
-.ga-settings-panel{display:flex;flex-direction:column;width:min(720px,100%);max-height:100%;background:linear-gradient(145deg,#25262bf5,#101114f8);border:1px solid #ffffff35;border-radius:18px;box-shadow:0 32px 100px #000a,inset 0 1px 0 #ffffff1c;color:#f4f4f2;overflow:hidden;font-family:Manrope,"Segoe UI",sans-serif}
+.ga-settings-panel{display:flex;flex-direction:column;width:min(920px,100%);max-height:100%;background:linear-gradient(145deg,#25262bf5,#101114f8);border:1px solid #ffffff35;border-radius:18px;box-shadow:0 32px 100px #000a,inset 0 1px 0 #ffffff1c;color:#f4f4f2;overflow:hidden;font-family:Manrope,"Segoe UI",sans-serif}
 .ga-settings-panel header{padding:26px 30px 22px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ffffff16}
 .ga-settings-panel .eyebrow{color:#d79d5d;font-size:10px;letter-spacing:.18em}.ga-settings-panel h2{margin:5px 0;font-size:26px}
 .ga-settings-panel button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#24262c;color:#fff;border:1px solid #ffffff32;border-radius:8px;padding:10px 12px;cursor:pointer;font:650 12px Manrope,"Segoe UI",sans-serif}

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Baby, Sparkles } from "lucide-react";
 import { useI18n } from "./i18n";
-import { useDialogFocus } from "./dialogFocus";
-import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
+import { GaButton, GaIconButton } from "./components/ga/Buttons";
+import GaScreen from "./components/ga/Screen";
+import { setAppScreen, useAppScreen } from "./appScreen";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { loadAdminKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
 import { loadKidFamily, useKidState } from "./kidMode";
@@ -14,7 +15,8 @@ import "./kid-mode.css";
 /**
  * The kids screen (vault/Modo niño.md). While kid mode is off it is the page that explains the features and, with
  * PLUS, the wizard below it (KidWizard.tsx). Once the child's account exists it is the control panel (KidControlPanel.tsx).
- * Anyone may open it; changes need the administrator (the parent's key).
+ * Anyone may open it; changes need the administrator (the parent's key). It is a screen chosen from the frame
+ * (docs/GUI_DESIGN.md §0b), not a dialog: no close button, one leaves it by choosing another mode.
  */
 const knowPlus = () => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT));
 
@@ -38,30 +40,24 @@ function PlusLapsedNote() {
 }
 
 /** The one place for everything about the children: kid mode, the adult content filter and the parent's key. */
-function FamilyDialog({ onClose }: { onClose: () => void }) {
+function KidScreen() {
   const { t } = useI18n();
-  const panel = useDialogFocus(onClose);
   const { applied } = useKidState();
-  return <div className="ga-settings-backdrop" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={panel} className="ga-settings-panel ga-kid-panel" role="dialog" aria-modal="true" aria-labelledby="ga-kid-title">
-      <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-kid-title">{t("familyTitle")}</h2><p>{t("familySubtitle")}</p></div><GaClose label={t("close")} onClick={onClose} data-dialog-initial /></header>
-      <div className="ga-settings-content ga-kid-content ga-stack ga-stack-lg">
-        <PlusLapsedNote />
-        {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} />}
-      </div>
-    </section>
-  </div>;
+  return <GaScreen id="ga-kid" title={t("familyTitle")} subtitle={t("familySubtitle")} className="ga-kid-panel">
+    <div className="ga-kid-content ga-stack ga-stack-lg">
+      <PlusLapsedNote />
+      {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} />}
+    </div>
+  </GaScreen>;
 }
 
 export default function KidModePanel({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const screen = useAppScreen();
   useEffect(() => { void loadKidFamily(); void loadAdminKey().catch(() => undefined); }, []);
-  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
-  const button = <GaIconButton ref={trigger} className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} onClick={() => setOpen(true)} />;
+  const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} pressed={screen === "kids"} onClick={() => setAppScreen("kids")} />;
   return <>
     {dockTarget ? createPortal(button, dockTarget) : button}
-    {open ? <FamilyDialog onClose={close} /> : null}
+    {screen === "kids" ? <KidScreen /> : null}
   </>;
 }

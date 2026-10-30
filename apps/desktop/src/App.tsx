@@ -4,6 +4,7 @@ import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./taste
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
 import KidModePanel from "./KidModePanel";
+import GamesScreenButton from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
@@ -666,7 +667,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
+          <GamesScreenButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
         </div>
       </header>
 

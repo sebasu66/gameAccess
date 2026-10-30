@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { narrate } from "./narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import { hasTauriRuntime } from "./native";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
@@ -16,14 +17,26 @@ import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
 export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean;
   /** Most minutes per day for this game, inside the daily limit; 0 or missing: only the daily limit applies. */
   dailyMinutes?: number }
-export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[] }
+/** One day of the week: most minutes of play (0: no limit) and the hours the child may use the PC, "from" to "to". */
+export interface KidDayLimit { minutes: number; from: number; to: number }
+export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[];
+  /** Each day of the week, Sunday first (as Windows counts them); when present it rules over the fields above. */
+  days?: KidDayLimit[] }
 export interface Family { version: number; kids: Kid[] }
 export interface KidSession { paused?: boolean; kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
   /** Seconds left today of each game that has its own limit, by appId. */
   gameRemaining?: Record<string, number> }
 
-/** What the wizard offers: two hours a day, afternoons and evenings on school days, a wider window on weekends. */
-export const NEW_KID: Kid = { name: "", sid: "", enabled: true, dailyMinutes: 120, weekdays: "12-21", weekend: "9-22", games: [] };
+/** What the wizard offers: two hours on school days from 12 to 21, three on weekends from 9 to 22. */
+export const defaultDays = (): KidDayLimit[] => Array.from({ length: 7 }, (_, day) => day === 0 || day === 6 ? { minutes: 180, from: 9, to: 22 } : { minutes: 120, from: 12, to: 21 });
+export const NEW_KID: Kid = { name: "", sid: "", enabled: true, dailyMinutes: 120, weekdays: "12-21", weekend: "9-22", games: [], days: defaultDays() };
+
+/** The child's seven days; one set up before there were days gets them from its daily time and its two windows. */
+export function kidDays(kid: Kid): KidDayLimit[] {
+  if (kid.days?.length === 7) return kid.days;
+  const window = (value: string) => { const [from, to] = value.split("-").map(Number); return { from: Number.isFinite(from) ? from : 0, to: Number.isFinite(to) ? to : 24 }; };
+  return Array.from({ length: 7 }, (_, day) => ({ minutes: kid.dailyMinutes, ...window(day === 0 || day === 6 ? kid.weekend : kid.weekdays) }));
+}
 
 /** The child's week and the adult's live orders in force today. Today it comes from the PC (kid_mode.rs); the same
  *  shape is what the server will give the phone app (vault/Modo niño.md). */
@@ -89,6 +102,11 @@ export function setKidDraft(change: Partial<Kid>) {
   draft = { ...draft, ...change };
   saveDraft();
   emit();
+}
+
+/** Changes one day of the week (0: Sunday). */
+export function setKidDay(day: number, change: Partial<KidDayLimit>) {
+  setKidDraft({ days: kidDays(draft).map((value, index) => index === day ? { ...value, ...change } : value) });
 }
 
 /** Sets (or, with 0, clears) one game's own daily limit. */
@@ -158,18 +176,26 @@ export async function applyKidDraft(): Promise<void> {
     const family = await invoke<Family>("kid_apply", { kid });
     applied = family.kids.find(item => item.name.toLowerCase() === kid.name.toLowerCase()) ?? null;
   } catch (error) {
-    throw new KidApplyError(String(error));
+    throw reportKidFailure("creating the child's account", error);
   }
   draft = applied ?? kid;
   try { localStorage.removeItem(DRAFT_KEY); } catch { /* nothing kept */ }
   emit();
 }
 
+/** A failure of Windows' side of kid mode (kid_mode.rs has the details in its log): written to the app's log and, unless
+ *  the person only said no to Windows' permission question, sent to the server as an error so we learn about it. */
+function reportKidFailure(what: string, error: unknown): KidApplyError {
+  const code = String(error);
+  void narrate(`Kid mode: ${what} failed: ${code}`, { area: "KID_MODE", level: code === "cancelled" ? "WARN" : "ERROR" });
+  return new KidApplyError(code);
+}
+
 /** Undoes kid mode: Windows asks for permission, the child's account and its profile are deleted, the family file and
  *  the time files lose the child, and the screen goes back to how it was before the wizard. */
 export async function resetKidMode(): Promise<void> {
   if (hasTauriRuntime() && applied) {
-    try { await invoke("kid_remove", { name: applied.name }); } catch (error) { throw new KidApplyError(String(error)); }
+    try { await invoke("kid_remove", { name: applied.name }); } catch (error) { throw reportKidFailure("removing kid mode", error); }
   }
   applied = null;
   draft = { ...NEW_KID, games: [] };

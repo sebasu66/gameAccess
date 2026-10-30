@@ -1,4 +1,5 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
+import { SCREEN_CHANGE_EVENT } from "./appScreen";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
@@ -522,6 +523,12 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     window.setTimeout(() => void onPlay(game), 200);
   };
 
+  // Choosing another mode (kids, home, settings...) closes the game detail at once (appScreen.ts).
+  useEffect(() => {
+    const drop = () => { setDetailOpen(false); setDetailMenu(null); setOwnDetailGame(null); onDetailClose?.(); };
+    window.addEventListener(SCREEN_CHANGE_EVENT, drop);
+    return () => window.removeEventListener(SCREEN_CHANGE_EVENT, drop);
+  }, [onDetailClose]);
   // Big picture mode stays on the library with no detail open, whatever asks otherwise.
   useEffect(() => {
     if (!bigScreen) return;

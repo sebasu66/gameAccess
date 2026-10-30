@@ -8,7 +8,7 @@ import GaTabs from "./GaTabs";
 import ParentalControlSection from "./ParentalControlSection";
 import AdminKeySection from "./AdminKeySection";
 import KidGamesGrid from "./KidGamesGrid";
-import { LiveControls, TimeFields, Week } from "./KidTime";
+import { DaySchedule, LiveControls, Week } from "./KidTime";
 import { applyErrorText } from "./KidWizard";
 import { applyKidDraft, EMPTY_LIVE, KidApplyError, readKidLive, resetKidMode, setKidDraft, useKidState, usePlus, type KidLive } from "./kidMode";
 
@@ -33,7 +33,7 @@ function TimeTab({ sid }: { sid: string }) {
   }, [sid]);
   return <>
     <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={draft.enabled} onChange={event => setKidDraft({ enabled: event.target.checked })} />{t("kidModeOn")}</label>
-    <TimeFields draft={draft} />
+    <DaySchedule draft={draft} />
     <Week live={live} draft={draft} />
     <LiveControls sid={sid} live={live} onLive={setLive} />
   </>;

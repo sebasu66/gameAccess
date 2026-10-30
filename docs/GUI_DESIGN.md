@@ -149,13 +149,22 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.12 Overlay y pantalla completa
 - **Overlay** (panel flotante, con borde): tiene `ga-close` arriba a la derecha, vidrio esmerilado y borde degradado (§4.6). Escape lo cierra.
 - **Pantalla completa** (gestor de descargas, gestor de biblioteca): no tiene cerrar sino `ga-back` (§4.11). Escape vuelve.
-- **Pantalla / modo** (§0b: Home, Juegos, Configuración, Niños en casa): ocupa toda la zona principal sin fondo de superposición y no tiene cerrar ni volver; se sale eligiendo otro modo en el marco. Configuración y Niños en casa dejan de ser diálogos.
+- **Pantalla / modo** (§0b: Home, Juegos, Configuración, Niños en casa): ocupa toda la zona principal sin fondo de superposición y no tiene cerrar ni volver; se sale eligiendo otro modo en el marco. Configuración y Niños en casa dejan de ser diálogos. Molde único `GaScreen` (`components/ga/Screen.tsx`, `appScreen.ts`, `.ga-screen` en `ga-design.css`):
+  - Contenido **centrado** (hasta 1200 px). Un panel lateral abierto (Descargas) angosta la pantalla desde su lado y el contenido se corre junto a él, como el catálogo.
+  - Llega **hasta abajo**: su fondo baja hasta la abertura del marco (entre las pestañas del pie, que quedan encima de sus esquinas); su contenido llena la altura, desplaza adentro y sus botones quedan justo por encima de las pestañas.
+  - Mientras se ve, los juegos de atrás **no se dibujan** (`html.ga-screen-on`, `content-visibility: hidden`), pero conservan su estado para volver.
+  - Al elegir otro modo, **el detalle del juego se cierra** enseguida (`SCREEN_CHANGE_EVENT`).
+  - **Texto a escala de pantalla** (Seba, 2026-10-30): la misma regla general de §4.25, con tokens más grandes en `.ga-screen` (`ga-design.css`): título de la pantalla 72 px, título de un paso o sección (`ga-heading`) 48 px, párrafo 18 px (mínimo 16), pista y estado 16 px, etiqueta 14 px; espacios 12 / 24 / 40 px (`--ga-space-1/2/3`). Controles (selects, chips) de 44 px de alto con la letra de estado. Una pantalla no escribe tamaños propios.
+  - **Un diálogo siempre queda arriba de una pantalla:** los diálogos van con su propia capa (z-index alto) y no dentro de algo que la pantalla oculte; los de la barra superior (Configuración, Ayuda) quedan arriba porque la barra sube por encima de la pantalla mientras esta se ve.
+  - **Transición GSAP** igual a la de la grilla y el Library Manager: lo que se va sube 16 px y se desvanece (0,2 s, `power2.in`); lo que llega sube desde 24 px (0,5 s, `expo.out`). Con "reducir movimiento" cambia sin animar.
 - **Excepción:** los diálogos chicos que muestran la imagen del juego (p. ej. ejecutar un juego) conservan su fondo difuminado con la imagen. No se cambian.
 
 ### 4.13 Foco por teclado (Tab)
 - **Entran en el ciclo de Tab:** todos los `button` visibles y habilitados (acción principal, cancelar, cerrar, volver, tres puntos, tienda, pulgares, botones de grilla y de cada fila).
 - **Salen del ciclo de Tab** (`tabIndex={-1}`; siguen funcionando con el mouse): sliders (`input type="range"`), casillas (`input type="checkbox"`), controles de grilla que no son botones, barras de desplazamiento, imágenes, videos y bloques de texto desplazables.
 - Si una pantalla necesita que otro control entre en el ciclo, se pide primero y se documenta aquí.
+- **Botones del marco** (dock y pie izquierdo): fuera del ciclo de Tab. Las teclas **1 a 9** aprietan los del dock, de izquierda a derecha (cada uno lo anuncia con `aria-keyshortcuts`), siempre que el foco no esté en un campo de texto y no haya un diálogo abierto (Seba, 2026-10-30).
+- **Campos de texto:** cuando aparece una pantalla, un paso o un diálogo con un campo, el primero que aparece recibe el foco (una sola vez; si ya estás escribiendo en otro campo de esa misma pantalla, no se mueve). **Enter** en un campo pasa al siguiente campo de la misma pantalla o diálogo y, después del último, al botón principal (`ga-btn-primary`), si está habilitado; un segundo Enter lo aprieta. Un componente que use Enter para otra cosa lo marca con `preventDefault` y la regla no actúa. El buscador del catálogo no está en ninguna pantalla ni diálogo y queda como está. Todo en `src/keyboardRules.ts`.
 
 ### 4.14 Botón cubo `GaIconButton` (pie y comandos de la pantalla principal)
 - Solo ícono (19 px), 41 × 38 px, radio 8. Vidrio: fondo `linear-gradient(180deg,#ffffff16,#ffffff05)`, borde `#ffffff1c`, brillo `inset 0 1px 0 #ffffff24`.
@@ -276,7 +285,7 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 4. Los íconos de acción llevan `aria-label` traducido; los botones solo-icono llevan `title`.
 5. Los estados vacíos usan texto muted centrado, sin ilustraciones.
 5b. No mostrar el mismo dato dos veces (un estado en una etiqueta y en una línea, una cifra arriba y en una pastilla). El estado normal (listo para jugar) no lleva indicador.
-5c. Movimiento: GSAP desde `src/motion/gsap.ts`; respetar "reducir movimiento"; animar `transform` y `opacity`; reglas detalladas en `.claude/skills/gameaccess-motion-ui`.
+5c. Movimiento: GSAP desde `src/motion/gsap.ts`; respetar "reducir movimiento"; animar `transform` y `opacity`; reglas detalladas en `.claude/skills/gameaccess-motion-ui`. **Las transiciones van por una sola cola** (`queueTransition` de `src/motion/transitions.ts`): cada una es un timeline con su propio tiempo y corren una después de la otra, nunca encimadas. Ya pasan por ella: cambio de modo, grilla ↔ Library Manager, abrir y cerrar paneles laterales y la palabra lateral.
 6. El tamaño grande (`.ga-big-screen`) aumenta la altura mínima de botones a 44 px; no reduce tipografía.
 7. No introducir nuevos colores: si falta uno, se agrega a la tabla de tokens.
 7b. El texto de un diálogo sigue la regla general (§4.25); una pantalla no define márgenes, fuente ni tamaño de sus párrafos.

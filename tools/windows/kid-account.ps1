@@ -65,10 +65,24 @@ if (-not $Shell) {
 
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw 'Hace falta PowerShell abierto como administrador.'
+    $message = 'Hace falta PowerShell abierto como administrador.'
+    # Run by Game Access, the failure has to reach it (and its log) like any other.
+    if ($FromFamily) {
+        [IO.File]::AppendAllText("$FromFamily.log", ('{0} ERROR: {1} (corre como {2}){3}' -f (Get-Date -Format 'HH:mm:ss.fff'), $message, [Security.Principal.WindowsIdentity]::GetCurrent().Name, [Environment]::NewLine))
+        [IO.File]::WriteAllText("$FromFamily.error", $message)
+        exit 1
+    }
+    throw $message
 }
 
 # Inside Program Files, but games or a way out to the internet: they stay closed.
+# Each step, with its time, to "<request>.log" when Game Access runs this (it copies the lines into its own log
+# afterwards: the account is made out of sight, and this is how anyone can tell what happened).
+function Write-Step([string]$Text) {
+    Write-Host $Text
+    if ($FromFamily) { [IO.File]::AppendAllText("$FromFamily.log", ('{0} {1}{2}' -f (Get-Date -Format 'HH:mm:ss.fff'), $Text, [Environment]::NewLine)) }
+}
+
 function Get-ClosedFolders {
     $x86 = ${env:ProgramFiles(x86)}
     $steam = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam' -ErrorAction SilentlyContinue).InstallPath
@@ -182,11 +196,12 @@ function Add-PathRule([string]$Hkcu, [string]$Level, [string]$Path, [string]$Des
 
 # Allowed hours, as Windows keeps them: 21 bytes, one bit per hour of the week from Sunday 00:00 UTC.
 function Set-LogonHours {
-    if (-not $Weekdays -and -not $Weekend) { return }
+    if (-not $Weekdays -and -not $Weekend -and -not $Days) { return }
     $offset = [int][TimeZoneInfo]::Local.BaseUtcOffset.TotalHours
     $bytes = New-Object byte[] 21
     foreach ($day in 0..6) {
-        $range = if ($day -eq 0 -or $day -eq 6) { $Weekend } else { $Weekdays }
+        # Each day its own hours when the request has the seven (Sunday first, as here); else weekdays and weekend.
+        $range = if (@($Days).Count -eq 7) { '{0}-{1}' -f [int]$Days[$day].from, [int]$Days[$day].to } elseif ($day -eq 0 -or $day -eq 6) { $Weekend } else { $Weekdays }
         $from, $to = if ($range) { $range.Split('-') | ForEach-Object { [int]$_ } } else { 0, 24 }
         if ($from -ge $to -or $to -gt 24) { throw "Horario inválido: $range (desde-hasta, entre 0 y 24)." }
         for ($hour = $from; $hour -lt $to; $hour++) {
@@ -198,6 +213,8 @@ function Set-LogonHours {
     # Put and SetInfo hand back an empty value; it must not end up in a function's result (the SID).
     [void]$account.Put('LoginHours', $bytes)
     [void]$account.SetInfo()
+    $shown = if (@($Days).Count -eq 7) { ($Days | ForEach-Object { '{0}-{1}' -f $_.from, $_.to }) -join ' ' } else { "lunes a viernes $Weekdays, fin de semana $Weekend" }
+    Write-Step "Horas de inicio de sesión (domingo a sábado): $shown."
 }
 
 switch ($PSCmdlet.ParameterSetName) {
@@ -238,7 +255,8 @@ switch ($PSCmdlet.ParameterSetName) {
 
 # Creates the account (or applies its settings again). Returns its SID.
 function Set-KidAccount {
-    if (-not (Test-Path -LiteralPath $Shell)) { Write-Warning "No está ${Shell}: instalá Game Access para toda la PC o pasá -Shell." }
+    if (-not (Test-Path -LiteralPath $Shell)) { Write-Warning "No está ${Shell}: instalá Game Access para toda la PC o pasá -Shell."; Write-Step "Aviso: no existe el escritorio del niño $Shell." }
+    else { Write-Step "Escritorio del niño: $Shell." }
 
     $user = Get-LocalUser -Name $Name -ErrorAction SilentlyContinue
     if (-not $user) {
@@ -250,14 +268,16 @@ function Set-KidAccount {
             $options.PasswordNeverExpires = $true
             $options.UserMayNotChangePassword = $true
         }
+        Write-Step "Creando la cuenta de Windows $Name (sin contraseña: $([bool]$NoPassword))."
         $user = New-LocalUser @options
-        Write-Host "Cuenta $Name creada."
-    }
+        Write-Step "Cuenta $Name creada (SID $($user.SID))."
+    } else { Write-Step "La cuenta $Name ya existe (SID $($user.SID), habilitada: $($user.Enabled)): se actualiza." }
     $sid = $user.SID
-    if (-not (Get-LocalGroupMember -SID $UsersGroupSid | Where-Object { $_.SID -eq $sid })) { Add-LocalGroupMember -SID $UsersGroupSid -Member $user }
+    if (-not (Get-LocalGroupMember -SID $UsersGroupSid | Where-Object { $_.SID -eq $sid })) { Add-LocalGroupMember -SID $UsersGroupSid -Member $user; Write-Step "Agregada al grupo Usuarios." }
 
     $open = @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)})
     $closed = Get-ClosedFolders
+    Write-Step "Configurando el registro de la cuenta (escritorio, bloqueos, programas permitidos)."
     Use-KidRegistry $sid {
         param($hkcu)
         $policies = "$hkcu\Software\Microsoft\Windows\CurrentVersion\Policies"
@@ -293,6 +313,7 @@ function Set-KidAccount {
     Write-Host "Escritorio de ${Name}: $Shell. Administrador de tareas y Ejecutar deshabilitados. Discos ocultos."
     Write-Host "Solo se ejecuta lo que está en: $($open -join ', ')."
     Write-Host "Salvo: $($closed -join ', ')."
+    Write-Step "Registro listo: corre lo que está en $($open -join ', '); cerrado: $($closed -join ', ')."
 
     Set-LogonHours
     return $sid
@@ -328,6 +349,7 @@ function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Ga
     $kid = [ordered]@{
         name = $Name; sid = $Sid.Value; enabled = [bool]$Request.enabled; dailyMinutes = [int]$Request.dailyMinutes
         weekdays = $Weekdays; weekend = $Weekend
+        days = @($Days | Where-Object { $_ } | ForEach-Object { [ordered]@{ minutes = [int]$_.minutes; from = [int]$_.from; to = [int]$_.to } })
         games = @($Games | ForEach-Object {
             [ordered]@{ appId = [int]$_.appId; name = [string]$_.name; folder = [string]$_.folder; executable = [string]$_.executable
                 arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam; dailyMinutes = [int]$_.dailyMinutes }
@@ -341,20 +363,26 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
     try {
         $request = [IO.File]::ReadAllText($FromFamily) | ConvertFrom-Json
         $Name = [string]$request.name
+        $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        Write-Step "Script de la cuenta de niño: $(if ($request.remove) { 'quitar' } else { 'crear o actualizar' }) $Name. Corre como $([Security.Principal.WindowsIdentity]::GetCurrent().Name) (administrador: $admin), PowerShell $($PSVersionTable.PSVersion)."
         if ($request.remove) {
             # Undo kid mode for this child. The account may be gone already: its entry in the family file still goes.
             $account = Get-LocalUser -Name $Name -ErrorAction SilentlyContinue
-            if ($account) { Remove-KidAccount $account.SID }
-            else { foreach ($kid in Read-FamilyKids | Where-Object { $_.name -eq $Name }) { Remove-KidFromFamily $kid.sid } }
+            if ($account) { Write-Step "Borrando la cuenta $Name y su perfil."; Remove-KidAccount $account.SID }
+            else { Write-Step "La cuenta $Name ya no existe: solo se la saca del archivo de la familia."; foreach ($kid in Read-FamilyKids | Where-Object { $_.name -eq $Name }) { Remove-KidFromFamily $kid.sid } }
+            Write-Step "Listo: modo niño quitado para $Name."
             exit 0
         }
         $Weekdays = if ($request.weekdays) { [string]$request.weekdays } else { '0-24' }
         $Weekend = if ($request.weekend) { [string]$request.weekend } else { '0-24' }
+        $Days = @($request.days | Where-Object { $_ })
         $NoPassword = $true
         [void](Set-KidAccount)
         $sid = (Get-LocalUser -Name $Name).SID
         if ($request.enabled) { Enable-LocalUser -SID $sid } else { Disable-LocalUser -SID $sid }
+        Write-Step "Cuenta $(if ($request.enabled) { 'habilitada' } else { 'deshabilitada' })."
         $games = @($request.games | Where-Object { $_ -and $_.folder })
+        Write-Step "Juegos permitidos ($($games.Count)): $(($games | ForEach-Object { '{0} [{1}]' -f $_.name, $_.folder }) -join '; ')."
         # Exactly the chosen games may run: the earlier choice goes, the folders of this one come in.
         Use-KidRegistry $sid {
             param($hkcu)
@@ -365,9 +393,12 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
             foreach ($game in $games) { Add-PathRule $hkcu Unrestricted ([string]$game.folder).TrimEnd('') $GameRule }
         }
         Write-Family $request $sid $games
+        Write-Step "Archivo de la familia escrito: $env:ProgramData\GameAccess\familia.json. Listo."
         exit 0
     } catch {
-        [IO.File]::WriteAllText("$FromFamily.error", $_.Exception.Message)
+        $where = "línea $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"
+        Write-Step "ERROR: $($_.Exception.Message) ($where)"
+        [IO.File]::WriteAllText("$FromFamily.error", "$($_.Exception.Message) ($where)")
         exit 1
     }
 }

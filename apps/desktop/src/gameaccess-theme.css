@@ -11,9 +11,9 @@
 :root {
   --ga-btn2-bg:#ffffff08; --ga-btn2-bg-hover:#ffffff14; --ga-btn2-border:#ffffff30; --ga-btn2-ink:#f4f4f2;
   --ga-btn-danger-bg:#a64c41; --ga-btn-danger-bg-hover:#b8594d; --ga-btn-danger-ink:#fff;
-  --ga-backdrop:#05080ccc; --ga-backdrop-blur:blur(10px);
-  --ga-dialog-bg:linear-gradient(160deg, rgba(60, 37, 22, .82) 0%, rgba(38, 26, 18, .85) 45%, rgba(22, 17, 14, .9) 100%);
-  --ga-dialog-glass:blur(18px) saturate(1.1);
+  --ga-backdrop:#0a0806b8; --ga-backdrop-blur:none; /* none on purpose: a backdrop-filter on the dimmer makes it the backdrop root of the panel, and the panel's own glass then sees nothing behind it */
+  --ga-dialog-bg:linear-gradient(160deg, rgba(38, 33, 27, .95) 0%, rgba(28, 25, 21, .96) 55%, rgba(20, 17, 14, .97) 100%);
+  --ga-dialog-glass:blur(28px) saturate(1.25);
   --ga-dialog-ring:linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
   --ga-dialog-radius:12px; --ga-dialog-shadow:0 24px 60px #0008;
 }
@@ -25,9 +25,9 @@
   --ga-ok:var(--ga-success); --ga-warn:var(--ga-orange); --ga-error:var(--ga-danger-hover);
   --ga-label-ink:#d79d5d; --ga-orange-ink:#ffd0a0; --ga-orange-tint:#cc83331a; --ga-orange-line:#d79e6066;
   --ga-surface:#ffffff08; --ga-surface-2:#ffffff12; --ga-field-bg:#0d1114;
-  --ga-text-family:Manrope,"Segoe UI",sans-serif; --ga-text-min:13px; --ga-text-size:14px; --ga-hint-size:13px; --ga-text-leading:1.5;
-  --ga-text-ink:var(--ga-white); --ga-hint-font:400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
-  --ga-label-font:800 11px/1.3 Manrope,"Segoe UI",sans-serif; --ga-label-track:.14em; --ga-status-font:700 13px/1.4 Manrope,"Segoe UI",sans-serif;
+  --ga-text-family:Manrope,"Segoe UI",sans-serif; --ga-text-min:14px; --ga-text-size:16px; --ga-hint-size:15px; --ga-text-leading:1.5;
+  --ga-text-ink:#e6dccd; --ga-hint-font:400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
+  --ga-label-font:800 13px/1.3 Manrope,"Segoe UI",sans-serif; --ga-label-track:.14em; --ga-status-font:700 14px/1.4 Manrope,"Segoe UI",sans-serif;
   --ga-space-1:8px; --ga-space-2:16px; --ga-space-3:24px; --ga-row-gap:10px;
 }
 /* Favorite/metadata sorting keeps the viewport fixed. Explicit keyboard

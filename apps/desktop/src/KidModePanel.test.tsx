@@ -70,38 +70,73 @@ describe("Niños en casa", () => {
     expect(button(/Conocer PLUS|PLUS/)).toBeTruthy();
   });
 
-  it("el asistente agrega los pasos de a uno: clave, filtro, cuenta y juegos; Cancelar vuelve al principio", async () => {
+  it("el asistente muestra un paso por vez en un escenario fijo: clave, filtro, cuenta y juegos; Atrás vuelve sin perder nada", async () => {
     await open();
     await press(/^Empezar|^Start/);
     expect(panel().querySelectorAll(".ga-kid-step")).toHaveLength(1);
+    expect(panel().querySelector(".ga-kid-step h3")!.textContent).toMatch(/funciones de padres|parents' functions/);
     // 1. The parent's key: Next waits for a valid word.
     expect(button(/Siguiente: filtro|Next: content filter/)!.disabled).toBe(true);
     await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
     await press(/Siguiente: filtro|Next: content filter/);
-    expect(getAdminKey()).toEqual({ enabled: true, length: 11 });
-    // 2. The filter, under the first step (which stays, done).
-    expect(panel().querySelectorAll(".ga-kid-step")).toHaveLength(2);
-    expect(panel().querySelector(".ga-kid-step.is-done")).not.toBeNull();
-    expect(text()).toContain("filtro");
-    // Cancel: back to the page that explains, with its button again.
-    await press(/^Cancelar|^Cancel/);
+    // The key is kept only when the wizard finishes: leaving it halfway leaves nothing the opening asks for.
+    expect(getAdminKey()).toEqual({ enabled: false, length: 0 });
+    // 2. The filter takes the key's place: still one step on screen (the dialog does not grow) and step 1 is marked done.
+    expect(panel().querySelectorAll(".ga-kid-step")).toHaveLength(1);
+    expect(panel().querySelector(".ga-kid-step h3")!.textContent).toMatch(/Filtro de contenido|content filter/i);
+    expect(panel().querySelectorAll(".ga-kid-progress .is-done")).toHaveLength(1);
+    // Back: step 1 again, with the word still typed; Back once more: the page that explains.
+    await press(/^Atrás|^Back/);
+    expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("perro");
+    await press(/^Atrás|^Back/);
     expect(panel().querySelector(".ga-kid-step")).toBeNull();
-    // Again: the key is already there, so step 1 only says so.
+    expect(panel().querySelector(".ga-kid-intro")).not.toBeNull();
+    // Start again: no key was kept, so it asks for it again, and the word is still there.
     await press(/^Empezar|^Start/);
-    expect(text()).toMatch(/Ya tenés una clave|already have a parent's key/);
+    expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("perro");
     await press(/Siguiente: filtro|Next: content filter/);
     await press(/Siguiente: la cuenta|Next: your child/);
     // 3. The account: Next waits for a valid name.
     expect(button(/Siguiente: sus juegos|Next: their games/)!.disabled).toBe(true);
     await act(async () => { setKidDraft({ name: "Juan" }); });
+    // A finished step's chip goes back to it, and what was typed stays.
+    const chip = (index: string) => [...panel().querySelectorAll<HTMLButtonElement>(".ga-kid-progress button")].find(item => item.textContent === index)!;
+    await act(async () => { chip("2").click(); });
+    expect(panel().querySelector(".ga-kid-step h3")!.textContent).toMatch(/Filtro de contenido|content filter/i);
+    await press(/Siguiente: la cuenta|Next: your child/);
+    expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("Juan");
     await press(/Siguiente: sus juegos|Next: their games/);
     // 4. The games, then finish: kid mode is on and the screen is the control panel.
     expect(text()).toMatch(/qué juegos verá tu hijo|which games your child will see/);
     await press(/Crear la cuenta|Create the account/);
+    expect(getAdminKey()).toEqual({ enabled: true, length: 11 });
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
     expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
       expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
     ]);
+  });
+
+  it("la cuenta trae un horario por día ya cargado, y en los juegos Ninguno saca todos de una vez", async () => {
+    await open();
+    await act(async () => { setKidDraft({ games: [{ appId: 10, name: "Tetris", folder: "C:/Juegos/Tetris", executable: "", arguments: [], steam: false }] }); });
+    await press(/^Empezar|^Start/);
+    await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
+    await press(/Siguiente: filtro|Next: content filter/);
+    await press(/Siguiente: la cuenta|Next: your child/);
+    // Monday first: two hours from 12 to 21; Saturday and Sunday three hours from 9 to 22.
+    const rows = [...panel().querySelectorAll<HTMLTableRowElement>(".ga-kid-schedule tbody tr")];
+    expect(rows).toHaveLength(7);
+    const values = (row: HTMLTableRowElement) => [...row.querySelectorAll("select")].map(select => select.value);
+    expect(values(rows[0])).toEqual(["120", "12", "21"]);
+    expect(values(rows[5])).toEqual(["180", "9", "22"]);
+    const from = rows[0].querySelectorAll("select")[1];
+    await act(async () => { from.value = "15"; from.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(values(panel().querySelectorAll<HTMLTableRowElement>(".ga-kid-schedule tbody tr")[0])).toEqual(["120", "15", "21"]);
+    await act(async () => { setKidDraft({ name: "Juan" }); });
+    await press(/Siguiente: sus juegos|Next: their games/);
+    expect(text()).toContain("Tetris");
+    await press(/^Ninguno|^None/);
+    expect(text()).not.toContain("Tetris");
   });
 
   it("panel: cada juego con Sí/No y su límite general o específico de a 30 minutos", async () => {

@@ -9,23 +9,24 @@
    3. ROLES and LAYOUT PIECES (one class each): hint, status, label, heading, stack, field group, button row, disclosure.
       Anything more specific (a colour for a note, a box around a line) belongs to the dialog's own CSS. */
 
-/* Every dialog and panel shell of the app (the same list as the dialog template in ga-design.css, plus ga-panel). */
-:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel) p:not(:where(.ga-label)) {
+/* Every dialog and panel shell of the app (the same list as the dialog template in ga-design.css, plus ga-panel), and
+   the screens (GaScreen), which use the same rule at their own, bigger scale (ga-design.css). */
+:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) p:not(:where(.ga-label)) {
   font-family: var(--ga-text-family) !important;
   font-size: max(var(--ga-text-min), var(--ga-p-size, var(--ga-text-size))) !important;
   line-height: var(--ga-text-leading) !important;
   margin: 0 !important;
   text-align: var(--ga-p-align, start) !important;
 }
-:where(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel) :where(p) {
+:where(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) :where(p) {
   color: var(--ga-text-ink); font-weight: 400;
 }
 /* Small print keeps the minimum size too (option details, footnotes). */
-:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel) small {
+:is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) small {
   font-size: var(--ga-text-min) !important;
 }
 /* The subtitle under a dialog's title. */
-:where(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel) :where(header p) {
+:where(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) :where(header p) {
   color: var(--ga-muted);
 }
 
@@ -45,7 +46,7 @@
 .ga-status > :where(svg) { flex: none; }
 .ga-label { margin: 0; padding: 0; color: var(--ga-label-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
 .ga-label > :where(svg) { vertical-align: -2px; margin-right: 4px; }
-.ga-heading { margin: 0; color: var(--ga-orange); font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .03em; }
+.ga-heading { margin: 0; color: var(--ga-orange); font: 400 var(--ga-heading-size, 34px)/1 "Bebas Neue", sans-serif; letter-spacing: .03em; }
 
 /* Field group: a label (legend) and its controls, 8 px apart; a fieldset loses the browser's border and padding. */
 .ga-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ga-space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
