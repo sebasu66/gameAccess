@@ -35,11 +35,13 @@ pub(crate) fn start_access_watchdog(app: tauri::AppHandle) {
     let foreground = app.clone();
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(1));
-        access_policy::finish_ended(|| {
-            let _ = access_activation::clear_session();
+        access_policy::finish_ended(|forget| {
+            // Only an end that was asked for erases the saved activation; a lease that ran out keeps it.
+            if forget { let _ = access_activation::clear_session(); }
             // The Download Manager pauses every pending download and starts nothing until a new activation.
             download_queue::suspend();
-            let _ = append_narration_lines(vec!["GameAccess access ended; transfers paused and managed functions locked. Game processes are left running.".into()],"ACCESS".into(),"INFO".into());
+            let _ = append_narration_lines(vec![format!("GameAccess access ended ({}); transfers paused and managed functions locked. Game processes are left running.",
+                if forget { "the session was cleared: the saved activation was removed" } else { "the grant ran out without a renewal: the saved activation is kept and checked again" })],"ACCESS".into(),"INFO".into());
             if let Some(window) = foreground.get_webview_window("main") { let _=window.set_fullscreen(false); }
             let _ = foreground.emit("gameaccess:access-ended", ());
         });

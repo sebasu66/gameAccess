@@ -82,7 +82,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             setEnded(reason.end);
             setNotice(endNotice(reason.end, t));
             setConnecting(false);
-            await clearActivationSession();
+            await clearActivationSession("the activation was rejected");
             break;
           }
           setConnecting(true);
@@ -101,20 +101,15 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     return () => verification.current?.abort();
   }, [verify]);
   useEffect(() => {
+    // Access ended without the server saying so (its grant ran out, a request was refused): it is checked again, and the
+    // saved activation goes only if the server that issued it rejects it (Seba, 2026-10-30).
     const invalid = () => {
       verification.current?.abort();
-      setConnecting(false);
-      setStatus(null);
-      const end = lastActivationEnd();
-      setEnded(end);
-      setNotice(endNotice(end, t));
-      setBusy(false);
-      setVerificationReady(true);
-      void clearActivationSession();
+      void verify();
     };
     window.addEventListener(ACTIVATION_INVALID_EVENT, invalid);
     return () => window.removeEventListener(ACTIVATION_INVALID_EVENT, invalid);
-  }, [t]);
+  }, [verify]);
   // The premium dialog redeemed a key: adopt the new session.
   useEffect(() => {
     const activated = () => { setNotice(""); void verify(); };
@@ -151,11 +146,13 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       setConnecting(false);
       setStatus(null);
       const end: ActivationEnd = { reason: keyRemaining <= initialRemaining ? "expired" : "unavailable", expires_at: status.expires_at };
+      // Only the key's own end erases it; a grant that ran out without a renewal is checked again.
+      if (end.reason !== "expired") { void verify(); return; }
       setEnded(end);
       setNotice(endNotice(end, t));
       setBusy(false);
       setVerificationReady(true);
-      void clearActivationSession();
+      void clearActivationSession("the key's time ended");
     };
 
     const tick = () => {

@@ -52,7 +52,16 @@ fn main() {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
             plugin_install::receive(&args);
-            if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
+            if let Some(window) = app.get_webview_window("main") {
+                let _=window.unminimize(); let _=window.show(); let _=window.set_focus();
+                // Kid mode closed something (restrictor.rs): above everything for a few seconds, so its notice is seen
+                // even when Windows does not let a background program take the focus.
+                if args.iter().any(|arg| arg == restrictor::BLOCKED_FLAG) {
+                    let _ = window.set_always_on_top(true);
+                    let window = window.clone();
+                    std::thread::spawn(move || { std::thread::sleep(std::time::Duration::from_secs(6)); let _ = window.set_always_on_top(false); });
+                }
+            }
             // The page may be suspended while a game runs: wake it before asking it to launch.
             webview_rest::wake(app);
             let _=app.emit("gameaccess:launch-request",());

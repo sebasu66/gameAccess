@@ -23,6 +23,8 @@ use std::time::{Duration, SystemTime};
 pub const SERVICE_FLAG: &str = "--restrictor";
 pub const CONSOLE_FLAG: &str = "--restrictor-console";
 pub const SERVICE_NAME: &str = "GameAccessRestrictor";
+/// Game Access opened by the restrictor after a block: it comes to the front, above everything, with the notice.
+pub const BLOCKED_FLAG: &str = "--blocked";
 const TICK: Duration = Duration::from_millis(700);
 const BLOCKS_KEPT: usize = 200;
 
@@ -454,12 +456,13 @@ fn terminate(pid: u32) -> bool {
 #[cfg(not(windows))]
 fn terminate(_pid: u32) -> bool { false }
 
-/// Opens Game Access in a user's session, as that user (the service runs as SYSTEM, in no session of its own). A
+/// Opens Game Access in a user's session, as that user (the service runs as SYSTEM, in no session of its own), with
+/// `--blocked`: a Game Access already open gets it (single instance) and comes to the front with the notice. A
 /// restrictor run by hand (console) simply starts it.
 #[cfg(windows)]
 fn open_game_access(session: u32, as_service: bool) {
     let Ok(exe) = std::env::current_exe() else { return };
-    if !as_service { let _ = std::process::Command::new(&exe).spawn(); return; }
+    if !as_service { let _ = std::process::Command::new(&exe).arg(BLOCKED_FLAG).spawn(); return; }
     use win::*;
     unsafe {
         let mut token: HANDLE = std::ptr::null_mut();
@@ -467,7 +470,7 @@ fn open_game_access(session: u32, as_service: bool) {
         let mut env: *mut std::ffi::c_void = std::ptr::null_mut();
         let has_env = CreateEnvironmentBlock(&mut env, token, 0) != 0;
         let app = wide(&exe.display().to_string());
-        let mut command = wide(&format!("\"{}\"", exe.display()));
+        let mut command = wide(&format!("\"{}\" {BLOCKED_FLAG}", exe.display()));
         let mut desktop = wide("winsta0\\default");
         let mut startup: STARTUPINFOW = std::mem::zeroed();
         startup.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
@@ -581,11 +584,11 @@ impl Watcher {
         }
     }
 
-    /// Game Access shows the notice (it reads `aviso.json`); when it is not open in that session, it is opened.
-    fn notify(&mut self, session: u32, all: &[Proc]) {
-        let open = all.iter().any(|proc| proc.session == session && proc.path.as_deref().is_some_and(|path| norm(path).ends_with(r"\gameaccess-desktop.exe")));
-        let recent = self.opened.get(&session).is_some_and(|at| now_ms().saturating_sub(*at) < 15_000);
-        if open || recent { return; }
+    /// Game Access shows the notice (it reads `aviso.json`) and comes to the front, opened in that session or, when it
+    /// already is, brought above the rest (Seba, 2026-10-30: a minimized Game Access hid it). Once every 10 s at most.
+    fn notify(&mut self, session: u32, _all: &[Proc]) {
+        let recent = self.opened.get(&session).is_some_and(|at| now_ms().saturating_sub(*at) < 10_000);
+        if recent { return; }
         self.opened.insert(session, now_ms());
         open_game_access(session, self.as_service);
     }
