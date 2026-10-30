@@ -9,6 +9,9 @@
 //! The word is kept in one file that Windows protects (DPAPI) for this account, like the parental control's. The gate
 //! only sends what was typed and gets "yes" or "no". The day's key is never handed to the interface; the word goes
 //! there only while the parent holds its eye pressed on the parent's key tab (wallet style, `admin_key_word`).
+//!
+//! The parent's mode is on only once the kid mode wizard is complete (a child in the family file, kid_mode.rs). A word
+//! left by an unfinished wizard is asleep: the opening does not ask for it, and the wizard may replace it.
 use chrono::{Datelike, Local, NaiveDate};
 use std::{env, fs, io, path::{Path, PathBuf}};
 
@@ -74,8 +77,8 @@ fn key_for(word: &str, date: NaiveDate) -> String {
 
 fn today() -> NaiveDate { Local::now().date_naive() }
 
-fn state_at(path: &Path, date: NaiveDate) -> Result<AdminKeyState, String> {
-    Ok(match read_at(path)?.word {
+fn state_at(path: &Path, date: NaiveDate, set_up: bool) -> Result<AdminKeyState, String> {
+    Ok(match read_at(path)?.word.filter(|_| set_up) {
         Some(word) => AdminKeyState { enabled: true, length: key_for(&word, date).chars().count() },
         None => AdminKeyState { enabled: false, length: 0 },
     })
@@ -86,29 +89,29 @@ fn check_at(path: &Path, attempt: &str, date: NaiveDate) -> Result<bool, String>
 }
 
 /// Whether `current` proves the parent: the word itself or today's key (a parent who is not technical may only
-/// remember the word). Without a key set there is nothing to prove.
-fn authorized(path: &Path, current: Option<&str>, date: NaiveDate) -> Result<bool, String> {
-    let Some(word) = read_at(path)?.word else { return Ok(true) };
+/// remember the word). Without a key set, or with kid mode not set up yet, there is nothing to prove.
+fn authorized(path: &Path, current: Option<&str>, date: NaiveDate, set_up: bool) -> Result<bool, String> {
+    let Some(word) = read_at(path)?.word.filter(|_| set_up) else { return Ok(true) };
     let typed = current.unwrap_or("").trim().to_uppercase();
     Ok(!typed.is_empty() && (typed == word || typed == key_for(&word, date)))
 }
 
 /// Sets or changes the word. With a key already set, `current` must be the word or today's key.
-fn set_at(path: &Path, word: &str, current: Option<&str>, date: NaiveDate) -> Result<AdminKeyState, String> {
-    if !authorized(path, current, date)? { return Err("wrong_key".into()); }
+fn set_at(path: &Path, word: &str, current: Option<&str>, date: NaiveDate, set_up: bool) -> Result<AdminKeyState, String> {
+    if !authorized(path, current, date, set_up)? { return Err("wrong_key".into()); }
     write_at(path, &Stored { word: Some(clean_word(word)?) })?;
-    state_at(path, date)
+    state_at(path, date, set_up)
 }
 
-fn clear_at(path: &Path, current: Option<&str>, date: NaiveDate) -> Result<(), String> {
-    if !authorized(path, current, date)? { return Err("wrong_key".into()); }
+fn clear_at(path: &Path, current: Option<&str>, date: NaiveDate, set_up: bool) -> Result<(), String> {
+    if !authorized(path, current, date, set_up)? { return Err("wrong_key".into()); }
     match fs::remove_file(path) { Ok(()) => Ok(()), Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()), Err(err) => Err(err.to_string()) }
 }
 
 // DPAPI runs off the window's thread, like the parental control's commands.
 #[tauri::command]
 pub async fn admin_key_state() -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, today())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, today(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
 /// Whether what was typed is today's key. There is no limit on tries: the gate asks on every change once the length fits.
@@ -119,12 +122,12 @@ pub async fn admin_key_check(attempt: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn admin_key_set(word: String, current: Option<String>) -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), today())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), today(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), today())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), today(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
 /// The word, for the parent's key tab: shown only while its eye is held pressed. That tab is reachable only as the
@@ -166,9 +169,9 @@ mod tests {
     fn the_word_is_kept_protected_and_only_todays_key_opens() {
         let path = env::temp_dir().join(format!("ga-admin-key-{}", uuid::Uuid::new_v4())).join("admin-key.dpapi");
         let date = day(2026, 11, 11);
-        assert_eq!(state_at(&path, date).unwrap(), AdminKeyState { enabled: false, length: 0 });
+        assert_eq!(state_at(&path, date, true).unwrap(), AdminKeyState { enabled: false, length: 0 });
         assert!(!check_at(&path, "P1E1R1R1O26", date).unwrap());
-        assert_eq!(set_at(&path, "perro", None, date).unwrap(), AdminKeyState { enabled: true, length: 11 });
+        assert_eq!(set_at(&path, "perro", None, date, true).unwrap(), AdminKeyState { enabled: true, length: 11 });
         assert!(!String::from_utf8_lossy(&fs::read(&path).unwrap()).contains("PERRO"));
         assert!(check_at(&path, "P1E1R1R1O26", date).unwrap());
         assert!(check_at(&path, " p1e1r1r1o26 ", date).unwrap());
@@ -176,14 +179,30 @@ mod tests {
         // Yesterday's key is no good today.
         assert!(!check_at(&path, "P1E1R1R1O26", day(2026, 11, 12)).unwrap());
         // Changing or removing it needs today's key or the word itself; yesterday's key is no good.
-        assert_eq!(set_at(&path, "gato", None, date), Err("wrong_key".into()));
-        assert_eq!(set_at(&path, "gato", Some(""), date), Err("wrong_key".into()));
-        assert_eq!(clear_at(&path, Some("nope"), date), Err("wrong_key".into()));
-        assert_eq!(clear_at(&path, Some("P1E1R1R1O26"), day(2026, 11, 12)), Err("wrong_key".into()));
-        assert!(set_at(&path, "gato", Some("P1E1R1R1O26"), date).is_ok());
-        assert!(set_at(&path, "mono", Some(" gato "), date).is_ok());
-        assert!(clear_at(&path, Some("M1O1N1O126"), date).is_ok());
-        assert!(!state_at(&path, date).unwrap().enabled);
+        assert_eq!(set_at(&path, "gato", None, date, true), Err("wrong_key".into()));
+        assert_eq!(set_at(&path, "gato", Some(""), date, true), Err("wrong_key".into()));
+        assert_eq!(clear_at(&path, Some("nope"), date, true), Err("wrong_key".into()));
+        assert_eq!(clear_at(&path, Some("P1E1R1R1O26"), day(2026, 11, 12), true), Err("wrong_key".into()));
+        assert!(set_at(&path, "gato", Some("P1E1R1R1O26"), date, true).is_ok());
+        assert!(set_at(&path, "mono", Some(" gato "), date, true).is_ok());
+        assert!(clear_at(&path, Some("M1O1N1O126"), date, true).is_ok());
+        assert!(!state_at(&path, date, true).unwrap().enabled);
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_word_without_kid_mode_set_up_is_asleep() {
+        // Seba (2026-10-30): an unfinished wizard left a word, and the opening asked for it. It must not.
+        let path = env::temp_dir().join(format!("ga-admin-key-{}", uuid::Uuid::new_v4())).join("admin-key.dpapi");
+        let date = day(2026, 11, 11);
+        assert!(set_at(&path, "perro", None, date, false).is_ok());
+        assert_eq!(state_at(&path, date, false).unwrap(), AdminKeyState { enabled: false, length: 0 });
+        // The wizard run again may choose another word without knowing the old one.
+        assert!(set_at(&path, "gato", None, date, false).is_ok());
+        // Once kid mode is set up the word wakes up and protects itself.
+        assert_eq!(state_at(&path, date, true).unwrap(), AdminKeyState { enabled: true, length: 10 });
+        assert_eq!(set_at(&path, "mono", None, date, true), Err("wrong_key".into()));
         let _ = fs::remove_dir_all(path.parent().unwrap());
     }
 }

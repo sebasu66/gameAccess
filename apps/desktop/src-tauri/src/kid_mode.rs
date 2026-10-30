@@ -384,6 +384,10 @@ pub fn kid_sign_out() { sign_out(); }
 #[tauri::command]
 pub fn kid_family() -> Family { read_family(&family_path()) }
 
+/// Whether the kid mode wizard was finished: a child is in the family file. Until then the parent's key is asleep
+/// (admin_key.rs).
+pub fn kid_mode_set_up() -> bool { !read_family(&family_path()).kids.is_empty() }
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DayRow { date: String, seconds: u64, games: HashMap<String, u64> }
