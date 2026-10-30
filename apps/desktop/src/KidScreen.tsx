@@ -5,7 +5,9 @@ import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { focusCard } from "./BigScreenControls";
 import { GamepadInput } from "./gamepadInput";
-import { showNotice } from "./notice/notice";
+import { hideNotice, runSteps, showNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
+import { narrate } from "./narrationLog";
 import { readKidSession, type KidGame, type KidSession } from "./kidMode";
 import "./big-picture.css";
 import "./kid-screen.css";
@@ -63,12 +65,26 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     setError("");
     if (over) return;
     if (spent(game)) { setError(t("kidGameSpent")); return; }
+    // The same notice as playing on the adult's account (App.tsx launchGame): its steps, then playing or the error,
+    // which stays until it is closed, so whoever is there sees why a game did not open.
+    const steps = [game.steam ? t("kidLaunchStepSteam") : t("launchStepPrepare"), t("launchStepStart")];
+    const run = runSteps({ game: noticeGame({ name: game.name, app_id: game.appId > 0 ? game.appId : null, capsule_image: null, header_image: null }), title: t("launchTitle"), text: game.steam ? t("kidLaunchSteamDetail") : t("launchDetail"), steps });
+    run.set(0, "running");
     try {
       if (!demo) await invoke("kid_play", { appId: game.appId });
+      run.set(0, "done"); run.set(1, "done");
+      run.succeed({ title: t("launchPlayingTitle"), text: t("launchPlayingText", { name: game.name }) });
       setSession(current => ({ ...current, playing: game.appId }));
     } catch (failure) {
       const code = String(failure);
-      setError(code === "time_up" ? t("kidTimeUpTitle") : code === "paused" ? t("kidPausedTitle") : code === "game_time_up" ? t("kidGameSpent") : code === "already_playing" ? t("kidAlreadyPlaying") : t("kidPlayFailed", { name: game.name }));
+      const expected = ["time_up", "paused", "game_time_up", "already_playing"].includes(code);
+      const text = code === "time_up" ? t("kidTimeUpTitle") : code === "paused" ? t("kidPausedTitle") : code === "game_time_up" ? t("kidGameSpent")
+        : code === "already_playing" ? t("kidAlreadyPlaying") : code === "no_executable" ? t("kidNoExecutable", { name: game.name }) : t("kidPlayFailedDetail", { name: game.name, error: code });
+      run.set(0, "failed");
+      run.fail({ title: t("launchError"), text, actions: [{ label: t("close"), kind: "secondary", run: () => hideNotice(run.id) }] });
+      setError(text);
+      // Kept in the child's log by kid_mode.rs; an unexpected one also reaches the server.
+      if (!expected) void narrate(`Kid mode: ${game.name} (${game.appId}) did not start: ${code}`, { area: "KID_MODE", level: "ERROR" });
     }
   };
   const latest = useRef({ play, games: session.kid.games }); latest.current = { play, games: session.kid.games };

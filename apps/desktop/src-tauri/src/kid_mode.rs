@@ -322,7 +322,34 @@ pub fn kid_session() -> Option<KidSession> {
 #[tauri::command]
 pub fn kid_play(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
-    let game = kid.games.iter().find(|game| game.app_id == app_id).cloned().ok_or("not_allowed")?;
+    let Some(game) = kid.games.iter().find(|game| game.app_id == app_id).cloned() else {
+        play_log(&kid.sid, "WARN", format!("Play {app_id}: not among the child's games."));
+        return Err("not_allowed".into());
+    };
+    let how = if game.steam { format!("through Steam (steam://rungameid/{app_id})") } else { format!("{:?} {:?} in {:?}", game.executable, game.arguments, game.folder) };
+    play_log(&kid.sid, "INFO", format!("Play {:?} ({app_id}) {how}.", game.name));
+    let result = start_kid_game(&kid, &game, app_id);
+    match &result {
+        Ok(()) => play_log(&kid.sid, "INFO", format!("Started {:?}.", game.name)),
+        Err(error) => play_log(&kid.sid, if matches!(error.as_str(), "paused" | "time_up" | "game_time_up" | "already_playing") { "WARN" } else { "ERROR" }, format!("{:?} did not start: {error}.", game.name)),
+    }
+    result
+}
+
+/// Each try to play, in the child's own log and in the shared folder (uso\<sid>.log), which the adult's account can
+/// read: a game that does not open on the child's account must say why somewhere the parent can see.
+fn play_log(sid: &str, level: &str, message: String) {
+    log(level, message.clone());
+    if !valid_sid(sid) { return; }
+    let line = format!("{} [{level}] {message}
+", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    let path = shared_dir().join(format!("{sid}.log"));
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) { let _ = std::io::Write::write_all(&mut file, line.as_bytes()); }
+}
+
+fn start_kid_game(kid: &Kid, game: &KidGame, app_id: i64) -> Result<(), String> {
+    let kid = kid.clone();
+    let game = game.clone();
     if !plus_active() { return Err("paused".into()); }
     let usage = usage_today();
     let control = read_control(&kid.sid);
@@ -331,6 +358,8 @@ pub fn kid_play(app_id: i64) -> Result<(), String> {
     if left_for(&limited, &game, &usage) == Some(0) { return Err("game_time_up".into()); }
     let mut playing = PLAYING.lock().map_err(|_| "busy")?;
     if playing.is_some() { return Err("already_playing".into()); }
+    // A game with no program to start (its entry could not be found when kid mode was applied) cannot open.
+    if !game.steam && game.executable.trim().is_empty() { return Err("no_executable".into()); }
     let child = if game.steam {
         let mut command = Command::new("cmd");
         command.args(["/c", "start", "", &format!("steam://rungameid/{app_id}")]);
