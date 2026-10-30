@@ -277,7 +277,11 @@ export async function applyKidDraft(): Promise<void> {
   if (getActivationTier() !== "plus" && hasTauriRuntime()) throw new KidApplyError("needs_plus");
   if (!validKidName(draft.name)) throw new KidApplyError("bad_name");
   const enabled = applied ? status.enabled : true;
-  const chosen = programs ?? [];
+  // Windows' and Microsoft's programs installed outside Windows' folders (PowerToys in AppData) always run: they go to
+  // the restrictor with the ticked ones, without being shown as a choice.
+  await loadDetectedPrograms();
+  const windows = (detected ?? []).filter(item => item.kind === "windows" && !(programs ?? []).some(chosen => sameFolder(chosen.folder, item.folder)));
+  const chosen = [...(programs ?? []), ...windows.map(({ name, folder }) => ({ name, folder }))];
   if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; appliedPrograms = chosen; status = { ...status, enabled }; emit(); return; }
   const kid = { ...draft, games: await withEntries(draft.games) };
   try {

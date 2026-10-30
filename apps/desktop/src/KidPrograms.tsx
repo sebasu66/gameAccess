@@ -22,7 +22,8 @@ export default function KidPrograms() {
   const allowed = (folder: string) => programs.some(item => sameFolder(item.folder, folder));
   const installed = detected.filter(item => item.kind === "program");
   // A program allowed from the blocked list (not in Windows' list) is still shown, so it can be taken back.
-  const added = programs.filter(item => !installed.some(row => sameFolder(row.folder, item.folder))).map(item => ({ ...item, publisher: "" }));
+  const added = programs.filter(item => !detected.some(row => sameFolder(row.folder, item.folder) && row.kind !== "program")
+    && !installed.some(row => sameFolder(row.folder, item.folder))).map(item => ({ ...item, publisher: "" }));
   const rows = [...installed, ...added].sort((a, b) => a.name.localeCompare(b.name));
   const windows = detected.filter(item => item.kind === "windows").length;
   const games = detected.filter(item => item.kind === "game" || item.kind === "launcher").sort((a, b) => a.name.localeCompare(b.name));

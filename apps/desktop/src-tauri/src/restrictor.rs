@@ -103,13 +103,30 @@ pub enum Verdict {
     Block { game: bool },
 }
 
+/// What always runs wherever it is installed, as parts of a path (lower case): Microsoft's per-user and shared data
+/// (OneDrive, Teams, Defender), Game Access itself (its tools and data, and the download plugins) and, by Seba's choice
+/// (2026-10-30), programming tools and local servers, so the PC can still be worked on with kid mode on. A child could
+/// name a folder like one of these to get past it: accepted for children under 12.
+const ALWAYS_PARTS: &[&str] = &[
+    r"\appdata\local\microsoft\", r"\programdata\microsoft\", r"\program files\windowsapps\",
+    // Game Access: DepotDownloader and the launcher's data, the source plugins, a development build and its tests.
+    r"\appdata\local\gameaccess\", r"\appdata\roaming\gameaccess\", r"\src-tauri\target\",
+    // Programming tools and local servers.
+    r"\program files\nodejs\", r"\program files\git\", r"\program files\github cli\", r"\program files\powershell\",
+    r"\program files\docker\", r"\program files\python", r"\appdata\local\programs\python\", r"\.cargo\bin\", r"\.rustup\",
+    r"\appdata\roaming\npm\", r"\appdata\local\pnpm\", r"\node_modules\", r"\.venv\", r"\miniconda3\", r"\anaconda3\",
+    r"\scoop\", r"\.local\bin\", r"\program files (x86)\windows kits\", r"\appdata\local\tauri\",
+    // Claude and Claude Code (the desktop app is in WindowsApps, which always runs).
+    r"\appdata\roaming\claude\", r"\appdata\local\packages\claude_", r"\appdata\local\anthropicclaude\", r"\appdata\local\programs\claude",
+];
+
 /// The allow list, as folders.
 #[derive(Default, Debug)]
 pub struct Rules {
     /// Windows, Microsoft's programs, Game Access and Steam's client.
     always: Vec<String>,
-    /// Folders inside Microsoft's per-user and shared data (OneDrive, Teams, Defender's platform).
-    microsoft_parts: Vec<String>,
+    /// Parts of a path that always run, wherever they are: `ALWAYS_PARTS`.
+    always_parts: Vec<String>,
     /// Steam libraries: their games are not part of Steam's client.
     steam_games: Vec<String>,
     games: Vec<(i64, String)>,
@@ -120,7 +137,7 @@ impl Rules {
     pub fn new(config: &Restriction, always: Vec<String>, steam_games: Vec<String>) -> Self {
         Rules {
             always,
-            microsoft_parts: vec![r"\appdata\local\microsoft\".into(), r"\programdata\microsoft\".into()],
+            always_parts: ALWAYS_PARTS.iter().map(|part| part.to_string()).collect(),
             steam_games,
             games: config.kid.games.iter().filter(|game| !game.folder.trim().is_empty()).map(|game| (game.app_id, game.folder.clone())).collect(),
             programs: config.programs.iter().map(|program| program.folder.clone()).filter(|folder| !folder.trim().is_empty()).collect(),
@@ -158,7 +175,7 @@ impl Rules {
         if self.programs.iter().any(|folder| inside(folder, path)) { return Verdict::Allow; }
         // A Steam game is in its library under Steam's own folder, which otherwise runs: the game is not Steam.
         if self.steam_games.iter().any(|folder| inside(folder, path)) { return Verdict::Block { game: true }; }
-        if self.always.iter().any(|folder| inside(folder, path)) || self.microsoft_parts.iter().any(|part| lower.contains(part.as_str())) {
+        if self.always.iter().any(|folder| inside(folder, path)) || self.always_parts.iter().any(|part| lower.contains(part.as_str())) {
             return Verdict::Allow;
         }
         Verdict::Block { game: looks_like_game(path) }
@@ -795,6 +812,17 @@ mod tests {
                      r"C:\Program Files\gameAccess\gameaccess-desktop.exe", r"C:\Program Files (x86)\Steam\steam.exe",
                      r"C:\Program Files (x86)\Steam\bin\cef\cef.win7x64\steamwebhelper.exe", r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
                      r"D:\SteamLibrary\steamapps\common\Blender\blender.exe",
+                     // Game Access's own tools and plugins, and programming tools and servers (by Seba's choice).
+                     r"C:\Users\Seba\AppData\Local\GameAccess\tools\depotdownloader-3.4.0\DepotDownloader.exe",
+                     r"C:\Users\Seba\AppData\Roaming\GameAccess\plugins\ga-torrent-provider\Game Access Torrent Provider.exe",
+                     r"C:\Program Files\nodejs\node.exe", r"C:\Program Files\Git\cmd\git.exe", r"C:\Program Files\GitHub CLI\gh.exe",
+                     r"C:\Users\Seba\.cargo\bin\cargo.exe", r"C:\DEV\Game Access Dev\apps\api\.venv\Scripts\python.exe",
+                     r"C:\DEV\Game Access Dev\apps\desktop\node_modules\@esbuild\win32-x64\esbuild.exe",
+                     r"C:\DEV\Game Access Dev\apps\desktop\src-tauri\target\debug\gameaccess-desktop.exe",
+                     r"C:\Users\Seba\scoop\apps\rustup\current\.cargo\bin\rustc.exe", r"C:\Users\Seba\.local\bin\claude.exe",
+                     r"C:\Users\Seba\AppData\Roaming\Claude\claude-code\2.1.309\9078b9c1d466\claude.exe",
+                     r"C:\Users\Seba\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude-NativeHost\4.4212.0\chrome-native-host.exe",
+                     r"C:\Program Files\WindowsApps\Claude_4.4212.0.0_x64__pzs8sxrjxfjjc\app\Claude.exe",
                      r"C:\Users\Seba\AppData\Local\Microsoft\OneDrive\OneDrive.exe"] {
             assert_eq!(rules.classify(path, None), Verdict::Allow, "{path}");
         }

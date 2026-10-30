@@ -35,8 +35,9 @@ describe("programas permitidos del modo niño", () => {
     allowBlocked({ at: 1, name: "tool", path: "C:\\Users\\x\\Tools\\tool.exe", game: false, count: 1 });
     await applyKidDraft();
     const saved = calls.find(([command]) => command === "restriction_save")![1] as { config: { enabled: boolean; programs: Array<{ folder: string }> } };
-    // Blender stays, Krita was unticked, the blocked tool's folder was allowed; Portal 2 and Office are not in the list.
-    expect(saved.config.programs.map(item => item.folder)).toEqual(["C:\\Program Files\\Blender", "C:\\Users\\x\\Tools"]);
+    // Blender stays, Krita was unticked, the blocked tool's folder was allowed; Portal 2 is not allowed, and Office (a
+    // Windows program) always goes along without being a choice.
+    expect(saved.config.programs.map(item => item.folder)).toEqual(["C:\\Program Files\\Blender", "C:\\Users\\x\\Tools", "C:\\Program Files\\Microsoft Office"]);
     // Setting kid mode up turns it on.
     expect(saved.config.enabled).toBe(true);
   });
