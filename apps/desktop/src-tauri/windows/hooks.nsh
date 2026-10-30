@@ -241,8 +241,8 @@ FunctionEnd
   ; key in Game Access is the barrier), and the parent's Game Access writes it without asking Windows for permission.
   ; Then the service is registered (or pointed at this executable), restarted if it ever stops, and started.
   ReadEnvStr $1 ProgramData
-  CreateDirectory "$1\GameAccessestriccion"
-  nsExec::Exec `icacls "$1\GameAccessestriccion" /grant *S-1-5-32-545:(OI)(CI)M`
+  CreateDirectory "$1\GameAccess\restriccion"
+  nsExec::Exec `icacls "$1\GameAccess\restriccion" /grant *S-1-5-32-545:(OI)(CI)M`
   Pop $0
   nsExec::Exec `sc.exe create ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto DisplayName= "Game Access kid mode"`
   Pop $0
