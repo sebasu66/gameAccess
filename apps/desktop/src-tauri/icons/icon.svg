@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-160 -160 320 320" width="1024" height="1024">
+  <!-- Game Access icon (Seba, 2026-10-30): the maker's emblem of the opening's lock (SplashScreen.tsx, EMBLEM_G and
+       EMBLEM_A, outer radius 138), the G in the library's green and the A in the catalogue's orange glass, on the lock's
+       dark round plate with its rim. Flat enough to read at 16 px. The app's and the installer's icons come from it:
+       npx tauri icon src-tauri/icons/icon.svg (see README.md). -->
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d777e"/><stop offset=".5" stop-color="#2a3136"/><stop offset="1" stop-color="#0f1214"/></linearGradient>
+    <radialGradient id="plate" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#4a535a"/><stop offset=".55" stop-color="#262c31"/><stop offset="1" stop-color="#14181b"/></radialGradient>
+    <linearGradient id="glass-g" gradientUnits="userSpaceOnUse" x1="-120" y1="-120" x2="110" y2="120"><stop offset="0" stop-color="#e8f9f0"/><stop offset=".42" stop-color="#a0d2b4"/><stop offset="1" stop-color="#3f7a5d"/></linearGradient>
+    <linearGradient id="glass-a" gradientUnits="userSpaceOnUse" x1="-20" y1="-140" x2="120" y2="100"><stop offset="0" stop-color="#ffcf9a"/><stop offset=".4" stop-color="#f57a1a"/><stop offset="1" stop-color="#a8490a"/></linearGradient>
+  </defs>
+  <circle r="158" fill="url(#rim)"/>
+  <circle r="149" fill="url(#plate)"/>
+  <g transform="scale(.93)">
+    <path d="M 97.0 98.2 A 138 138 0 1 1 0.0 -138.0 L 13.5 -105.1 A 106 106 0 1 0 83.5 65.3 Z" fill="url(#glass-g)"/>
+    <path d="M 0.0 -138.0 A 138 138 0 0 1 36.6 -133.1 L 119.6 68.9 A 138 138 0 0 1 97.0 98.2 Z M -34 8 L 60.0 8 L 70.6 34 L -34 34 Z" fill="url(#glass-a)"/>
+  </g>
+</svg>
