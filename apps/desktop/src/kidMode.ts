@@ -152,15 +152,20 @@ export function usePlus(): boolean {
   return useSyncExternalStore(subscribeTier, () => getActivationTier() === "plus", () => false);
 }
 
-/** What the child's account needs to start each game by itself, asked to the launcher now (it may have changed).
- *  A shortcut already carries it. */
+/** What the child's account needs to start each game by itself, asked to the launcher now (it may have changed), with
+ *  the folder the library showed (the launcher uses it when its games folder does not hold the game). A shortcut
+ *  already carries it. A game left without a program is written to the log: the child would see it fail. */
 async function withEntries(games: KidGame[]): Promise<KidGame[]> {
   return Promise.all(games.map(async game => {
     if (game.appId < 0) return game;
+    let why = "";
     try {
-      const result = await invoke<{ ok: boolean; entry?: Omit<KidGame, "appId" | "name"> }>("run_digital_process", { action: "kid-entry", appId: game.appId, name: game.name, command: "", workingDir: null, autoInstalled: false });
-      return result.ok && result.entry ? { ...game, ...result.entry } : game;
-    } catch { return game; }
+      const result = await invoke<{ ok: boolean; error?: string; entry?: Omit<KidGame, "appId" | "name"> }>("run_digital_process", { action: "kid-entry", appId: game.appId, name: game.name, command: JSON.stringify({ folder: game.folder }), workingDir: null, autoInstalled: false });
+      if (result.ok && result.entry) return { ...game, ...result.entry };
+      why = result.error ?? "no entry";
+    } catch (error) { why = String(error); }
+    if (!game.steam && !game.executable) void narrate(`Kid mode: no program found for ${game.name} (AppID ${game.appId}) in ${game.folder}: ${why}`, { area: "KID_MODE", level: "WARN" });
+    return game;
   }));
 }
 

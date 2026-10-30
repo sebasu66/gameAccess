@@ -98,6 +98,21 @@ def test_kid_entry_names_the_executable_a_child_account_starts(tmp_path):
     assert entry["executable"].lower().endswith("mygame.exe") and entry["arguments"] == []
 
 
+def test_kid_entry_uses_the_ready_folder_the_library_showed(tmp_path):
+    # The game lives in a "-ready" folder outside this launcher's games roots (another install, another games
+    # folder): the folder the adult chose rules, not the new name storage.folder would make up.
+    storage = DigitalGameStorage(tmp_path / "launcher")
+    elsewhere = tmp_path / "other" / "311690-Enter the Gungeon-ready"
+    (elsewhere / "Enter The Gungeon").mkdir(parents=True)
+    (elsewhere / "Enter The Gungeon" / "EtG.exe").write_bytes(b"g")
+    runner = DigitalProcessRunner(storage)
+    result = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": "%s"}' % str(elsewhere).replace("\\", "\\\\"))
+    assert result["ok"], result
+    assert result["entry"]["folder"] == str(elsewhere) and result["entry"]["executable"].endswith("EtG.exe")
+    missing = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": ""}')
+    assert not missing["ok"] and "carpeta" in missing["error"]
+
+
 def test_a_download_with_nothing_runnable_is_not_a_game(tmp_path):
     from game_execution_manager.executables import not_a_game
     extras = tmp_path / "extras"

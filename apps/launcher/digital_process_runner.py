@@ -15,7 +15,7 @@ import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
-from game_library_manager.freezer import GameFreezer
+from game_library_manager.freezer import GameFreezer, DEEP_ARCHIVE
 from game_library_manager.preferences import DigitalPreferences
 from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
@@ -41,16 +41,30 @@ class DigitalProcessRunner:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
 
-    def kid_entry(self, app_id, name, linked) -> dict:
+    def kid_entry(self, app_id, name, linked, chosen="") -> dict:
         """What a child's account needs to start this game by itself (kid mode, vault/Modo niño.md): that account
-        cannot read this library, so the folder, the executable and its arguments go in the family file."""
+        cannot read this library, so the folder, the executable and its arguments go in the family file.
+        `chosen`: the folder the adult's library showed (a "<appid>-<name>-ready" one, or a linked game's); it rules
+        when the games roots here do not hold the game, instead of the new folder name `storage.folder` would make up."""
         if linked:
             folder = Path(linked["path"])
             if linked["kind"] == "steam":
                 return {"folder": str(folder), "executable": "", "arguments": [], "steam": True}
             candidates = self.get_candidates(folder, name, "")
         else:
-            folder = self.storage.folder(app_id, name)
+            try:
+                folder = self.storage.folder(app_id, name)
+            except ValueError:
+                folder = None
+            if (folder is None or not folder.is_dir()) and chosen and Path(chosen).is_dir():
+                folder = Path(chosen)
+            if folder is None or not folder.is_dir():
+                raise ValueError(f"No está la carpeta del juego ({chosen or folder}).")
+            # The child's account cannot thaw a deep-frozen game (it only reads): it is brought back now.
+            if GameFreezer(self.storage, logger).ensure_thawed(app_id, name):
+                logger.info("AppID %s: thawed from deep freeze for the child's account", app_id)
+            elif (folder / DEEP_ARCHIVE).is_file():
+                raise ValueError("El juego está en congelado profundo: descongelalo desde la biblioteca y volvé a aplicar.")
             options = DigitalGameOptions(self.storage).load(app_id)
             extra = parse_arguments(options["arguments"])
             if options["executable"]:
@@ -172,7 +186,8 @@ class DigitalProcessRunner:
                 raise ValueError("Se está congelando o descongelando este juego: esperá a que termine o cancelalo.")
             linked_record = self.storage.linked.get(app_id)
             if action == "kid-entry":
-                return {**result, "ok": True, "entry": self.kid_entry(app_id, name, linked_record)}
+                chosen = str(json.loads(command or "{}").get("folder") or "")
+                return {**result, "ok": True, "entry": self.kid_entry(app_id, name, linked_record, chosen)}
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
                 outcome = run_linked(action, linked_record, self.storage.linked, logger,
