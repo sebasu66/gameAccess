@@ -106,11 +106,6 @@
 @media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-glass,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-glass.is-a{opacity:.94}.gs-gate .gs-leaf{transition:none}}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
-.activation-showcase{position:absolute;inset:-12%;overflow:hidden}
-.activation-showcase-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:20px;transform:rotate(-7deg);filter:saturate(.75)}
-.activation-showcase-cover{aspect-ratio:2/3;overflow:hidden;border-radius:8px;background:#111318}
-.activation-showcase-cover img{width:100%;height:100%;object-fit:cover}
-.activation-showcase::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,#07090d66,#07090dcc 90%)}
 .ga-opening-background.is-docking{animation:ga-opening-out 1s linear both}
 .ga-application-reveal{opacity:0}
 .ga-application-reveal.is-revealing{animation:ga-opening-in 1.1s ease-out both}

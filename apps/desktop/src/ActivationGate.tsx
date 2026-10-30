@@ -4,7 +4,6 @@ import SplashScreen from "./SplashScreen";
 import { openingStage } from "./openingFlow";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
 import type { ActivationStatus, ActivationEnd } from "./activation";
-import GameCoverBackdrop from "./GameCoverBackdrop";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
 import { devAutoLoginKey } from "./devAutoLogin";
@@ -218,7 +217,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
-    {!logoLanded ? <div className={`ga-opening-background${dockStarted ? " is-docking" : ""}`}><GameCoverBackdrop /></div> : null}
+    {!logoLanded ? <div className={`ga-opening-background${dockStarted ? " is-docking" : ""}`} /> : null}
     {!logoLanded ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }
