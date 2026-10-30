@@ -8,8 +8,8 @@ import { hasTauriRuntime } from "./native";
 import { loadAdminKey, setAccessRole, usePlusLapsed } from "./accessRole";
 import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
 import "./admin-gate.css";
-// The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound and
-// the quarter turn start together, and the gate opens as the turn ends. The sound is never heard on its own.
+// The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
+// (splash.mp3) and the quarter turn start together, and the gate opens as the turn ends. Never the sound alone.
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 // With the parent's key set (admin_key.rs) the shut lock asks for it: the key turns it (with the sound) and the gate
 // opens; "enter as a player" opens the gate with the lock still shut, the sound going with the gate.
@@ -147,7 +147,7 @@ export function Leaf({ side, children }: { side: "left" | "right"; children?: Re
  * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and the backlit
  * padlock beside it goes out. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
  * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (the lock drawn, shut), hold
- * (shut while access is settled or the key is asked for), dock (sound, turn and gate, one after the other).
+ * (shut while access is settled or the key is asked for), dock (sound and turn together, then the gate).
  */
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
@@ -217,7 +217,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   audio.onplaying = () => setAudioState("playing");
   audio.onended = () => setAudioState("ended");
   audio.onerror = () => setAudioState("error");
-  // Loaded now, played only with the mechanism (turn).
+  // Loaded now, played only with the mechanism (the turn).
   return () => { sound.current = null; };
  }, []); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => {
