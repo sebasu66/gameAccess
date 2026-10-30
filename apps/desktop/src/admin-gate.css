@@ -2,7 +2,7 @@
 
 /* The lock waits shut (padlock lit, emblem not turned) until it turns: with the key, or once access is settled
    (SplashScreen.tsx). Only its drawing plays meanwhile. The gate asking for the key takes the clicks. */
-.gameaccess-splash.is-asking, .gs-admin-gate:not(.is-opening) { pointer-events: auto; }
+.gs-admin-gate:not(.is-opening) { pointer-events: auto; }
 .gs-admin-gate { z-index: 700; }
 .gs-gate.is-sealed :is(.gs-lock-turn, .gs-glass.is-a, .gs-padlock-body, .gs-padlock-shackle) { animation: none; }
 .gs-gate.is-sealed .gs-lock-turn { transform: rotate(90deg); }
@@ -18,11 +18,12 @@
 @keyframes gs-keypad-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* The LCD: a rounded window, dark glass with its own faint light, the dots lit from behind. */
-.gs-lcd { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 100%; height: 48px; padding: 0 18px; box-sizing: border-box; overflow: hidden; cursor: text;
+/* About four dots wide: a longer key slides on past the left edge, so its length does not show. */
+.gs-lcd { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 124px; height: 48px; padding: 0 18px; box-sizing: border-box; overflow: hidden; cursor: text;
   border-radius: 24px; border: 1px solid #000; background: linear-gradient(180deg, #0a100e, #131b18);
   box-shadow: inset 0 3px 8px #000d, inset 0 -1px 0 #ffffff12, 0 1px 0 #ffffff1f, 0 0 0 3px #00000059; transition: box-shadow .25s, border-color .25s; }
 .gs-lcd:focus-within { box-shadow: inset 0 3px 8px #000d, inset 0 -1px 0 #ffffff12, 0 1px 0 #ffffff1f, 0 0 0 3px #00000059, 0 0 14px #9cc9b533; }
-.gs-lcd-dots { display: flex; justify-content: flex-end; gap: 10px; width: 62px; overflow: hidden; }
+.gs-lcd-dots { display: flex; justify-content: flex-end; gap: 10px; width: 86px; overflow: hidden; }
 .gs-lcd-dots i { flex: none; width: 14px; height: 14px; border-radius: 50%; background: #d6efe3; box-shadow: 0 0 6px #b4e6cd99; animation: gs-dot-in .14s ease-out both; }
 @keyframes gs-dot-in { from { opacity: 0; transform: translateX(16px) scale(.4); } to { opacity: 1; transform: none; } }
 /* The real field is on top and invisible: it takes the typing (and the focus), the dots are only a picture of it. */
@@ -37,4 +38,4 @@
 .gs-keypad-forgot:hover:not(:disabled), .gs-keypad-forgot:focus-visible { color: var(--ga-white, #f4f4f2); }
 
 @media (prefers-reduced-motion: reduce) { .gs-keypad, .gs-lcd-dots i { animation: none; } }
-@media (max-width: 1100px) { .gs-keypad { right: calc(var(--gs-lock) / 2 + 80px); width: 200px; } .gs-lcd-dots { width: 54px; gap: 8px; } }
+@media (max-width: 1100px) { .gs-keypad { right: calc(var(--gs-lock) / 2 + 80px); width: 200px; } .gs-lcd { width: 118px; } .gs-lcd-dots { width: 80px; gap: 8px; } }

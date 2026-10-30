@@ -32,14 +32,11 @@ describe("clave de padre: administrador y jugador", () => {
     expect(getAccessRole()).toBe("player");
   });
 
-  it("tras un rato solo, el administrador vuelve a ser jugador y el portón pide la clave", async () => {
+  it("tras un rato solo, el administrador vuelve a ser jugador sin que se pida la clave", () => {
     setAdminKey({ enabled: true, length: 11 });
-    const answer = relock();
+    relock();
     expect(getAccessRole()).toBe("player");
-    expect(isAskingForKey()).toBe(true);
-    settleGateRequest(true);
-    await expect(answer).resolves.toBe(true);
-    expect(getAccessRole()).toBe("admin");
+    expect(isAskingForKey()).toBe(false);
   });
 
   it("quitar la clave devuelve a todos a administrador", () => {
@@ -56,7 +53,8 @@ describe("clave de padre: administrador y jugador", () => {
     expect(getAccessRole()).toBe("admin");
     await expect(requestAdmin()).resolves.toBe(true);
     await expect(requireAdmin()).resolves.toBeUndefined();
-    await expect(relock()).resolves.toBe(true);
+    relock();
+    expect(getAccessRole()).toBe("admin");
     expect(isAskingForKey()).toBe(false);
   });
 

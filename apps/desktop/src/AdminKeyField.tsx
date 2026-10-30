@@ -7,13 +7,13 @@ import { showNotice } from "./notice/notice";
 import "./admin-gate.css";
 
 /**
- * The gate's key field: a rounded LCD set into the metal beside the padlock. It only shows round dots as the key is
- * typed, three at most at a time, sliding left: never how many there are. Every key press ticks. There is no button:
+ * The gate's key field: a short rounded LCD set into the metal beside the padlock, about four dots wide. Every typed
+ * character is a dot; a longer key slides on past its left edge, so how many there are is not seen (Seba, 2026-10-30).
+ * Every key press ticks. There is no button:
  * when the typed length is the key's (the gate knows it), each change asks whether it matches; typing and deleting is
  * free until it does, and then the dots turn green and the gate opens. Beside it: "enter as a player" (no key) and
  * "I forgot the key".
  */
-const VISIBLE_DOTS = 24;
 const GREEN_MS = 650;
 
 let audio: AudioContext | null = null;
@@ -65,10 +65,9 @@ export default function AdminKeyField({ length, onSuccess, onPlayer, onForgot }:
     });
   };
 
-  const first = Math.max(0, value.length - VISIBLE_DOTS);
   return <div className="gs-keypad" onPointerDown={event => { if (!(event.target as HTMLElement).closest("button")) { event.preventDefault(); input.current?.focus(); } }}>
     <label className={`gs-lcd${ok ? " is-ok" : ""}`}>
-      <span className="gs-lcd-dots" aria-hidden="true">{Array.from({ length: value.length - first }, (_, index) => <i key={first + index} />)}</span>
+      <span className="gs-lcd-dots" aria-hidden="true">{Array.from({ length: value.length }, (_, index) => <i key={index} />)}</span>
       <input ref={input} type="password" value={value} autoComplete="off" spellCheck={false} aria-label={t("adminKeyLabel")} data-lpignore="true"
         onChange={event => change(event.target.value)} readOnly={ok} />
     </label>

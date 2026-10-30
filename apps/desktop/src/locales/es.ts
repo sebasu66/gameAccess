@@ -1224,6 +1224,8 @@ export const es = {
   kidPausedText: "Pedile a un adulto que lo reactive.",
   adminRequired: "Hace falta la clave de padre para esto.",
   adminKeyLabel: "Clave de padre",
+  parentModeEnter: "Modo padre",
+  parentModeLeave: "Volver al modo jugador",
   adminKeyGateLabel: "Game Access cerrado: pide la clave de padre",
   adminKeyOk: "Clave correcta",
   adminKeyPlayer: "Entrar como jugador",

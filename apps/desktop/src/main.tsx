@@ -1,5 +1,6 @@
 import ActivityConsole from "./ActivityConsole";
 import GaNotice from "./notice/GaNotice";
+import { usePlayerFrame } from "./ParentModeButton";
 import { startDownloadNotifications } from "./downloadNotifications";
 import RenderProbe from "./RenderProbe";
 import React from "react";
@@ -94,6 +95,8 @@ class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error:
 }
 
 function CatalogShell() {
+  // A player's frame has no account, PLUS or plugin controls (ParentModeButton.tsx).
+  const player = usePlayerFrame();
   const { t } = useI18n();
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
@@ -124,7 +127,7 @@ function CatalogShell() {
   }, [mode]);
   return <>
     <LibraryInputController mode={mode} onModeChange={changeMode} />
-    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div>
+    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus />{player ? null : <><PluginIndicator /><AccessPass /><PremiumEntry /></>}</div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div>
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }

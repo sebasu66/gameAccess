@@ -3,14 +3,15 @@ import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import { Leaf } from "./SplashScreen";
 import AdminKeyField, { useForgotAdminKey } from "./AdminKeyField";
-import { IDLE_RELOCK_MS, getAccessRole, getAdminKey, isPlusLapsed, relock, settleGateRequest, useAdminKey, useGateRequest } from "./accessRole";
+import { IDLE_RELOCK_MS, getAccessRole, getAdminKey, isPlusLapsed, relock, settleGateRequest, useAdminKey, useGateRequest, useRelocks } from "./accessRole";
 import "./splash-screen.css";
 import "./admin-gate.css";
 
 /**
- * The gate again, after the opening: a player who touches a protected section (accessRole.ts), or an administrator who
- * left the PC alone, sees the cover close and ask for the parent's key with the same field as at the opening. The key
- * unlocks the lock and opens the gate as the administrator; "enter as a player" opens it as it was.
+ * The gate again, after the opening. The frame's parent mode button (or an action only the parent may do) closes it
+ * asking for the parent's key: the key unlocks the lock and opens it as the administrator; "enter as a player" opens it
+ * as it was. An administrator who left the PC alone sees it close and open again by itself, as a player, asking for
+ * nothing (Seba, 2026-10-30).
  */
 const CLOSE_MS = 1300, TURN_MS = 950, SETTLE_MS = 450;
 type Step = "away" | "closing" | "asking" | "unlocking" | "opening";
@@ -55,7 +56,21 @@ export default function AdminGate() {
   };
   const unlock = () => { setUnlocked(true); setStep("unlocking"); later(() => finish(true), reduced.current ? 0 : TURN_MS + SETTLE_MS); };
 
-  // The administrator left the PC alone: back to a player, with the gate shut.
+  // Back to the player's frame by itself (relock): the gate closes and opens again, with no field.
+  const relocks = useRelocks();
+  useEffect(() => {
+    if (!relocks || current.current !== "away") return;
+    reduced.current = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced.current) return;
+    setStep("opening");
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setStep("closing");
+      later(() => setStep("opening"), CLOSE_MS + SETTLE_MS);
+      later(() => setStep("away"), 2 * CLOSE_MS + SETTLE_MS + 100);
+    }));
+  }, [relocks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The administrator left the PC alone: back to a player.
   useEffect(() => {
     if (!key.enabled) return;
     let last = Date.now();
@@ -63,7 +78,7 @@ export default function AdminGate() {
     const events = ["pointerdown", "pointermove", "keydown", "wheel"] as const;
     for (const name of events) window.addEventListener(name, seen, { passive: true });
     const timer = window.setInterval(() => {
-      if (getAccessRole() === "admin" && !isPlusLapsed() && getAdminKey().enabled && Date.now() - last > IDLE_RELOCK_MS) { last = Date.now(); void relock(); }
+      if (getAccessRole() === "admin" && !isPlusLapsed() && getAdminKey().enabled && Date.now() - last > IDLE_RELOCK_MS) { last = Date.now(); relock(); }
     }, 15_000);
     return () => { for (const name of events) window.removeEventListener(name, seen); window.clearInterval(timer); };
   }, [key.enabled]);

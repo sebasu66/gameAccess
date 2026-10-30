@@ -154,14 +154,14 @@ describe("Niños en casa", () => {
     expect(text()).toMatch(/Hay cambios sin aplicar|not applied yet/);
   });
 
-  it("como jugador el panel se ve pero no se puede cambiar", async () => {
+  it("como jugador no hay control parental: su botón y su pantalla salen del marco y vuelven con el modo padre", async () => {
     await open();
     await finishWizard();
     await act(async () => { setAccessRole("player"); });
-    expect(text()).toMatch(/hace falta la clave de padre|needs the parent's key/);
-    expect(panel().querySelector<HTMLFieldSetElement>(".ga-kid-scope")!.disabled).toBe(true);
+    expect(document.querySelector(".ga-kid-panel")).toBeNull();
+    expect(document.querySelector<HTMLButtonElement>(".ga-kid-fab")!.hidden).toBe(true);
     await act(async () => { setAccessRole("admin"); });
-    expect(panel().querySelector<HTMLFieldSetElement>(".ga-kid-scope")!.disabled).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>(".ga-kid-fab")!.hidden).toBe(false);
   });
 
   it("Soporte y configuración: la clave de padre, la ayuda y quitar el modo niño, que vuelve a la explicación", async () => {

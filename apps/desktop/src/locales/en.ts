@@ -1226,6 +1226,8 @@ export const en: Record<keyof typeof es, string> = {
   kidPausedText: "Ask an adult to turn it back on.",
   adminRequired: "The parent's key is needed for this.",
   adminKeyLabel: "Parent's key",
+  parentModeEnter: "Parent mode",
+  parentModeLeave: "Back to player mode",
   adminKeyGateLabel: "Game Access is closed: it asks for the parent's key",
   adminKeyOk: "Correct key",
   adminKeyPlayer: "Enter as a player",

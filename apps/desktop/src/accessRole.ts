@@ -5,10 +5,9 @@ import { translate } from "./i18n";
 
 /**
  * Who is using Game Access: the parent (administrator) or a player. Without a parent's key (admin_key.rs) everyone is
- * the administrator, as always. With one, the app opens at the gate (SplashScreen) asking for it: the key makes the
- * administrator, "enter as player" makes a player, who cannot reach the protected sections (kid mode, parental
- * settings). A player who touches one of them, or an administrator who leaves the PC alone for a while, gets the gate
- * closed again asking for the key with the same field (AdminGate).
+ * the administrator, as always. With one, Game Access opens as a player (Seba, 2026-10-30): the frame shows only what a
+ * player may use and a parent mode button (ParentModeButton.tsx), which closes the gate asking for the key, once for the
+ * whole app. An administrator who leaves the PC alone for a while is a player again.
  */
 export type AccessRole = "admin" | "player";
 export interface AdminKeyState { enabled: boolean; length: number }
@@ -104,12 +103,17 @@ export function settleGateRequest(admin: boolean) {
   for (const resolve of waiting) resolve(admin);
 }
 
-/** The administrator left the PC alone: back to player, and the gate closes asking for the key. */
-export function relock(): Promise<boolean> {
-  if (!key.enabled || plusLapsed || role !== "admin") return Promise.resolve(getAccessRole() === "admin");
+/** How many times the gate went back to the player's frame by itself (AdminGate plays it closing and opening). */
+let relocks = 0;
+export const useRelocks = (): number => useSyncExternalStore(subscribe, () => relocks, () => relocks);
+
+/** The administrator left the PC alone: back to the player's frame, as when Game Access opens (Seba, 2026-10-30). The
+ *  gate closes and opens again without asking: the frame's parent mode button asks for the key. */
+export function relock() {
+  if (!key.enabled || plusLapsed || role !== "admin") return;
   role = "player";
+  relocks += 1;
   emit();
-  return requestAdmin();
 }
 
 export function resetAccessRoleForTests() {

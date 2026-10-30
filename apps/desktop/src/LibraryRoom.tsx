@@ -1,3 +1,4 @@
+import { usePlayerFrame } from "./ParentModeButton";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { SCREEN_CHANGE_EVENT } from "./appScreen";
 import { useLibraryDownloads } from "./useLibraryDownloads";
@@ -360,7 +361,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);
   const detailDownload = download;
-  const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
+  // A player does not download or cancel downloads: the parent does (ParentModeButton.tsx); playing stays.
+  const player = usePlayerFrame();
+  const actions = useMemo(() => buildActions(selectedGame, download, busy).filter(action => !player || (action.kind !== "download" && action.kind !== "cancel")),
+    [selectedGame, download, busy, player]);
   const currentCompletion = completionQueue[0];
 
 

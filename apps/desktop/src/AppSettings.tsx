@@ -3,7 +3,8 @@ import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import CircularScrollbar from "./CircularScrollbar";
 import LanguageSwitch from "./LanguageSwitch";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePlayerFrame } from "./ParentModeButton";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
 import { Settings, RotateCcw, Play } from "lucide-react";
@@ -45,7 +46,11 @@ export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLEl
  const [open, setOpen] = useState(false);
  const trigger = useRef<HTMLButtonElement>(null);
  const close = useCallback(() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }, []);
- const button = <GaIconButton ref={trigger} className="ga-settings-fab" icon={<Settings size={20} aria-hidden="true" />} label={c.title} onClick={() => setOpen(true)} />;
+ // A player's frame has no settings (ParentModeButton.tsx).
+ const player = usePlayerFrame();
+ useEffect(() => { if (player) setOpen(false); }, [player]);
+ // Hidden, not removed: a dock button keeps its place when it comes back.
+ const button = <GaIconButton ref={trigger} className="ga-settings-fab" icon={<Settings size={20} aria-hidden="true" />} label={c.title} hidden={player} onClick={() => setOpen(true)} />;
  return <>
   {dockTarget ? createPortal(button, dockTarget) : button}
   {open ? <SettingsPanel onClose={close} /> : null}</>;

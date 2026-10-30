@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { usePlayerFrame } from "./ParentModeButton";
 import { createPortal } from "react-dom";
 import { Baby, Sparkles } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -55,9 +56,13 @@ export default function KidModePanel({ dockTarget = null }: { dockTarget?: HTMLE
   const { t } = useI18n();
   const screen = useAppScreen();
   useEffect(() => { void loadKidFamily(); void loadAdminKey().catch(() => undefined); }, []);
-  const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} pressed={screen === "kids"} onClick={() => setAppScreen("kids")} />;
+  // A player's frame has no parental control (ParentModeButton.tsx).
+  const player = usePlayerFrame();
+  useEffect(() => { if (player && screen === "kids") setAppScreen("games"); }, [player, screen]);
+  // Hidden, not removed: a dock button keeps its place when it comes back.
+  const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} hidden={player} pressed={screen === "kids"} onClick={() => setAppScreen("kids")} />;
   return <>
     {dockTarget ? createPortal(button, dockTarget) : button}
-    {screen === "kids" ? <KidScreen /> : null}
+    {screen === "kids" && !player ? <KidScreen /> : null}
   </>;
 }
