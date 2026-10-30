@@ -10,10 +10,11 @@ import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog from "./LibraryFilterDialog";
 import CatalogFilterToolbar from "./CatalogFilterToolbar";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { gsap, motionOk, useGSAP } from "./motion/gsap";
+import { dur, gsap, motionOk, useGSAP } from "./motion/gsap";
+import { queueTransition, transitionsBusy } from "./motion/transitions";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { ArrowUpDown, ArrowUpToLine, Download, FolderInput, HardDrive, LayoutGrid, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
@@ -215,26 +216,29 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // With the manager shown, the round scrollbar moves its games' rows; the rest of the manager stays put.
   const managerScrollRef = useRef<HTMLDivElement>(null);
   const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
-  // Grid and manager swap with a short slide: what is shown leaves (up toward the manager, down back to the grid),
-  // then the other one comes in from the opposite side. Without motion they swap at once.
-  const swapping = useRef(false);
+  // Grid and manager swap with a short slide, as one step of the transition queue (motion/transitions.ts): what is
+  // shown leaves (up toward the manager, down back to the grid), then the other one comes in from the opposite side.
+  // Without motion they swap at once.
+  const managerShown = useRef(showManager);
+  managerShown.current = showManager;
+  // What was last asked for: a second press while the first is still waiting its turn undoes it, not repeats it.
+  const managerWanted = useRef(showManager);
+  useEffect(() => { if (!transitionsBusy()) managerWanted.current = showManager; }, [showManager]);
   const toggleManager = (open: boolean) => {
-    const grid = props.gridRef.current;
-    const swap = () => { swapping.current = false; setManagerOpen(open); grid?.scrollTo({ top: 0, behavior: "auto" }); };
-    const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
-    if (open === showManager || swapping.current) { if (!swapping.current) swap(); return; }
-    if (!leaving.length || !motionOk()) { swap(); return; }
-    swapping.current = true;
-    gsap.to(leaving, { opacity: 0, y: open ? -16 : 16, duration: .2, ease: "power2.in", overwrite: true, onComplete: swap });
+    managerWanted.current = open;
+    void queueTransition(async () => {
+      if (open === managerShown.current) { setManagerOpen(open); return; }
+      const grid = props.gridRef.current;
+      const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
+      if (leaving.length) await gsap.timeline().to(leaving, { opacity: 0, y: open ? -16 : 16, duration: dur(.2), ease: "power2.in" });
+      flushSync(() => setManagerOpen(open));
+      grid?.scrollTo({ top: 0, behavior: "auto" });
+      gsap.set(leaving, { clearProps: "opacity,transform" });
+      const entering = [grid?.firstElementChild, open ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
+      if (!entering.length) return;
+      await gsap.timeline().fromTo(entering, { opacity: 0, y: open ? 24 : -24 }, { opacity: 1, y: 0, duration: dur(.5), ease: "expo.out", clearProps: "opacity,transform" });
+    }, open ? "manager:open" : "manager:close");
   };
-  const swapped = useRef(false);
-  useGSAP(() => {
-    // Not on the first render: only when the grid and the manager trade places.
-    if (!swapped.current) { swapped.current = true; return; }
-    const entering = [props.gridRef.current?.firstElementChild, showManager ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
-    if (!entering.length || !motionOk()) { gsap.set(entering, { clearProps: "opacity,transform" }); return; }
-    gsap.fromTo(entering, { opacity: 0, y: showManager ? 24 : -24 }, { opacity: 1, y: 0, duration: .5, ease: "expo.out", overwrite: true, clearProps: "opacity,transform" });
-  }, { dependencies: [showManager] });
   useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
   // Big picture mode is the grid of ready games only: the library manager closes.
   const bigPicture = useBigPicture();
@@ -505,7 +509,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
   const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!showManager)} /> : null;
+    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!managerWanted.current)} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
