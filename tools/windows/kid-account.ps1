@@ -1,8 +1,7 @@
 ﻿<#
 .SYNOPSIS
-Kid mode proof of concept (vault/Modo niño.md, task MN.2): a standard local Windows account for a child, with Game
-Access as its desktop, the disks hidden, and nothing able to run but Windows and installed programs until a game is
-allowed.
+Kid mode (vault/Modo niño.md): a local Windows account for a child with Game Access as its desktop (a kiosk), the
+disks hidden, and the child's games playable exactly as on the adult's account.
 
 .DESCRIPTION
 Run it from PowerShell opened as administrator. It can be run again: an existing account is kept and its settings
@@ -13,39 +12,34 @@ change; no file on the disks is touched.
   written before the first sign-in.
 - Game Access replaces the Windows desktop (Winlogon Shell); Task Manager and Win+R are off.
 - The disks are hidden and closed in Explorer and in programs' Open/Save dialogs (NoDrives, NoViewOnDrive).
-- Software restriction policies: by default nothing runs; Windows, Program Files and Program Files (x86) may, except
-  the game folders of the launchers that install there (Steam's steamapps, Epic, GOG) and web browsers. The most
-  specific rule wins, so one game's folder can be allowed inside a blocked one.
+- No software restriction policies (2026-10-30, Seba): the kiosk is the limit, and games must run as they do for the
+  adult (their fix, launchers, tools). An account set up before keeps none: they are removed.
 - Logon hours (-Weekdays / -Weekend, local hours "from-to"); Windows itself keeps the child out of them.
-- -Allow lets one game folder run for this account, as the SYSTEM service will do (MN.6); -Disallow takes it back.
 - -Remove deletes the account and its profile (with everything above), and takes the child out of the family file.
 - -RemoveAll is what the uninstaller runs: every child in the family file loses its account and profile, and
   %ProgramData%\GameAccess goes (a child's desktop without Game Access would be a black screen).
 - -FromFamily <file> is what the adult's Game Access runs (kid mode screen, kid_mode.rs): the settings of one child
-  in a JSON file (name, enabled, dailyMinutes, weekdays, weekend, games with their folders). It sets the account up as
-  above (no password for a new one), lets exactly those game folders run, and writes %ProgramData%\GameAccess  familia.json, which only administrators can change and every account reads. A failure is written to <file>.error.
+  in a JSON file (name, enabled, dailyMinutes, weekdays, weekend, library, games with their folders). It sets the
+  account up as above (no password for a new one), lets it write the games' folders and the adult's library (the child
+  plays with the library's own play: fix, language, before-play steps), makes it an administrator when a game asks to
+  run as one (Windows then asks the child to confirm, with no password), and writes %ProgramData%\GameAccess\familia.json,
+  which only administrators can change and every account reads. A failure is written to <file>.error.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File tools\windows\kid-account.ps1 -Name Prueba -Weekdays 16-20 -Weekend 10-21
-
-.EXAMPLE
-powershell -ExecutionPolicy Bypass -File tools\windows\kid-account.ps1 -Name Prueba -Allow "C:\GA_Juegos\233720-Surgeon_Simulator-ready"
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File tools\windows\kid-account.ps1 -Name Prueba -Remove
 #>
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium', DefaultParameterSetName = 'Create')]
 param(
-    [Parameter(ParameterSetName = 'Create', Mandatory)][Parameter(ParameterSetName = 'Allow', Mandatory)]
-    [Parameter(ParameterSetName = 'Disallow', Mandatory)][Parameter(ParameterSetName = 'Remove', Mandatory)]
+    [Parameter(ParameterSetName = 'Create', Mandatory)][Parameter(ParameterSetName = 'Remove', Mandatory)]
     [ValidatePattern('^[A-Za-z0-9._-]{1,20}$')][string]$Name,
     [Parameter(ParameterSetName = 'Create')][string]$FullName,
     [Parameter(ParameterSetName = 'Create')][switch]$NoPassword,
     [Parameter(ParameterSetName = 'Create')][ValidatePattern('^\d{1,2}-\d{1,2}$')][string]$Weekdays,
     [Parameter(ParameterSetName = 'Create')][ValidatePattern('^\d{1,2}-\d{1,2}$')][string]$Weekend,
     [Parameter(ParameterSetName = 'Create')][string]$Shell,
-    [Parameter(ParameterSetName = 'Allow', Mandatory)][string]$Allow,
-    [Parameter(ParameterSetName = 'Disallow', Mandatory)][string]$Disallow,
     [Parameter(ParameterSetName = 'Remove', Mandatory)][switch]$Remove,
     [Parameter(ParameterSetName = 'Family', Mandatory)][string]$FromFamily,
     [Parameter(ParameterSetName = 'RemoveAll', Mandatory)][switch]$RemoveAll
@@ -53,10 +47,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $UsersGroupSid = 'S-1-5-32-545'  # "Users" / "Usuarios", by SID so any Windows language works
-$Safer = 'Software\Policies\Microsoft\Windows\Safer\CodeIdentifiers'
-$Levels = @{ Disallowed = '0'; Unrestricted = '262144' }
+$AdminsGroupSid = 'S-1-5-32-544'
+# Software restriction policies of earlier versions, taken away from an account set up then.
 $AllDrives = 0x03FFFFFF  # A: to Z:
-$GameRule = 'Juego habilitado por Game Access'
 # The installed app next to this script (runtime\kid-account.ps1), or the usual install folder.
 if (-not $Shell) {
     $beside = Join-Path (Split-Path -Parent $PSScriptRoot) 'gameaccess-desktop.exe'
@@ -75,30 +68,11 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw $message
 }
 
-# Inside Program Files, but games or a way out to the internet: they stay closed.
 # Each step, with its time, to "<request>.log" when Game Access runs this (it copies the lines into its own log
 # afterwards: the account is made out of sight, and this is how anyone can tell what happened).
 function Write-Step([string]$Text) {
     Write-Host $Text
     if ($FromFamily) { [IO.File]::AppendAllText("$FromFamily.log", ('{0} {1}{2}' -f (Get-Date -Format 'HH:mm:ss.fff'), $Text, [Environment]::NewLine)) }
-}
-
-function Get-ClosedFolders {
-    $x86 = ${env:ProgramFiles(x86)}
-    $steam = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam' -ErrorAction SilentlyContinue).InstallPath
-    if (-not $steam) { $steam = Join-Path $x86 'Steam' }
-    return @(
-        (Join-Path $steam 'steamapps'),
-        (Join-Path $env:ProgramFiles 'Epic Games'),
-        (Join-Path $x86 'GOG Galaxy\Games'),
-        (Join-Path $env:ProgramFiles 'Google\Chrome'),
-        (Join-Path $x86 'Google\Chrome'),
-        (Join-Path $x86 'Microsoft\Edge\Application'),
-        (Join-Path $env:ProgramFiles 'Mozilla Firefox'),
-        (Join-Path $x86 'Mozilla Firefox'),
-        (Join-Path $env:ProgramFiles 'BraveSoftware'),
-        (Join-Path $env:ProgramFiles 'Opera')
-    )
 }
 
 function Get-KidSid {
@@ -172,28 +146,6 @@ function Set-Value([string]$Key, [string]$Value, $Data, [string]$Type) {
     New-ItemProperty -LiteralPath $Key -Name $Value -Value $Data -PropertyType $Type -Force | Out-Null
 }
 
-# Takes away every rule for $Path, in both levels.
-function Remove-PathRule([string]$Hkcu, [string]$Path) {
-    foreach ($level in $Levels.Values) {
-        $rules = "$Hkcu\$Safer\$level\Paths"
-        if (-not (Test-Path -LiteralPath $rules)) { continue }
-        # As written (%LOCALAPPDATA% stays a variable: expanded here it would be the administrator's own folder).
-        Get-ChildItem -LiteralPath $rules | Where-Object { $_.GetValue('ItemData', $null, 'DoNotExpandEnvironmentNames') -eq $Path } |
-            Remove-Item -Recurse -Force
-    }
-}
-
-# A software restriction path rule: the folder and everything inside it runs (Unrestricted) or not (Disallowed).
-function Add-PathRule([string]$Hkcu, [string]$Level, [string]$Path, [string]$Description) {
-    Remove-PathRule $Hkcu $Path
-    $rule = "$Hkcu\$Safer\$($Levels[$Level])\Paths\{$([guid]::NewGuid())}"
-    # A shortcut's program in the child's own folders (%LOCALAPPDATA%\Roblox): Windows expands it for that account.
-    Set-Value $rule ItemData $Path $(if ($Path.Contains('%')) { 'ExpandString' } else { 'String' })
-    Set-Value $rule SaferFlags 0 DWord
-    Set-Value $rule Description $Description String
-    Set-Value $rule LastModified ([DateTime]::Now.ToFileTime()) QWord
-}
-
 # Allowed hours, as Windows keeps them: 21 bytes, one bit per hour of the week from Sunday 00:00 UTC.
 function Set-LogonHours {
     if (-not $Weekdays -and -not $Weekend -and -not $Days) { return }
@@ -218,22 +170,6 @@ function Set-LogonHours {
 }
 
 switch ($PSCmdlet.ParameterSetName) {
-    'Allow' {
-        $folder = (Resolve-Path -LiteralPath $Allow).ProviderPath.TrimEnd('\')
-        if ($PSCmdlet.ShouldProcess($folder, "Dejar que $Name ejecute")) {
-            Use-KidRegistry (Get-KidSid) { param($hkcu) Add-PathRule $hkcu Unrestricted $folder $GameRule }
-        }
-        Write-Host "$Name puede ejecutar lo que hay en $folder (desde el próximo programa que abra)."
-        return
-    }
-    'Disallow' {
-        $folder = $Disallow.TrimEnd('\')
-        if ($PSCmdlet.ShouldProcess($folder, "Quitarle a $Name el permiso de ejecutar")) {
-            Use-KidRegistry (Get-KidSid) { param($hkcu) Remove-PathRule $hkcu $folder }
-        }
-        Write-Host "$Name ya no puede ejecutar lo que hay en $folder."
-        return
-    }
     'Remove' {
         $sid = Get-KidSid
         if (-not $PSCmdlet.ShouldProcess($Name, 'Borrar la cuenta y su perfil')) { return }
@@ -275,9 +211,7 @@ function Set-KidAccount {
     $sid = $user.SID
     if (-not (Get-LocalGroupMember -SID $UsersGroupSid | Where-Object { $_.SID -eq $sid })) { Add-LocalGroupMember -SID $UsersGroupSid -Member $user; Write-Step "Agregada al grupo Usuarios." }
 
-    $open = @($env:SystemRoot, $env:ProgramFiles, ${env:ProgramFiles(x86)})
-    $closed = Get-ClosedFolders
-    Write-Step "Configurando el registro de la cuenta (escritorio, bloqueos, programas permitidos)."
+    Write-Step "Configurando el registro de la cuenta (escritorio y bloqueos)."
     Use-KidRegistry $sid {
         param($hkcu)
         $policies = "$hkcu\Software\Microsoft\Windows\CurrentVersion\Policies"
@@ -291,13 +225,9 @@ function Set-KidAccount {
         Set-Value "$policies\Explorer" NoDrives $AllDrives DWord
         Set-Value "$policies\Explorer" NoViewOnDrive $AllDrives DWord
 
-        # Nothing runs by default (DefaultLevel 0); executables only, not their DLLs (TransparentEnabled 1).
-        Set-Value "$hkcu\$Safer" DefaultLevel 0 DWord
-        Set-Value "$hkcu\$Safer" TransparentEnabled 1 DWord
-        Set-Value "$hkcu\$Safer" PolicyScope 0 DWord
-        Set-Value "$hkcu\$Safer" AuthenticodeEnabled 0 DWord
-        # Windows' own list of what counts as a program, without shortcuts (.lnk), which Windows opens by itself.
-        Set-Value "$hkcu\$Safer" ExecutableTypes @('ADE', 'ADP', 'BAS', 'BAT', 'CHM', 'CMD', 'COM', 'CPL', 'CRT', 'EXE', 'HLP', 'HTA', 'INF', 'INS', 'ISP', 'MDB', 'MDE', 'MSC', 'MSI', 'MSP', 'MST', 'OCX', 'PCD', 'PIF', 'REG', 'SCR', 'SHS', 'URL', 'VB', 'WSC') MultiString
+        # Earlier versions let nothing run outside Windows, Program Files and the allowed games: that goes.
+        $restriction = "$hkcu\Software\Policies\Microsoft\Windows\Safer"
+        if (Test-Path -LiteralPath $restriction) { Remove-Item -LiteralPath $restriction -Recurse -Force }
         # The screen's scaling is kept per account: the child gets the adult's (the one running this script), not the
         # default of a new account.
         $scaling = 'HKCU:\Control Panel\Desktop\PerMonitorSettings'
@@ -307,16 +237,19 @@ function Set-KidAccount {
                 if ($null -ne $dpi) { Set-Value "$hkcu\Control Panel\Desktop\PerMonitorSettings\$($monitor.PSChildName)" DpiValue $dpi DWord }
             }
         }
-        foreach ($folder in $open) { Add-PathRule $hkcu Unrestricted $folder 'Windows y programas instalados' }
-        foreach ($folder in $closed) { Add-PathRule $hkcu Disallowed $folder 'Juegos o navegador: cerrado salvo lo que habilite Game Access' }
     }
     Write-Host "Escritorio de ${Name}: $Shell. Administrador de tareas y Ejecutar deshabilitados. Discos ocultos."
-    Write-Host "Solo se ejecuta lo que está en: $($open -join ', ')."
-    Write-Host "Salvo: $($closed -join ', ')."
-    Write-Step "Registro listo: corre lo que está en $($open -join ', '); cerrado: $($closed -join ', ')."
+    Write-Step "Registro listo: escritorio Game Access, sin administrador de tareas ni Ejecutar, discos ocultos."
 
     Set-LogonHours
     return $sid
+}
+
+# Lets the child's account change a folder and everything in it (inherited by what is made there later).
+function Grant-Write([string]$Folder, [Security.Principal.SecurityIdentifier]$Sid) {
+    $acl = Get-Acl -LiteralPath $Folder
+    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($Sid, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
+    Set-Acl -LiteralPath $Folder -AclObject $acl
 }
 
 # The family file: this child's settings next to the other children's. Only administrators write it; every account
@@ -348,11 +281,12 @@ function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Ga
     }
     $kid = [ordered]@{
         name = $Name; sid = $Sid.Value; enabled = [bool]$Request.enabled; dailyMinutes = [int]$Request.dailyMinutes
-        weekdays = $Weekdays; weekend = $Weekend
+        weekdays = $Weekdays; weekend = $Weekend; library = [string]$Request.library
         days = @($Days | Where-Object { $_ } | ForEach-Object { [ordered]@{ minutes = [int]$_.minutes; from = [int]$_.from; to = [int]$_.to } })
         games = @($Games | ForEach-Object {
             [ordered]@{ appId = [int]$_.appId; name = [string]$_.name; folder = [string]$_.folder; executable = [string]$_.executable
-                arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam; dailyMinutes = [int]$_.dailyMinutes }
+                arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam; dailyMinutes = [int]$_.dailyMinutes
+                administrator = [bool]$_.administrator }
         })
     }
     $family = [ordered]@{ version = 1; kids = @($others + $kid) }
@@ -383,15 +317,18 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
         Write-Step "Cuenta $(if ($request.enabled) { 'habilitada' } else { 'deshabilitada' })."
         $games = @($request.games | Where-Object { $_ -and $_.folder })
         Write-Step "Juegos permitidos ($($games.Count)): $(($games | ForEach-Object { '{0} [{1}]' -f $_.name, $_.folder }) -join '; ')."
-        # Exactly the chosen games may run: the earlier choice goes, the folders of this one come in.
-        Use-KidRegistry $sid {
-            param($hkcu)
-            $rules = "$hkcu\$Safer\$($Levels.Unrestricted)\Paths"
-            if (Test-Path -LiteralPath $rules) {
-                Get-ChildItem -LiteralPath $rules | Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath).Description -eq $GameRule } | Remove-Item -Recurse -Force
-            }
-            foreach ($game in $games) { Add-PathRule $hkcu Unrestricted ([string]$game.folder).TrimEnd('') $GameRule }
-        }
+        # The child plays with the adult's library and its play, which writes in the game's folder (fix, language,
+        # its log, a thaw) and in the library (its records and logs): the account may change both. Steam's own folders
+        # are Steam's business.
+        $writable = @(@($games | Where-Object { -not $_.steam } | ForEach-Object { ([string]$_.folder).TrimEnd('\') }) + @([string]$request.library) |
+            Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique)
+        foreach ($folder in $writable) { Grant-Write $folder $sid }
+        Write-Step "La cuenta puede escribir en ($($writable.Count)): $($writable -join '; ')."
+        # A game that asks to run as administrator: the account is one (Windows asks the child to confirm, no password).
+        $needsAdmin = @($games | Where-Object { $_.administrator } | ForEach-Object { [string]$_.name })
+        $isAdmin = [bool](Get-LocalGroupMember -SID $AdminsGroupSid | Where-Object { $_.SID -eq $sid })
+        if ($needsAdmin.Count -and -not $isAdmin) { Add-LocalGroupMember -SID $AdminsGroupSid -Member $sid; Write-Step "Cuenta de administrador: la piden $($needsAdmin -join ', ')." }
+        elseif (-not $needsAdmin.Count -and $isAdmin) { Remove-LocalGroupMember -SID $AdminsGroupSid -Member $sid; Write-Step 'Ya no es administradora: ningún juego lo pide.' }
         Write-Family $request $sid $games
         Write-Step "Archivo de la familia escrito: $env:ProgramData\GameAccess\familia.json. Listo."
         exit 0

@@ -35,13 +35,17 @@ pub struct KidGame {
     pub app_id: i64,
     pub name: String,
     pub folder: String,
-    /// Empty for a Steam game: Steam starts it. May hold `%LOCALAPPDATA%` and the like (a shortcut).
+    /// A shortcut's program (may hold `%LOCALAPPDATA%` and the like). A library game starts like on the adult's account
+    /// (the library's play: fix, language, before-play steps, administrator), so for it this is only what was found.
     pub executable: String,
     #[serde(deserialize_with = "one_or_many")]
     pub arguments: Vec<String>,
     pub steam: bool,
     /// Most minutes per day for this game, inside the daily limit; 0: only the daily limit applies.
     pub daily_minutes: u32,
+    /// The game asks to run as administrator: the child's account is then made an administrator (Windows asks the
+    /// child to confirm, with no password).
+    pub administrator: bool,
 }
 
 /// One day of the week: most minutes of play (0: no limit) and the hours the child may sign in, `from` to `to`.
@@ -67,6 +71,8 @@ pub struct Kid {
     pub games: Vec<KidGame>,
     /// Each day of the week, Sunday first; when all seven are there they rule over `daily_minutes` and the two windows.
     pub days: Vec<KidDayLimit>,
+    /// The adult's library (the launcher's data): the child's Game Access plays from it, with the same records.
+    pub library: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -318,15 +324,20 @@ pub fn kid_session() -> Option<KidSession> {
     Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, paused: !plus_active(), game_remaining, kid })
 }
 
-/// Starts one of the child's games, if it is one of them and there is time left.
+/// Starts one of the child's games, if it is one of them and there is time left. Off the main thread: the library's
+/// play may first thaw the game or put its fix back.
 #[tauri::command]
-pub fn kid_play(app_id: i64) -> Result<(), String> {
+pub async fn kid_play(app_id: i64) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || play_now(app_id)).await.map_err(|error| error.to_string())?
+}
+
+fn play_now(app_id: i64) -> Result<(), String> {
     let kid = kid_account().ok_or("not_kid")?;
     let Some(game) = kid.games.iter().find(|game| game.app_id == app_id).cloned() else {
         play_log(&kid.sid, "WARN", format!("Play {app_id}: not among the child's games."));
         return Err("not_allowed".into());
     };
-    let how = if game.steam { format!("through Steam (steam://rungameid/{app_id})") } else { format!("{:?} {:?} in {:?}", game.executable, game.arguments, game.folder) };
+    let how = if app_id > 0 { format!("through the library's play, in {:?}", game.folder) } else { format!("{:?} {:?}", game.executable, game.arguments) };
     play_log(&kid.sid, "INFO", format!("Play {:?} ({app_id}) {how}.", game.name));
     let result = start_kid_game(&kid, &game, app_id);
     match &result {
@@ -356,24 +367,30 @@ fn start_kid_game(kid: &Kid, game: &KidGame, app_id: i64) -> Result<(), String> 
     let limited = with_control(kid.clone(), &control, &today());
     if control.lock_date == today() || remaining(&limited, usage.seconds) == Some(0) { return Err("time_up".into()); }
     if left_for(&limited, &game, &usage) == Some(0) { return Err("game_time_up".into()); }
-    let mut playing = PLAYING.lock().map_err(|_| "busy")?;
-    if playing.is_some() { return Err("already_playing".into()); }
-    // A game with no program to start (its entry could not be found when kid mode was applied) cannot open.
-    if !game.steam && game.executable.trim().is_empty() { return Err("no_executable".into()); }
-    let child = if game.steam {
-        let mut command = Command::new("cmd");
-        command.args(["/c", "start", "", &format!("steam://rungameid/{app_id}")]);
-        #[cfg(windows)]
-        command.creation_flags(CREATE_NO_WINDOW);
-        command.spawn().map_err(|error| error.to_string())?;
-        None
-    } else {
-        crate::app_shortcuts::launch(&game.executable, &game.arguments)?
-    };
-    *playing = Some(Playing { app_id, child });
-    drop(playing);
-    std::thread::spawn(move || watch(kid, game));
-    Ok(())
+    {
+        let mut playing = PLAYING.lock().map_err(|_| "busy")?;
+        if playing.is_some() { return Err("already_playing".into()); }
+        // Taken now: the library's play can take a while (a thaw) and a second tap must not start another game.
+        *playing = Some(Playing { app_id, child: None });
+    }
+    let started = launch(&game, app_id);
+    let Ok(mut playing) = PLAYING.lock() else { return Err("busy".into()) };
+    match started {
+        Ok(child) => { *playing = Some(Playing { app_id, child }); drop(playing); std::thread::spawn(move || watch(kid, game)); Ok(()) }
+        Err(error) => { *playing = None; Err(error) }
+    }
+}
+
+/// A library game: the same play as on the adult's account, over the adult's library (configure_launcher_data points the
+/// launcher at it). A shortcut to another program: that program.
+fn launch(game: &KidGame, app_id: i64) -> Result<Option<Child>, String> {
+    if app_id > 0 {
+        let result = crate::digital_commands::run_runner("play", app_id as u32, &game.name, "", None, None, None)?;
+        if result.get("ok").and_then(serde_json::Value::as_bool) == Some(true) { return Ok(None); }
+        return Err(result.get("error").and_then(serde_json::Value::as_str).unwrap_or("play_failed").to_string());
+    }
+    if game.executable.trim().is_empty() { return Err("no_executable".into()); }
+    crate::app_shortcuts::launch(&game.executable, &game.arguments)
 }
 
 /// Counts the time while the game runs (any process from its folder) and closes it when the day's time is over.
@@ -386,7 +403,7 @@ fn watch(kid: Kid, game: KidGame) {
         let pids = game_pids(&game);
         // The adult's live orders: "stop now" (another number than at the start) and the day closed.
         let control = read_control(&kid.sid);
-        if control.stop_nonce != stop_nonce || control.lock_date == today() || !plus_active() { close_game(&pids); break; }
+        if control.stop_nonce != stop_nonce || control.lock_date == today() || !plus_active() { end_game(&game, &pids); break; }
         let limited = with_control(kid.clone(), &control, &today());
         let own = PLAYING.lock().ok().and_then(|mut playing| playing.as_mut()?.child.as_mut()?.try_wait().ok().map(|done| done.is_none())).unwrap_or(false);
         let alive = own || !pids.is_empty();
@@ -395,12 +412,12 @@ fn watch(kid: Kid, game: KidGame) {
         if !alive { continue; }
         let (total, own) = add_played(game.app_id, TICK.as_secs());
         if remaining(&limited, total) == Some(0) {
-            close_game(&pids);
+            end_game(&game, &pids);
             break;
         }
         // Only this game's own time is over: it closes, the child may still play the others.
         if game_remaining(&game, own) == Some(0) {
-            close_game(&pids);
+            end_game(&game, &pids);
             break;
         }
     }
@@ -412,6 +429,17 @@ fn game_pids(game: &KidGame) -> Vec<u32> {
     return crate::game_focus::game_processes(&crate::app_shortcuts::expand(&game.folder));
     #[cfg(not(windows))]
     { let _ = game; Vec::new() }
+}
+
+/// Closes the game; one that does not let itself be closed (it runs as administrator, and this app does not) still ends:
+/// the child is signed out, which closes everything in the account.
+fn end_game(game: &KidGame, pids: &[u32]) {
+    close_game(pids);
+    std::thread::sleep(Duration::from_secs(10));
+    if !game_pids(game).is_empty() {
+        log("WARN", format!("{:?} did not close when its time was over: signing the child out.", game.name));
+        sign_out();
+    }
 }
 
 /// Ends the game: every process from its folder, and the one Game Access started.
@@ -517,6 +545,8 @@ pub async fn kid_apply(kid: Kid) -> Result<Family, String> {
     if kid_account().is_some() { return Err(refused("not_allowed", "this app runs inside a child's account")); }
     if !valid_name(&kid.name) { return Err(refused("bad_name", "the name has characters a Windows account cannot have")); }
     if !cfg!(debug_assertions) && !in_program_files() { return Err(refused("not_program_files", &format!("the app is not inside Program Files ({exe}); the child's desktop must be a program the child cannot change"))); }
+    let mut kid = kid;
+    kid.library = crate::launcher_runtime::find_launcher_dir().map(|launcher| crate::launcher_runtime::launcher_data_dir(&launcher).display().to_string()).unwrap_or_default();
     tauri::async_runtime::spawn_blocking(move || apply_elevated(&kid)).await.map_err(|error| error.to_string())?
 }
 

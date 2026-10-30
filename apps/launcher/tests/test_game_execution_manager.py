@@ -109,6 +109,10 @@ def test_kid_entry_uses_the_ready_folder_the_library_showed(tmp_path):
     result = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": "%s"}' % str(elsewhere).replace("\\", "\\\\"))
     assert result["ok"], result
     assert result["entry"]["folder"] == str(elsewhere) and result["entry"]["executable"].endswith("EtG.exe")
+    assert result["entry"]["administrator"] is False
+    # A game that asks to run as administrator says so: the child's account is then made one.
+    save_profile(storage.launcher, 311690, {"runAsAdmin": True})
+    assert runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": "%s"}' % str(elsewhere).replace("\\", "\\\\"))["entry"]["administrator"] is True
     missing = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": ""}')
     assert not missing["ok"] and "carpeta" in missing["error"]
 

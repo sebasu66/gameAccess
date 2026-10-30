@@ -15,7 +15,7 @@ import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
-from game_library_manager.freezer import GameFreezer, DEEP_ARCHIVE
+from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
 from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
@@ -42,15 +42,16 @@ class DigitalProcessRunner:
         return gem.find_candidates(folder, name, command, patterns, logger)
 
     def kid_entry(self, app_id, name, linked, chosen="") -> dict:
-        """What a child's account needs to start this game by itself (kid mode, vault/Modo niño.md): that account
-        cannot read this library, so the folder, the executable and its arguments go in the family file.
+        """What the family file keeps of a game for a child's account (kid mode, vault/Modo niño.md). The child's Game
+        Access plays it with this same library (the same play: fix, language, before-play steps), so this is only the
+        folder, which the account may write and whose processes count as playing; whether the game asks to run as
+        administrator (the account is then made one); and the executable found now, for the log.
         `chosen`: the folder the adult's library showed (a "<appid>-<name>-ready" one, or a linked game's); it rules
         when the games roots here do not hold the game, instead of the new folder name `storage.folder` would make up."""
         if linked:
             folder = Path(linked["path"])
             if linked["kind"] == "steam":
-                return {"folder": str(folder), "executable": "", "arguments": [], "steam": True}
-            candidates = self.get_candidates(folder, name, "")
+                return {"folder": str(folder), "executable": "", "arguments": [], "steam": True, "administrator": False}
         else:
             try:
                 folder = self.storage.folder(app_id, name)
@@ -60,22 +61,16 @@ class DigitalProcessRunner:
                 folder = Path(chosen)
             if folder is None or not folder.is_dir():
                 raise ValueError(f"No está la carpeta del juego ({chosen or folder}).")
-            # The child's account cannot thaw a deep-frozen game (it only reads): it is brought back now.
-            if GameFreezer(self.storage, logger).ensure_thawed(app_id, name):
-                logger.info("AppID %s: thawed from deep freeze for the child's account", app_id)
-            elif (folder / DEEP_ARCHIVE).is_file():
-                raise ValueError("El juego está en congelado profundo: descongelalo desde la biblioteca y volvé a aplicar.")
-            options = DigitalGameOptions(self.storage).load(app_id)
-            extra = parse_arguments(options["arguments"])
-            if options["executable"]:
-                candidates = [(checked_executable(folder, options["executable"]), extra)]
-            else:
-                patterns = load_profile(self.storage.launcher, app_id).get("executablePatterns", [])
-                candidates = [(exe, [*arguments, *extra]) for exe, arguments in self.get_candidates(folder, name, "", patterns)]
-        if not candidates:
-            raise ValueError("No se encontró ningún ejecutable del juego.")
-        executable, arguments = candidates[0]
-        return {"folder": str(folder), "executable": str(executable), "arguments": [str(item) for item in arguments], "steam": False}
+        options = DigitalGameOptions(self.storage).load(app_id)
+        profile = load_profile(self.storage.launcher, app_id)
+        try:
+            found = self.get_candidates(folder, name, "", profile.get("executablePatterns", []))
+            executable = str(checked_executable(folder, options["executable"])) if options["executable"] and not linked else str(found[0][0]) if found else ""
+        except Exception as error:  # frozen, or still to prepare: the play does that on the child's account
+            logger.info("AppID %s: no executable for the family file yet (%s)", app_id, error)
+            executable = ""
+        return {"folder": str(folder), "executable": executable, "arguments": [], "steam": False,
+                "administrator": bool(options["administrator"] or profile.get("runAsAdmin", False))}
 
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.

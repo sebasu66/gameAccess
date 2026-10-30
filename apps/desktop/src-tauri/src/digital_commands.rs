@@ -21,56 +21,60 @@ pub(crate) async fn run_digital_process(
     auto_installed: Option<bool>,
     language: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
-        let python = find_launcher_python(&launcher);
-        let runner_script = launcher.join("digital_process_runner.py");
-        let mut cmd = Command::new(&python);
-        cmd.current_dir(&launcher)
-            .env("PYTHONUTF8", "1")
-            .env("PYTHONIOENCODING", "utf-8")
-            .arg(&runner_script)
-            .arg("--action")
-            .arg(&action)
-            .arg("--app-id")
-            .arg(app_id.to_string())
-            .arg("--name")
-            .arg(&name)
-            .arg("--command")
-            .arg(if action == "snapshot" { "" } else { &command });
-        if action == "snapshot" {
-            cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-        }
-
-        if auto_installed == Some(true) { cmd.arg("--auto-installed"); }
-        // The app's language: games that follow it get their INI language set to it before play.
-        if let Some(language) = language.as_deref().map(str::trim).filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_alphabetic())) {
-            cmd.env("GAMEACCESS_APP_LANGUAGE", language);
-        }
-        if let Some(ref cwd) = working_dir {
-            cmd.arg("--working-dir").arg(cwd);
-        }
-
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(CREATE_NO_WINDOW);
-
-        let output = if action == "snapshot" {
-            let mut child = cmd.spawn().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
-            child.stdin.take().ok_or_else(|| "Missing Digital snapshot input".to_string())?
-                .write_all(command.as_bytes()).map_err(|err| err.to_string())?;
-            child.wait_with_output().map_err(|err| err.to_string())?
-        } else {
-            cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?
-        };
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !output.status.success() && stdout.is_empty() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(if stderr.is_empty() { "Process execution failed".to_string() } else { stderr });
-        }
-        serde_json::from_str(&stdout).map_err(|err| format!("Process runner returned invalid JSON: {err} ({stdout})"))
-    })
+    tauri::async_runtime::spawn_blocking(move || run_runner(&action, app_id, &name, &command, working_dir, auto_installed, language))
     .await
     .map_err(|err| format!("Task failed: {err}"))?
+}
+
+/// Runs `digital_process_runner.py` once and waits for it (also the child's Play, kid_mode.rs: the same play as here).
+pub(crate) fn run_runner(action: &str, app_id: u32, name: &str, command: &str, working_dir: Option<String>, auto_installed: Option<bool>,
+                         language: Option<String>) -> Result<serde_json::Value, String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let python = find_launcher_python(&launcher);
+    let runner_script = launcher.join("digital_process_runner.py");
+    let mut cmd = Command::new(&python);
+    cmd.current_dir(&launcher)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .arg(&runner_script)
+        .arg("--action")
+        .arg(action)
+        .arg("--app-id")
+        .arg(app_id.to_string())
+        .arg("--name")
+        .arg(name)
+        .arg("--command")
+        .arg(if action == "snapshot" { "" } else { command });
+    if action == "snapshot" {
+        cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    }
+
+    if auto_installed == Some(true) { cmd.arg("--auto-installed"); }
+    // The app's language: games that follow it get their INI language set to it before play.
+    if let Some(language) = language.as_deref().map(str::trim).filter(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_alphabetic())) {
+        cmd.env("GAMEACCESS_APP_LANGUAGE", language);
+    }
+    if let Some(ref cwd) = working_dir {
+        cmd.arg("--working-dir").arg(cwd);
+    }
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = if action == "snapshot" {
+        let mut child = cmd.spawn().map_err(|err| format!("Failed to execute digital process runner: {err}"))?;
+        child.stdin.take().ok_or_else(|| "Missing Digital snapshot input".to_string())?
+            .write_all(command.as_bytes()).map_err(|err| err.to_string())?;
+        child.wait_with_output().map_err(|err| err.to_string())?
+    } else {
+        cmd.output().map_err(|err| format!("Failed to execute digital process runner: {err}"))?
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() && stdout.is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() { "Process execution failed".to_string() } else { stderr });
+    }
+    serde_json::from_str(&stdout).map_err(|err| format!("Process runner returned invalid JSON: {err} ({stdout})"))
 }
 
 /// The progress a freeze or thaw writes while it works (`.cache/digital_frozen/<appid>.progress.json` in the launcher's

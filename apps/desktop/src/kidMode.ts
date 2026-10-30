@@ -16,12 +16,16 @@ import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
 /** `appId`: a library game's Steam AppID, or `-id` for a shortcut to another program (appShortcuts.ts). */
 export interface KidGame { appId: number; name: string; folder: string; executable: string; arguments: string[]; steam: boolean;
   /** Most minutes per day for this game, inside the daily limit; 0 or missing: only the daily limit applies. */
-  dailyMinutes?: number }
+  dailyMinutes?: number;
+  /** It asks to run as administrator (the child's account is then made one); set when kid mode is applied. */
+  administrator?: boolean }
 /** One day of the week: most minutes of play (0: no limit) and the hours the child may use the PC, "from" to "to". */
 export interface KidDayLimit { minutes: number; from: number; to: number }
 export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[];
   /** Each day of the week, Sunday first (as Windows counts them); when present it rules over the fields above. */
-  days?: KidDayLimit[] }
+  days?: KidDayLimit[];
+  /** The adult's library the child's account plays from (kid_mode.rs sets it when applying). */
+  library?: string }
 export interface Family { version: number; kids: Kid[] }
 export interface KidSession { paused?: boolean; kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
   /** Seconds left today of each game that has its own limit, by appId. */
@@ -83,8 +87,8 @@ export async function loadKidFamily(): Promise<void> {
 }
 
 const gameKey = (game: KidGame) => `${game.appId}:${game.dailyMinutes ?? 0}`;
-const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...left, games: left.games.map(gameKey).sort() })
-  === JSON.stringify({ ...right, games: right.games.map(gameKey).sort() });
+const sameKid = (left: Kid | null, right: Kid) => JSON.stringify(left && { ...left, library: undefined, games: left.games.map(gameKey).sort() })
+  === JSON.stringify({ ...right, library: undefined, games: right.games.map(gameKey).sort() });
 
 export interface KidState { draft: Kid; applied: Kid | null; dirty: boolean }
 let snapshot: KidState = { draft, applied, dirty: false };
@@ -152,9 +156,9 @@ export function usePlus(): boolean {
   return useSyncExternalStore(subscribeTier, () => getActivationTier() === "plus", () => false);
 }
 
-/** What the child's account needs to start each game by itself, asked to the launcher now (it may have changed), with
- *  the folder the library showed (the launcher uses it when its games folder does not hold the game). A shortcut
- *  already carries it. A game left without a program is written to the log: the child would see it fail. */
+/** What the family file keeps of each game, asked to the launcher now (it may have changed): its folder (the one the
+ *  library showed, when the launcher's games folder does not hold it) and whether it asks for administrator. The child
+ *  plays it with the library's own play. A shortcut already carries it. A game whose folder is gone is written to the log. */
 async function withEntries(games: KidGame[]): Promise<KidGame[]> {
   return Promise.all(games.map(async game => {
     if (game.appId < 0) return game;
@@ -164,7 +168,7 @@ async function withEntries(games: KidGame[]): Promise<KidGame[]> {
       if (result.ok && result.entry) return { ...game, ...result.entry };
       why = result.error ?? "no entry";
     } catch (error) { why = String(error); }
-    if (!game.steam && !game.executable) void narrate(`Kid mode: no program found for ${game.name} (AppID ${game.appId}) in ${game.folder}: ${why}`, { area: "KID_MODE", level: "WARN" });
+    void narrate(`Kid mode: no folder for ${game.name} (AppID ${game.appId}) in ${game.folder}: ${why}`, { area: "KID_MODE", level: "WARN" });
     return game;
   }));
 }
