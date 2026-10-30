@@ -24,7 +24,7 @@ from disk_space import allocated_size, check_download, check_space, disk_info, f
 from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
-from .freezer import GameFreezer
+from .freezer import DEEP_ARCHIVE, GameFreezer
 from .linked import deletable_reason
 from game_download_manager.ui_text import ui
 
@@ -142,6 +142,37 @@ class GameLibraryManager:
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
                       [(g["name"], [i["code"] for i in g["issues"]]) for g in flagged][:50])
         return games
+
+    def heal(self) -> list[str]:
+        """"Refresh" (Seba, 2026-10-30): a game folder of the library that does not count as installed, or asks for a
+        repair, is looked at again; when it holds a runnable game now (unpacked by hand, say) it becomes ready. Only the
+        library's own folders; nothing that is downloading or being installed, frozen or linked. Returns the names healed."""
+        healed = []
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in sorted(root.iterdir()):
+                app_id, title, state = split_folder_name(folder.name)
+                if app_id is None or not folder.is_dir() or folder.is_symlink() or state in ("preparing", "downloading", "installing"):
+                    continue
+                if self.storage.linked.get(app_id) or (folder / DEEP_ARCHIVE).is_file():
+                    continue
+                try:
+                    status = self.storage.status(app_id, title)
+                    if status.get("installed") and not status.get("needs_repair") and state == "ready":
+                        continue
+                    analysis = self.manager.analyze(app_id, title)
+                    if not analysis.get("ready"):
+                        continue
+                    self.storage.set_status(app_id, title, "ready")
+                    self.storage.clear_resume(app_id)
+                    journal.note(self.storage.folder(app_id, title), "revisado", f"listo al actualizar la biblioteca; ejecutable {analysis.get('executable', '')}")
+                    healed.append(title)
+                except Exception as error:  # one folder in use or odd must not stop the rest
+                    self.log.info("Refresh: %s could not be looked at again: %s", folder.name, error)
+        if healed:
+            self.log.info("Refresh: ready again %s", healed)
+        return healed
 
     def _entry(self, folder: Path, with_sizes: bool) -> dict:
         app_id, title, state = split_folder_name(folder.name)

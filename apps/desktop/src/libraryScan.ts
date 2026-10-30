@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react";
+import { notify } from "./toasts";
+import { translate } from "./i18n";
 import { digitalProcessManager, type LibraryGame, type LibrarySummary, type LibraryTransfer, type LibraryUsage } from "./catalog/DigitalProcessManager";
 import { demoGames, demoSummary, demoTransfers, demoUsage } from "./library-manager/demoData";
 import { uiDemo } from "./devDemo/uiDemo";
@@ -15,12 +17,18 @@ export const libraryDemo = () => Boolean(import.meta.env?.DEV) && typeof window 
 let pending: Promise<void> | null = null;
 
 /** Scan the games folder. Safe to call from anywhere: concurrent calls share one scan. */
-export function scanLibrary(): Promise<void> {
+/** `heal`: the manager's "Refresh" button, which also looks again at broken game folders and says which became ready. */
+export function scanLibrary(heal = false): Promise<void> {
   if (libraryDemo() || uiDemo()) { publish({ games: demoGames, transfers: demoTransfers, summary: demoSummary, usage: demoUsage, scanning: false }); return Promise.resolve(); }
   if (!hasTauriRuntime()) return Promise.resolve();
   if (pending) return pending;
   publish({ scanning: true, error: "" });
-  pending = digitalProcessManager.libraryList()
+  pending = digitalProcessManager.libraryList(heal)
+    .then(result => {
+      const healed = (result as { healed?: string[] }).healed ?? [];
+      if (healed.length) notify(translate("libHealed", { names: healed.join(", ") }), { tone: "success" });
+      return result;
+    })
     .then(result => publish({ games: result.library ?? [], transfers: result.transfers ?? [], summary: result.summary ?? null, usage: result.usage ?? null, scanning: false }))
     .catch(failure => publish({ scanning: false, error: String(failure) }))
     .finally(() => { pending = null; });

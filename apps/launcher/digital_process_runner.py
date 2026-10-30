@@ -126,8 +126,10 @@ class DigitalProcessRunner:
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger),
                                              steam=SteamAccountManager(self.storage.launcher))
                 if action == "library-list":
+                    # "Refresh" asks to look at broken folders again before listing (`heal`).
+                    healed = library.heal() if json.loads(command or "{}").get("heal") else []
                     games, transfers = library.list_games(), library.transfers()
-                    return {**result, "ok": True, "library": games, "transfers": transfers, "usage": library.usage(), "summary": library.summary(games, transfers)}
+                    return {**result, "ok": True, "library": games, "transfers": transfers, "usage": library.usage(), "summary": library.summary(games, transfers), "healed": healed}
                 if action == "library-plan":
                     return {**result, "ok": True, "plans": library.plan(json.loads(command)["app_ids"])}
                 if action == "library-space":

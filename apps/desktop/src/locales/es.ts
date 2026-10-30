@@ -685,6 +685,7 @@ export const es = {
   libPlanIdentified: "Identificado como AppID {{app_id}} por {{file}}",
   libPlanRename: "Renombrar la carpeta a {{folder}}",
   libPlanAdopt: "Revisarla como cualquier juego instalado (ejecutable y estado)",
+  libHealed: "Listo para jugar de nuevo: {{names}}",
   relocTitle: "Juegos en otras carpetas: {{count}} ({{size}})",
   relocBody: "Game Access usa una sola carpeta de juegos. Los que quedaron en la anterior se pueden pasar a la nueva.",
   relocMoveAll: "Mover todos los juegos a la carpeta nueva",

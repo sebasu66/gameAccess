@@ -194,6 +194,24 @@ class GameFreezer:
         except (OSError, ValueError):
             return None
 
+    def orphan_deep(self, app_id: int, name: str = "") -> dict | None:
+        """A deep freeze this install has no record of: the folder holds the archive and nothing else to play (another
+        copy of Game Access froze it, or the record was lost). Its record is made from the archive so it can be thawed."""
+        if self.record(app_id):
+            return None
+        try:
+            folder = self.storage.folder(app_id, name)
+        except ValueError:
+            return None
+        archive = folder / DEEP_ARCHIVE
+        if not archive.is_file():
+            return None
+        try:
+            original = self._listed_bytes(self._tool(), archive)
+        except Exception:
+            original = archive.stat().st_size
+        return {"level": "deep", "folder": str(folder), "original_bytes": original, "stored_bytes": archive.stat().st_size, "orphan": True}
+
     def _save(self, app_id: int, record: dict) -> None:
         self.records.mkdir(parents=True, exist_ok=True)
         write_json(self.records / f"{int(app_id)}.json", record)
@@ -202,13 +220,21 @@ class GameFreezer:
         """The game was uninstalled: its record goes too (the archive went with the folder)."""
         (self.records / f"{int(app_id)}.json").unlink(missing_ok=True)
 
-    def is_deep(self, app_id: int) -> bool:
+    def is_deep(self, app_id: int, name: str = "") -> bool:
         record = self.record(app_id)
-        return bool(record and record.get("level") == "deep")
+        if record:
+            return record.get("level") == "deep"
+        try:
+            return (self.storage.folder(app_id, name) / DEEP_ARCHIVE).is_file()
+        except ValueError:
+            return False
 
     def describe(self, app_id: int, folder: Path, with_sizes: bool = True) -> dict:
         """What the library shows: the level, the real size and what it takes on disk now."""
         record = self.record(app_id)
+        if not record and (folder / DEEP_ARCHIVE).is_file():
+            stored = (folder / DEEP_ARCHIVE).stat().st_size
+            return {"frozen": "deep", "frozen_bytes": stored, "original_bytes": stored}
         if not record or Path(record.get("folder", "")) != folder:
             found = compressed_sizes(folder) if with_sizes and folder.is_dir() else None
             return {"frozen": "freeze", "frozen_bytes": found[1], "original_bytes": found[0]} if found else {}
@@ -474,7 +500,7 @@ class GameFreezer:
         """Undo either level. A deep freeze needs the game's full size free on the disk. Cancelled, the game stays
         frozen as it was (a deep thaw removes what it had extracted; the archive is never touched before the end).
         `priority`: the player is waiting (Play on a deep-frozen game): it goes ahead of the work holding the lock."""
-        record = self.record(app_id)
+        record = self.record(app_id) or self.orphan_deep(app_id, name)
         if not record:
             folder = self._target(app_id, name)
             if not compressed_sizes(folder):
@@ -620,7 +646,7 @@ class GameFreezer:
 
     def ensure_thawed(self, app_id: int, name: str) -> bool:
         """Before Play, repair or analysis: a deep-frozen game is brought back. Windows compression needs nothing."""
-        if not self.is_deep(app_id):
+        if not self.is_deep(app_id, name):
             return False
         self.thaw(app_id, name, priority=True)
         return True

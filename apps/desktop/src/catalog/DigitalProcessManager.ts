@@ -121,7 +121,8 @@ export class DigitalProcessManager {
   analyzeGame(game: CatalogGame) { return this.execute("game-analyze", game); }
   repairGame(game: CatalogGame) { return this.execute("game-repair", game); }
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
-  libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame).then(localizeResult); }
+  /** `heal`: "Refresh" first looks again at the library's broken folders (a game unpacked by hand becomes ready). */
+  libraryList(heal = false) { return this.execute("library-list", {id:0,name:""} as CatalogGame, undefined, undefined, heal ? JSON.stringify({ heal: true }) : undefined).then(localizeResult); }
   libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })).then(localizeResult); }
   /** With the game, what an unfinished download of it already has on disk counts. */
   librarySpace(bytes: number, appId?: number, name?: string) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes, app_id: appId ?? 0, name: name ?? "" })); }

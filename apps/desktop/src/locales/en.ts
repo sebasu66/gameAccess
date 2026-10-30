@@ -687,6 +687,7 @@ export const en: Record<keyof typeof es, string> = {
   libPlanIdentified: "Identified as AppID {{app_id}} by {{file}}",
   libPlanRename: "Rename the folder to {{folder}}",
   libPlanAdopt: "Check it like any installed game (executable and status)",
+  libHealed: "Ready to play again: {{names}}",
   relocTitle: "Games in other folders: {{count}} ({{size}})",
   relocBody: "Game Access uses one games folder. The games left in the previous one can move to the new one.",
   relocMoveAll: "Move every game to the new folder",
