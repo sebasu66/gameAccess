@@ -124,7 +124,10 @@ export default function KidControlPanel() {
     const ok = await confirmNotice({ title: t("kidResetTitle", { name: draft.name }), text: t("kidResetText"), confirmLabel: t("kidReset"), cancelLabel: t("noticeCancel") });
     if (!ok) return;
     setBusy(true); setError("");
-    try { await resetKidMode(); showNotice({ tone: "ok", title: t("kidResetDone") }); }
+    try {
+      const windowsPasswordKept = await resetKidMode();
+      showNotice({ tone: "ok", title: t("kidResetDone"), text: windowsPasswordKept ? t("kidResetWinPasswordKept") : undefined });
+    }
     catch (failure) {
       const code = failure instanceof KidApplyError ? failure.code : String(failure);
       setError(code === "cancelled" ? t("kidApplyCancelled") : t("kidResetFailed", { error: code }));

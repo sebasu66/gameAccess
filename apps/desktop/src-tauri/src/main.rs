@@ -54,16 +54,9 @@ fn main() {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
             plugin_install::receive(&args);
-            if let Some(window) = app.get_webview_window("main") {
-                let _=window.unminimize(); let _=window.show(); let _=window.set_focus();
-                // Kid mode closed something (restrictor.rs): above everything for a few seconds, so its notice is seen
-                // even when Windows does not let a background program take the focus.
-                if args.iter().any(|arg| arg == restrictor::BLOCKED_FLAG) {
-                    let _ = window.set_always_on_top(true);
-                    let window = window.clone();
-                    std::thread::spawn(move || { std::thread::sleep(std::time::Duration::from_secs(6)); let _ = window.set_always_on_top(false); });
-                }
-            }
+            // The block dialog's "Yes" (restrictor.rs): the interface asks for the parent's key and allows the program.
+            if restrictor::receive_allow(&args) { let _ = app.emit("gameaccess:allow-program", ()); }
+            if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
             // The page may be suspended while a game runs: wake it before asking it to launch.
             webview_rest::wake(app);
             let _=app.emit("gameaccess:launch-request",());
@@ -87,6 +80,7 @@ fn main() {
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
+            restrictor::receive_allow(&launch_args);
             plugin_install::attach(app.handle().clone());
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
@@ -199,6 +193,8 @@ fn main() {
             restrictor::restriction_notice,
             restrictor::restriction_programs,
             restrictor::restriction_parent,
+            restrictor::restriction_allow,
+            restrictor::restriction_take_allow,
             admin_key::admin_key_forget,
             uac_password::uac_password_state,
             uac_password::uac_password_set,

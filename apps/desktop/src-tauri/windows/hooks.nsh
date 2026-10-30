@@ -242,7 +242,10 @@ FunctionEnd
   ; at every start. Then the service is registered (or pointed at this executable), restarted if it stops, and started.
   ReadEnvStr $1 ProgramData
   CreateDirectory "$1\GameAccess\restriccion"
-  nsExec::Exec `icacls "$1\GameAccess\restriccion" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /T /Q`
+  nsExec::Exec `icacls "$1\GameAccess\restriccion" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /Q`
+  Pop $0
+  ; What is inside inherits the folder's permissions (an earlier version left files with none).
+  nsExec::Exec `icacls "$1\GameAccess\restriccion\*" /reset /T /Q`
   Pop $0
   nsExec::Exec `sc.exe create ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto DisplayName= "Game Access kid mode"`
   Pop $0

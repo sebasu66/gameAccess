@@ -6,7 +6,7 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import { knownExes, type KnownExe } from "./knownPrograms";
-import { setPlusGraceDays, setPlusLapsed, useAccessRole } from "./accessRole";
+import { setAdminKey, setPlusGraceDays, setPlusLapsed, useAccessRole } from "./accessRole";
 
 /**
  * Kid mode (vault/Modo niño.md). New model (2026-10-30, src-tauri/src/restrictor.rs): one child, the parent's same
@@ -327,10 +327,21 @@ function reportKidFailure(what: string, error: unknown): KidApplyError {
   return new KidApplyError(code);
 }
 
-/** Undoes kid mode: the restrictor's settings go (nothing is closed any more) and the screen goes back to the wizard. */
-export async function resetKidMode(): Promise<void> {
+/**
+ * Undoes kid mode, all of it (Seba, 2026-10-30): the restrictor's settings, what it closed and its copy of the key go
+ * (nothing is closed any more), the parent's key goes (it exists only for kid mode), and Windows' password for
+ * administrator tasks goes back to its default when it had been turned on (Windows asks for permission; saying no keeps
+ * it, and the rest is undone anyway). The screen goes back to the wizard. Returns whether that Windows setting stayed on.
+ */
+export async function resetKidMode(): Promise<boolean> {
+  let windowsPasswordKept = false;
   if (hasTauriRuntime() && applied) {
     try { await invoke("restriction_clear"); } catch (error) { throw reportKidFailure("removing kid mode", error); }
+    try { await invoke("admin_key_clear", { current: null }); setAdminKey({ enabled: false, length: 0 }); }
+    catch (error) { void narrate(`Kid mode removed, but the parent's key was not: ${String(error)}`, { area: "KID_MODE", level: "WARN" }); }
+    try {
+      if (await invoke<boolean>("uac_password_state")) windowsPasswordKept = await invoke<boolean>("uac_password_set", { on: false });
+    } catch { windowsPasswordKept = true; }
   }
   applied = null;
   appliedPrograms = [];
@@ -341,6 +352,7 @@ export async function resetKidMode(): Promise<void> {
   draft = { ...NEW_KID, games: [] };
   try { localStorage.removeItem(DRAFT_KEY); localStorage.removeItem(PROGRAMS_KEY); } catch { /* nothing kept */ }
   emit();
+  return windowsPasswordKept;
 }
 
 /** The child's session, or null in any other account. */

@@ -138,6 +138,8 @@ pub async fn admin_key_set(word: String, current: Option<String>) -> Result<Admi
 #[tauri::command]
 pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
+        // From "Remove kid mode", in parent mode: the key verified there proves it.
+        let current = current.or_else(verified_key);
         clear_at(&store_path()?, current.as_deref(), set_up())?;
         crate::restrictor_pipe::sync_key(current.as_deref().or(verified_key().as_deref()), None);
         admin_key_forget();

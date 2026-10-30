@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Eye, KeyRound, Trash2 } from "lucide-react";
+import { Eye, KeyRound } from "lucide-react";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { showNotice } from "./notice/notice";
@@ -57,7 +57,8 @@ function HiddenWord() {
   </div>;
 }
 
-type Mode = "change" | "remove" | null;
+/** Only changing it: the key exists for kid mode and goes with it ("Remove kid mode", Seba 2026-10-30). */
+type Mode = "change" | null;
 
 export default function AdminKeySection() {
   const { t } = useI18n();
@@ -85,14 +86,6 @@ export default function AdminKeySection() {
       showNotice({ tone: "ok", title: t("adminKeySaved") });
     } catch (failure) { fail(failure); }
   };
-  const remove = async () => {
-    setError("");
-    try {
-      await invoke("admin_key_clear", { current });
-      setAdminKey({ enabled: false, length: 0 }); setCurrent(""); setMode(null);
-      showNotice({ tone: "ok", title: t("adminKeyRemoved") });
-    } catch (failure) { fail(failure); }
-  };
 
   const ready = plus && Boolean(applied) && hasTauriRuntime();
   const currentField = <label className="ga-field"><span>{t("adminKeyCurrent")}</span>
@@ -107,16 +100,10 @@ export default function AdminKeySection() {
       {lapsed ? null : <HiddenWord />}
       <div className="ga-adminkey-actions ga-actions">
         <GaButton onClick={() => open("change")} aria-expanded={mode === "change"}>{t("adminKeyChange")}</GaButton>
-        <GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} onClick={() => open("remove")} aria-expanded={mode === "remove"}>{t("adminKeyRemove")}</GaButton>
       </div>
       {mode === "change" ? <div className="ga-adminkey-form ga-stack">
         {currentField}{wordField}
         <div className="ga-actions"><GaButton variant="primary" icon={<KeyRound size={16} aria-hidden="true" />} disabled={!current.trim() || !validWord(word)} onClick={() => void save()}>{t("adminKeySaveNew")}</GaButton></div>
-      </div> : null}
-      {mode === "remove" ? <div className="ga-adminkey-form ga-stack">
-        <p className="ga-hint">{t("adminKeyRemoveText")}</p>
-        {currentField}
-        <div className="ga-actions"><GaButton variant="danger" icon={<Trash2 size={16} aria-hidden="true" />} disabled={!current.trim()} onClick={() => void remove()}>{t("adminKeyRemove")}</GaButton></div>
       </div> : null}
     </> : ready ? <div className="ga-adminkey-form ga-stack">
       {wordField}

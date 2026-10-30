@@ -65,15 +65,24 @@ fn proven(key: &str, first_sets_it: bool) -> Result<(), String> {
 pub fn lock_down() {
     let folder = crate::restrictor::dir();
     let _ = std::fs::create_dir_all(&folder);
-    let icacls = |target: &PathBuf, grants: &[&str]| {
+    let run = |args: Vec<String>| {
         let mut command = std::process::Command::new("icacls");
-        command.arg(target).args(["/inheritance:r", "/grant:r"]).args(grants).arg("/T").arg("/Q");
+        command.args(args);
         #[cfg(windows)]
         { use std::os::windows::process::CommandExt; command.creation_flags(0x0800_0000); }
         let _ = command.output();
     };
-    icacls(&folder, &["*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "*S-1-5-32-545:(OI)(CI)RX"]);
-    if private_dir().is_dir() { icacls(&private_dir(), &["*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"]); }
+    // The folder gets its own permissions, and what is inside inherits them (`/reset`). Applying the folder's grants to
+    // each file instead (`/T`) left the files with none: users could not read the notice (Seba, 2026-10-30).
+    let narrow = |target: &PathBuf, grants: &[&str]| {
+        let mut args = vec![target.display().to_string(), "/inheritance:r".into(), "/grant:r".into()];
+        args.extend(grants.iter().map(|grant| grant.to_string()));
+        args.push("/Q".into());
+        run(args);
+        run(vec![target.join("*").display().to_string(), "/reset".into(), "/T".into(), "/Q".into()]);
+    };
+    narrow(&folder, &["*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "*S-1-5-32-545:(OI)(CI)RX"]);
+    if private_dir().is_dir() { narrow(&private_dir(), &["*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"]); }
 }
 
 /// What the service does with one request.
@@ -84,7 +93,16 @@ pub fn handle(request: &Value) -> Value {
             let config: crate::restrictor::Restriction = serde_json::from_value(request.get("config").cloned().unwrap_or(Value::Null)).map_err(|_| "bad_config".to_string())?;
             crate::restrictor::write_config(&config).map(|_| json!({}))
         }),
-        "clear" => proven(key, false).and_then(|_| crate::restrictor::remove_settings().map(|_| json!({}))),
+        // Kid mode removed: its settings, what was closed and the service's copy of the key go; nothing is closed any more.
+        "allow" => proven(key, false).and_then(|_| {
+            let path = request.get("path").and_then(Value::as_str).unwrap_or("");
+            crate::restrictor::allow_program(path).map(|_| json!({}))
+        }),
+        "clear" => proven(key, false).and_then(|_| {
+            crate::restrictor::remove_settings()?;
+            PARENT_UNTIL.store(0, Ordering::SeqCst);
+            match std::fs::remove_file(key_path()) { Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()), _ => Ok(json!({})) }
+        }),
         "parent" => {
             let present = request.get("present").and_then(Value::as_bool).unwrap_or(false);
             if present { proven(key, false).map(|_| { PARENT_UNTIL.store(crate::restrictor::now_ms() + PARENT_FRESH_MS, Ordering::SeqCst); json!({}) }) }

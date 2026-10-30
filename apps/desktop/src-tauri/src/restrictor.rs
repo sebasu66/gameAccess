@@ -23,8 +23,8 @@ use std::time::{Duration, SystemTime};
 pub const SERVICE_FLAG: &str = "--restrictor";
 pub const CONSOLE_FLAG: &str = "--restrictor-console";
 pub const SERVICE_NAME: &str = "GameAccessRestrictor";
-/// Game Access opened by the restrictor after a block: it comes to the front, above everything, with the notice.
-pub const BLOCKED_FLAG: &str = "--blocked";
+/// Game Access opened from the block dialog's "Yes": it asks for the parent's key and allows this program.
+pub const ALLOW_FLAG: &str = "--allow-program";
 const TICK: Duration = Duration::from_millis(700);
 const BLOCKS_KEPT: usize = 200;
 
@@ -61,6 +61,8 @@ pub struct Restriction {
     pub blocked_exes: Vec<KnownExe>,
     /// For the parent's screen only: which common programs were turned off (by their name in the list).
     pub blocked_defaults: Vec<String>,
+    /// Game Access's language ("es" or "en"): the dialog the service shows on a block is written in it.
+    pub language: String,
 }
 
 /// One process that was closed, for the parent's list and for the notice.
@@ -177,7 +179,7 @@ fn exe_name(path: &str) -> String {
 
 /// What an executable says about itself: its original name (".mui" dropped) and the rest of its properties, lower case.
 #[derive(Default, Clone, Debug)]
-pub struct Properties { pub original: String, pub text: String }
+pub struct Properties { pub original: String, pub text: String, /** Its own name for itself (FileDescription), as written. */ pub description: String }
 
 impl Properties {
     fn holds(&self, marks: &[String]) -> bool { marks.iter().any(|mark| !mark.is_empty() && self.text.contains(&mark.to_lowercase())) }
@@ -221,7 +223,8 @@ pub fn properties(path: &str) -> Properties {
             let rest = ["ProductName", "FileDescription", "CompanyName", "InternalName"].iter().map(|name| read(language, name)).collect::<Vec<_>>().join(" ");
             if !original.is_empty() || !rest.trim().is_empty() {
                 let original = original.to_lowercase();
-                return Properties { original: original.trim_end_matches(".mui").to_string(), text: format!("{original} {}", rest.to_lowercase()) };
+                return Properties { original: original.trim_end_matches(".mui").to_string(), text: format!("{original} {}", rest.to_lowercase()),
+                                    description: read(language, "FileDescription").trim().to_string() };
             }
         }
         Properties::default()
@@ -458,13 +461,34 @@ fn terminate(pid: u32) -> bool {
 #[cfg(not(windows))]
 fn terminate(_pid: u32) -> bool { false }
 
-/// Opens Game Access in a user's session, as that user (the service runs as SYSTEM, in no session of its own), with
-/// `--blocked`: a Game Access already open gets it (single instance) and comes to the front with the notice. A
-/// restrictor run by hand (console) simply starts it.
+/// Shows Windows' own dialog in a user's session (Seba, 2026-10-30: blocked programs just did not open, with no word
+/// why). From the service it is the way to speak to the user (`WTSSendMessage`): above everything, without Game Access.
+/// It asks Yes / No and waits for the answer (up to two minutes, on its own thread): true when Yes was chosen.
 #[cfg(windows)]
-fn open_game_access(session: u32, as_service: bool) {
+fn show_dialog(session: u32, title: &str, message: &str) -> bool {
+    #[link(name = "wtsapi32", kind = "raw-dylib")]
+    extern "system" {
+        fn WTSSendMessageW(server: *mut std::ffi::c_void, session: u32, title: *const u16, title_bytes: u32, message: *const u16, message_bytes: u32,
+                           style: u32, timeout: u32, response: *mut u32, wait: i32) -> i32;
+    }
+    let title: Vec<u16> = title.encode_utf16().collect();
+    let message: Vec<u16> = message.encode_utf16().collect();
+    // MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 (No) | MB_SETFOREGROUND | MB_TOPMOST
+    let style = 0x0000_0004 | 0x0000_0030 | 0x0000_0100 | 0x0001_0000 | 0x0004_0000;
+    let mut response = 0u32;
+    unsafe { WTSSendMessageW(std::ptr::null_mut(), session, title.as_ptr(), (title.len() * 2) as u32, message.as_ptr(), (message.len() * 2) as u32, style, 120, &mut response, 1); }
+    response == 6 // IDYES
+}
+#[cfg(not(windows))]
+fn show_dialog(_session: u32, _title: &str, _message: &str) -> bool { false }
+
+/// Opens Game Access in a user's session, as that user (the service runs as SYSTEM, in no session of its own), asking it
+/// to allow `path` (`--allow-program`): Game Access asks for the parent's key and the service adds it to the allow list.
+/// A Game Access already open gets it too (single instance). A restrictor run by hand (console) simply starts it.
+#[cfg(windows)]
+fn open_to_allow(session: u32, as_service: bool, path: &str) {
     let Ok(exe) = std::env::current_exe() else { return };
-    if !as_service { let _ = std::process::Command::new(&exe).arg(BLOCKED_FLAG).spawn(); return; }
+    if !as_service { let _ = std::process::Command::new(&exe).args([ALLOW_FLAG, path]).spawn(); return; }
     use win::*;
     unsafe {
         let mut token: HANDLE = std::ptr::null_mut();
@@ -472,7 +496,7 @@ fn open_game_access(session: u32, as_service: bool) {
         let mut env: *mut std::ffi::c_void = std::ptr::null_mut();
         let has_env = CreateEnvironmentBlock(&mut env, token, 0) != 0;
         let app = wide(&exe.display().to_string());
-        let mut command = wide(&format!("\"{}\" {BLOCKED_FLAG}", exe.display()));
+        let mut command = wide(&format!("\"{}\" {ALLOW_FLAG} \"{path}\"", exe.display()));
         let mut desktop = wide("winsta0\\default");
         let mut startup: STARTUPINFOW = std::mem::zeroed();
         startup.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
@@ -489,7 +513,32 @@ fn open_game_access(session: u32, as_service: bool) {
     }
 }
 #[cfg(not(windows))]
-fn open_game_access(_session: u32, _as_service: bool) {}
+fn open_to_allow(_session: u32, _as_service: bool, _path: &str) {}
+
+/// The dialog's words: what was blocked, by whom, how to turn it off and today's hours (`days`, Sunday first).
+pub fn dialog_text(language: &str, program: &str, game: bool, days: &[crate::kid_mode::KidDayLimit], weekday: usize) -> (String, String) {
+    let english = language.starts_with("en");
+    let title = if english { "Blocked by Game Access - Parental control" } else { "Bloqueado por Game Access - Control parental" }.to_string();
+    let what = match (english, game) {
+        (true, true) => format!("The game {program} cannot be opened: kid mode is on."),
+        (true, false) => format!("{program} cannot be opened: kid mode is on."),
+        (false, true) => format!("El juego {program} no se puede abrir: el modo niño está encendido."),
+        (false, false) => format!("{program} no se puede abrir: el modo niño está encendido."),
+    };
+    let how = if english {
+        "To turn it off or allow it, an adult has to open Game Access, enter parent mode with the parent's key and go to Parental control."
+    } else {
+        "Para desactivarlo o permitirlo, un adulto tiene que abrir Game Access, entrar al modo padre con la clave de padre e ir a Control parental."
+    };
+    let hours = match days.get(weekday) {
+        Some(day) if day.from == 0 && day.to >= 24 => if english { "Today's hours: all day.".to_string() } else { "Horario de hoy: todo el día.".to_string() },
+        Some(day) => if english { format!("Today's hours: from {} to {} h.", day.from, day.to) } else { format!("Horario de hoy: de {} a {} h.", day.from, day.to) },
+        None => if english { "The block is on while kid mode is on.".to_string() } else { "El bloqueo está activo mientras el modo niño esté encendido.".to_string() },
+    };
+    let ask = if english { "Allow it now? Choose Yes: Game Access opens and an adult enters the parent's key to add it to the allowed programs." }
+        else { "¿Permitirlo ahora? Elegí Sí: se abre Game Access y un adulto ingresa la clave de padre para agregarlo a los programas permitidos." };
+    (title, format!("{what}\n\n{how}\n\n{hours}\n\n{ask}"))
+}
 
 // -- the loop ------------------------------------------------------------------------------------------------------
 
@@ -580,19 +629,27 @@ impl Watcher {
                 let closed = terminate(proc.pid);
                 let name = Path::new(path).file_stem().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
                 log(&format!("Closed {path} (pid {}, session {}, game: {game}, closed: {closed}).", proc.pid, proc.session));
-                record(&Block { at: now_ms(), name, path: path.clone(), game, count: 1 });
-                self.notify(proc.session, &all);
+                record(&Block { at: now_ms(), name: name.clone(), path: path.clone(), game, count: 1 });
+                // The program's own name for itself (RobloxPlayerBeta.exe says "Roblox"), else its file's.
+                let program = Some((self.rules.props)(path).description).filter(|description| !description.is_empty()).unwrap_or(name);
+                self.notify(proc.session, &program, game, path);
             }
         }
     }
 
-    /// Game Access shows the notice (it reads `aviso.json`) and comes to the front, opened in that session or, when it
-    /// already is, brought above the rest (Seba, 2026-10-30: a minimized Game Access hid it). Once every 10 s at most.
-    fn notify(&mut self, session: u32, _all: &[Proc]) {
+    /// Windows' dialog in that session says what was blocked and why (Game Access shows it too, from `aviso.json`, when
+    /// it is open). Once every 10 s at most: a launcher that retries does not pile them up. Not in a test.
+    fn notify(&mut self, session: u32, program: &str, game: bool, path: &str) {
         let recent = self.opened.get(&session).is_some_and(|at| now_ms().saturating_sub(*at) < 10_000);
-        if recent { return; }
+        if recent || self.only_children_of.is_some() { return; }
         self.opened.insert(session, now_ms());
-        open_game_access(session, self.as_service);
+        let config = self.config.clone().unwrap_or_default();
+        use chrono::Datelike;
+        let weekday = chrono::Local::now().weekday().num_days_from_sunday() as usize;
+        let (title, message) = dialog_text(&config.language, program, game, &config.kid.days, weekday);
+        // It waits for the answer: on its own thread, so the watching goes on meanwhile.
+        let (as_service, path) = (self.as_service, path.to_string());
+        std::thread::spawn(move || { if show_dialog(session, &title, &message) { open_to_allow(session, as_service, &path); } });
     }
 }
 
@@ -712,6 +769,19 @@ pub(crate) fn write_config(config: &Restriction) -> Result<(), String> {
     std::fs::write(&temp, text).and_then(|_| std::fs::rename(&temp, config_path())).map_err(|_| "not_writable".to_string())
 }
 
+/// Adds the folder of a blocked program to the allowed programs (the block dialog's "Yes", or "Allow" in the panel).
+pub(crate) fn allow_program(path: &str) -> Result<(), String> {
+    let mut config = read_config().ok_or("not_set_up")?;
+    let file = Path::new(path);
+    let folder = file.parent().map(|folder| folder.display().to_string()).ok_or("bad_path")?;
+    if !config.programs.iter().any(|program| norm(&program.folder) == norm(&folder)) {
+        let name = Some(properties(path).description).filter(|description| !description.is_empty())
+            .unwrap_or_else(|| file.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default());
+        config.programs.push(AllowedProgram { name, folder });
+    }
+    write_config(&config)
+}
+
 /// Removes the settings and what was closed (kid mode undone).
 pub(crate) fn remove_settings() -> Result<(), String> {
     for path in [config_path(), blocks_path(), notice_path(), parent_path()] {
@@ -739,6 +809,24 @@ pub fn restriction_save(config: Restriction) -> Result<RestrictionState, String>
     through_service(request, || write_config(&config))?;
     Ok(RestrictionState { config: read_config(), service: service_state(), writable: true })
 }
+
+/// Allows a blocked program right away (from the block dialog), with the parent's key held in parent mode.
+#[tauri::command]
+pub fn restriction_allow(path: String) -> Result<(), String> {
+    let request = serde_json::json!({ "op": "allow", "path": path });
+    through_service(request, || allow_program(&path))
+}
+
+/// The program the block dialog asked to allow (`--allow-program`), taken once by the interface.
+static PENDING_ALLOW: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+pub fn receive_allow(args: &[String]) -> bool {
+    let Some(index) = args.iter().position(|arg| arg == ALLOW_FLAG) else { return false };
+    let Some(path) = args.get(index + 1).filter(|path| !path.trim().is_empty()) else { return false };
+    if let Ok(mut pending) = PENDING_ALLOW.lock() { *pending = Some(path.clone()); }
+    true
+}
+#[tauri::command]
+pub fn restriction_take_allow() -> Option<String> { PENDING_ALLOW.lock().ok().and_then(|mut pending| pending.take()) }
 
 /// Undoes the setup: kid mode is off and starts again from the wizard. The list of what was closed goes too.
 #[tauri::command]
@@ -949,7 +1037,7 @@ mod tests {
             else if lower.ends_with("notepad.exe") || lower.ends_with("bloc.exe") { ("notepad.exe", "bloc de notas notepad microsoft") }
             else if lower.ends_with("msedge.exe") { ("msedge.exe", "microsoft edge") }
             else { ("", "") };
-        Properties { original: original.into(), text: format!("{original} {text}") }
+        Properties { original: original.into(), text: format!("{original} {text}"), description: String::new() }
     }
 
     #[test]
@@ -982,6 +1070,17 @@ mod tests {
                      r"C:\Users\Seba\AppData\Local\Microsoft\OneDrive\OneDrive.exe"] {
             assert_eq!(rules.classify(path, None), Verdict::Allow, "{path}");
         }
+    }
+
+    #[test]
+    fn the_dialog_says_what_by_whom_how_and_the_hours() {
+        use crate::kid_mode::KidDayLimit;
+        let days: Vec<KidDayLimit> = (0..7).map(|day| if day == 0 { KidDayLimit { minutes: 0, from: 0, to: 24 } } else { KidDayLimit { minutes: 120, from: 12, to: 21 } }).collect();
+        let (title, text) = dialog_text("es", "Roblox", false, &days, 3);
+        assert_eq!(title, "Bloqueado por Game Access - Control parental");
+        assert!(text.contains("Roblox no se puede abrir") && text.contains("modo padre") && text.contains("de 12 a 21 h"));
+        assert!(dialog_text("es", "Hades", true, &days, 0).1.contains("todo el día"));
+        assert!(dialog_text("en", "Hades", true, &[], 0).1.starts_with("The game Hades"));
     }
 
     #[test]
@@ -1062,6 +1161,12 @@ mod tests {
     #[test]
     fn closes_what_is_not_allowed_and_leaves_the_rest() {
         // The real loop over the real processes: a copy of a Windows program in a temporary folder is not allowed.
+        // With kid mode on in this PC's real installation, its service closes that copy too, before this test looks.
+        let real = std::path::Path::new(&std::env::var("ProgramData").unwrap_or_default()).join("GameAccess").join("restriccion").join("config.json");
+        if std::fs::read_to_string(&real).ok().and_then(|text| serde_json::from_str::<Restriction>(&text).ok()).is_some_and(|config| config.enabled) {
+            eprintln!("skipped: kid mode is on in this PC's installation, and its service would close the test's program");
+            return;
+        }
         let root = std::env::temp_dir().join(format!("ga-restrictor-{}", uuid::Uuid::new_v4()));
         let settings = root.join("settings");
         let blocked = root.join("tools");

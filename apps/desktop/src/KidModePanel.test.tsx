@@ -35,6 +35,11 @@ const type = async (input: HTMLInputElement, value: string) => {
 const open = async () => {
   await act(async () => { root.render(<KidModePanel />); });
   await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
+  // Changing screens is a queued, animated step (appScreen.ts): one left by an earlier test (going back to the games)
+  // may still be running on a busy machine, so the screen is waited for instead of assumed.
+  for (let tries = 0; tries < 50 && !document.querySelector(".ga-kid-panel"); tries++) {
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  }
 };
 /** The whole wizard: key, filter, the child's account, its games, and finish. */
 const finishWizard = async (name = "Juan") => {
