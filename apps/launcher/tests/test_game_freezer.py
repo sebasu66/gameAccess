@@ -14,7 +14,7 @@ import game_journal as journal
 from digital_process_runner import DigitalProcessRunner
 from game_download_manager.extractor import find_portable_7z
 from game_library_manager import GameLibraryManager
-from game_library_manager.freezer import DEEP_ARCHIVE, GameFreezer, folder_on_disk
+from game_library_manager.freezer import DEEP_SUFFIX, GameFreezer, deep_archive_for, folder_on_disk
 from game_library_manager.storage import DigitalGameStorage
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32" or not find_portable_7z(), reason="needs Windows and 7-Zip")
@@ -35,9 +35,9 @@ def game(tmp_path, app_id=1, name="Alpha"):
 
 
 def digest(folder):
-    skip = {journal.JOURNAL_FILE, DEEP_ARCHIVE}
+    skip = {journal.JOURNAL_FILE}
     return {str(p.relative_to(folder)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(folder.rglob("*")) if p.is_file() and p.name not in skip}
+            for p in sorted(folder.rglob("*")) if p.is_file() and p.name not in skip and not p.name.endswith(DEEP_SUFFIX)}
 
 
 def freezer(storage, **kw):
@@ -77,7 +77,7 @@ def test_deep_freeze_keeps_only_the_archive_and_the_log_and_thaws_back_byte_for_
     storage, folder = game(tmp_path)
     before = digest(folder)
     record = freezer(storage).deep_freeze(1, "Alpha")
-    assert sorted(p.name for p in folder.iterdir()) == sorted([DEEP_ARCHIVE, journal.JOURNAL_FILE])
+    assert sorted(p.name for p in folder.iterdir()) == sorted([deep_archive_for(folder).name, journal.JOURNAL_FILE])
     assert record["stored_bytes"] < record["original_bytes"] / 3
     assert storage.status(1, "Alpha")["installed"]  # still in the library as installed
     lib = GameLibraryManager(storage, freezer=freezer(storage))
@@ -85,7 +85,7 @@ def test_deep_freeze_keeps_only_the_archive_and_the_log_and_thaws_back_byte_for_
     assert entry["frozen"] == "deep" and entry["issues"] == [] and entry["size_bytes"] == record["original_bytes"]
     assert lib.batch("repair", [1])[0]["error"].startswith("Está en congelado profundo")
     assert freezer(storage).ensure_thawed(1, "Alpha") is True
-    assert digest(folder) == before and not (folder / DEEP_ARCHIVE).exists()
+    assert digest(folder) == before and not deep_archive_for(folder).exists()
     assert "descongelado" in journal.read(folder) and "lanzado: Alpha.exe" in journal.read(folder)
 
 
@@ -97,7 +97,7 @@ def test_a_failed_archive_check_deletes_nothing(tmp_path):
         with pytest.raises(RuntimeError, match="no se borra nada"):
             frozen.deep_freeze(1, "Alpha")
     assert digest(folder) == before and frozen.record(1) is None
-    assert not any(p.name.startswith(DEEP_ARCHIVE) for p in folder.iterdir())
+    assert not any(p.name.startswith(deep_archive_for(folder).name) for p in folder.iterdir())
 
 
 def test_linked_open_or_cramped_games_are_refused(tmp_path):
@@ -216,7 +216,7 @@ def test_a_cancelled_freeze_puts_the_game_back_as_it_was(tmp_path, monkeypatch):
     assert compressed_sizes(folder) is None and digest(folder) == before and freezer(storage).record(1) is None
     with pytest.raises(FreezeCancelled):
         freezer(storage).deep_freeze(1, "Alpha")
-    assert digest(folder) == before and not any(p.name.startswith(DEEP_ARCHIVE) for p in folder.iterdir())
+    assert digest(folder) == before and not any(p.name.startswith(deep_archive_for(folder).name) for p in folder.iterdir())
     state = json.loads((records(storage) / "1.progress.json").read_text(encoding="utf-8"))
     assert state["finished"] and state["cancelled"] and "cancelado" in journal.read(folder)
     assert not (records(storage) / "freeze.lock").exists()
@@ -229,7 +229,7 @@ def test_a_cancelled_deep_thaw_leaves_the_game_frozen(tmp_path, monkeypatch):
     monkeypatch.setattr(FreezeControl, "cancelled", lambda self: True)
     with pytest.raises(FreezeCancelled):
         freezer(storage).thaw(1, "Alpha")
-    assert sorted(p.name for p in folder.iterdir()) == sorted([DEEP_ARCHIVE, journal.JOURNAL_FILE]) and freezer(storage).is_deep(1)
+    assert sorted(p.name for p in folder.iterdir()) == sorted([deep_archive_for(folder).name, journal.JOURNAL_FILE]) and freezer(storage).is_deep(1)
     monkeypatch.undo()
     freezer(storage).thaw(1, "Alpha")
     assert digest(folder) == before
@@ -254,10 +254,10 @@ def test_after_a_closed_app_each_cut_freeze_is_put_back_in_a_safe_state(tmp_path
         records(storage).mkdir(parents=True, exist_ok=True)
         (records(storage) / "1.progress.json").write_text(json.dumps({"action": action, "pid": dead, "folder": str(folder), "percent": 42, "finished": False, **extra}))
     # A deep freeze cut while compressing: the half-made archive goes, the game was never touched.
-    (folder / (DEEP_ARCHIVE + ".tmp")).write_bytes(b"half")
+    deep_archive_for(folder).with_name(deep_archive_for(folder).name + ".tmp").write_bytes(b"half")
     cut("deep")
     assert freezer(storage).recover() == [{"app_id": 1, "action": "deep", "percent": 42, "outcome": "discarded"}]
-    assert digest(folder) == before and not (folder / (DEEP_ARCHIVE + ".tmp")).exists()
+    assert digest(folder) == before and not deep_archive_for(folder).with_name(deep_archive_for(folder).name + ".tmp").exists()
     assert freezer(storage).recover() == []                                   # reported once
     # A deep freeze cut while removing the files: the archive is complete, the removal ends.
     record = freezer(storage).deep_freeze(1, "Alpha")

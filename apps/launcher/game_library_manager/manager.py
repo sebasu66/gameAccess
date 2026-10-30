@@ -24,7 +24,7 @@ from disk_space import allocated_size, check_download, check_space, disk_info, f
 from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
-from .freezer import DEEP_ARCHIVE, GameFreezer
+from .freezer import GameFreezer, deep_archive
 from .linked import deletable_reason
 from game_download_manager.ui_text import ui
 
@@ -155,7 +155,7 @@ class GameLibraryManager:
                 app_id, title, state = split_folder_name(folder.name)
                 if app_id is None or not folder.is_dir() or folder.is_symlink() or state in ("preparing", "downloading", "installing"):
                     continue
-                if self.storage.linked.get(app_id) or (folder / DEEP_ARCHIVE).is_file():
+                if self.storage.linked.get(app_id) or deep_archive(folder) is not None:
                     continue
                 try:
                     status = self.storage.status(app_id, title)

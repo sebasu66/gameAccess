@@ -37,7 +37,33 @@ from .freeze_control import FreezeBusy, FreezeCancelled, FreezeControl, lower_pr
 from .storage import BACKUP_MARKER, ERROR_FILE, split_folder_name
 
 LEVELS = ("freeze", "deep")
-DEEP_ARCHIVE = ".gameaccess-deep-freeze.7z"
+# The deep freeze's archive is named after its game, so it says what it is wherever it ends up (Seba, 2026-10-30):
+# "<AppID>-<title>.congelado-gameaccess.7z", without the folder's status (the folder is renamed when it changes).
+DEEP_SUFFIX = ".congelado-gameaccess.7z"
+
+
+def deep_archive_for(folder: Path) -> Path:
+    """Where a deep freeze of this folder writes its archive."""
+    app_id, title, _ = split_folder_name(folder.name)
+    stem = f"{app_id}-{title}" if app_id is not None else folder.name
+    return folder / f"{stem}{DEEP_SUFFIX}"
+
+
+def deep_archive(folder: Path) -> Path | None:
+    """The deep freeze's archive in this folder; None when there is none."""
+    try:
+        return next((item for item in folder.iterdir() if item.is_file() and item.name.endswith(DEEP_SUFFIX)), None)
+    except OSError:
+        return None
+
+
+def deep_archive_names(folder: Path) -> set[str]:
+    """The names a deep freeze's archive and its unfinished copy can have in this folder (kept out of the payload)."""
+    names = {deep_archive_for(folder).name}
+    found = deep_archive(folder)
+    if found:
+        names.add(found.name)
+    return names | {name + ".tmp" for name in names}
 KEEP = (journal.JOURNAL_FILE, BACKUP_MARKER, ERROR_FILE)  # stay outside the archive: the game's history and markers
 FREEZE_DAYS, DEEP_DAYS = 30, 90
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -151,7 +177,7 @@ def compressed_sizes(folder: Path) -> tuple[int, int] | None:
 
 def _payload_files(folder: Path) -> list[tuple[Path, int]]:
     """The game's own files and their sizes: everything except its log, markers and a deep archive."""
-    skip = {*KEEP, DEEP_ARCHIVE, DEEP_ARCHIVE + ".tmp"}
+    skip = {*KEEP, *deep_archive_names(folder)}
     return [(p, p.stat().st_size) for p in folder.rglob("*") if p.is_file() and not p.is_symlink()
             and not (p.parent == folder and p.name in skip)]
 
@@ -203,8 +229,8 @@ class GameFreezer:
             folder = self.storage.folder(app_id, name)
         except ValueError:
             return None
-        archive = folder / DEEP_ARCHIVE
-        if not archive.is_file():
+        archive = deep_archive(folder)
+        if archive is None:
             return None
         try:
             original = self._listed_bytes(self._tool(), archive)
@@ -225,15 +251,15 @@ class GameFreezer:
         if record:
             return record.get("level") == "deep"
         try:
-            return (self.storage.folder(app_id, name) / DEEP_ARCHIVE).is_file()
+            return deep_archive(self.storage.folder(app_id, name)) is not None
         except ValueError:
             return False
 
     def describe(self, app_id: int, folder: Path, with_sizes: bool = True) -> dict:
         """What the library shows: the level, the real size and what it takes on disk now."""
         record = self.record(app_id)
-        if not record and (folder / DEEP_ARCHIVE).is_file():
-            stored = (folder / DEEP_ARCHIVE).stat().st_size
+        if not record and folder.is_dir() and deep_archive(folder) is not None:
+            stored = deep_archive(folder).stat().st_size
             return {"frozen": "deep", "frozen_bytes": stored, "original_bytes": stored}
         if not record or Path(record.get("folder", "")) != folder:
             found = compressed_sizes(folder) if with_sizes and folder.is_dir() else None
@@ -434,7 +460,8 @@ class GameFreezer:
         progress = self._progress(app_id, "deep", folder)
         started = self.now()
         self._note(folder, f"inicio: congelado profundo (7-Zip, {self.workers} hilos)")
-        archive, partial = folder / DEEP_ARCHIVE, folder / (DEEP_ARCHIVE + ".tmp")
+        archive = deep_archive_for(folder)
+        partial = archive.with_name(archive.name + ".tmp")
         try:
             files = _payload_files(folder)
             original = sum(size for _, size in files)
@@ -444,7 +471,7 @@ class GameFreezer:
             if free < original:
                 raise ValueError(f"No hay espacio para el archivo temporal: hacen falta {original / 1e9:.1f} GB libres y hay {free / 1e9:.1f} GB.")
             partial.unlink(missing_ok=True)
-            excluded = [f"-x!{kept}" for kept in (*KEEP, DEEP_ARCHIVE, DEEP_ARCHIVE + ".tmp")]  # top level only
+            excluded = [f"-x!{kept}" for kept in (*KEEP, *deep_archive_names(folder))]  # top level only
             progress.step("compress")
             progress.event("threads", count=self.workers)
             try:
@@ -487,7 +514,7 @@ class GameFreezer:
     @staticmethod
     def _clear(folder: Path, progress: FreezeProgress | None = None) -> None:
         """Remove the game's own files once its deep archive is complete (the log, the markers and the archive stay)."""
-        items = [item for item in folder.iterdir() if item.name not in (*KEEP, DEEP_ARCHIVE)]
+        items = [item for item in folder.iterdir() if item.name not in (*KEEP, *deep_archive_names(folder))]
         for index, item in enumerate(items, 1):
             if item.is_dir() and not item.is_symlink():
                 shutil.rmtree(item)
@@ -517,8 +544,8 @@ class GameFreezer:
         lower_priority()
         try:
             if deep:
-                archive = folder / DEEP_ARCHIVE
-                if not archive.is_file():
+                archive = deep_archive(folder)
+                if archive is None:
                     raise RuntimeError("Falta el archivo del congelado profundo: el juego no se puede recuperar desde acá.")
                 if record.get("phase") == "clearing":
                     self._clear(folder)    # a deep freeze cut short while removing the files: its archive is complete
@@ -603,14 +630,16 @@ class GameFreezer:
                     entry["outcome"] = "resumable"
                 elif action == "deep":
                     record = self.record(app_id)
-                    if record and record.get("phase") == "clearing" and (folder / DEEP_ARCHIVE).is_file():
+                    if record and record.get("phase") == "clearing" and deep_archive(folder) is not None:
                         self._clear(folder)
                         record.pop("phase")
                         record["stored_bytes"] = folder_on_disk(folder)
                         self._save(app_id, record)
                         entry["outcome"] = "completed"
                     else:
-                        (folder / (DEEP_ARCHIVE + ".tmp")).unlink(missing_ok=True)
+                        for name in deep_archive_names(folder):
+                            if name.endswith(".tmp"):
+                                (folder / name).unlink(missing_ok=True)
                         entry["outcome"] = "discarded"
                 elif action == "move":
                     source, target = Path(state.get("source") or ""), Path(state.get("target") or "")
@@ -630,7 +659,7 @@ class GameFreezer:
                         entry["outcome"] = "completed"
                         folder = target
                 elif action == "thaw-deep":
-                    if (folder / DEEP_ARCHIVE).is_file():
+                    if deep_archive(folder) is not None:
                         self._clear(folder)
                     entry["outcome"] = "retry"
                 else:

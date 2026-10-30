@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from game_library_manager.storage import DigitalGameStorage
 from game_library_manager import GameLibraryManager
-from game_library_manager.freezer import DEEP_ARCHIVE, GameFreezer
+from game_library_manager.freezer import GameFreezer, deep_archive_for
 import app_log
 
 
@@ -37,7 +37,7 @@ def test_a_deep_freeze_archive_without_its_record_is_a_deep_freeze(tmp_path):
     storage = DigitalGameStorage(tmp_path)
     storage.register(8, "Delta")
     folder = storage.set_status(8, "Delta", "ready")
-    (folder / DEEP_ARCHIVE).write_bytes(b"7z" * 100)
+    deep_archive_for(folder).write_bytes(b"7z" * 100)
     freezer = GameFreezer(storage, app_log.manager_logger("test"))
     assert freezer.is_deep(8, "Delta")
     assert freezer.describe(8, folder)["frozen"] == "deep"
