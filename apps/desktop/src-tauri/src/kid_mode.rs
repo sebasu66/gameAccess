@@ -46,6 +46,15 @@ pub struct KidGame {
     /// The game asks to run as administrator: the child's account is then made an administrator (Windows asks the
     /// child to confirm, with no password).
     pub administrator: bool,
+    /// Its pictures, resolved by the adult's Game Access when applying (the child's account has none of its cache): the
+    /// portrait cover and the landscape picture. Empty: the child's screen asks for them itself.
+    pub cover: String,
+    pub header: String,
+    /// The adult's favourite or most played games: shown large (landscape) on the child's screen.
+    pub featured: bool,
+    /// The Steam account that owns it (as imported into the library): the child's screen names it, since Steam's own
+    /// sign-in window does not fill it in the first time on the child's account.
+    pub steam_account: String,
 }
 
 /// One day of the week: most minutes of play (0: no limit) and the hours the child may sign in, `from` to `to`.
@@ -73,6 +82,8 @@ pub struct Kid {
     pub days: Vec<KidDayLimit>,
     /// The adult's library (the launcher's data): the child's Game Access plays from it, with the same records.
     pub library: String,
+    /// The adult's Game Access language ("es" or "en"): the child's screen speaks it, whatever Windows does.
+    pub language: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -276,6 +287,21 @@ fn apply_control(mut control: Control, action: &str, minutes: u32, today: &str, 
     Ok(control)
 }
 
+/// The games played in the `days` up to `today`, most played first.
+fn recent_games(file: &UsageFile, today: &str, days: i64) -> Vec<i64> {
+    let Ok(end) = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d") else { return Vec::new() };
+    let mut seconds: HashMap<i64, u64> = HashMap::new();
+    for ago in 0..days {
+        let date = (end - chrono::Duration::days(ago)).format("%Y-%m-%d").to_string();
+        for (game, played) in file.days.get(&date).map(|day| &day.games).into_iter().flatten() {
+            if let Ok(app_id) = game.parse::<i64>() { *seconds.entry(app_id).or_default() += played; }
+        }
+    }
+    let mut games: Vec<(i64, u64)> = seconds.into_iter().filter(|(_, played)| *played > 0).collect();
+    games.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    games.into_iter().map(|(app_id, _)| app_id).collect()
+}
+
 /// What is left today, in seconds; None without a daily limit.
 fn remaining(kid: &Kid, played: u64) -> Option<u64> {
     (kid.daily_minutes > 0).then(|| (kid.daily_minutes as u64 * 60).saturating_sub(played))
@@ -307,6 +333,8 @@ pub struct KidSession {
     paused: bool,
     /// Seconds left today of each game that has its own limit (by AppID), for the games screen.
     game_remaining: HashMap<i64, u64>,
+    /// What the child played in the last week, most played first (by AppID): shown large on the games screen.
+    recent: Vec<i64>,
 }
 
 /// The child's session, or None in any other account (the app then opens as always).
@@ -321,7 +349,8 @@ pub fn kid_session() -> Option<KidSession> {
     let time_up = control.lock_date == today() || remaining(&limited, played) == Some(0);
     let game_remaining = kid.games.iter().filter(|game| game.daily_minutes > 0)
         .filter_map(|game| Some((game.app_id, game_remaining(game, usage.games.get(&game.app_id.to_string()).copied().unwrap_or(0))?))).collect();
-    Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, paused: !plus_active(), game_remaining, kid })
+    let recent = usage_path().map(|path| recent_games(&read_usage(&path), &today(), 7)).unwrap_or_default();
+    Some(KidSession { remaining_seconds: remaining(&limited, played), played_seconds: played, playing, time_up, paused: !plus_active(), game_remaining, recent, kid })
 }
 
 /// Starts one of the child's games, if it is one of them and there is time left. Off the main thread: the library's
@@ -681,6 +710,15 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert_eq!(file.days["2026-10-28"].seconds, 600);
         assert_eq!(file.days["2026-10-28"].games["-1"], 600);
+    }
+
+    #[test]
+    fn the_week_played_is_most_played_first() {
+        let mut file = UsageFile::default();
+        file.days.insert("2026-10-31".into(), DayUsage { seconds: 900, games: HashMap::from([("620".into(), 300), ("-2".into(), 600)]) });
+        file.days.insert("2026-10-28".into(), DayUsage { seconds: 400, games: HashMap::from([("620".into(), 400)]) });
+        file.days.insert("2026-10-01".into(), DayUsage { seconds: 9000, games: HashMap::from([("881100".into(), 9000)]) });
+        assert_eq!(recent_games(&file, "2026-10-31", 7), vec![620, -2]);
     }
 
     #[test]

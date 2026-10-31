@@ -6,6 +6,10 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import { setPlusGraceDays, setPlusLapsed } from "./accessRole";
+import { featuredGames } from "./bentoLayout";
+import { getAppLocale, type AppLocale } from "./i18n";
+import { libraryScanState } from "./libraryScan";
+import { resolveLibraryCover } from "./libraryCoverResolver";
 
 /**
  * Kid mode (vault/Modo niño.md, src-tauri/src/kid_mode.rs). The family file says which Windows accounts are children
@@ -18,18 +22,25 @@ export interface KidGame { appId: number; name: string; folder: string; executab
   /** Most minutes per day for this game, inside the daily limit; 0 or missing: only the daily limit applies. */
   dailyMinutes?: number;
   /** It asks to run as administrator (the child's account is then made one); set when kid mode is applied. */
-  administrator?: boolean }
+  administrator?: boolean;
+  /** Set when kid mode is applied, from what the adult's Game Access already has (kid_mode.rs): the portrait cover, the
+   *  landscape picture, whether it shows large, and the Steam account that owns it. */
+  cover?: string; header?: string; featured?: boolean; steamAccount?: string }
 /** One day of the week: most minutes of play (0: no limit) and the hours the child may use the PC, "from" to "to". */
 export interface KidDayLimit { minutes: number; from: number; to: number }
 export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes: number; weekdays: string; weekend: string; games: KidGame[];
   /** Each day of the week, Sunday first (as Windows counts them); when present it rules over the fields above. */
   days?: KidDayLimit[];
   /** The adult's library the child's account plays from (kid_mode.rs sets it when applying). */
-  library?: string }
+  library?: string;
+  /** The adult's Game Access language: the child's screen speaks it. */
+  language?: AppLocale }
 export interface Family { version: number; kids: Kid[] }
 export interface KidSession { paused?: boolean; kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
   /** Seconds left today of each game that has its own limit, by appId. */
-  gameRemaining?: Record<string, number> }
+  gameRemaining?: Record<string, number>;
+  /** What the child played in the last week, most played first (appIds). */
+  recent?: number[] }
 
 /** What the wizard offers: two hours on school days from 12 to 21, three on weekends from 9 to 22. */
 export const defaultDays = (): KidDayLimit[] => Array.from({ length: 7 }, (_, day) => day === 0 || day === 6 ? { minutes: 180, from: 9, to: 22 } : { minutes: 120, from: 12, to: 21 });
@@ -156,6 +167,30 @@ export function usePlus(): boolean {
   return useSyncExternalStore(subscribeTier, () => getActivationTier() === "plus", () => false);
 }
 
+/** Steam's landscape picture of a game (460 × 215), which every Steam game has at this address. */
+export const landscapeArt = (appId: number) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
+
+/**
+ * What the child's screen shows of each game, from what this (the adult's) Game Access already has, since the child's
+ * account has none of its cache (Seba, 2026-10-31: many covers were missing): the portrait cover as the library
+ * resolved it, the landscape picture, the Steam account that owns it, and whether it shows large: the adult's liked or
+ * most played games (the library's own choice for big picture, featuredGames).
+ */
+async function withPictures(games: KidGame[]): Promise<KidGame[]> {
+  const library = new Map(libraryScanState().games.filter(game => game.app_id != null).map(game => [game.app_id as number, game]));
+  let liked: Record<string, number> = {};
+  try { liked = JSON.parse(localStorage.getItem("gameaccess:preferences") || "{}"); } catch { liked = {}; }
+  const featured = featuredGames(games, game => {
+    const entry = library.get(game.appId);
+    return { liked: liked[String(game.appId)] === 1, plays: entry?.plays ?? 0, lastPlayed: entry?.last_played ? Date.parse(entry.last_played) || 0 : 0 };
+  });
+  return Promise.all(games.map(async game => {
+    if (game.appId <= 0) return { ...game, featured: featured.has(game) };
+    const cover = await resolveLibraryCover(game.appId, "2x").catch(() => null);
+    return { ...game, cover: cover ?? "", header: landscapeArt(game.appId), featured: featured.has(game), steamAccount: library.get(game.appId)?.steam_owner?.account ?? "" };
+  }));
+}
+
 /** What the family file keeps of each game, asked to the launcher now (it may have changed): its folder (the one the
  *  library showed, when the launcher's games folder does not hold it) and whether it asks for administrator. The child
  *  plays it with the library's own play. A shortcut already carries it. A game whose folder is gone is written to the log. */
@@ -180,7 +215,7 @@ export async function applyKidDraft(): Promise<void> {
   if (getActivationTier() !== "plus" && hasTauriRuntime()) throw new KidApplyError("needs_plus");
   if (!validKidName(draft.name)) throw new KidApplyError("bad_name");
   if (!hasTauriRuntime()) { applied = { ...draft }; draft = applied; emit(); return; }
-  const kid = { ...draft, games: await withEntries(draft.games) };
+  const kid = { ...draft, language: getAppLocale(), games: await withPictures(await withEntries(draft.games)) };
   try {
     const family = await invoke<Family>("kid_apply", { kid });
     applied = family.kids.find(item => item.name.toLowerCase() === kid.name.toLowerCase()) ?? null;

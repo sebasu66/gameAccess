@@ -36,7 +36,7 @@ import ParentKeyDialog from "./ParentKeyDialog";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
-import { translate, useI18n } from "./i18n";
+import { setAppLocale, translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
 
@@ -139,13 +139,18 @@ if (!root) throw new Error("gameAccess root element is missing");
 
 // A sample child for design work in the browser (`?kidDemo=1`, dev builds only).
 const demoKid = (): KidSession | null => import.meta.env.DEV && new URLSearchParams(window.location.search).has("kidDemo") ? {
-  kid: { name: "Juan", sid: "", enabled: true, dailyMinutes: 60, weekdays: "16-20", weekend: "10-21", games: [620, 413150, 881100, 1145360, 1942280].map((appId, index) => ({ appId, name: ["Portal 2", "Stardew Valley", "Noita", "Hades", "Brotato"][index], folder: "", executable: "", arguments: [], steam: false })) },
-  playedSeconds: 1500, remainingSeconds: 2100, playing: null, timeUp: new URLSearchParams(window.location.search).has("timeUp"),
+  kid: { name: "Juan", sid: "", enabled: true, dailyMinutes: 60, weekdays: "16-20", weekend: "10-21", language: "es",
+    games: ([[620, "Portal 2"], [413150, "Stardew Valley"], [881100, "Noita"], [1145360, "Hades"], [1942280, "Brotato"], [367520, "Hollow Knight"], [504230, "Celeste"],
+      [105600, "Terraria"], [250900, "The Binding of Isaac: Rebirth"], [1794680, "Vampire Survivors"], [-1, "Roblox"], [646570, "Slay the Spire"]] as const)
+      .map(([appId, name], index) => ({ appId, name, folder: "", executable: "", arguments: [], steam: appId > 0, featured: index === 3 || index === 7, steamAccount: appId > 0 ? "cuenta_demo" : "" })) },
+  playedSeconds: 1500, remainingSeconds: 2100, playing: null, timeUp: new URLSearchParams(window.location.search).has("timeUp"), recent: [413150],
 } : null;
 
 // A child's Windows account (kidMode.ts) gets only its games, in big picture mode, and nothing else of the app.
 void (libraryDemo() ? Promise.resolve(null) : readKidSession()).then(session => session ?? demoKid()).then(kid => {
   if (kid) {
+    // The adult's Game Access language (Seba, 2026-10-31), not the child's Windows one.
+    if (kid.kid.language === "es" || kid.kid.language === "en") setAppLocale(kid.kid.language);
     ReactDOM.createRoot(root).render(<><KidScreen initial={kid} demo={!kid.kid.sid} /><GaNotice /></>);
   } else if (libraryDemo()) {
     ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);

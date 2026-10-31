@@ -315,12 +315,14 @@ function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Ga
     }
     $kid = [ordered]@{
         name = $Name; sid = $Sid.Value; enabled = [bool]$Request.enabled; dailyMinutes = [int]$Request.dailyMinutes
-        weekdays = $Weekdays; weekend = $Weekend; library = [string]$Request.library
+        weekdays = $Weekdays; weekend = $Weekend; library = [string]$Request.library; language = [string]$Request.language
         days = @($Days | Where-Object { $_ } | ForEach-Object { [ordered]@{ minutes = [int]$_.minutes; from = [int]$_.from; to = [int]$_.to } })
         games = @($Games | ForEach-Object {
             [ordered]@{ appId = [int]$_.appId; name = [string]$_.name; folder = [string]$_.folder; executable = [string]$_.executable
                 arguments = @($_.arguments | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ }); steam = [bool]$_.steam; dailyMinutes = [int]$_.dailyMinutes
-                administrator = [bool]$_.administrator }
+                administrator = [bool]$_.administrator
+                # Its pictures, whether it shows large and its Steam account, from the adult's Game Access (kid_mode.rs).
+                cover = [string]$_.cover; header = [string]$_.header; featured = [bool]$_.featured; steamAccount = [string]$_.steamAccount }
         })
     }
     $family = [ordered]@{ version = 1; kids = @($others + $kid) }

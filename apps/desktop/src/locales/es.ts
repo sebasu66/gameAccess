@@ -1358,6 +1358,7 @@ export const es = {
   kidNoExecutable: "{{name}} no tiene un programa para abrir en esta cuenta. Un adulto tiene que volver a elegirlo en Control parental y aplicar.",
   kidLaunchStepSteam: "Abrir el juego en Steam",
   kidLaunchSteamDetail: "Steam abre el juego con la cuenta guardada…",
+  kidLaunchSteamAccount: "Steam se abre con la cuenta {{account}}. Si te pide iniciar sesión, entrá con esa cuenta y marcá «Recordarme en este equipo»: es solo la primera vez.",
   kidFiveMinutesTitle: "Quedan 5 minutos",
   kidFiveMinutesText: "Guardá la partida: el juego se va a cerrar.",
   kidTimeUpTitle: "Se terminó el tiempo de hoy",

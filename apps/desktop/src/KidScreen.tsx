@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AppWindow, Gamepad2, LogOut, Move } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -8,7 +8,8 @@ import { GamepadInput } from "./gamepadInput";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { narrate } from "./narrationLog";
-import { readKidSession, type KidGame, type KidSession } from "./kidMode";
+import { landscapeArt, readKidSession, type KidGame, type KidSession } from "./kidMode";
+import { resolveLibraryCover } from "./libraryCoverResolver";
 import "./big-picture.css";
 import "./kid-screen.css";
 
@@ -20,7 +21,43 @@ import "./kid-screen.css";
 const KID_CARDS = ".ga-kid-card";
 const FIVE_MINUTES = 300;
 const SIGN_OUT_AFTER_MS = 60_000;
-const cover = (appId: number) => `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900.jpg`;
+
+/**
+ * Which games show large (Seba, 2026-10-31): a bento of two sizes only, portrait and landscape, the landscape three
+ * times as large. Large: what the child played this week (most played first), then the adult's liked or most played
+ * games (`featured`, set when kid mode was applied). With neither, some at random, the same all day. About a quarter of
+ * the games, none among fewer than three.
+ */
+export function wideGames(games: KidGame[], recent: number[] = [], today = new Date().toISOString().slice(0, 10)): Set<number> {
+  if (games.length < 3) return new Set();
+  const limit = Math.max(1, Math.round(games.length / 4));
+  const ids = new Set(games.map(game => game.appId));
+  const ranked = [...new Set([...recent.filter(id => ids.has(id)), ...games.filter(game => game.featured).map(game => game.appId)])];
+  if (ranked.length) return new Set(ranked.slice(0, limit));
+  const shuffle = (id: number) => [...`${today}:${id}`].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+  return new Set([...games].sort((a, b) => shuffle(a.appId) - shuffle(b.appId)).slice(0, limit).map(game => game.appId));
+}
+
+/** A card's picture: the one the adult's Game Access found, else the one this account finds, else the other shape;
+ *  without any, the card shows its name on the plain background. */
+function KidArt({ game, wide }: { game: KidGame; wide: boolean }) {
+  const [found, setFound] = useState<string | null>(null);
+  useEffect(() => {
+    if (wide || game.cover || game.appId <= 0) return;
+    let live = true;
+    void resolveLibraryCover(game.appId, "2x").then(url => { if (live) setFound(url); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [game.appId, game.cover, wide]);
+  const header = game.appId > 0 ? game.header || landscapeArt(game.appId) : "";
+  const sources = [...new Set((wide ? [header, game.cover] : [game.cover, found ?? "", header]).filter(Boolean))] as string[];
+  const [index, setIndex] = useState(0);
+  useEffect(() => setIndex(0), [sources.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const source = sources[index];
+  return <span className="ga-kid-art">
+    {game.appId > 0 ? <Gamepad2 size={40} aria-hidden="true" /> : <AppWindow size={40} aria-hidden="true" />}
+    {source ? <img key={source} src={source} alt="" draggable={false} onError={() => setIndex(current => current + 1)} /> : null}
+  </span>;
+}
 
 export default function KidScreen({ initial, demo = false }: { initial: KidSession; demo?: boolean }) {
   const { t } = useI18n();
@@ -68,7 +105,9 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     // The same notice as playing on the adult's account (App.tsx launchGame): its steps, then playing or the error,
     // which stays until it is closed, so whoever is there sees why a game did not open.
     const steps = [game.steam ? t("kidLaunchStepSteam") : t("launchStepPrepare"), t("launchStepStart")];
-    const run = runSteps({ game: noticeGame({ name: game.name, app_id: game.appId > 0 ? game.appId : null, capsule_image: null, header_image: null }), title: t("launchTitle"), text: game.steam ? t("kidLaunchSteamDetail") : t("launchDetail"), steps });
+    // Steam's sign-in window does not fill in the account the first time on this Windows account: the notice names it.
+    const steamText = game.steamAccount ? t("kidLaunchSteamAccount", { account: game.steamAccount }) : t("kidLaunchSteamDetail");
+    const run = runSteps({ game: noticeGame({ name: game.name, app_id: game.appId > 0 ? game.appId : null, capsule_image: null, header_image: null }), title: t("launchTitle"), text: game.steam ? steamText : t("launchDetail"), steps });
     run.set(0, "running");
     try {
       if (!demo) await invoke("kid_play", { appId: game.appId });
@@ -88,6 +127,7 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     }
   };
   const latest = useRef({ play, games: session.kid.games }); latest.current = { play, games: session.kid.games };
+  const wide = useMemo(() => wideGames(session.kid.games, session.recent), [session.kid.games, session.recent]);
 
   // Keyboard: arrows move between the games, Enter plays the focused one; Escape and F11 do nothing here.
   useEffect(() => {
@@ -132,13 +172,13 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
       <p className={minutes != null && minutes <= 5 ? "ga-kid-time is-low" : "ga-kid-time"} role="status">{time}</p>
       <GaButton icon={<LogOut size={18} aria-hidden="true" />} onClick={signOut}>{t("kidLeave")}</GaButton>
     </header>
-    {session.kid.games.length ? <div className="ga-kid-grid">
-      {session.kid.games.map(game => <button key={game.appId} type="button" className={`ga-kid-card${game.appId === session.playing ? " is-playing" : ""}${spent(game) ? " is-spent" : ""}`} data-kid-game={game.appId} onClick={() => void play(game)} aria-label={t("kidPlayAria", { name: game.name })}>
-        <span className="ga-kid-art">{game.appId > 0 ? <Gamepad2 size={40} aria-hidden="true" /> : <AppWindow size={40} aria-hidden="true" />}{game.appId > 0 ? <img src={cover(game.appId)} alt="" draggable={false} onError={event => { event.currentTarget.hidden = true; }} /> : null}</span>
-        <span className="ga-kid-name">{game.name}</span>
+    {session.kid.games.length ? <div className="ga-kid-games"><div className="ga-kid-grid">
+      {session.kid.games.map(game => <button key={game.appId} type="button" className={`ga-kid-card${wide.has(game.appId) ? " is-wide" : ""}${game.appId === session.playing ? " is-playing" : ""}${spent(game) ? " is-spent" : ""}`} data-kid-game={game.appId} onClick={() => void play(game)} aria-label={t("kidPlayAria", { name: game.name })}>
+        <KidArt game={game} wide={wide.has(game.appId)} />
+        <span className="ga-kid-label"><span className="ga-kid-name">{game.name}</span></span>
         {gameLeft(game) != null ? <span className="ga-kid-left">{spent(game) ? t("kidGameSpent") : t("kidGameLeft", { minutes: String(Math.ceil(gameLeft(game)! / 60)) })}</span> : null}
       </button>)}
-    </div> : <p className="ga-kid-empty">{t("kidNoGames")}</p>}
+    </div></div> : <p className="ga-kid-empty">{t("kidNoGames")}</p>}
     {error ? <p className="ga-kid-error" role="alert">{error}</p> : null}
     <p className="ga-big-picture-label" role="status"><Gamepad2 size={20} aria-hidden="true" /><strong>{playing ? t("kidPlaying", { name: playing.name }) : t("bigPictureTitle")}</strong>
       <span className="ga-pad-legend"><span className="ga-pad-key is-a">A</span>{t("kidPlayKeys")}</span>
