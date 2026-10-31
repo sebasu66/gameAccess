@@ -1,8 +1,8 @@
 ﻿{
-    "commit":  "233ab77850c6040f1b1fb0d508b8467e69568818",
-    "catalog_revision":  "4c49d6ba2802355a",
-    "installer":  "C:\\DEV\\Game Access Dev\\apps\\desktop\\src-tauri\\target\\release\\bundle\\nsis\\gameAccess_0.1.5_x64-setup.exe",
-    "sha256":  "A0625AB801FF5C72D139DFCF2805027BF5F41FEFD6128FD683B6DCD23574E5CD",
-    "built_at_utc":  "2026-10-30T22:17:34.612Z",
-    "catalog_count":  45690
+    "commit":  "65ba654ee76b0a32114ee9a961529875ef83fd0d",
+    "catalog_revision":  "fc8bef19170b4371",
+    "installer":  "C:\\DEV\\game access dev\\apps\\desktop\\src-tauri\\target\\release\\bundle\\nsis\\gameAccess_0.1.6_x64-setup.exe",
+    "sha256":  "BB2B2189088AD4D84A46202A6B3D2E9DEEBC4B9D1FF60EFED47660D7F85B2A0F",
+    "built_at_utc":  "2026-10-31T13:20:59.409Z",
+    "catalog_count":  46391
 }
