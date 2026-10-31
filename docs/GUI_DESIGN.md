@@ -277,6 +277,40 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - **Control:** `npm run check:css` (y `npm test`, con `src/dialogCss.test.ts`) falla si un `.css` agrega reglas de párrafo o colores sueltos. La deuda vieja está contada por archivo en `apps/desktop/scripts/dialog-css-baseline.json`: puede bajar (`node scripts/check-dialog-css.mjs --update` al limpiar), nunca subir.
 - Sin componentes React para esto: `<p className="ga-hint">` es tan corto como un `<GaHint>`.
 
+### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
+Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
+resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,
+`kid-mode.css`).
+
+**Escala de tipos: cada nivel se distingue del siguiente a simple vista.**
+| Nivel | Valor |
+|---|---|
+| Título del diálogo | Bebas Neue 52 px naranja (en un diálogo grande; 34 px es el de un diálogo chico) |
+| Texto principal (lo primero que se lee) | 18 px, tinta de lectura `--ga-text-ink`, nunca gris |
+| Etiqueta de sección ("Aclaraciones") | `ga-label`, mayúsculas |
+| Título de cada ítem o tarjeta | Manrope 700, 20 px, en el color de su tono (`--ga-warn`, `--ga-ok`…) |
+| Texto de cada ítem | 16 px, tinta de lectura |
+- Un título de color nunca tiene el mismo tamaño que el texto que encabeza: un título de ítem va al menos 4 px más grande y en negrita.
+- El gris (`--ga-muted`) es solo para lo secundario: subtítulos y pistas. El texto que hay que leer va en `--ga-text-ink`.
+
+**Espacios fijos, nunca "lo que salga".**
+- Margen interior: 40 px arriba, 44 px a los costados, 36 px abajo.
+- Encabezado estándar con línea `--ga-line` debajo y 24 px hasta el texto.
+- 32 px antes de cada sección y antes de la fila de botones; 16 px entre tarjetas; 10 px entre el título de una tarjeta y su texto.
+- Dentro de una tarjeta: 22 × 24 px de margen interior, ícono de 44 px en un círculo de su color y 20 px hasta el texto.
+
+**Ítems como tarjetas.** Cada aclaración, aviso o paso con título propio va en una tarjeta (`--ga-surface`, borde `--ga-line`, radio 12 px), con ícono, título y texto. No se apilan párrafos de colores sueltos.
+
+**Ancho.** Un diálogo grande es tan ancho como la columna central del contenido: hasta 1200 px dentro del marco, con los márgenes de `.ga-screen` (`min(1200px, 100vw − marco − 2 × clamp(24px, 4vw, 64px))`).
+- Con ese ancho, el texto corrido se corta a unos **80 caracteres** por línea (`max-width: 80ch`): nunca renglones de punta a punta.
+- Las tarjetas van **lado a lado** cuando entran (columnas de 380 px como mínimo) y **todas del mismo alto** (el de la más alta, también cuando una se despliega).
+
+**Alto.** En una pantalla baja el encabezado y la fila de botones quedan fijos y solo el medio se desplaza: el botón principal nunca queda fuera de vista.
+
+**Trampa de Tailwind.** La base de los diálogos (`components/ui`) usa Tailwind con todas las utilidades en `!important`, y Tailwind solo genera las clases que encuentra en `src/library-manager` y `src/components/ui`. Una clase de Tailwind escrita en otro archivo (`w-[…]`) no existe. Ancho, margen interior, color o tipo de un diálogo se fijan en su CSS con una clase propia y `!important` en la propiedad que la base también fija.
+
+**Pantallas.** Dentro de `.ga-screen` ningún texto baja de 16 px; títulos de columna y pestañas 14 px (§4.12).
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.
@@ -302,6 +336,11 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - [ ] Los títulos son Bebas naranja; el texto es Manrope.
 - [ ] Ningún texto está en un solo idioma fijo (revisar en `es` y en `en`).
 - [ ] Los párrafos no tienen reglas propias de margen, fuente ni tamaño; pistas con `ga-hint`, estados con `ga-status`, bloques en `ga-stack` (§4.25). `npm run check:css` pasa.
+- [ ] La jerarquía se ve a simple vista (§4.26): título del diálogo, texto principal, títulos de ítem más grandes y en negrita que su texto; lo que hay que leer no está en gris.
+- [ ] Los espacios son los fijos de §4.26 (márgenes, entre secciones, entre tarjetas); nada pegado al borde ni al título.
+- [ ] Un diálogo grande tiene el ancho de la columna central, renglones de 80 caracteres como máximo, tarjetas lado a lado del mismo alto, y el botón principal a la vista en una pantalla de 720 px de alto.
+- [ ] En una pantalla ningún texto baja de 16 px (títulos de columna y pestañas, 14 px).
+- [ ] Mirado de verdad (captura o vista previa) y medido, no solo compilado.
 - [ ] Probado en `es`, `en` y en ventana de 1024 px de ancho.
 
 ## 7. Estado de aplicación

@@ -141,8 +141,8 @@
 .ga-kid-ready-intro { padding-top: 24px; }
 /* Lines of a comfortable length (about 80 characters) however wide the dialog is. */
 .ga-kid-ready .ga-kid-ready-lead { --ga-p-size: 18px; max-width: 80ch; color: var(--ga-text-ink) !important; }
-/* The notes side by side when there is room, each as tall as its own text. */
-.ga-kid-ready-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: start; gap: 16px; margin-top: 32px; }
+/* The notes side by side when there is room, both as tall as the taller one (Seba, 2026-10-31). */
+.ga-kid-ready-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: stretch; gap: 16px; margin-top: 32px; }
 .ga-kid-ready-notes > .ga-label { grid-column: 1 / -1; margin-bottom: 4px; }
 .ga-kid-ready-note { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 22px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
 .ga-kid-ready-note-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; }
