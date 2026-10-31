@@ -1,4 +1,3 @@
-import { usePlayerFrame } from "./ParentModeButton";
 import { rememberTasteGame } from "./tasteProfile";
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
@@ -211,9 +210,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const [infoTarget, setInfoTarget] = useState<HTMLElement | null>(null);
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
-  // The library manager is the parent's: a player's frame has no button for it (ParentModeButton.tsx).
-  const player = usePlayerFrame();
-  useEffect(() => { if (player) setManagerOpen(false); }, [player]);
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
   // "Import" in the empty library: the manager opens with its import already started.
   const [importOnOpen, setImportOnOpen] = useState(false);
@@ -513,7 +509,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
   const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} hidden={player} pressed={showManager} onClick={() => toggleManager(!managerWanted.current)} /> : null;
+    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!managerWanted.current)} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (

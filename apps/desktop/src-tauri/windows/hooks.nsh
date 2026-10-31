@@ -227,36 +227,14 @@ Function GaFoldersLeave
 FunctionEnd
 !macroend
 
-; Kid mode's restrictor (src-tauri/src/restrictor.rs) is this same executable run by Windows as a service: it is
-; stopped before the files are replaced (an update included), or the executable could not be overwritten.
-!define GA_RESTRICTOR "GameAccessRestrictor"
-!macro NSIS_HOOK_PREINSTALL
-  nsExec::Exec `sc.exe stop ${GA_RESTRICTOR}`
-  Pop $0
-  Sleep 1500
-!macroend
-
+; What earlier versions left behind and nothing uses any more (vault/Modo niño.md, MN.23): the same-account kid
+; mode's service and its folder, Windows' password for administrator tasks where Game Access turned it on, and a
+; family file whose children's accounts are gone. Every install and update, kid mode set up or not.
 !macro NSIS_HOOK_POSTINSTALL
-  ; The restrictor owns its settings folder: users only read it (the parent's Game Access asks the service for every
-  ; change, with the parent's key: restrictor_pipe.rs), SYSTEM and administrators change it. The service narrows it again
-  ; at every start. Then the service is registered (or pointed at this executable), restarted if it stops, and started.
-  ReadEnvStr $1 ProgramData
-  CreateDirectory "$1\GameAccess\restriccion"
-  nsExec::Exec `icacls "$1\GameAccess\restriccion" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /Q`
-  Pop $0
-  ; What is inside inherits the folder's permissions (an earlier version left files with none).
-  nsExec::Exec `icacls "$1\GameAccess\restriccion\*" /reset /T /Q`
-  Pop $0
-  nsExec::Exec `sc.exe create ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto DisplayName= "Game Access kid mode"`
-  Pop $0
-  nsExec::Exec `sc.exe config ${GA_RESTRICTOR} binPath= "\"$INSTDIR\${MAINBINARYNAME}.exe\" --restrictor" start= auto`
-  Pop $0
-  nsExec::Exec `sc.exe description ${GA_RESTRICTOR} "Kid mode: only the allowed games and programs run while it is on."`
-  Pop $0
-  nsExec::Exec `sc.exe failure ${GA_RESTRICTOR} reset= 86400 actions= restart/1000/restart/1000/restart/1000`
-  Pop $0
-  nsExec::Exec `sc.exe start ${GA_RESTRICTOR}`
-  Pop $0
+  ${If} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
+    nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -CleanStale`
+    Pop $0
+  ${EndIf}
   ${If} $GaShown == 1
     SetRegView 64
     WriteRegStr HKLM "${GA_REGKEY}" "GamesDir" $GaGamesDir
@@ -275,14 +253,6 @@ FunctionEnd
 ; account whose desktop is Game Access would be a black screen without it. Runs before the files go (the script is
 ; in the install folder) and never in an update, which would otherwise erase the account at every new version.
 !macro NSIS_HOOK_PREUNINSTALL
-  ; The restrictor is stopped in any case (its executable goes), and removed unless this is an update.
-  nsExec::Exec `sc.exe stop ${GA_RESTRICTOR}`
-  Pop $0
-  Sleep 1500
-  ${If} $UpdateMode <> 1
-    nsExec::Exec `sc.exe delete ${GA_RESTRICTOR}`
-    Pop $0
-  ${EndIf}
   ${If} $UpdateMode <> 1
   ${AndIf} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
     nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -RemoveAll`

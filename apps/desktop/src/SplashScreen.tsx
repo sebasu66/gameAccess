@@ -4,14 +4,10 @@ import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
-import { hasTauriRuntime } from "./native";
-import { loadAdminKey, setAccessRole } from "./accessRole";
 import "./admin-gate.css";
 // The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
 // (splash.mp3) and the quarter turn start together, and the gate opens as the turn ends. Never the sound alone.
 const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
-// With the parent's key set (admin_key.rs) the shut lock asks for it: the key turns it (with the sound) and the gate
-// opens; "enter as a player" opens the gate with the lock still shut, the sound going with the gate.
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
 // The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
@@ -146,7 +142,8 @@ export function Leaf({ side, children }: { side: "left" | "right"; children?: Re
  * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and the backlit
  * padlock beside it goes out. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
  * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (the lock drawn, shut), hold
- * (shut while access is settled or the key is asked for), dock (sound and turn together, then the gate).
+ * (shut while access is settled), dock (sound and turn together, then the gate). The parent's key is not asked here:
+ * only parental control asks for it (ParentKeyDialog.tsx).
  */
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
@@ -154,13 +151,11 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const [audioState, setAudioState] = useState("idle");
  const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
- const [keyGate, setKeyGate] = useState<"checking" | "done">(hasTauriRuntime() ? "checking" : "done");
  const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
  const [lock, setLock] = useState<"sealed" | "turning">(reduced ? "turning" : "sealed");
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
- const asPlayer = useRef(false);
  const phase = !formed ? "intro" : stage === "intro" ? "hold" : "dock";
  const reducedRef = useRef(reduced);
  // The mechanism's steps are not undone by a re-render: only leaving the opening stops them.
@@ -176,17 +171,6 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
   setLanding(true);
   window.setTimeout(onDocked, 260);
  }, [onDocked]);
- useEffect(() => {
-  if (!hasTauriRuntime()) return;
-  let live = true;
-  loadAdminKey().then(state => {
-   if (!live) return;
-   if (!state.enabled) { setKeyGate("done"); return; }
-   // With a parent's key it opens as a player, without asking (Seba, 2026-10-30): the frame's parent mode button asks.
-   asPlayer.current = true; setAccessRole("player"); setKeyGate("done");
-  }).catch(() => { if (live) { setAccessRole("player"); setKeyGate("done"); } });
-  return () => { live = false; };
- }, []);
  const play = () => {
   const audio = sound.current;
   if (!audio || reducedRef.current) return;
@@ -221,7 +205,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
-   if (keyGate === "done") onIntroReady();
+   onIntroReady();
    return;
   }
   if (started.current) return;
@@ -234,10 +218,9 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
    later(finishDock, OPEN_MS + 100);
   };
   if (reduced || lock === "turning") { open(); return; }
-  if (asPlayer.current) { play(); open(); return; }
   turn();
   later(open, TURN_MS + 100);
- }, [phase, reduced, keyGate, lock, onIntroReady, onDockStart, finishDock]); // eslint-disable-line react-hooks/exhaustive-deps
+ }, [phase, reduced, lock, onIntroReady, onDockStart, finishDock]); // eslint-disable-line react-hooks/exhaustive-deps
  const cls = `gameaccess-splash gs-gate phase-${phase}${lock === "sealed" ? " is-sealed" : ""}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
  return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}
   style={{ "--gs-draw": lock === "turning" ? "0ms" : `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>

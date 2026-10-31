@@ -1,11 +1,8 @@
-import { requestAdmin } from "./accessRole";
 import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
 import AppHelp from "./AppHelp";
 import KidModePanel from "./KidModePanel";
-import ParentModeButton from "./ParentModeButton";
-import KidModeBadge from "./KidModeBadge";
 import GamesScreenButton from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
@@ -511,7 +508,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
-    if (!(await requestAdmin())) { setToast(t("adminRequired")); return; }
     // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
     const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
     if (isSteamOwned(steamEntry)) {
@@ -665,12 +661,11 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {/* The app as the screen of a device: a bezel with tabs and GAME / ACCESS
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
-      <KidModeBadge />
       <header ref={headerRef} className="topbar topbar-glass">
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <GamesScreenButton dockTarget={dockTarget} /><ParentModeButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
+          <GamesScreenButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
         </div>
       </header>
 

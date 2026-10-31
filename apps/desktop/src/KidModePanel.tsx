@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { usePlayerFrame } from "./ParentModeButton";
 import { createPortal } from "react-dom";
 import { Baby, Sparkles } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -7,7 +6,7 @@ import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import GaScreen from "./components/ga/Screen";
 import { setAppScreen, useAppScreen } from "./appScreen";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
-import { loadAdminKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
+import { loadAdminKey, requestParentKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
 import { loadKidFamily, useKidState } from "./kidMode";
 import KidWizard from "./KidWizard";
 import KidControlPanel from "./KidControlPanel";
@@ -16,7 +15,7 @@ import "./kid-mode.css";
 /**
  * The kids screen (vault/Modo niño.md). While kid mode is off it is the page that explains the features and, with
  * PLUS, the wizard below it (KidWizard.tsx). Once the child's account exists it is the control panel (KidControlPanel.tsx).
- * Anyone may open it; changes need the administrator (the parent's key). It is a screen chosen from the frame
+ * Once kid mode is set up, opening it asks for the parent's key (ParentKeyDialog.tsx). It is a screen chosen from the frame
  * (docs/GUI_DESIGN.md §0b), not a dialog: no close button, one leaves it by choosing another mode.
  */
 const knowPlus = () => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT));
@@ -56,13 +55,10 @@ export default function KidModePanel({ dockTarget = null }: { dockTarget?: HTMLE
   const { t } = useI18n();
   const screen = useAppScreen();
   useEffect(() => { void loadKidFamily(); void loadAdminKey().catch(() => undefined); }, []);
-  // A player's frame has no parental control (ParentModeButton.tsx).
-  const player = usePlayerFrame();
-  useEffect(() => { if (player && screen === "kids") setAppScreen("games"); }, [player, screen]);
-  // Hidden, not removed: a dock button keeps its place when it comes back.
-  const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} hidden={player} pressed={screen === "kids"} onClick={() => setAppScreen("kids")} />;
+  const open = () => { if (screen !== "kids") void requestParentKey().then(ok => { if (ok) setAppScreen("kids"); }); };
+  const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} pressed={screen === "kids"} onClick={open} />;
   return <>
     {dockTarget ? createPortal(button, dockTarget) : button}
-    {screen === "kids" && !player ? <KidScreen /> : null}
+    {screen === "kids" ? <KidScreen /> : null}
   </>;
 }

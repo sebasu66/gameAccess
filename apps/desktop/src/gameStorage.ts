@@ -1,4 +1,3 @@
-import { requireAdmin } from "./accessRole";
 import { invoke } from "@tauri-apps/api/core";
 
 import { narrate } from "./narrationLog";
@@ -38,7 +37,6 @@ async function waitForSteamUninstall(appId: number): Promise<void> {
 }
 
 export async function uninstallGame(appId: number): Promise<void> {
-  await requireAdmin();
   if (!appId || !hasTauriRuntime()) throw new Error("Desinstalar requiere la aplicación de escritorio.");
   await invoke("uninstall_game", { appId });
   await narrate(`Steam uninstall flow opened for AppID ${appId}; Steam remains authoritative for deletion.`, { area: "STORAGE" });

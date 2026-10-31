@@ -13,8 +13,10 @@ vi.mock("./notice/notice", () => ({ showNotice: vi.fn(), confirmNotice: vi.fn(as
 vi.mock("./ParentalControlSection", () => ({ default: () => <p>filtro</p> }));
 
 import KidModePanel from "./KidModePanel";
+import ParentKeyDialog from "./ParentKeyDialog";
+import { getAppScreen, setAppScreen } from "./appScreen";
 import { setKidDraft, NEW_KID, resetKidMode } from "./kidMode";
-import { getAdminKey, resetAccessRoleForTests, setAccessRole, setAdminKey, setPlusGraceDays, setPlusLapsed } from "./accessRole";
+import { getAdminKey, resetAccessRoleForTests, setAdminKey, setPlusGraceDays, setPlusLapsed, settleKeyRequest } from "./accessRole";
 
 let root: Root; let host: HTMLDivElement;
 const panel = () => document.querySelector(".ga-kid-panel")!;
@@ -33,24 +35,18 @@ const type = async (input: HTMLInputElement, value: string) => {
   });
 };
 const open = async () => {
-  await act(async () => { root.render(<KidModePanel />); });
+  await act(async () => { root.render(<><KidModePanel /><ParentKeyDialog /></>); });
   await act(async () => { document.querySelector<HTMLButtonElement>(".ga-kid-fab")?.click(); });
-  // Changing screens is a queued, animated step (appScreen.ts): one left by an earlier test (going back to the games)
-  // may still be running on a busy machine, so the screen is waited for instead of assumed.
-  for (let tries = 0; tries < 50 && !document.querySelector(".ga-kid-panel"); tries++) {
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-  }
 };
 /** The whole wizard: key, filter, the child's account, its games, and finish. */
 const finishWizard = async (name = "Juan") => {
   await press(/^Empezar|^Start/);
   await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
   await press(/Siguiente: filtro|Next: content filter/);
-  await press(/Siguiente: tu hijo|Next: your child/);
+  await press(/Siguiente: la cuenta|Next: your child/);
   await act(async () => { setKidDraft({ name }); });
   await press(/Siguiente: sus juegos|Next: their games/);
-  await press(/Siguiente: programas|Next: programs/);
-  await press(/Encender el modo niño|Turn kid mode on/);
+  await press(/Crear la cuenta|Create the account/);
 };
 
 beforeEach(async () => {
@@ -101,7 +97,7 @@ describe("Niños en casa", () => {
     await press(/^Empezar|^Start/);
     expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("perro");
     await press(/Siguiente: filtro|Next: content filter/);
-    await press(/Siguiente: tu hijo|Next: your child/);
+    await press(/Siguiente: la cuenta|Next: your child/);
     // 3. The account: Next waits for a valid name.
     expect(button(/Siguiente: sus juegos|Next: their games/)!.disabled).toBe(true);
     await act(async () => { setKidDraft({ name: "Juan" }); });
@@ -109,17 +105,16 @@ describe("Niños en casa", () => {
     const chip = (index: string) => [...panel().querySelectorAll<HTMLButtonElement>(".ga-kid-progress button")].find(item => item.textContent === index)!;
     await act(async () => { chip("2").click(); });
     expect(panel().querySelector(".ga-kid-step h3")!.textContent).toMatch(/Filtro de contenido|content filter/i);
-    await press(/Siguiente: tu hijo|Next: your child/);
+    await press(/Siguiente: la cuenta|Next: your child/);
     expect(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!.value).toBe("Juan");
     await press(/Siguiente: sus juegos|Next: their games/);
     // 4. The games, then finish: kid mode is on and the screen is the control panel.
     expect(text()).toMatch(/qué juegos verá tu hijo|which games your child will see/);
-    await press(/Siguiente: programas|Next: programs/);
-    await press(/Encender el modo niño|Turn kid mode on/);
+    await press(/Crear la cuenta|Create the account/);
     expect(getAdminKey()).toEqual({ enabled: true, length: 5 });
     expect(document.querySelector(".ga-kid-intro")).toBeNull();
     expect([...document.querySelectorAll('[role="tab"]')].map(tab => tab.textContent)).toEqual([
-      expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Programas|Programs/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
+      expect.stringMatching(/Juegos|Games/), expect.stringMatching(/Tiempo|Time/), expect.stringMatching(/Filtro|filter/i), expect.stringMatching(/Soporte|Support/),
     ]);
   });
 
@@ -129,7 +124,7 @@ describe("Niños en casa", () => {
     await press(/^Empezar|^Start/);
     await type(panel().querySelector<HTMLInputElement>(".ga-kid-step input")!, "perro");
     await press(/Siguiente: filtro|Next: content filter/);
-    await press(/Siguiente: tu hijo|Next: your child/);
+    await press(/Siguiente: la cuenta|Next: your child/);
     // Monday first: two hours from 12 to 21; Saturday and Sunday three hours from 9 to 22.
     const rows = [...panel().querySelectorAll<HTMLTableRowElement>(".ga-kid-schedule tbody tr")];
     expect(rows).toHaveLength(7);
@@ -161,14 +156,25 @@ describe("Niños en casa", () => {
     expect(text()).toMatch(/Hay cambios sin aplicar|not applied yet/);
   });
 
-  it("como jugador no hay control parental: su botón y su pantalla salen del marco y vuelven con el modo padre", async () => {
+  it("con la clave puesta, Control parental la pide al abrir y cancelar no entra", async () => {
     await open();
     await finishWizard();
-    await act(async () => { setAccessRole("player"); });
+    await act(async () => { setAppScreen("games"); setAdminKey({ enabled: true, length: 5 }); });
+    // Changing screen is animated: the kids screen has to be gone before its button asks again.
+    await act(async () => { await vi.waitFor(() => expect(getAppScreen()).toBe("games")); });
+    const fab = () => document.querySelector<HTMLButtonElement>(".ga-kid-fab")!;
+    const dialog = () => document.querySelector('[role="alertdialog"]');
+    await act(async () => { fab().click(); });
+    expect(dialog()?.textContent).toMatch(/clave de padre|parent's key/);
     expect(document.querySelector(".ga-kid-panel")).toBeNull();
-    expect(document.querySelector<HTMLButtonElement>(".ga-kid-fab")!.hidden).toBe(true);
-    await act(async () => { setAccessRole("admin"); });
-    expect(document.querySelector<HTMLButtonElement>(".ga-kid-fab")!.hidden).toBe(false);
+    await act(async () => { [...dialog()!.querySelectorAll("button")].find(item => /Cancelar|Cancel/.test(item.textContent ?? ""))!.click(); });
+    expect(dialog()).toBeNull();
+    expect(document.querySelector(".ga-kid-panel")).toBeNull();
+    await act(async () => { fab().click(); });
+    await act(async () => { settleKeyRequest(true); });
+    expect(dialog()).toBeNull();
+    await act(async () => { await vi.waitFor(() => expect(getAppScreen()).toBe("kids")); });
+    expect(text()).toContain("Juan");
   });
 
   it("Soporte y configuración: la clave de padre, la ayuda y quitar el modo niño, que vuelve a la explicación", async () => {

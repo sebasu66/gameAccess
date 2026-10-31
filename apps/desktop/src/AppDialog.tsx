@@ -16,13 +16,15 @@ interface AppDialogProps {
   initialAction?: "confirm" | "cancel";
   onConfirm?: () => void;
   onClose: () => void;
+  /** The only button's text when there is nothing to confirm (Cancel beside a field); the field then takes the focus. */
+  closeLabel?: string;
   /** Shows what a confirmed action is doing inside this same dialog, then its result. */
   progress?: { phase: "working" | "done"; label: string; detail?: string };
   /** Extra content under the message, such as a text field. */
   children?: ReactNode;
 }
 
-export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, onCancelAction, cancelDisabled = false, confirmDisabled = false, initialAction = "cancel", onConfirm, onClose, progress, children }: AppDialogProps) {
+export default function AppDialog({ title, message, tone = "info", confirmLabel, cancelLabel, onCancelAction, cancelDisabled = false, confirmDisabled = false, initialAction = "cancel", onConfirm, onClose, closeLabel, progress, children }: AppDialogProps) {
   const dialogRef = useDialogFocus(onClose);
   const { t } = useI18n();
   const isAlert = tone === "warning" || tone === "error";
@@ -48,7 +50,8 @@ export default function AppDialog({ title, message, tone = "info", confirmLabel,
           {onConfirm && !done ? <>
             <button type="button" className="ga-dialog-secondary" data-dialog-initial={initialAction === "cancel" ? "" : undefined} disabled={cancelDisabled} onClick={onCancelAction ?? onClose}>{cancelLabel ?? t("back")}</button>
             <button type="button" className={`ga-dialog-primary${tone === "warning" ? " is-danger" : ""}`} data-dialog-initial={initialAction === "confirm" ? "" : undefined} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel ?? t("confirm")}</button>
-          </> : <button type="button" className="ga-dialog-primary" data-dialog-initial onClick={onClose}>{done ? t("close") : t("understood")}</button>}
+          </> : closeLabel && !done ? <button type="button" className="ga-dialog-secondary" onClick={onClose}>{closeLabel}</button>
+            : <button type="button" className="ga-dialog-primary" data-dialog-initial onClick={onClose}>{done ? t("close") : t("understood")}</button>}
         </div>}
       </section>
     </div>

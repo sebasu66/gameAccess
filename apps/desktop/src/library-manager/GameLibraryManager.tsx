@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, Lock, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, Baby, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -24,12 +24,12 @@ import DigitalGameOptions from "../DigitalGameOptions";
 import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { eventText } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
+import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
 import MoveArt, { moveLeft } from "./MoveArt";
 import { GaBack, GaButton } from "../components/ga/Buttons";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
-import { requestAdmin, useAccessRole } from "../accessRole";
-import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, kidMayPlay, loadKidFamily, toggleKidGame, toggleKidShortcut, useKidState, usePlus, useKidAssigned } from "../kidMode";
+import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, loadKidFamily } from "../kidMode";
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
@@ -228,13 +228,6 @@ function StatusCell({ status }: { status: Status }) {
 
 /** A row of the grid: picture, name, state, folder, size, source, plays, days without playing and the row's actions.
  *  What a game still needs, or a problem it has, is in its log (the expanded row). */
-/** Shows or hides a game (or a shortcut) for the child; the change waits in a notice until it is applied (one Windows
- *  permission). */
-function chooseForKid(game: LibraryGame | AppShortcut, c: LibraryCopy) {
-  if ("app_id" in game) toggleKidGame(game); else toggleKidShortcut(game);
-  offerKidApply(c);
-}
-
 /** The child's list changed: the change waits in a notice until it is applied (one Windows permission). */
 function offerKidApply(c: LibraryCopy) {
   showNotice({ tone: "info", title: c.kidPending, timer: false, actions: [
@@ -258,9 +251,6 @@ async function removeForKid(item: AppShortcut, c: LibraryCopy) {
  *  matched to Steam nor moved into the games folder. */
 function ThirdPartyApps({ c }: { c: LibraryCopy }) {
   const shortcuts = useShortcuts();
-  const kid = useKidState().draft;
-  const admin = useAccessRole() === "admin";
-  const plus = usePlus();
   useEffect(() => { void loadShortcuts(); }, []);
   const fail = (failure: unknown) => notify(c.appsFailed.replace("{error}", String(failure instanceof Error ? failure.message : failure)), { tone: "error" });
   return <section className="lm-apps" aria-labelledby="lm-apps-title">
@@ -271,7 +261,6 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
         <AppWindow size={18} aria-hidden="true" /><span className="lm-apps-name">{item.name}</span><span className="lm-apps-path" title={item.target}>{item.target}</span>
         <span className="lm-acts">
           <IconAction label={c.appsOpen} onClick={() => void openShortcut(item.id).catch(fail)}><PhPlay /></IconAction>
-          {plus && admin && kid.name ? <IconAction label={(kidMayPlay(-item.id) ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={kidMayPlay(-item.id)} onClick={() => chooseForKid(item, c)}><Baby /></IconAction> : null}
           <IconAction label={c.appsRemove} tone="danger" onClick={() => void removeForKid(item, c).catch(fail)}><Trash /></IconAction>
         </span>
       </li>)}
@@ -294,14 +283,6 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const freezing = job && !job.queued ? job : undefined;
   const busyFreezing = Boolean(job && !job.outcome);
   const hosted = Boolean(freezing) && id != null;
-  // Kid mode (kidMode.ts): once a child account is set up, each game says whether the child sees it.
-  const kid = useKidState().draft;
-  const admin = useAccessRole() === "admin";
-  const plus = usePlus();
-  const forKid = kidMayPlay(id);
-  // While kid mode restricts, a game not assigned to the child is marked: a yellow row and a lock by its name.
-  const kidOnly = useKidAssigned();
-  const restricted = Boolean(kidOnly && id != null && !kidOnly.has(id));
   useEffect(() => {
     if (!hosted || id == null) return undefined;
     const release = hostFreezeJob(id);
@@ -309,11 +290,11 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
-    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${restricted ? " is-restricted" : ""}`} data-app-id={id ?? undefined}>
+    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
       <td><span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span></td>
       <td className="lm-cell-name">
-        <div className="lm-name" title={game.name}>{restricted ? <Lock className="lm-restricted-lock" size={13} aria-label={translate("kidRestrictedGame")} /> : null}{game.name}</div>
+        <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
       <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
@@ -349,7 +330,6 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
           </> : null}
           {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
-          {plus && admin && kid.name && game.installed && !isSteamOwned(game) && id != null ? <IconAction label={(forKid ? c.kidHide : c.kidShow).replace("{name}", kid.name)} tone="accent" pressed={forKid} onClick={() => chooseForKid(game, c)}><Baby /></IconAction> : null}
           <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
           <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
           {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
@@ -357,7 +337,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
               handled like any game Game Access installed) or deleted from disk with its folder. */}
           {/* A move cut short (the app or the PC went off): it goes on from what it copied, or that copy is deleted. */}
           {game.move_pending && id != null ? <>
-            <IconAction label={translate("moveResume")} tone="accent" disabled={busy} onClick={() => void requestAdmin().then(admin => { if (admin) startFreezeJob(catalogGame ?? asGame(game), "move", { resume: true }); })}><ArrowSquareIn /></IconAction>
+            <IconAction label={translate("moveResume")} tone="accent" disabled={busy} onClick={() => startFreezeJob(catalogGame ?? asGame(game), "move", { resume: true })}><ArrowSquareIn /></IconAction>
             <IconAction label={translate("moveDiscard")} tone="danger" disabled={busy} onClick={() => void confirmNotice({ title: translate("moveDiscardTitle", { name: game.name }), text: translate("moveDiscardText"), confirmLabel: translate("moveDiscard"), cancelLabel: c.cancel, kind: "danger" }).then(ok => { if (ok) { hideNotice(); void discardMove(catalogGame ?? asGame(game)); } })}><Trash /></IconAction>
           </> : game.link_kind === "folder" && game.installed && id != null ? <>
             <IconAction label={c.linkedMove} tone="accent" disabled={busy} onClick={() => setPending({ kind: "linked_move", game })}><ArrowSquareIn /></IconAction>
@@ -451,7 +431,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   useEffect(() => {
     if (!startImport) return;
     onImportStarted?.();
-    void requestAdmin().then(admin => { if (admin) setImportOpen(true); });
+    setImportOpen(true);
   }, [startImport]); // eslint-disable-line react-hooks/exhaustive-deps
   const importSteam = async () => {
     setBusy(true);
@@ -480,7 +460,6 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 
   const askPlan = async (ids: number[]) => {
     if (!ids.length) return;
-    if (!(await requestAdmin())) return;
     setBusy(true); setMessage("");
     try {
       const plans = libraryDemo() ? demoPlans(ids) : (await digitalProcessManager.libraryPlan(ids)).plans ?? [];
@@ -547,8 +526,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
-    // The parent's key first (accessRole.ts): a player is asked before the confirmation, not after it.
-    void requestAdmin().then(admin => { if (!live) return; if (admin) void confirm(); else setPending(null); });
+    void confirm();
     return () => { live = false; };
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -583,9 +561,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           {summary ? <section className="lm-summary">
             <DiskDonut summary={summary} frozenBytes={frozenStored} c={c} />
           </section> : null}
+          <ActivityBoard scanning={scanning} working={busy} />
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
-            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => void requestAdmin().then(admin => { if (admin) setImportOpen(true); })}>{c.importGames}</GaButton>
+            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
             <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
           </div>
           </div>

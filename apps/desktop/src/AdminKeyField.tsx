@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Gamepad2 } from "lucide-react";
 import { useI18n } from "./i18n";
-import { GaButton } from "./components/ga/Buttons";
 import { checkAdminKey } from "./accessRole";
 import { showNotice } from "./notice/notice";
 import "./admin-gate.css";
 
 /**
- * The gate's key field: a short rounded LCD set into the metal beside the padlock, about four dots wide. Every typed
- * character is a dot; a longer key slides on past its left edge, so how many there are is not seen (Seba, 2026-10-30).
- * Every key press ticks. There is no button:
+ * The gate's key field: a rounded LCD set into the metal beside the padlock. It only shows round dots as the key is
+ * typed, three at most at a time, sliding left: never how many there are. Every key press ticks. There is no button:
  * when the typed length is the key's (the gate knows it), each change asks whether it matches; typing and deleting is
- * free until it does, and then the dots turn green and the gate opens. Beside it: "enter as a player" (no key) and
- * "I forgot the key".
+ * free until it does, and then the dots turn green and parental control opens. Below it: "I forgot the key". It lives in
+ * the parental control dialog (ParentKeyDialog.tsx).
  */
+const VISIBLE_DOTS = 24;
 const GREEN_MS = 650;
 
 let audio: AudioContext | null = null;
@@ -41,7 +39,7 @@ export function useForgotAdminKey() {
   return useCallback(() => showNotice({ tone: "info", title: t("adminKeyForgotTitle"), text: t("adminKeyForgotText") }), [t]);
 }
 
-export default function AdminKeyField({ length, onSuccess, onPlayer, onForgot }: { length: number; onSuccess: () => void; onPlayer: () => void; onForgot: () => void }) {
+export default function AdminKeyField({ length, onSuccess, onForgot }: { length: number; onSuccess: () => void; onForgot: () => void }) {
   const { t } = useI18n();
   const [value, setValue] = useState("");
   const [ok, setOk] = useState(false);
@@ -65,15 +63,15 @@ export default function AdminKeyField({ length, onSuccess, onPlayer, onForgot }:
     });
   };
 
+  const first = Math.max(0, value.length - VISIBLE_DOTS);
   return <div className="gs-keypad" onPointerDown={event => { if (!(event.target as HTMLElement).closest("button")) { event.preventDefault(); input.current?.focus(); } }}>
     <label className={`gs-lcd${ok ? " is-ok" : ""}`}>
-      <span className="gs-lcd-dots" aria-hidden="true">{Array.from({ length: value.length }, (_, index) => <i key={index} />)}</span>
+      <span className="gs-lcd-dots" aria-hidden="true">{Array.from({ length: value.length - first }, (_, index) => <i key={first + index} />)}</span>
       <input ref={input} type="password" value={value} autoComplete="off" spellCheck={false} aria-label={t("adminKeyLabel")} data-lpignore="true"
         onChange={event => change(event.target.value)} readOnly={ok} />
     </label>
     <p className="gs-keypad-status" role="status">{ok ? t("adminKeyOk") : ""}</p>
     <div className="gs-keypad-links">
-      <GaButton icon={<Gamepad2 size={16} aria-hidden="true" />} onClick={onPlayer} disabled={ok}>{t("adminKeyPlayer")}</GaButton>
       <button type="button" className="gs-keypad-forgot" onClick={onForgot} disabled={ok}>{t("adminKeyForgot")}</button>
     </div>
   </div>;

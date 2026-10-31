@@ -24,8 +24,6 @@
   --ga-danger:#be4750; --ga-danger-hover:#d65c65; --ga-danger-ink:#e1898f; --ga-success:#a0d2b4;
   --ga-ok:var(--ga-success); --ga-warn:var(--ga-orange); --ga-error:var(--ga-danger-hover);
   --ga-label-ink:#d79d5d; --ga-orange-ink:#ffd0a0; --ga-orange-tint:#cc83331a; --ga-orange-line:#d79e6066;
-  /* Kid mode restricting: the yellow of a game the child may not open (library manager) and of the corner badge. */
-  --ga-restricted-tint:#e3bf3a26; --ga-restricted-line:#e3bf3a73; --ga-restricted-ink:#f1d46a;
   --ga-surface:#ffffff08; --ga-surface-2:#ffffff12; --ga-field-bg:#0d1114;
   --ga-text-family:Manrope,"Segoe UI",sans-serif; --ga-text-min:14px; --ga-text-size:16px; --ga-hint-size:15px; --ga-text-leading:1.5;
   --ga-text-ink:#e6dccd; --ga-hint-font:400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CatalogGame } from "../types";
 import { digitalProcessManager } from "./DigitalProcessManager";
-import { AdminRequiredError, isAskingForKey, resetAccessRoleForTests, setAccessRole, setAdminKey, settleGateRequest } from "../accessRole";
+import { isAskingForKey, resetAccessRoleForTests, setAdminKey } from "../accessRole";
 
 const game = { id: 7, app_id: 7, name: "Juego" } as unknown as CatalogGame;
 
 // Everything that changes the library or the storage, as the process manager exposes it.
-const protectedActions: Array<[string, () => Promise<unknown>]> = [
+const libraryActions: Array<[string, () => Promise<unknown>]> = [
   ["desinstalar", () => digitalProcessManager.executeUninstall(game)],
   ["desinstalar en lote", () => digitalProcessManager.libraryBatch("uninstall", [7])],
   ["borrar un juego vinculado", () => digitalProcessManager.libraryBatch("linked_delete", [7])],
@@ -18,32 +18,13 @@ const protectedActions: Array<[string, () => Promise<unknown>]> = [
   ["cambiar las carpetas de juegos", () => digitalProcessManager.saveSettings({} as never)],
 ];
 
-describe("clave de padre: modificar la biblioteca", () => {
-  beforeEach(() => { resetAccessRoleForTests(); setAdminKey({ enabled: true, length: 11 }); setAccessRole("player"); });
+// Seba, 2026-10-31: the child has a Windows account of its own, so the parent's Game Access is used freely; only
+// parental control asks for the parent's key (vault/Modo niño.md).
+describe("clave de padre: la biblioteca no la pide", () => {
+  beforeEach(() => { resetAccessRoleForTests(); setAdminKey({ enabled: true, length: 11 }); });
 
-  it.each(protectedActions)("%s pide la clave y no corre si se entra como jugador", async (_name, run) => {
+  it.each(libraryActions)("%s corre sin pedir la clave", async (_name, run) => {
     const attempt = run();
-    expect(isAskingForKey()).toBe(true);
-    settleGateRequest(false);
-    await expect(attempt).rejects.toBeInstanceOf(AdminRequiredError);
-  });
-
-  it.each(protectedActions)("%s corre cuando la clave abre el portón", async (_name, run) => {
-    const attempt = run();
-    expect(isAskingForKey()).toBe(true);
-    settleGateRequest(true);
-    await expect(attempt).resolves.toBeDefined();
-  });
-
-  it("cancelar una descarga no pide la clave: no cambia la biblioteca", async () => {
-    const attempt = digitalProcessManager.libraryBatch("discard_transfer", [7]);
-    expect(isAskingForKey()).toBe(false);
-    await expect(attempt).resolves.toBeDefined();
-  });
-
-  it("sin clave de padre nada se pide", async () => {
-    resetAccessRoleForTests();
-    const attempt = digitalProcessManager.libraryBatch("uninstall", [7]);
     expect(isAskingForKey()).toBe(false);
     await expect(attempt).resolves.toBeDefined();
   });

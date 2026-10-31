@@ -32,16 +32,11 @@ mod webview_rest;
 mod window_fit;
 mod process_control;
 mod kid_mode;
-mod restrictor;
-mod restrictor_pipe;
-mod uac_password;
 mod app_shortcuts;
 
 use std::{env, sync::Mutex};
 
 fn main() {
-    // Kid mode's restrictor (restrictor.rs): the Windows service, or the same loop in a console.
-    if restrictor::run_if_requested() { return; }
     // The child's desktop (kid_mode.rs): this process only watches the real app.
     if kid_mode::run_shell_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
@@ -54,8 +49,6 @@ fn main() {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
             plugin_install::receive(&args);
-            // The block dialog's "Yes" (restrictor.rs): the interface asks for the parent's key and allows the program.
-            if restrictor::receive_allow(&args) { let _ = app.emit("gameaccess:allow-program", ()); }
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
             // The page may be suspended while a game runs: wake it before asking it to launch.
             webview_rest::wake(app);
@@ -80,7 +73,6 @@ fn main() {
         .setup(|app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
-            restrictor::receive_allow(&launch_args);
             plugin_install::attach(app.handle().clone());
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
@@ -186,19 +178,6 @@ fn main() {
             kid_mode::kid_play,
             kid_mode::kid_sign_out,
             kid_mode::kid_family,
-            restrictor::restriction_state,
-            restrictor::restriction_save,
-            restrictor::restriction_clear,
-            restrictor::restriction_blocks,
-            restrictor::restriction_notice,
-            restrictor::restriction_programs,
-            restrictor::restriction_parent,
-            restrictor::restriction_allow,
-            restrictor::restriction_take_allow,
-            admin_key::admin_key_forget,
-            uac_password::uac_password_state,
-            uac_password::uac_password_set,
-            uac_password::uac_password_undo,
             kid_mode::kid_live,
             kid_mode::kid_control,
             kid_mode::kid_plus_set,

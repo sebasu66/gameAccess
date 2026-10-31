@@ -1,4 +1,3 @@
-import { requireAdmin } from "../accessRole";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { getSteamStoreLanguage } from "../i18n";
@@ -104,7 +103,6 @@ export class DigitalProcessManager {
   }
 
   async executeUninstall(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
-    await requireAdmin();
     return this.execute("uninstall", game, record, workingDir);
   }
 
@@ -114,7 +112,7 @@ export class DigitalProcessManager {
   openFolder(game: CatalogGame, which?: "download"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
 
   settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
-  async saveSettings(values: DigitalStorageSettings) { await requireAdmin(); return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
+  async saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
   localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
   gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
   saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
@@ -129,13 +127,13 @@ export class DigitalProcessManager {
   /** Moving the library to `target`: the games outside it, their sizes and whether they fit there. */
   relocatePlan(target: string) { return this.execute("library-relocate-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ target })); }
   /** One game into `target` ("move"), or linked where it is ("link"; an unfinished or deep-frozen game always moves). */
-  async relocate(appId: number, target: string, mode: "move" | "link") { await requireAdmin(); return this.execute("library-relocate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target, mode })).then(localizeResult); }
+  async relocate(appId: number, target: string, mode: "move" | "link") { return this.execute("library-relocate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target, mode })).then(localizeResult); }
   /** After the moves: the old games folders with nothing of ours left leave the list. */
-  async relocateFinish() { await requireAdmin(); return this.execute("library-relocate-finish", {id:0,name:""} as CatalogGame); }
-  async libraryBatch(action: LibraryBatchAction, appIds: number[]) { if (action !== "discard_transfer") await requireAdmin(); return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult); }
+  async relocateFinish() { return this.execute("library-relocate-finish", {id:0,name:""} as CatalogGame); }
+  async libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult); }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
   importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
-  async importRun(items: ImportItem[]) { await requireAdmin(); return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
+  async importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
   /** Steam Account Manager: the local Steam client, its accounts and who owns each game. */
   steamStatus() { return this.execute("steam-status", {id:0,name:""} as CatalogGame); }
   steamSaveSettings(values: Record<string, unknown>) { return this.execute("steam-save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
@@ -145,8 +143,8 @@ export class DigitalProcessManager {
   steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
   /** Free disk space from a game nobody plays (only games Game Access owns, never linked ones). */
-  async freeze(game: CatalogGame, level: FreezeLevel) { await requireAdmin(); return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
-  async thaw(game: CatalogGame) { await requireAdmin(); return this.execute("thaw", game); }
+  async freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
+  async thaw(game: CatalogGame) { return this.execute("thaw", game); }
   /** After a closed app: every freeze cut short, put back in a safe state by the launcher (or still running). */
   freezeRecover() { return this.execute("freeze-recover", {id:0,name:""} as CatalogGame); }
   /** Freeze at most one game unused for a month (Windows compression) or three (deep freeze). */

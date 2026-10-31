@@ -18,6 +18,11 @@ change; no file on the disks is touched.
 - -Remove deletes the account and its profile (with everything above), and takes the child out of the family file.
 - -RemoveAll is what the uninstaller runs: every child in the family file loses its account and profile, and
   %ProgramData%\GameAccess goes (a child's desktop without Game Access would be a black screen).
+- -CleanStale is what the installer runs at every install and update (vault/Modo niño.md, MN.23): it takes away what
+  earlier versions left and nothing uses any more. The same-account model's service (GameAccessRestrictor) and its
+  folder, Windows' password for administrator tasks where Game Access had turned it on (ConsentPromptBehaviorAdmin
+  back to 5, only when its note uac-password.ours is in a profile), and the children of the family file whose account
+  no longer exists (the file and the time folder go when none is left). A child whose account exists is not touched.
 - -FromFamily <file> is what the adult's Game Access runs (kid mode screen, kid_mode.rs): the settings of one child
   in a JSON file (name, enabled, dailyMinutes, weekdays, weekend, library, games with their folders). It sets the
   account up as above (no password for a new one), lets it write the games' folders and the adult's library (the child
@@ -42,7 +47,8 @@ param(
     [Parameter(ParameterSetName = 'Create')][string]$Shell,
     [Parameter(ParameterSetName = 'Remove', Mandatory)][switch]$Remove,
     [Parameter(ParameterSetName = 'Family', Mandatory)][string]$FromFamily,
-    [Parameter(ParameterSetName = 'RemoveAll', Mandatory)][switch]$RemoveAll
+    [Parameter(ParameterSetName = 'RemoveAll', Mandatory)][switch]$RemoveAll,
+    [Parameter(ParameterSetName = 'CleanStale', Mandatory)][switch]$CleanStale
 )
 $ErrorActionPreference = 'Stop'
 
@@ -185,6 +191,34 @@ switch ($PSCmdlet.ParameterSetName) {
             try { Remove-KidAccount $account.SID } catch { Write-Warning "No se pudo borrar la cuenta $($account.Name): $($_.Exception.Message)" }
         }
         Remove-Item -LiteralPath $FamilyDir -Recurse -Force -ErrorAction SilentlyContinue
+        return
+    }
+    'CleanStale' {
+        # The same-account model's service and its folder (only administrators may change that folder).
+        if (Get-Service -Name 'GameAccessRestrictor' -ErrorAction SilentlyContinue) {
+            & sc.exe stop GameAccessRestrictor | Out-Null
+            Start-Sleep -Seconds 2
+            & sc.exe delete GameAccessRestrictor | Out-Null
+            Write-Host 'Servicio GameAccessRestrictor quitado.'
+        }
+        Remove-Item -LiteralPath (Join-Path $FamilyDir 'restriccion') -Recurse -Force -ErrorAction SilentlyContinue
+        # Windows' password for administrator tasks, back to Windows' default only where Game Access turned it on.
+        $notes = @(Get-CimInstance Win32_UserProfile | ForEach-Object { Join-Path $_.LocalPath 'AppData\Local\gameAccess\uac-password.ours' } | Where-Object { Test-Path -LiteralPath $_ })
+        if ($notes.Count) {
+            Set-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 5 -Type DWord
+            $notes | Remove-Item -Force -ErrorAction SilentlyContinue
+            Write-Host 'Windows vuelve a pedir solo "Sí" para tareas de administrador.'
+        }
+        # Children whose account is gone: out of the family file; with none left, the file and the time folder go.
+        $kids = @(Read-FamilyKids)
+        $live = @($kids | Where-Object { $sid = $_.sid; try { [bool](Get-LocalUser -SID $sid -ErrorAction Stop) } catch { $false } })
+        if ($kids.Count -and -not $live.Count) {
+            Remove-Item -LiteralPath (Join-Path $FamilyDir 'familia.json') -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath (Join-Path $FamilyDir 'uso') -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host 'Archivo de familia sin cuentas de niño: borrado.'
+        } else {
+            foreach ($kid in $kids | Where-Object { $live -notcontains $_ }) { Remove-KidFromFamily $kid.sid }
+        }
         return
     }
 }

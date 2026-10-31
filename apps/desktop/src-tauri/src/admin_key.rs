@@ -1,23 +1,17 @@
-//! The parent's key: opens Game Access as the administrator (the gate's field, access_role.ts). Without it the app
-//! opens as a player, with fewer privileges (no kid mode, no parental settings).
+//! The parent's key: opens parental control once kid mode is set up (ParentKeyDialog.tsx, accessRole.ts). The rest of
+//! Game Access asks for nothing: the child has a Windows account of its own (vault/Modo niño.md, 2026-10-31).
 //!
 //! A plain password the parent chooses (Seba, 2026-10-30: the earlier key, the word with the day's date woven in, made
 //! the parent do sums in their head every day). Typed in any case. Later the phone app or Windows Hello may stand in
 //! for it (vault/Modo niño.md).
 //!
-//! It is kept in one file that Windows protects (DPAPI) for this account, like the parental control's. The gate only
+//! It is kept in one file that Windows protects (DPAPI) for this account, like the parental control's. The dialog only
 //! sends what was typed and gets "yes" or "no"; the password goes to the interface only while the parent holds its eye
 //! pressed on the parent's key tab (wallet style, `admin_key_word`).
 //!
-//! The parent's mode is on only once the kid mode wizard is complete (a child in the family file, kid_mode.rs). A word
-//! left by an unfinished wizard is asleep: the opening does not ask for it, and the wizard may replace it.
+//! The key asks only once the kid mode wizard is complete (a child in the family file, kid_mode.rs). A word left by an
+//! unfinished wizard is asleep: parental control does not ask for it, and the wizard may replace it.
 use std::{env, fs, io, path::{Path, PathBuf}};
-
-/// The parent's key as last typed and checked, while Game Access runs: kid mode's service asks for it on every change
-/// (restrictor_pipe.rs). Forgotten when Game Access goes back to the player's mode.
-static VERIFIED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-pub fn verified_key() -> Option<String> { VERIFIED.lock().ok().and_then(|value| value.clone()) }
-fn remember(key: &str) { if let Ok(mut value) = VERIFIED.lock() { *value = Some(key.trim().to_string()); } }
 
 const MIN_WORD: usize = 4;
 const MAX_WORD: usize = 40;
@@ -29,7 +23,7 @@ struct Stored { word: Option<String> }
 #[serde(rename_all = "camelCase")]
 pub struct AdminKeyState {
     pub enabled: bool,
-    /// How many characters the password has, so the gate asks only when that many were typed. 0 without a key.
+    /// How many characters the password has, so the field asks only when that many were typed. 0 without a key.
     pub length: usize,
 }
 
@@ -100,51 +94,26 @@ fn clear_at(path: &Path, current: Option<&str>, set_up: bool) -> Result<(), Stri
     match fs::remove_file(path) { Ok(()) => Ok(()), Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()), Err(err) => Err(err.to_string()) }
 }
 
-/// Kid mode was set up: in the new model (restrictor.rs) or with a child's account (kid_mode.rs).
-fn set_up() -> bool { crate::restrictor::set_up() || crate::kid_mode::kid_mode_set_up() }
-
 // DPAPI runs off the window's thread, like the parental control's commands.
 #[tauri::command]
 pub async fn admin_key_state() -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, set_up())).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?, crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
-/// Whether what was typed is the password. There is no limit on tries: the gate asks on every change once the length fits.
+/// Whether what was typed is the password. There is no limit on tries: the field asks on every change once the length fits.
 #[tauri::command]
 pub async fn admin_key_check(attempt: String) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let ok = check_at(&store_path()?, &attempt)?;
-        if ok { remember(&attempt); }
-        Ok(ok)
-    }).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || check_at(&store_path()?, &attempt)).await.map_err(|e| e.to_string())?
 }
-
-/// Back to the player's mode: the key is no longer held (ParentModeButton.tsx).
-#[tauri::command]
-pub fn admin_key_forget() { if let Ok(mut value) = VERIFIED.lock() { *value = None; } }
 
 #[tauri::command]
 pub async fn admin_key_set(word: String, current: Option<String>) -> Result<AdminKeyState, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = set_at(&store_path()?, &word, current.as_deref(), set_up())?;
-        // Kid mode's service keeps its own copy: it follows, proven by the key it knew.
-        let previous = current.clone().or_else(verified_key);
-        crate::restrictor_pipe::sync_key(previous.as_deref(), Some(&word));
-        remember(&word);
-        Ok(state)
-    }).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || set_at(&store_path()?, &word, current.as_deref(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn admin_key_clear(current: Option<String>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        // From "Remove kid mode", in parent mode: the key verified there proves it.
-        let current = current.or_else(verified_key);
-        clear_at(&store_path()?, current.as_deref(), set_up())?;
-        crate::restrictor_pipe::sync_key(current.as_deref().or(verified_key().as_deref()), None);
-        admin_key_forget();
-        Ok(())
-    }).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || clear_at(&store_path()?, current.as_deref(), crate::kid_mode::kid_mode_set_up())).await.map_err(|e| e.to_string())?
 }
 
 /// The password, for the parent's key tab: shown only while its eye is held pressed. That tab is reachable only as

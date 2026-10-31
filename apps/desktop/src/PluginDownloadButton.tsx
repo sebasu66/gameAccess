@@ -1,4 +1,3 @@
-import { requireAdmin } from "./accessRole";
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal } from "lucide-react";
@@ -53,7 +52,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
   const start = async (source: PluginSource) => {
     if (starting || disabled) return;
     setStarting(true); setError("");
-    try { await requireAdmin(); await digitalCatalogService.download(game, source); setOpen(false); }
+    try { await digitalCatalogService.download(game, source); setOpen(false); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (!(err instanceof GameAlreadyInstalledError)) digitalDownloadService.recordFailure(game, message);
