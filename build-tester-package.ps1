@@ -130,8 +130,11 @@ Page instfiles
 
 ; Ticked by default; unticked, nothing of the plugin is copied.
 Section "`$(GaPlugin)" SecPlugin
-  nsExec::Exec ``powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process | Where-Object { `$`$_.Path -like '*\GameAccess\plugins\*' } | Stop-Process -Force"``
+  ; The running plugin is closed, and waited for: Windows keeps a just-closed program's file locked for a moment, and
+  ; copying over it at once failed (Seba, 2026-10-31: "Error abriendo archivo para escritura").
+  nsExec::Exec ``powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process | Where-Object { `$`$_.Path -like '*\GameAccess\plugins\*' } | Stop-Process -Force -PassThru | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue"``
   Pop `$0
+  Sleep 1000
   SetOutPath "`$APPDATA\GameAccess\plugins"
   SetOverwrite on
 $($fileLines -join "`r`n")
