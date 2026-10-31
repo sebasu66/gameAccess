@@ -450,7 +450,8 @@ fn watch(kid: Kid, game: KidGame) {
             break;
         }
     }
-    if let Ok(mut playing) = PLAYING.lock() { *playing = None; }
+    // Only its own mark: a game started after this one was closed by hand (kid_stop_playing) keeps its own.
+    if let Ok(mut playing) = PLAYING.lock() { if playing.as_ref().is_some_and(|current| current.app_id == game.app_id) { *playing = None; } }
 }
 
 fn game_pids(game: &KidGame) -> Vec<u32> {
@@ -487,6 +488,10 @@ fn close_game(pids: &[u32]) {
 /// run installers) stay. A game the child cannot close (it runs as administrator) signs the child out.
 const GUARD_TICK: Duration = Duration::from_secs(1);
 const GUARD_SIGN_OUT_AFTER: Duration = Duration::from_secs(10);
+/// Other stores' launchers, as parts of their install path (lower case), which games bought there open through
+/// (Seba, 2026-10-31: Ubisoft Connect): never closed.
+const LAUNCHERS: &[&str] = &[r"\ubisoft\ubisoft game launcher\", r"\electronic arts\ea desktop\", r"\epic games\launcher\",
+    r"\rockstar games\launcher\", r"\battle.net\", r"\gog galaxy\"];
 
 fn guard_norm(path: &str) -> String { path.replace('/', "\\").to_lowercase() }
 
@@ -498,6 +503,7 @@ fn not_allowed<'a>(processes: &'a [crate::game_focus::ProcessImage], allowed: &[
         let image = guard_norm(&process.image);
         if allowed.iter().any(|folder| crate::game_focus::is_inside(folder, &process.image)) { return false; }
         if image.contains(r"\steamapps\common\steamworks shared\") { return false; }
+        if LAUNCHERS.iter().any(|part| image.contains(part)) { return false; }
         let in_library = image.contains(r"\steamapps\common\");
         let from_steam = steam.iter().any(|parent| parent.pid == process.parent) && !steam_dirs.iter().any(|dir| crate::game_focus::is_inside(dir, &process.image));
         in_library || from_steam
@@ -543,6 +549,33 @@ fn guard_loop(app: tauri::AppHandle, kid: Kid) {
             let _ = app.emit("gameaccess:kid-blocked", new_names.join(", "));
         }
     }
+}
+
+/// Closes the game the child is playing, so another can start (Seba, 2026-10-31: the child's screen refused a game
+/// while another ran; now it asks, and "close the one before and open this" lands here). Waits until it is gone.
+#[tauri::command]
+pub async fn kid_stop_playing() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(stop_playing).await.map_err(|error| error.to_string())?
+}
+
+fn stop_playing() -> Result<(), String> {
+    let kid = kid_account().ok_or("not_kid")?;
+    let current = PLAYING.lock().ok().and_then(|playing| playing.as_ref().map(|game| game.app_id));
+    let Some(app_id) = current else { return Ok(()) };
+    if let Some(game) = kid.games.iter().find(|game| game.app_id == app_id) {
+        play_log(&kid.sid, "INFO", format!("Close {:?} to open another game.", game.name));
+        close_game(&game_pids(game));
+        let started = Instant::now();
+        while !game_pids(game).is_empty() {
+            if started.elapsed() > Duration::from_secs(10) {
+                play_log(&kid.sid, "WARN", format!("{:?} did not close.", game.name));
+                return Err("still_running".into());
+            }
+            std::thread::sleep(Duration::from_millis(300));
+        }
+    }
+    if let Ok(mut playing) = PLAYING.lock() { *playing = None; }
+    Ok(())
 }
 
 /// Signs the child out (the "Leave" button, and the end of the day's time).
@@ -792,6 +825,7 @@ mod tests {
             process(15, 10, r"C:\Users\Fran\Desktop\cualquiera.exe"),
             process(16, 13, r"E:\SteamLibrary\steamapps\common\Hades\x64\crash.exe"),
             process(17, 1, r"C:\Windows\explorer.exe"),
+            process(18, 10, r"C:\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\upc.exe"),
         ];
         let allowed = vec![format!(r"{steam}\steamapps\common\Portal 2")];
         let closed: Vec<u32> = not_allowed(&list, &allowed).iter().map(|process| process.pid).collect();

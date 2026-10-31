@@ -288,6 +288,23 @@ function Grant-Write([string]$Folder, [Security.Principal.SecurityIdentifier]$Si
 
 # The family file: this child's settings next to the other children's. Only administrators write it; every account
 # reads it (the child's Game Access finds itself in it by its SID).
+# Steam's "Remember me" (Seba, 2026-10-31, to try): this (the adult's) Windows account's remembered Steam sign-ins,
+# %LOCALAPPDATA%\Steam\local.vdf, copied as they are into the child's profile, never read or decrypted, so Steam may
+# sign the child's account in to the adult's Steam accounts without asking. Steam protects them for the Windows account
+# that saved them, so it may refuse them; then the child signs in once, as before. The child's own file, if any, is
+# kept once as local.vdf.ga-backup. This script runs as the adult (elevated), so %LOCALAPPDATA% is the adult's.
+function Copy-SteamRemember([Security.Principal.SecurityIdentifier]$Sid) {
+    $source = Join-Path $env:LOCALAPPDATA 'Steam\local.vdf'
+    if (-not (Test-Path -LiteralPath $source)) { Write-Step "Steam: no hay sesiones recordadas en esta cuenta ($source)."; return }
+    try {
+        $target = Join-Path (Get-KidProfile $Sid) 'AppData\Local\Steam\local.vdf'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
+        if ((Test-Path -LiteralPath $target) -and -not (Test-Path -LiteralPath "$target.ga-backup")) { Copy-Item -LiteralPath $target -Destination "$target.ga-backup" -Force }
+        Copy-Item -LiteralPath $source -Destination $target -Force
+        Write-Step "Steam: sesiones recordadas copiadas a la cuenta del niño ($target)."
+    } catch { Write-Step "Aviso: no se pudieron copiar las sesiones de Steam: $($_.Exception.Message)" }
+}
+
 function Write-Family($Request, [Security.Principal.SecurityIdentifier]$Sid, $Games) {
     $dir = Join-Path $env:ProgramData 'GameAccess'
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -365,6 +382,7 @@ if ($PSCmdlet.ParameterSetName -eq 'Family') {
         $isAdmin = [bool](Get-LocalGroupMember -SID $AdminsGroupSid | Where-Object { $_.SID -eq $sid })
         if ($needsAdmin.Count -and -not $isAdmin) { Add-LocalGroupMember -SID $AdminsGroupSid -Member $sid; Write-Step "Cuenta de administrador: la piden $($needsAdmin -join ', ')." }
         elseif (-not $needsAdmin.Count -and $isAdmin) { Remove-LocalGroupMember -SID $AdminsGroupSid -Member $sid; Write-Step 'Ya no es administradora: ningún juego lo pide.' }
+        Copy-SteamRemember $sid
         Write-Family $request $sid $games
         Write-Step "Archivo de la familia escrito: $env:ProgramData\GameAccess\familia.json. Listo."
         exit 0

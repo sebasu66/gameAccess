@@ -186,6 +186,7 @@ fn main() {
             kid_mode::kid_plus_set,
             kid_mode::kid_apply,
             kid_mode::kid_remove,
+            kid_mode::kid_stop_playing,
             windows_account::windows_account_protected,
             app_shortcuts::shortcuts_list,
             app_shortcuts::shortcut_add,

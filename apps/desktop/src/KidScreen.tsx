@@ -6,7 +6,7 @@ import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { focusCard } from "./BigScreenControls";
 import { GamepadInput } from "./gamepadInput";
-import { hideNotice, runSteps, showNotice } from "./notice/notice";
+import { confirmNotice, hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { narrate } from "./narrationLog";
 import { landscapeArt, readKidSession, type KidGame, type KidSession } from "./kidMode";
@@ -109,7 +109,7 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
   const gameLeft = (game: KidGame) => game.dailyMinutes ? session.gameRemaining?.[String(game.appId)] ?? game.dailyMinutes * 60 : undefined;
   const spent = (game: KidGame) => gameLeft(game) === 0;
 
-  const play = async (game: KidGame) => {
+  const play = async (game: KidGame, afterClosing = false): Promise<void> => {
     setError("");
     if (over) return;
     if (spent(game)) { setError(t("kidGameSpent")); return; }
@@ -127,6 +127,18 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
       setSession(current => ({ ...current, playing: game.appId }));
     } catch (failure) {
       const code = String(failure);
+      // Another game is open (Seba, 2026-10-31): the child chooses, close it and open this one, or leave it be.
+      if (code === "already_playing" && !afterClosing && !demo) {
+        hideNotice(run.id);
+        const before = session.kid.games.find(item => item.appId === session.playing)?.name;
+        const swap = await confirmNotice({ title: t("kidSwapTitle"), text: before ? t("kidSwapText", { before, name: game.name }) : t("kidSwapTextUnknown", { name: game.name }),
+          confirmLabel: t("kidSwapConfirm"), cancelLabel: t("kidSwapCancel"), kind: "primary" });
+        if (!swap) return;
+        try { await invoke("kid_stop_playing"); }
+        catch { setError(t("kidSwapFailed")); showNotice({ tone: "error", title: t("launchError"), text: t("kidSwapFailed") }); return; }
+        setSession(current => ({ ...current, playing: null }));
+        return play(game, true);
+      }
       const expected = ["time_up", "paused", "game_time_up", "already_playing"].includes(code);
       const text = code === "time_up" ? t("kidTimeUpTitle") : code === "paused" ? t("kidPausedTitle") : code === "game_time_up" ? t("kidGameSpent")
         : code === "already_playing" ? t("kidAlreadyPlaying") : code === "no_executable" ? t("kidNoExecutable", { name: game.name }) : t("kidPlayFailedDetail", { name: game.name, error: code });
