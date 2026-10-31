@@ -9,7 +9,10 @@ param(
     [string]$PluginSha256 = '',
     # A Game Access installer to wrap instead of building one here (for example the signed release installer from
     # GitHub, whose installs update themselves; a local build is the dev channel and does not).
-    [string]$AppInstaller = ''
+    [string]$AppInstaller = '',
+    # Added to the package's name, so a special build is not taken for a normal one (build-test-installer.ps1 uses
+    # "prueba-local": that app accepts activations from the local server).
+    [string]$Label = ''
 )
 
 # Builds a package for testers: Game Access and the download sources plugin in one installer,
@@ -17,7 +20,8 @@ param(
 # installer: this package first copies the plugin into the user's plugins folder (as the app's "install plugin" link
 # does: the user's own top-level .json settings are kept, a running plugin is stopped first), then runs the normal
 # Game Access installer, built here from this checkout (Steam import included). Uninstalling Game Access removes the
-# plugin as usual.
+# plugin as usual. The plugin is a choice (Seba, 2026-10-31): a ticked box on the package's first page, in Windows'
+# language (Spanish or English); Game Access itself is always installed.
 #   .\build-tester-package.ps1
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
@@ -80,7 +84,8 @@ try {
     Expand-Archive -LiteralPath $zip -DestinationPath $plugins
     $folders = @(Get-ChildItem -LiteralPath $plugins -Directory)
     if (-not $folders) { throw 'The plugin package has no plugin folder: it is not a plugins-folder package.' }
-    $output = if ($pluginVersion) { Join-Path $projectRoot "GameAccess-$version+download-plugin-$pluginVersion.exe" } else { Join-Path $projectRoot "GameAccess-$version+download-plugin.exe" }
+    $name = if ($Label) { "GameAccess-$version-$Label" } else { "GameAccess-$version" }
+    $output = if ($pluginVersion) { Join-Path $projectRoot "$name+download-plugin-$pluginVersion.exe" } else { Join-Path $projectRoot "$name+download-plugin.exe" }
 
     # 3. The NSIS script: plugin folders replaced, top-level settings kept (as plugin_install.rs does), then the app.
     $q = { param($path) $path.Replace('"', '$\"') }
@@ -110,14 +115,31 @@ VIAddVersionKey "FileDescription" "Game Access $version + download plugin$(if ($
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 ShowInstDetails show
+; Windows' language picks the texts (Spanish, else English).
+LoadLanguageFile "`${NSISDIR}\Contrib\Language files\English.nlf"
+LoadLanguageFile "`${NSISDIR}\Contrib\Language files\Spanish.nlf"
+LangString GaChoose `${LANG_ENGLISH} "Game Access is always installed. Untick the download sources plugin to leave it out."
+LangString GaChoose `${LANG_SPANISH} "Game Access se instala siempre. Destildá el plugin de fuentes de descarga para no instalarlo."
+LangString GaApp `${LANG_ENGLISH} "Game Access"
+LangString GaApp `${LANG_SPANISH} "Game Access"
+LangString GaPlugin `${LANG_ENGLISH} "Download sources plugin"
+LangString GaPlugin `${LANG_SPANISH} "Plugin de fuentes de descarga"
+ComponentText "`$(GaChoose)"
+Page components
 Page instfiles
 
-Section
+; Ticked by default; unticked, nothing of the plugin is copied.
+Section "`$(GaPlugin)" SecPlugin
   nsExec::Exec ``powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-Process | Where-Object { `$`$_.Path -like '*\GameAccess\plugins\*' } | Stop-Process -Force"``
   Pop `$0
   SetOutPath "`$APPDATA\GameAccess\plugins"
   SetOverwrite on
 $($fileLines -join "`r`n")
+SectionEnd
+
+; Always: the normal Game Access installer (it asks for elevation itself).
+Section "`$(GaApp)" SecApp
+  SectionIn RO
   InitPluginsDir
   SetOutPath "`$PLUGINSDIR"
   File "/oname=`$PLUGINSDIR\GameAccess-Setup.exe" "$(& $q $AppInstaller)"
