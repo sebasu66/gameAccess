@@ -141,6 +141,12 @@ describe("Niños en casa", () => {
     expect(text()).not.toContain("Tetris");
   });
 
+  it("al terminar el asistente muestra el diálogo grande de la cuenta lista", async () => {
+    await open();
+    await finishWizard();
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toMatch(/cuenta de Juan está lista|Juan's account is ready/);
+  });
+
   it("panel: cada juego con Sí/No y su límite general o específico de a 30 minutos", async () => {
     await open();
     await act(async () => { setKidDraft({ games: [{ appId: 10, name: "Tetris", folder: "C:/Juegos/Tetris", executable: "", arguments: [], steam: false }] }); });

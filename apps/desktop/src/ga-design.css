@@ -246,7 +246,10 @@ details.library-sort-dropdown > summary.ga-cube > svg { width: 19px; height: 19p
    Only the tokens change; every role (paragraph, hint, status, label, heading, stack) follows them. */
 .ga-screen { --ga-text-size: 18px; --ga-text-min: 16px; --ga-hint-size: 16px; --ga-heading-size: 48px;
   --ga-hint-font: 400 16px/1.5 var(--ga-text-family); --ga-status-font: 700 16px/1.4 var(--ga-text-family); --ga-label-font: 800 14px/1.3 var(--ga-text-family);
-  --ga-space-1: 12px; --ga-space-2: 24px; --ga-space-3: 40px; }
+  --ga-space-1: 12px; --ga-space-2: 24px; --ga-space-3: 40px;
+  /* Seba, 2026-10-31 (the parental control screen was too small and faint): column titles and tabs at the label's size,
+     and secondary text lighter than in a dialog, read from further away. */
+  --ga-screen-caption: 14px; --ga-muted: #b6bec4; }
 .ga-screen-head { --ga-heading-size: 72px; }
 .ga-screen-head { display: grid; gap: var(--ga-space-1); padding-bottom: var(--ga-space-3); border-bottom: 1px solid var(--ga-line); }
 .ga-screen-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

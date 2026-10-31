@@ -32,6 +32,7 @@ mod webview_rest;
 mod window_fit;
 mod process_control;
 mod kid_mode;
+mod windows_account;
 mod app_shortcuts;
 
 use std::{env, sync::Mutex};
@@ -183,6 +184,7 @@ fn main() {
             kid_mode::kid_plus_set,
             kid_mode::kid_apply,
             kid_mode::kid_remove,
+            windows_account::windows_account_protected,
             app_shortcuts::shortcuts_list,
             app_shortcuts::shortcut_add,
             app_shortcuts::shortcut_remove,

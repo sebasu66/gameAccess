@@ -125,3 +125,12 @@
 .ga-kid-schedule tbody th { color: var(--ga-white); font: var(--ga-status-font); letter-spacing: 0; text-transform: capitalize; }
 .ga-kid-schedule td { padding: 0 var(--ga-space-2) 0 0; }
 .ga-kid-schedule select { width: 100%; min-width: 120px; }
+
+/* The wizard's last dialog (KidReadyDialog.tsx, MN.27): larger than a confirmation, the close button top right, its
+   main text in the reading ink (not the muted subtitle colour) and a little bigger. */
+/* !important: the dialog's base (components/ui) uses Tailwind, whose utilities all are. */
+.ga-overlay-dialog.ga-kid-ready { width: min(760px, 94vw) !important; }
+.ga-kid-ready-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.ga-kid-ready-head .ga-heading { display: flex; align-items: center; gap: 10px; }
+.ga-kid-ready .ga-kid-ready-lead { --ga-p-size: 17px; color: var(--ga-text-ink) !important; }
+.ga-kid-ready ol { margin: 0; padding-left: 22px; color: var(--ga-text-ink); }

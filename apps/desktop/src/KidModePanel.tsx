@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Baby, Sparkles } from "lucide-react";
 import { useI18n } from "./i18n";
@@ -8,7 +8,8 @@ import { setAppScreen, useAppScreen } from "./appScreen";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { loadAdminKey, requestParentKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
 import { loadKidFamily, useKidState } from "./kidMode";
-import KidWizard from "./KidWizard";
+import KidWizard, { type KidReady } from "./KidWizard";
+import KidReadyDialog from "./KidReadyDialog";
 import KidControlPanel from "./KidControlPanel";
 import "./kid-mode.css";
 
@@ -43,11 +44,14 @@ function PlusLapsedNote() {
 function KidScreen() {
   const { t } = useI18n();
   const { applied } = useKidState();
+  // The wizard's last word, a large dialog (MN.27): kept here because the wizard gives way to the panel when it ends.
+  const [ready, setReady] = useState<KidReady | null>(null);
   return <GaScreen id="ga-kid" title={t("familyTitle")} subtitle={t("familySubtitle")} className="ga-kid-panel">
     <div className="ga-kid-content ga-stack ga-stack-lg">
       <PlusLapsedNote />
-      {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} />}
+      {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} onReady={setReady} />}
     </div>
+    {ready ? <KidReadyDialog {...ready} onClose={() => setReady(null)} /> : null}
   </GaScreen>;
 }
 

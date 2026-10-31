@@ -36,7 +36,7 @@
 .ga-notice-timer svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ga-notice-timer circle { fill: none; stroke-width: 3; }
 .ga-notice-timer .track { stroke: #ffffff18; }
-.ga-notice-timer .run { stroke: var(--nt); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; animation: ga-notice-timer 3s linear forwards; }
+.ga-notice-timer .run { stroke: var(--nt); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; animation: ga-notice-timer 8s linear forwards; }
 .ga-notice:hover .ga-notice-timer .run, .ga-notice:focus-within .ga-notice-timer .run { animation-play-state: paused; }
 .ga-notice-timer > svg + svg { position: relative; inset: auto; width: 12px; height: 12px; transform: none; opacity: .7; }
 .ga-notice-timer:hover { color: #fff; }

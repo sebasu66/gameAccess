@@ -78,7 +78,11 @@ function useKeyStep(onDone: () => void) {
 
 type StepView = { title: string; body: ReactNode; next: () => void; nextLabel: string; nextIcon?: ReactNode; nextDisabled?: boolean };
 
-export default function KidWizard({ onPlus }: { onPlus: () => void }) {
+/** What the wizard's last dialog (KidReadyDialog.tsx) needs: the child, whether the parent's Windows account has a
+ *  password (null: could not be told) and whether the child's games include Steam ones. */
+export interface KidReady { name: string; protectedAccount: boolean | null; steam: boolean }
+
+export default function KidWizard({ onPlus, onReady }: { onPlus: () => void; onReady: (ready: KidReady) => void }) {
   const { t } = useI18n();
   const plus = usePlus();
   const { draft } = useKidState();
@@ -95,9 +99,12 @@ export default function KidWizard({ onPlus }: { onPlus: () => void }) {
     try {
       // The key first: until the account exists it stays asleep, and a failed account leaves kid mode off.
       try { await keyStep.keep(); } catch (failure) { setError(t("adminKeyFailed", { error: String(failure) })); return; }
+      const steam = draft.games.some(game => game.steam);
       await applyKidDraft();
       if (hasTauriRuntime()) await loadAdminKey().catch(() => undefined);
-      showNotice({ tone: "ok", title: t("kidApplied", { name: draft.name }) });
+      // Asked once the account exists (it counts as one failed sign-in on a protected account: windows_account.rs).
+      const protectedAccount = hasTauriRuntime() ? await invoke<boolean | null>("windows_account_protected").catch(() => null) : null;
+      onReady({ name: draft.name, protectedAccount, steam });
     } catch (failure) {
       // Said where it cannot be missed: the single notice (which does not close by itself on an error) and beside the
       // buttons. kidMode.ts has already logged it and sent it to the server.

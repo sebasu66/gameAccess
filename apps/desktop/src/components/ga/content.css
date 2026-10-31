@@ -21,6 +21,12 @@
 :where(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) :where(p) {
   color: var(--ga-text-ink); font-weight: 400;
 }
+/* A screen also lends pieces from compact places (tabs, the library manager's grid, settings' toggles and the filter's
+   levels): none of their text falls under the screen's minimum; column titles and tabs keep the caption size. */
+.ga-screen :is(.lm-grid td, .lm-name, .ga-kid-switch, .ga-kid-spinner output, .ga-style-toggle, .ga-parental-levels label, .ga-parental-violence) {
+  font-size: var(--ga-text-min) !important;
+}
+.ga-screen :is(.ga-tab, .lm-grid th) { font-size: var(--ga-screen-caption) !important; }
 /* Small print keeps the minimum size too (option details, footnotes). */
 :is(.ga-overlay-dialog, .ga-dialog, .ga-settings-panel, .download-complete-dialog, .ga-filter-dialog, .ga-premium-dialog, .central-dialog-card, .ga-panel, .ga-screen) small {
   font-size: var(--ga-text-min) !important;

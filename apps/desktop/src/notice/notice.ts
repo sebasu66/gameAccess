@@ -3,7 +3,8 @@ import { useSyncExternalStore } from "react";
 /**
  * The app's single notice (docs/GUI_DESIGN.md §4.9): results, steps and simple confirmations, bottom right.
  * There is only one at a time; a new one replaces the content of the visible one instead of stacking.
- * A good result without its own buttons closes itself with a 3 s timer; an error never closes by itself.
+ * A good result without its own buttons closes itself after 8 s (Seba, 2026-10-31: 3 s went by before it could be
+ * read; 5 to 10 s); an error never closes by itself.
  * Long blocking work (updates, catalog database, plugin) stays in the central dialog.
  */
 export type NoticeTone = "ok" | "info" | "frost" | "danger" | "error";
@@ -21,7 +22,7 @@ export interface Notice {
   tone: NoticeTone;
   game?: NoticeGame;
   actions: NoticeAction[];
-  /** Closes itself after 3 s (paused while the pointer is over it). */
+  /** Closes itself after NOTICE_TIMER_MS (paused while the pointer is over it). */
   timer: boolean;
   steps?: NoticeStep[];
   details?: NoticeDetails;
@@ -32,7 +33,8 @@ export interface Notice {
 }
 export type NoticeInput = Omit<Notice, "id" | "actions" | "timer"> & { actions?: NoticeAction[]; timer?: boolean };
 
-export const NOTICE_TIMER_MS = 3000;
+/** How long a good result stays: the countdown circle's animation in notice.css (ga-notice-timer) lasts this. */
+export const NOTICE_TIMER_MS = 8000;
 const listeners = new Set<() => void>();
 let current: Notice | null = null;
 let nextId = 1;
@@ -116,7 +118,7 @@ export function runSteps(input: { game?: NoticeGame; title: string; text?: strin
       steps = steps.map((step, i) => (i === index ? { ...step, state } : step));
       updateNotice(id, { steps, progress: progress() });
     },
-    /** Ends well: same notice, result text and the 3 s timer (or the given buttons). */
+    /** Ends well: same notice, result text and the timer (or the given buttons). */
     succeed(result: { title: string; text?: string; actions?: NoticeAction[] }) {
       if (current?.id !== id) return;
       showNotice({ game: input.game, tone: "ok", ...result, timer: true });
