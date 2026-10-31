@@ -130,16 +130,20 @@
    each note's title 20 px bold in its colour over its 16 px text; 44 px inside the sides, a line under the header and
    fixed room between blocks (24 / 32 px), 16 px between notes. !important where the dialog's base (components/ui,
    Tailwind, whose utilities all are) sets the same property. */
-.ga-overlay-dialog.ga-kid-ready { width: min(780px, 94vw) !important; padding: 40px 44px 36px !important; gap: 0 !important; overflow: hidden !important; }
+/* As wide as the screens' content column (ga-design.css .ga-screen: up to 1200 px, the same side margins inside the
+   frame; Seba, 2026-10-31). */
+.ga-overlay-dialog.ga-kid-ready { width: min(1200px, calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * clamp(24px, 4vw, 64px))) !important; padding: 40px 44px 36px !important; gap: 0 !important; overflow: hidden !important; }
 /* On a short screen the header and the button stay; only the text between them scrolls. */
 .ga-kid-ready-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-right: -12px; padding-right: 12px; }
 .ga-kid-ready-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--ga-line); }
 .ga-kid-ready-titles { display: grid; gap: 10px; }
 .ga-kid-ready .ga-kid-ready-title { margin: 0 !important; color: var(--ga-orange) !important; font: 400 52px/1 "Bebas Neue", sans-serif !important; letter-spacing: .02em !important; }
 .ga-kid-ready-intro { padding-top: 24px; }
-.ga-kid-ready .ga-kid-ready-lead { --ga-p-size: 18px; color: var(--ga-text-ink) !important; }
-.ga-kid-ready-notes { display: grid; gap: 16px; margin-top: 32px; }
-.ga-kid-ready-notes > .ga-label { margin-bottom: 4px; }
+/* Lines of a comfortable length (about 80 characters) however wide the dialog is. */
+.ga-kid-ready .ga-kid-ready-lead { --ga-p-size: 18px; max-width: 80ch; color: var(--ga-text-ink) !important; }
+/* The notes side by side when there is room, each as tall as its own text. */
+.ga-kid-ready-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: start; gap: 16px; margin-top: 32px; }
+.ga-kid-ready-notes > .ga-label { grid-column: 1 / -1; margin-bottom: 4px; }
 .ga-kid-ready-note { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 22px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
 .ga-kid-ready-note-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; }
 .ga-kid-ready-note.is-warn :is(.ga-kid-ready-note-icon, .ga-kid-ready-note-title) { color: var(--ga-warn); }
