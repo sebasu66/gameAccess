@@ -1361,6 +1361,8 @@ export const en: Record<keyof typeof es, string> = {
   kidLaunchStepSteam: "Open the game in Steam",
   kidLaunchSteamDetail: "Steam opens the game with the saved account…",
   kidLaunchSteamAccount: "Steam opens with the account {{account}}. If it asks you to sign in, use that account and tick “Remember me on this computer”: only the first time.",
+  kidBlockedTitle: "That game is not allowed",
+  kidBlockedText: "Game Access closed {{name}}: it is not one of your games. To play it, ask an adult to add it.",
   kidFiveMinutesTitle: "5 minutes left",
   kidFiveMinutesText: "Save your game: it is going to close.",
   kidTimeUpTitle: "Today's time is over",

@@ -479,6 +479,72 @@ fn close_game(pids: &[u32]) {
     crate::process_control::terminate(all);
 }
 
+/// Kid mode's guard (Seba, 2026-10-31: after signing in, Steam's own window let the child start a game that was not one
+/// of his). Steam cannot be closed off from inside (its library, Big Picture with a controller's Guide button, "add a
+/// non-Steam game"), so what it starts is checked instead: while the child's Game Access runs (it is the account's
+/// desktop), anything Steam starts, or anything running from a Steam library's `steamapps\common`, is closed at once
+/// unless it lives in one of the child's games' folders. Steam's own programs and its shared redistributables (first
+/// run installers) stay. A game the child cannot close (it runs as administrator) signs the child out.
+const GUARD_TICK: Duration = Duration::from_secs(1);
+const GUARD_SIGN_OUT_AFTER: Duration = Duration::from_secs(10);
+
+fn guard_norm(path: &str) -> String { path.replace('/', "\\").to_lowercase() }
+
+/// The processes to close: started by Steam or living in a Steam library, and outside the allowed folders.
+fn not_allowed<'a>(processes: &'a [crate::game_focus::ProcessImage], allowed: &[String]) -> Vec<&'a crate::game_focus::ProcessImage> {
+    let steam: Vec<&crate::game_focus::ProcessImage> = processes.iter().filter(|process| guard_norm(&process.image).ends_with(r"\steam.exe")).collect();
+    let steam_dirs: Vec<String> = steam.iter().filter_map(|process| Path::new(&process.image).parent().map(|dir| dir.display().to_string())).collect();
+    processes.iter().filter(|process| {
+        let image = guard_norm(&process.image);
+        if allowed.iter().any(|folder| crate::game_focus::is_inside(folder, &process.image)) { return false; }
+        if image.contains(r"\steamapps\common\steamworks shared\") { return false; }
+        let in_library = image.contains(r"\steamapps\common\");
+        let from_steam = steam.iter().any(|parent| parent.pid == process.parent) && !steam_dirs.iter().any(|dir| crate::game_focus::is_inside(dir, &process.image));
+        in_library || from_steam
+    }).collect()
+}
+
+/// Starts the guard in a child's account (nothing in any other). Steam is also asked to start minimised there.
+pub fn start_guard(app: tauri::AppHandle) {
+    let Some(kid) = kid_account() else { return };
+    // The launcher's Steam switch (steam_account_manager/switch.py) starts Steam with -silent: no window after signing in.
+    std::env::set_var("GAMEACCESS_STEAM_SILENT", "1");
+    std::thread::spawn(move || guard_loop(app, kid));
+}
+
+fn guard_loop(app: tauri::AppHandle, kid: Kid) {
+    use tauri::{Emitter, Manager};
+    let allowed: Vec<String> = kid.games.iter().map(|game| crate::app_shortcuts::expand(&game.folder)).filter(|folder| !folder.trim().is_empty()).collect();
+    let mut first_seen: HashMap<u32, Instant> = HashMap::new();
+    loop {
+        std::thread::sleep(GUARD_TICK);
+        #[cfg(windows)]
+        let processes = crate::game_focus::process_images();
+        #[cfg(not(windows))]
+        let processes: Vec<crate::game_focus::ProcessImage> = Vec::new();
+        let closing = not_allowed(&processes, &allowed);
+        first_seen.retain(|pid, _| closing.iter().any(|process| process.pid == *pid));
+        if closing.is_empty() { continue; }
+        let mut new_names = Vec::new();
+        for process in &closing {
+            let seen = *first_seen.entry(process.pid).or_insert_with(Instant::now);
+            if seen.elapsed() >= GUARD_SIGN_OUT_AFTER {
+                play_log(&kid.sid, "WARN", format!("{:?} is not allowed and could not be closed: signing the child out.", process.image));
+                sign_out();
+                return;
+            }
+            if seen.elapsed() < GUARD_TICK { new_names.push(Path::new(&process.image).file_stem().map(|name| name.to_string_lossy().to_string()).unwrap_or_default()); }
+        }
+        crate::process_control::terminate(closing.iter().map(|process| process.pid as usize).collect());
+        if !new_names.is_empty() {
+            play_log(&kid.sid, "WARN", format!("Closed what is not among the child's games: {}.", new_names.join(", ")));
+            // Game Access comes back to the front and tells the child why.
+            if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus(); }
+            let _ = app.emit("gameaccess:kid-blocked", new_names.join(", "));
+        }
+    }
+}
+
 /// Signs the child out (the "Leave" button, and the end of the day's time).
 #[tauri::command]
 pub fn kid_sign_out() { sign_out(); }
@@ -710,6 +776,28 @@ mod tests {
         let _ = std::fs::remove_file(&path);
         assert_eq!(file.days["2026-10-28"].seconds, 600);
         assert_eq!(file.days["2026-10-28"].games["-1"], 600);
+    }
+
+    #[test]
+    fn the_guard_closes_what_steam_starts_outside_the_childs_games() {
+        use crate::game_focus::ProcessImage;
+        let process = |pid: u32, parent: u32, image: &str| ProcessImage { pid, parent, image: image.into() };
+        let steam = r"C:\Program Files (x86)\Steam";
+        let list = vec![
+            process(10, 1, &format!(r"{steam}\steam.exe")),
+            process(11, 10, &format!(r"{steam}\bin\cef\cef.win7x64\steamwebhelper.exe")),
+            process(12, 10, &format!(r"{steam}\steamapps\common\Portal 2\portal2.exe")),
+            process(13, 10, r"E:\SteamLibrary\steamapps\common\Hades\x64\Hades.exe"),
+            process(14, 10, &format!(r"{steam}\steamapps\common\Steamworks Shared\_CommonRedist\DirectX\DXSETUP.exe")),
+            process(15, 10, r"C:\Users\Fran\Desktop\cualquiera.exe"),
+            process(16, 13, r"E:\SteamLibrary\steamapps\common\Hades\x64\crash.exe"),
+            process(17, 1, r"C:\Windows\explorer.exe"),
+        ];
+        let allowed = vec![format!(r"{steam}\steamapps\common\Portal 2")];
+        let closed: Vec<u32> = not_allowed(&list, &allowed).iter().map(|process| process.pid).collect();
+        // Hades (not his) and what it starts, and a program added to Steam by hand, close; Portal 2 (his), Steam's
+        // own programs, its redistributables and Windows stay.
+        assert_eq!(closed, vec![13, 15, 16]);
     }
 
     #[test]

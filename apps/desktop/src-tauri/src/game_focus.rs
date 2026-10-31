@@ -70,9 +70,13 @@ mod win {
     pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 }
 
-/// The processes running from `folder`.
+/// A running process this account can see: its id, the process that started it and its executable's full path.
+#[derive(Clone, Debug)]
+pub(crate) struct ProcessImage { pub pid: u32, pub parent: u32, pub image: String }
+
+/// Every process whose executable path can be read (kid mode's guard, kid_mode.rs, and the game's folder below).
 #[cfg(windows)]
-pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
+pub(crate) fn process_images() -> Vec<ProcessImage> {
     use win::*;
     let mut found = Vec::new();
     unsafe {
@@ -87,9 +91,8 @@ pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
             if !process.is_null() {
                 let mut buffer = [0u16; 1024];
                 let mut size = buffer.len() as u32;
-                if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0
-                    && inside(folder, &String::from_utf16_lossy(&buffer[..size as usize])) {
-                    found.push(pid);
+                if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0 {
+                    found.push(ProcessImage { pid, parent: entry.th32ParentProcessID, image: String::from_utf16_lossy(&buffer[..size as usize]) });
                 }
                 CloseHandle(process);
             }
@@ -98,6 +101,15 @@ pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
         CloseHandle(snapshot);
     }
     found
+}
+
+/// Whether `image` (an executable's full path) is inside `folder`, for other modules.
+pub(crate) fn is_inside(folder: &str, image: &str) -> bool { inside(folder, image) }
+
+/// The processes running from `folder`.
+#[cfg(windows)]
+pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
+    process_images().into_iter().filter(|process| inside(folder, &process.image)).map(|process| process.pid).collect()
 }
 
 /// A visible top-level window (not owned by another one) of these processes.

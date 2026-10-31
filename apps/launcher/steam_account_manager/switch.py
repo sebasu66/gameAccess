@@ -16,6 +16,12 @@ LOGIN_TIMEOUT = 180.0
 SHUTDOWN_TIMEOUT = 40.0
 
 
+def _start_flags() -> list[str]:
+    """In a child's account (kid mode, kid_mode.rs sets GAMEACCESS_STEAM_SILENT) Steam starts minimised: after signing in
+    it must not open its library, where any game could be started."""
+    return ["-silent"] if os.environ.get("GAMEACCESS_STEAM_SILENT") == "1" else []
+
+
 def _flags() -> int:
     return getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -90,7 +96,7 @@ class SteamSwitcher:
         self.log.info("Steam: switching from account %s to %s", current or "none", account_name)
         self.close("Steam no se cerró a tiempo para cambiar de cuenta. Cerralo y volvé a intentar.")
         self.auto_login(account_name)
-        self.start()
+        self.start(*_start_flags())
         if not _wait(lambda: self.active() == account_id, login_timeout, step=1.0, sleep=self.sleep, clock=self.clock):
             raise RuntimeError(f"Steam no inició sesión con {account_name}. Si te pidió la contraseña, ingresala en Steam y volvé a jugar.")
         self.log.info("Steam: signed in as %s", account_name)

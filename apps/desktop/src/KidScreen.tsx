@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { AppWindow, Gamepad2, LogOut, Move } from "lucide-react";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
@@ -78,6 +79,16 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     const timer = window.setInterval(() => { void readKidSession().then(next => { if (next) setSession(next); }); }, 5000);
     return () => window.clearInterval(timer);
   }, [demo]);
+
+  // Kid mode's guard (kid_mode.rs) closed something Steam started that is not one of the child's games: say why.
+  useEffect(() => {
+    if (demo) return;
+    let stop: (() => void) | undefined;
+    let live = true;
+    void listen<string>("gameaccess:kid-blocked", event => showNotice({ tone: "info", title: t("kidBlockedTitle"), text: t("kidBlockedText", { name: event.payload }) }))
+      .then(unlisten => { if (live) stop = unlisten; else unlisten(); });
+    return () => { live = false; stop?.(); };
+  }, [demo, t]);
 
   const left = session.remainingSeconds;
   useEffect(() => {

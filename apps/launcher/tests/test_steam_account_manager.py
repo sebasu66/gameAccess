@@ -226,6 +226,14 @@ def test_switch_starts_a_closed_steam_without_shutdown():
     assert steam.calls == [("auto_login", "owner_acc"), ("start",)]
 
 
+def test_in_a_childs_account_steam_starts_minimised(monkeypatch):
+    # Kid mode (kid_mode.rs): after signing in, Steam must not open its library on the child's account.
+    monkeypatch.setenv("GAMEACCESS_STEAM_SILENT", "1")
+    steam = FakeSteam(active=0, running=False)
+    steam.switcher().ensure_account(39734273, "owner_acc")
+    assert steam.calls == [("auto_login", "owner_acc"), ("start", "-silent")]
+
+
 def test_switch_fails_clearly_when_steam_asks_for_the_password():
     steam = FakeSteam(active=1, signs_in=False)
     with pytest.raises(RuntimeError, match="contraseña"):

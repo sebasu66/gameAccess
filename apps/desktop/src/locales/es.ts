@@ -1359,6 +1359,8 @@ export const es = {
   kidLaunchStepSteam: "Abrir el juego en Steam",
   kidLaunchSteamDetail: "Steam abre el juego con la cuenta guardada…",
   kidLaunchSteamAccount: "Steam se abre con la cuenta {{account}}. Si te pide iniciar sesión, entrá con esa cuenta y marcá «Recordarme en este equipo»: es solo la primera vez.",
+  kidBlockedTitle: "Ese juego no está habilitado",
+  kidBlockedText: "Game Access cerró {{name}}: no está entre tus juegos. Si querés jugarlo, pedile a un adulto que lo agregue.",
   kidFiveMinutesTitle: "Quedan 5 minutos",
   kidFiveMinutesText: "Guardá la partida: el juego se va a cerrar.",
   kidTimeUpTitle: "Se terminó el tiempo de hoy",

@@ -78,6 +78,8 @@ fn main() {
             plugin_install::register_protocol();
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
+            // A child's account: what Steam starts outside the child's games is closed (kid_mode.rs).
+            kid_mode::start_guard(app.handle().clone());
             // A child's account cannot install updates or plugins: the adult's Game Access does.
             if kid_mode::kid_account().is_none() {
                 plugin_registry::start_registered_plugins();
