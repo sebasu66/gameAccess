@@ -268,6 +268,14 @@ class DigitalProcessRunner:
                         folder = transfer
                 if not folder.is_dir():
                     raise ValueError("No existe la carpeta descargada.")
+                if command == "exe":
+                    # The folder of the executable the game runs (the one Play remembered), else the game's folder.
+                    marker = folder / ".gameaccess_exe"
+                    try:
+                        found = (folder / marker.read_text(encoding="utf-8").strip()).parent if marker.is_file() else folder
+                        folder = found if found.is_dir() else folder
+                    except OSError:
+                        pass
                 os.startfile(str(folder))
                 return {**result, "ok": True}
             if action != "play":

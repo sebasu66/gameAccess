@@ -526,7 +526,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     }
   };
 
-  const launchGame = async (game: CatalogGame, managedShortcut = false) => {
+  const launchGame = async (game: CatalogGame, managedShortcut = false, autoFixed = false) => {
     // A game being frozen or thawed (or waiting for that) is not started: wait, or cancel that work and play.
     const freezing = freezeJob(game.app_id ?? game.id);
     if (freezing) {
@@ -540,7 +540,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     if (launchLocked()) return;
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
-    const launch = beginLaunch(game);
+    const launch = beginLaunch(game, autoFixed);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
     // Another game's freeze waits while this one is thawed (if deep frozen) and played: it takes every core and the
@@ -691,7 +691,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
-      {launchSession ? <LaunchDialog session={launchSession} onRetry={game => void launchGame(game)} /> : null}
+      {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}

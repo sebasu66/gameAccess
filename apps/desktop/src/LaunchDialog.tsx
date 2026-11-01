@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, CircleCheck, Loader2 } from "lucide-react";
+import { AlertTriangle, CircleCheck, Loader2, Wrench } from "lucide-react";
 
 import { GaButton, GaClose } from "./components/ga/Buttons";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
@@ -40,7 +40,7 @@ function LaunchArt({ mode }: { mode: "starting" | "error" | "opened" }) {
  * be closed; it shows a drawing and the launcher's live log. If the game has not opened by then (or the launch fails)
  * it turns into the error mode: the usual causes checked and the ways to try again.
  */
-export default function LaunchDialog({ session, onRetry }: { session: LaunchSession; onRetry: (game: LaunchSession["game"]) => void }) {
+export default function LaunchDialog({ session, onRetry }: { session: LaunchSession; onRetry: (game: LaunchSession["game"], autoFixed: boolean) => void }) {
   const { t } = useI18n();
   const { game } = session;
   const appId = game.app_id ?? game.id;
@@ -112,7 +112,15 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
     setBusy(true);
     try { await action(); } catch (error) { setNote(String(error instanceof Error ? error.message : error)); } finally { setBusy(false); }
   };
-  const retry = () => { closeLaunch(session.id); onRetry(game); };
+  // Automatic fix: tries the usual alternatives inside (thaw if frozen, put the game's language files back and stop
+  // touching them, then check the causes again) and launches once more; if that fails too, only the exe's folder is offered.
+  const autoFix = () => void work(async () => {
+    setNote(t("launchDlgAutoFixing"));
+    if (failing("frozen")) await digitalProcessManager.thaw(game);
+    await digitalProcessManager.keepLanguage(game);
+    closeLaunch(session.id);
+    onRetry(game, true);
+  });
   const title = mode === "opened" ? t("launchDlgOpened", { name: game.name })
     : session.phase === "failed" ? t("launchDlgFailedTitle", { name: game.name })
     : slow ? t("launchDlgSlowTitle", { name: game.name }) : t("launchDlgStarting", { name: game.name });
@@ -150,10 +158,10 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
         {note ? <p className="ga-launch-note" role="status">{note}</p> : null}
 
         {errorMode ? <footer>
-          <GaButton disabled={busy} onClick={() => void work(async () => { await digitalProcessManager.openFolder(game); })}>{t("launchDlgOpenFolder")}</GaButton>
-          <GaButton disabled={busy} onClick={() => void work(async () => { await digitalProcessManager.keepLanguage(game); retry(); })}>{t("launchDlgRetryKeepLanguage")}</GaButton>
-          {failing("frozen") ? <GaButton disabled={busy} onClick={() => void work(async () => { await digitalProcessManager.thaw(game); retry(); })}>{t("launchDlgRetryThaw")}</GaButton> : null}
-          <GaButton variant="primary" disabled={busy} onClick={retry} icon={busy ? <Loader2 size={16} className="ga-dialog-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}>{t("launchDlgRetry")}</GaButton>
+          {session.autoFixed
+            ? <GaButton variant="primary" disabled={busy} onClick={() => void work(async () => { await digitalProcessManager.openFolder(game, "exe"); })}>{t("launchDlgOpenExe")}</GaButton>
+            : <GaButton variant="primary" disabled={busy || checks === null} onClick={autoFix} icon={busy ? <Loader2 size={16} className="ga-dialog-spin" aria-hidden="true" /> : <Wrench size={16} aria-hidden="true" />}>{t("launchDlgAutoFix")}</GaButton>}
+          <GaButton disabled={busy} onClick={close}>{t("noticeCancel")}</GaButton>
         </footer> : null}
       </section>
     </div>

@@ -111,7 +111,7 @@ export class DigitalProcessManager {
   status(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("status", game); }
 
   /** The game's folder; `download`: the temporary download folder while the download is there (the game's otherwise). */
-  openFolder(game: CatalogGame, which?: "download"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
+  openFolder(game: CatalogGame, which?: "download" | "exe"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
 
   settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
   async saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }

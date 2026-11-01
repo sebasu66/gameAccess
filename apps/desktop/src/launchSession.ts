@@ -8,7 +8,7 @@ import type { CatalogGame } from "./types";
  */
 export const LAUNCH_LOCK_MS = 10_000;
 export type LaunchPhase = "starting" | "opened" | "failed";
-export interface LaunchSession { id: number; game: CatalogGame; phase: LaunchPhase; error: string; startedAt: number }
+export interface LaunchSession { id: number; game: CatalogGame; phase: LaunchPhase; error: string; startedAt: number; /** The player already tried the automatic fix: the error mode offers no second one. */ autoFixed: boolean }
 
 let current: LaunchSession | null = null;
 let counter = 0;
@@ -18,8 +18,8 @@ const set = (next: LaunchSession | null) => { current = next; listeners.forEach(
 export const getLaunch = () => current;
 /** True while the launch dialog is up (starting or failed and still on screen): no other game is launched. */
 export const launchLocked = () => current !== null;
-export function beginLaunch(game: CatalogGame): LaunchSession {
-  const session: LaunchSession = { id: ++counter, game, phase: "starting", error: "", startedAt: Date.now() };
+export function beginLaunch(game: CatalogGame, autoFixed = false): LaunchSession {
+  const session: LaunchSession = { id: ++counter, game, phase: "starting", error: "", startedAt: Date.now(), autoFixed };
   set(session);
   return session;
 }
