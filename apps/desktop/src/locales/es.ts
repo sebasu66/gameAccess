@@ -160,7 +160,7 @@ export const es = {
   launchDlgOpenFolder: "Abrir la ubicación",
   launchDlgAutoFix: "Intentar arreglarlo solo",
   launchDlgOpenExe: "Abrir la ubicación del ejecutable",
-  launchDlgAutoFixing: "Probando alternativas: descongelar si hace falta, idioma sin tocar y volver a lanzar…",
+  launchDlgAutoFixing: "Probando alternativas: abrir Steam si el juego lo usa, descongelar, volver a aplicar el fix guardado, idioma sin tocar y lanzar de nuevo…",
   launchDlgRetry: "Intentar de nuevo",
   launchDlgRetryKeepLanguage: "Sin cambiar el idioma",
   launchDlgRetryThaw: "Descongelar y reintentar",

@@ -116,8 +116,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
   // touching them, then check the causes again) and launches once more; if that fails too, only the exe's folder is offered.
   const autoFix = () => void work(async () => {
     setNote(t("launchDlgAutoFixing"));
-    if (failing("frozen")) await digitalProcessManager.thaw(game);
-    await digitalProcessManager.keepLanguage(game);
+    await digitalProcessManager.autoFix(game);
     closeLaunch(session.id);
     onRetry(game, true);
   });

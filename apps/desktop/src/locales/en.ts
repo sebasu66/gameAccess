@@ -162,7 +162,7 @@ export const en: Record<keyof typeof es, string> = {
   launchDlgOpenFolder: "Open location",
   launchDlgAutoFix: "Try to fix it automatically",
   launchDlgOpenExe: "Open the executable's location",
-  launchDlgAutoFixing: "Trying alternatives: unfreeze if needed, leave the language alone and launch again…",
+  launchDlgAutoFixing: "Trying alternatives: open Steam if the game uses it, unfreeze, re-apply the saved fix, leave the language alone and launch again…",
   launchDlgRetry: "Try again",
   launchDlgRetryKeepLanguage: "Without changing the language",
   launchDlgRetryThaw: "Unfreeze and retry",

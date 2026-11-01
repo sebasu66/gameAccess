@@ -42,6 +42,70 @@ class DigitalProcessRunner:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
 
+    def auto_fix(self, app_id, name, folder, linked_record, freezer, game_options) -> list[dict]:
+        """The alternatives the launch dialog's "fix it for me" tries before launching again, each reported as
+        {id, ok, detail}: start Steam (in the background) for a game that uses it and is not running; thaw it when it is
+        frozen; put the fix's backup back (the archive saved when it was installed); put the language files back and
+        stop changing them. A step that fails does not stop the next ones."""
+        from game_execution_manager.launch_trace import steam_running
+        steps: list[dict] = []
+
+        def step(id_, action):
+            try:
+                ok, detail = action()
+            except Exception as error:  # noqa: BLE001 - every failure is a result for the dialog
+                ok, detail = False, str(error)
+            logger.info("Auto fix %s: %s (%s)", id_, "ok" if ok else "failed", detail)
+            steps.append({"id": id_, "ok": ok, "detail": detail})
+
+        game_folder = Path(linked_record["path"]) if linked_record else folder
+        steam_game = bool(linked_record and linked_record.get("kind") == "steam")
+        uses_steam = steam_game or any((game_folder / name_).is_file() for name_ in ("steam_api.dll", "steam_api64.dll", "OnlineFix.ini", "OnlineFix64.dll"))
+
+        def start_steam():
+            if not uses_steam:
+                return True, "not needed"
+            if steam_running():
+                return True, "already running"
+            from steam_account_manager.client import find_steam
+            import time
+            root = find_steam()
+            if not root or not (root / "steam.exe").is_file():
+                return False, "Steam is not installed"
+            subprocess.Popen([str(root / "steam.exe"), "-silent"], close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            deadline = time.monotonic() + 45
+            while time.monotonic() < deadline:
+                if steam_running():
+                    time.sleep(6)  # it needs a few seconds to be ready for the game
+                    return True, "started in the background"
+                time.sleep(1)
+            return False, "Steam did not start"
+        step("steam", start_steam)
+        if linked_record:
+            return steps
+
+        step("thaw", lambda: (True, "thawed") if freezer.ensure_thawed(app_id, name) else (True, "not frozen"))
+
+        def restore_fix():
+            info = DigitalArchiveBackup.info(folder, name)
+            if not info:
+                return True, "no fix backup"
+            options = game_options.load(app_id)
+            profile = load_profile(self.storage.launcher, app_id)
+            declared = profile.get("decompressFile", "")
+            archive = options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
+            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, archive, restorer_for(self.storage.launcher, app_id))
+            return True, "fix backup applied"
+        step("fix", restore_fix)
+
+        def keep_language():
+            restored = restore_language(folder, logger)
+            options = game_options.load(app_id)
+            game_options.save(app_id, name, {**options, "language": KEEP_LANGUAGE})
+            return True, f"{len(restored)} file(s) restored"
+        step("language", keep_language)
+        return steps
+
     def kid_entry(self, app_id, name, linked, chosen="") -> dict:
         """What the family file keeps of a game for a child's account (kid mode, vault/Modo niño.md). The child's Game
         Access plays it with this same library (the same play: fix, language, before-play steps), so this is only the
@@ -231,6 +295,8 @@ class DigitalProcessRunner:
                 backups = checked.is_dir() and any(checked.rglob("*.gameaccess-language.bak"))
                 needs_steam = steam_game or (checked / "steam_api.dll").is_file() or (checked / "steam_api64.dll").is_file() or onlinefix_hint(checked)
                 return {**result, "ok": True, "folder": str(checked), "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level))}
+            if action == "auto-fix":
+                return {**result, "ok": True, "steps": self.auto_fix(app_id, name, folder, linked_record, freezer, game_options)}
             if action == "restore-language":
                 restored = restore_language(folder, logger)
                 options = game_options.load(app_id)
@@ -419,7 +485,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "launch-diagnose", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "launch-diagnose", "auto-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

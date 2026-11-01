@@ -64,3 +64,26 @@ class TraceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoFixTests(unittest.TestCase):
+    def test_auto_fix_reports_each_step_and_restores_language(self):
+        import json
+        from types import SimpleNamespace
+        from digital_process_runner import DigitalProcessRunner
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "game"
+            game.mkdir()
+            ini = game / "steam_emu.ini"
+            ini.write_text("Language=english\n", encoding="utf-8")
+            repair_language(game, "spanish", logging.getLogger("t"))
+            saved = {}
+            options = SimpleNamespace(load=lambda app_id: {"language": "", "backupArchive": ""},
+                                      save=lambda app_id, name, values: saved.update(values))
+            freezer = SimpleNamespace(ensure_thawed=lambda app_id, name: False)
+            runner = DigitalProcessRunner(storage=SimpleNamespace(launcher=Path(tmp)))
+            steps = {step["id"]: step for step in runner.auto_fix(7, "Game", game, None, freezer, options)}
+            self.assertEqual(steps["steam"]["detail"], "not needed")
+            self.assertEqual(steps["language"]["ok"], True)
+            self.assertEqual(saved["language"], "keep")
+            self.assertEqual(ini.read_text(encoding="utf-8"), "Language=english\n")
