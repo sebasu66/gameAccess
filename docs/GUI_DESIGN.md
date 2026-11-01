@@ -228,9 +228,13 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Solo se desplazan las filas (con la barra redonda); título, resumen, botones (apilados a la derecha del resumen), filtros y encabezado de la tabla quedan fijos.
 
 ### 4.20b Fila abierta del administrador (`RowExpand`, Seba 2026-11-01)
-- **Una sola fila por juego que se despliega**, con el mismo patrón en todos los casos (descarga, congelado, mover, historial): a la izquierda el **registro** del juego (lo que falta, el historial o los pasos de la descarga con sus acciones); a la derecha la **imagen con la animación** de lo que está pasando (velocidad sobre la imagen, prensa de hielo, cubos al mover; quieta si no pasa nada).
-- Abierta, la fila no muestra la miniatura: el nombre del juego queda arriba, en la fila. Fila y detalle se leen como un solo bloque (mismo fondo).
-- Se abre sola mientras dura una descarga o una tarea del juego, y con el botón Historial.
+- **Una sola fila por juego que se despliega.** Abierta, no muestra la miniatura: el nombre queda arriba, en la fila; fila y detalle tienen el mismo fondo. Se abre sola mientras dura un proceso del juego y con el botón Historial.
+- **Una grilla interna de cuatro celdas, igual en toda fila abierta**, para que todo quede alineado: **Registro | Imagen | Datos | Botones** (`minmax(240px,1.3fr) minmax(220px,1fr) minmax(140px,.5fr) 120px`, 24 px entre columnas). Cada celda empieza con una línea de título de 16 px (vacía si no tiene) y su contenido arriba; una celda vacía conserva su lugar. Con el administrador angosto (menos de 860 px) los datos bajan debajo de la imagen, en dos columnas.
+- **Registro:** el único log del juego (`gameaccess-log.txt`: descarga, instalación, configuración, cada Jugar, cada congelado) con el proceso que corre como último grupo. Un paso hecho no vuelve a aparecer como pendiente; la descarga cierra con "Descarga terminada" y la instalación es otro grupo.
+- **Imagen:** la imagen apaisada del juego con la animación del proceso (gráfico de velocidad mientras descarga, prensa de hielo, cubos al mover; quieta con el historial) y **una barra de progreso en su base**. Sin dial circular ni porcentajes repetidos sobre la imagen.
+- **Datos:** etiqueta sobre valor: Completado, Velocidad, Tiempo restante, Descargado (o Procesado) / total; en la instalación, Completado y tamaño.
+- **Botones:** chicos (32 px), uno debajo del otro: Pausar o Reanudar y Cancelar; Reintentar solo después de una falla. Mientras instala o congela, solo Cancelar.
+- **Descarga e instalación son procesos separados:** al terminar la descarga, la imagen deja el gráfico de velocidad y muestra el progreso de la instalación.
 
 ### 4.21 Descarga en la lista `digital-download-row` / `ga-dl-card`
 - Cada descarga es una tarjeta: borde `#ffffff12`, radio 10 px (12 la que está en curso), fondo `#ffffff05`, 8 px entre tarjetas; con mouse o foco el fondo y el borde se aclaran.

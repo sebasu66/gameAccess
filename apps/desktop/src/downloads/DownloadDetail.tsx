@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { ArrowDown, ArrowDownToLine, ArrowUp, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
-import { digitalProcessManager } from "../catalog/DigitalProcessManager";
+import { ArrowDownToLine, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
 import type { DigitalDownloadService } from "../catalog/DigitalDownloadService";
 import { DigitalDownloadThumb } from "../DigitalDownloadArtwork";
 import { downloadPhaseLabel, eta } from "../DigitalDownloadsScreen";
@@ -9,96 +8,109 @@ import { downloadMethodLabel, planLabel } from "../downloadMethod";
 import type { DownloadProgressSnapshot } from "../downloadProvider";
 import { formatDownloadBytes, sourceDownloadSize } from "../downloadSize";
 import DownloadSpeedSpark from "../DownloadSpeedSpark";
-import DownloadSteps from "../DownloadSteps";
-import { transferStarted } from "../downloadStepModel";
-import { DownloadDial } from "../DownloadTelemetry";
+import { STEP_TITLES } from "../DownloadSteps";
+import { downloadSteps, formatElapsed, transferStarted, type StepView } from "../downloadStepModel";
 import { useI18n } from "../i18n";
+import type { RowAction, RowStat } from "../library-manager/RowExpand";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
 import { notify } from "../toasts";
 import type { CatalogGame } from "../types";
-import RowExpand from "../library-manager/RowExpand";
 import "../digital-downloads.css";
 
 export type DownloadEntry = { game: CatalogGame; snapshot: DownloadProgressSnapshot };
 
+const DOWNLOAD_STEPS = ["route", "probe", "server", "download"];
+const INSTALL_STEPS = ["extract", "install"];
+/** The install runs once the download is over: unpacking (the install of a portable game) and the last checks. */
+export const installing = (snapshot: DownloadProgressSnapshot) => ["decompressing", "installing"].includes(snapshot.phase);
+
 /**
- * A download's detail (docs/GUI_DESIGN.md §4.21): in its game's row of the Library Manager, where the game's whole
- * install lives (Seba, 2026-11-01), with the row's pattern (RowExpand): on the left the running stage's dial and bar,
- * the steps with the sizes and its actions (pause or resume, up and down in the queue, go on after a stop, cancel
- * asked in the notice, the download's folder); on the right the game's picture with the speed drawn over it.
+ * A download (or the install that follows it) in its game's open row (library-manager/RowExpand.tsx): the picture
+ * with the speed drawn over it while it downloads and the bar at its base; the figures (done, speed, time left, how
+ * much of the total); and its buttons: pause or resume, cancel, and retry only after a failure. Download and install
+ * are two processes: once the download is over the picture shows the install's progress, without the speed.
+ * Null when there is no download.
  */
-export default function DownloadDetail({ entry, service, queueLength = 0 }: { entry: DownloadEntry; service: DigitalDownloadService; queueLength?: number }) {
+export function useDownloadView(entry: DownloadEntry | undefined, service: DigitalDownloadService): { artTitle: string; art: JSX.Element; progress: number | null; stats: RowStat[]; actions: RowAction[] } | null {
   const { t, locale } = useI18n();
+  const [busy, setBusy] = useState(false);
+  if (!entry) return null;
   const { game, snapshot } = entry;
   const { phase, gameId } = snapshot;
-  const [busy, setBusy] = useState(false);
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
     try { await action(); } catch (error) { notify(`${t("downloadsActionFailed")} ${error instanceof Error ? error.message : String(error)}`, { tone: "error" }); }
     finally { setBusy(false); }
   };
-  const cancel = () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
-    .then(ok => { if (ok) void run(() => service.cancel(gameId)); });
-
   const bars = downloadBars(snapshot);
+  const install = installing(snapshot);
+  const started = transferStarted(snapshot);
+  const stopped = phase === "error" || phase === "interrupted";
   const method = service.getDownloadMethod?.(gameId);
   const methodText = method ? downloadMethodLabel(method, locale) : null;
   const tier = service.planTier?.();
   const plan = tier ? planLabel(tier, locale) : null;
   const position = service.queuePosition?.(gameId) ?? -1;
-  const totalSize = (snapshot.bytesTotal ?? 0) > 0 ? formatDownloadBytes(snapshot.bytesTotal, locale) : sourceDownloadSize(game, locale) || t("downloadsSizeUnknown");
-  const stopped = phase === "error" || phase === "interrupted";
-  const canPause = ["queued", "preparing", "downloading"].includes(phase);
-  const hasFolder = transferStarted(snapshot) || Boolean(snapshot.resumeStep) || ["decompressing", "installing"].includes(phase);
-  // A resumed download first checks what is already on disk (minutes for a big torrent): that is a stage of its own.
-  const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : typeof snapshot.checkPercent === "number" ? "check" : null;
-  const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : stage === "check" ? snapshot.checkPercent ?? 0 : 0;
-  const stageLabel = stage === "download" ? t("downloadsDownloadBar") : stage === "install" ? t("downloadsInstallBar") : t("downloadsCheckBar");
+  const total = (snapshot.bytesTotal ?? 0) > 0 ? formatDownloadBytes(snapshot.bytesTotal, locale) : sourceDownloadSize(game, locale) || t("downloadsSizeUnknown");
+  const percent = install ? bars.install : started ? bars.download : typeof snapshot.checkPercent === "number" ? snapshot.checkPercent : null;
 
-  const actions = <div className="ga-dl-card-actions lm-download-actions">
-    {phase === "queued" && position > 0 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveUpAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, -1)}><ArrowUp size={16} /><span className="ga-dl-label">{t("downloadsMoveUp")}</span></button> : null}
-    {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveDownAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} /><span className="ga-dl-label">{t("downloadsMoveDown")}</span></button> : null}
-    {canPause ? <button type="button" disabled={busy} onClick={() => void run(() => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
-    {phase === "paused" ? <button type="button" disabled={busy} onClick={() => void run(() => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
-    {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
-    {stopped ? <button type="button" className="ga-download-resume" disabled={busy} onClick={() => void run(() => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}<span className="ga-dl-label">{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</span></button> : null}
-    <button type="button" disabled={busy || phase === "cancelling"} aria-label={t("downloadsCancelAria", { name: game.name })} onClick={cancel}><X size={16} /><span className="ga-dl-label">{stopped ? t("downloadsAbort") : t("downloadsCancel")}</span></button>
-    {hasFolder ? <button type="button" disabled={busy} aria-label={`${t("downloadsOpenFolder")}: ${game.name}`} onClick={() => void run(async () => { await digitalProcessManager.openFolder(game, "download"); })}><FolderOpen size={16} /><span className="ga-dl-label">{t("downloadsOpenFolder")}</span></button> : null}
-  </div>;
-
-  // The log: the stage (its dial and bar), the steps with the sizes and the actions. The picture: the game with the
-  // speed drawn over it while it downloads, and the plan's icons.
-  const log = <div className="lm-download" data-phase={phase}>
-    <b>{phase === "queued" && position >= 0 ? `${position + 1} · ` : ""}{downloadPhaseLabel(phase, locale)}</b>
-    {stage ? <div className="ga-download-telemetry ga-dl-card-progress">
-      <DownloadDial percent={percent} label={stageLabel} />
-      <div className="ga-dl-card-bar">
-        <div className="digital-download-progress-line"><span>{stageLabel}</span><strong>{Math.round(percent)}%</strong></div>
-        <progress className="download-phase-progress" max={100} value={percent} aria-label={t("downloadsProgress", { name: game.name, status: stageLabel })} />
-        {stage === "download" ? <p className="ga-dl-card-eta">{t("downloadsRemaining")}: <strong>{eta(snapshot)}</strong></p> : null}
-        {stage === "check" ? <p className="ga-dl-card-eta">{t("downloadsCheckHint")}</p> : null}
-      </div>
-    </div> : null}
-    {stopped ? <p className="lm-download-error">{snapshot.statusText || snapshot.error || downloadPhaseLabel(phase, locale)}</p> : null}
-    <DownloadSteps snapshot={snapshot} phaseLabel={downloadPhaseLabel(phase, locale)} details={
-      <dl className="digital-download-metrics ga-dl-card-details">
-        <div><dt>{t("downloadsSize")}</dt><dd>{totalSize}</dd></div>
-        {transferStarted(snapshot) || (snapshot.bytesDownloaded ?? 0) > 0 ? <div><dt>{t("downloadsDownloaded")}</dt><dd>{formatDownloadBytes(snapshot.bytesDownloaded, locale)} / {totalSize}</dd></div> : null}
-        {phase === "downloading" ? <div><dt>{t("downloadsSpeed")}</dt><dd>{`${formatDownloadBytes(snapshot.speedBps, locale)} / s`}</dd></div> : null}
-        {methodText ? <div><dt>{t("downloadsRouteLabel")}</dt><dd title={methodText.hint}>{methodText.label}</dd></div> : null}
-        {plan ? <div><dt>{t("downloadsPlanLabel")}</dt><dd title={plan.hint}>{plan.label}</dd></div> : null}
-      </dl>} />
-    {actions}
-  </div>;
+  const artTitle = install ? t("logInstall") : phase === "queued" && position >= 0 ? `${downloadPhaseLabel(phase, locale)} · ${position + 1}` : downloadPhaseLabel(phase, locale);
   const art = <div className="ga-dl-card-art lm-download-art">
     <DigitalDownloadThumb game={game} />
     {phase === "downloading" ? <DownloadSpeedSpark samples={service.getSpeedSamples(gameId)} speedBps={snapshot.speedBps} /> : null}
-    <span className="ga-dl-card-badges">
+    {plan || methodText ? <span className="ga-dl-card-badges">
       {plan ? <span className={`ga-dl-badge plan-${tier}`} title={`${plan.label} · ${plan.hint}`} aria-label={`${plan.label}: ${plan.hint}`}><ArrowDownToLine size={14} aria-hidden="true" /></span> : null}
       {method === "accelerated" && methodText ? <span className="ga-dl-badge route-accelerated" title={methodText.hint} aria-label={`${methodText.label}: ${methodText.hint}`}><Plus size={13} strokeWidth={3} aria-hidden="true" /></span> : null}
-    </span>
+    </span> : null}
   </div>;
-  return <RowExpand log={log} art={art} />;
+  const stats: RowStat[] = install ? [
+    { label: t("rowDone"), value: `${Math.round(bars.install)} %` },
+    { label: t("downloadsSize"), value: total },
+  ] : [
+    { label: t("rowDone"), value: percent == null ? "—" : `${Math.round(percent)} %` },
+    { label: t("downloadsSpeed"), value: phase === "downloading" ? `${formatDownloadBytes(snapshot.speedBps, locale)}/s` : "—" },
+    { label: t("downloadsRemaining"), value: eta(snapshot) },
+    { label: t("downloadsDownloaded"), value: started || (snapshot.bytesDownloaded ?? 0) > 0 ? `${formatDownloadBytes(snapshot.bytesDownloaded, locale)} / ${total}` : total },
+  ];
+  const cancel = () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
+    .then(ok => { if (ok) void run(() => service.cancel(gameId)); });
+  const actions: RowAction[] = [
+    ...(["queued", "preparing", "downloading"].includes(phase) ? [{ label: t("downloadsPause"), icon: <Pause size={14} aria-hidden="true" />, disabled: busy, onClick: () => void run(() => service.pause(gameId)) }] : []),
+    ...(phase === "paused" ? [{ label: t("downloadsResume"), icon: <Play size={14} aria-hidden="true" />, tone: "accent" as const, disabled: busy, onClick: () => void run(() => service.resume(gameId)) }] : []),
+    // Only after a failure: it goes on from the step it reached (unpacking again, or the rest of the download).
+    ...(stopped ? [{ label: t("downloadsRetry"), icon: snapshot.resumeStep ? <Play size={14} aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />, tone: "accent" as const, disabled: busy, onClick: () => void run(() => service.retry(game)) }] : []),
+    { label: t("downloadsCancel"), icon: <X size={14} aria-hidden="true" />, tone: "danger", disabled: busy || phase === "cancelling", onClick: cancel },
+  ];
+  return { artTitle, art, progress: percent, stats, actions };
+}
+
+/**
+ * The running download and its install as the last groups of the game's log, each step once: the download's steps
+ * (done with what they found and how long they took, the running one, failed), "Download finished", then the install's.
+ * A step done is never listed again as one still to do.
+ */
+export function DownloadLog({ snapshot }: { snapshot: DownloadProgressSnapshot }) {
+  const { t } = useI18n();
+  const steps = downloadSteps(snapshot);
+  const bars = downloadBars(snapshot);
+  const install = installing(snapshot);
+  const downloadDone = install || steps.find(step => step.id === "download")?.state === "done";
+  const failed = steps.some(step => step.state === "failed");
+  const line = (step: StepView) => <p key={step.id} className={`is-${step.state}`}>
+    {t(STEP_TITLES[step.id])}{step.text ? ` · ${step.text}` : ""}{step.ms ? ` (${formatElapsed(step.ms)})` : ""}
+  </p>;
+  const of = (ids: string[], done: boolean) => steps.filter(step => ids.includes(step.id) && step.state !== "skipped" && (done ? step.state === "done" : true));
+  return <>
+    <div className={`lm-log-group is-${downloadDone ? "done" : failed ? "failed" : "working"}`}>
+      <p className="lm-log-head">{t("logDownload")}{!downloadDone && transferStarted(snapshot) ? ` · ${Math.floor(bars.download)} %` : ""}</p>
+      {of(DOWNLOAD_STEPS, Boolean(downloadDone)).map(line)}
+      {downloadDone ? <p className="lm-log-foot">{t("logDownloadDone")}</p> : null}
+    </div>
+    {downloadDone ? <div className={`lm-log-group is-${failed ? "failed" : "working"}`}>
+      <p className="lm-log-head">{t("logInstall")}{install ? ` · ${Math.floor(bars.install)} %` : ""}</p>
+      {of(INSTALL_STEPS, false).map(line)}
+    </div> : null}
+  </>;
 }

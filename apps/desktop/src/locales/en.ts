@@ -1438,4 +1438,9 @@ export const en: Record<keyof typeof es, string> = {
   activityToday: "Today",
   activityYesterday: "Yesterday",
   manualDownloadAdd: "Add manual download",
+  rowDone: "Done",
+  rowProcessed: "Processed",
+  logDownload: "Download",
+  logDownloadDone: "Download finished",
+  logInstall: "Install",
 };

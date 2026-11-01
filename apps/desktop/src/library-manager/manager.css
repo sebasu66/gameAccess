@@ -225,26 +225,51 @@
 .lm-status.bad { color: var(--ga-danger-ink); background: color-mix(in srgb, var(--ga-danger) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ga-danger) 33%, transparent); }
 .lm-runcheck { margin-left: 6px; }
 
-/* A game's row, open (RowExpand.tsx, Seba 2026-11-01): the row and what opens under it read as one block; the log on
-   the left, the picture with the animation of what is happening on the right. */
+/* A game's row, open (RowExpand.tsx, GUI_DESIGN §4.20b): the row and what opens under it read as one block. Inside,
+   one grid with four cells, the same in every open row so they line up: log | picture | figures | buttons. Each cell
+   has a title line of the same height, then its content, all starting at the top. On a narrow manager the figures
+   go under the picture. */
 .lm-row.is-expanded > td { background: var(--ga-surface); }
 .lm-row.is-expanded > td.lm-acts { background: #171b1f; }
-.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 400px); gap: 32px; align-items: start; }
-.lm-expand-log { display: grid; gap: 12px; min-width: 0; }
-.lm-expand-log .lm-history { height: 13rem; }
-.lm-expand-art { position: relative; min-width: 0; }
-.lm-expand-still { display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 8px; }
+.lm-detail { container: lm-row / inline-size; }
+.lm-expand { display: grid; grid-template-columns: minmax(240px, 1.3fr) minmax(220px, 1fr) minmax(140px, .5fr) 120px; grid-template-areas: "log art stats actions"; column-gap: 24px; align-items: start; }
+@container lm-row (max-width: 860px) {
+  .lm-expand { grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1fr) 120px; grid-template-areas: "log art actions" "log stats actions"; row-gap: 12px; }
+  .lm-cell-stats > .lm-cell-title { display: none; }
+  .lm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.lm-cell { display: grid; grid-template-rows: 16px auto; row-gap: 10px; min-width: 0; }
+.lm-cell-log { grid-area: log; }
+.lm-cell-art { grid-area: art; }
+.lm-cell-stats { grid-area: stats; }
+.lm-cell-actions { grid-area: actions; }
+.lm-cell-title { font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; color: var(--ga-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-cell-body { display: grid; gap: 10px; min-width: 0; }
+.lm-cell-log .lm-history { height: 13rem; }
+
+/* The picture: the game's wide image with the animation of the process, and its bar along the base. */
+.lm-art { position: relative; border-radius: 8px; overflow: hidden; background: var(--ga-surface-2); }
+.lm-art > :is(img, .lm-download-art, .lm-fbar, .lm-move) { display: block; width: 100%; }
+.lm-expand-still { aspect-ratio: 460 / 215; object-fit: cover; }
 .lm-expand-still.is-frozen { filter: saturate(.4) brightness(.9); }
-.lm-download { display: grid; gap: 12px; min-width: 0; }
-.lm-download > .ga-dl-card-progress { margin-top: 0; }
-.lm-download > .lm-download-error { color: var(--ga-danger); }
-.lm-download-art { border-radius: 8px; }
+.lm-art .lm-fbar { height: auto; margin-right: 0; }
+.lm-art :is(.lm-fbar-readout, .lm-move-readout) { display: none; }
+.lm-download-art { border-radius: 0; }
 .lm-download-art > .ga-dl-card-badges { position: absolute; top: 8px; right: 8px; }
-.lm-download-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.lm-download-actions > button { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 13px var(--ga-text-family); cursor: pointer; }
-.lm-download-actions > button:hover:not(:disabled) { border-color: var(--ga-orange-line); }
-.lm-download-actions > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
-.lm-download-actions > button:disabled { opacity: .5; cursor: wait; }
-/* The freeze and the move draw at the picture's column width, as the still picture does. */
-.lm-expand-art .lm-fbar { width: 100%; height: auto; margin-right: 0; }
-.lm-expand-art .lm-move { width: 100%; }
+.lm-art-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--ga-panel); }
+.lm-art-bar > b { display: block; height: 100%; background: var(--ga-orange); transition: width .4s; }
+
+/* The figures: label over value, one under the other (two columns when they go under the picture). */
+.lm-stats { display: grid; gap: 12px; margin: 0; }
+.lm-stats > div { display: grid; gap: 2px; min-width: 0; }
+.lm-stats dt { font: 700 11px/1.3 var(--ga-text-family); letter-spacing: .06em; text-transform: uppercase; color: var(--ga-muted); }
+.lm-stats dd { margin: 0; font: 700 15px/1.3 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* The buttons: small, one under the other, all the cell's width. */
+.lm-row-actions { display: grid; gap: 8px; }
+.lm-row-actions > button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 12px var(--ga-text-family); cursor: pointer; }
+.lm-row-actions > button:hover:not(:disabled) { border-color: var(--ga-orange-line); }
+.lm-row-actions > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.lm-row-actions > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
+.lm-row-actions > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.lm-row-actions > button:disabled { opacity: .5; cursor: wait; }

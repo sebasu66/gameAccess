@@ -1436,4 +1436,9 @@ export const es = {
   activityToday: "Hoy",
   activityYesterday: "Ayer",
   manualDownloadAdd: "Añadir descarga manual",
+  rowDone: "Completado",
+  rowProcessed: "Procesado",
+  logDownload: "Descarga",
+  logDownloadDone: "Descarga terminada",
+  logInstall: "Instalación",
 } as const;

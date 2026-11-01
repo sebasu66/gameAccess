@@ -22,7 +22,7 @@ import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
 import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
-import { eventText } from "../FreezeConsole";
+import { clock, eventText, stats as jobStats } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
 import FreezeBar, { freezeSize } from "./FreezeBar";
@@ -34,7 +34,7 @@ import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts,
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
 import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
-import DownloadDetail, { type DownloadEntry } from "../downloads/DownloadDetail";
+import { DownloadLog, useDownloadView, type DownloadEntry } from "../downloads/DownloadDetail";
 import { activeDownloadService } from "../downloads/activeService";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
 import ManualDownloadForm from "../ManualDownloadForm";
@@ -126,32 +126,44 @@ function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: Libr
 /** The game's log. A freeze or thaw of the game going on (or just ended) is one group at its end: its title, the
  *  launcher's details indented inside it, and how it ended; the log's own lines of that freeze are left out
  *  meanwhile, so nothing shows twice. When it ends, the log is read again. */
-function History({ game, c, job }: { game: LibraryGame; c: LibraryCopy; job?: FreezeJob }) {
+function History({ game, c, job, download }: { game?: LibraryGame; c: LibraryCopy; job?: FreezeJob; download?: DownloadEntry }) {
   const { t } = useI18n();
   const [text, setText] = useState<string | null>(null);
   const ended = Boolean(job?.outcome);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
+    // A download with no folder yet has no log of its own so far: only its running groups.
+    if (!game) { setText(""); return; }
     if (libraryDemo() || uiDemo()) { setText("2026-10-12 21:04:11 | importado | carpeta adaptada al estándar actual\n2026-10-12 21:04:12 | analisis | estado=ready; ejecutable=Game/game.exe"); return; }
-    void digitalProcessManager.gameLog(asGame(game)).then(result => { if (live) setText(result.log ?? ""); }).catch(() => { if (live) setText(""); });
+    void digitalProcessManager.gameLog(asGame(game as LibraryGame)).then(result => { if (live) setText(result.log ?? ""); }).catch(() => { if (live) setText(""); });
     return () => { live = false; };
-  }, [game.app_id, ended]);
+  }, [game?.app_id, ended]);
   const since = job ? job.startedAt - 5000 : null;
-  const lines = (text ?? "").split("\n").filter(line => line.trim() && (since == null || !isFreezeLineSince(line, since)));
+  let lines = (text ?? "").split("\n").filter(line => line.trim() && (since == null || !isFreezeLineSince(line, since)));
+  // The running download is shown as its groups: the log's own lines of it (since it started) are left out meanwhile.
+  if (download) {
+    const starts = lines.map((line, index) => { const [, step, detail] = line.split(" | "); return step?.trim() === "descarga" && (detail ?? "").startsWith("inicio") ? index : -1; });
+    const start = Math.max(...starts);
+    if (start >= 0) lines = [...lines.slice(0, start), ...lines.slice(start).filter(line => !DOWNLOAD_LOG_STEPS.includes(line.split(" | ")[1]?.trim() ?? ""))];
+  }
   const events = (job?.progress?.events ?? []).filter(event => !["start", "done", "failed"].includes(event.kind));
-  useEffect(() => { if (job && !job.outcome) box.current?.scrollTo({ top: box.current.scrollHeight }); }, [job, events.length]);
+  useEffect(() => { if ((job && !job.outcome) || download) box.current?.scrollTo({ top: box.current.scrollHeight }); }, [job, events.length, download?.snapshot.phase, download?.snapshot.step?.id]);
   return (
     <div ref={box} className="lm-history" tabIndex={-1}>
-      {text === null ? <p>{c.working}</p> : !lines.length && !job ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
+      {text === null ? <p>{c.working}</p> : !lines.length && !job && !download ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
       {job ? <div className={`lm-log-group is-${job.outcome ? (job.outcome.ok ? "done" : "failed") : "working"}`}>
         <p className="lm-log-head">{t(jobLabelKey(job.mode))}{job.outcome ? "" : ` · ${Math.floor(job.progress?.percent ?? 0)} %`}</p>
         {events.map((event, index) => <p key={index} className={`is-${event.kind}`}>{eventText(event, job, t)}</p>)}
         {job.outcome ? <p className="lm-log-foot">{job.outcome.detail}</p> : null}
       </div> : null}
+      {download ? <DownloadLog snapshot={download.snapshot} /> : null}
     </div>
   );
 }
+
+/** The game's log lines a download writes (pipeline.py): shown as the download's groups while it runs. */
+const DOWNLOAD_LOG_STEPS = ["descarga", "estado", "espacio", "descompresión"];
 
 /** A "freeze" line of the game's log written since `since` (ms): it belongs to the freeze group shown live. */
 function isFreezeLineSince(line: string, since: number): boolean {
@@ -305,6 +317,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   // A download of this game shows its detail in the row, open, while it lasts (Seba, 2026-11-01).
   const download = downloadOf(id);
   const unfolded = open || Boolean(freezing) || Boolean(download);
+  const downloadView = useDownloadView(download, activeDownloadService());
   const hosted = Boolean(freezing) && id != null;
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -373,20 +386,37 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       </td>
     </tr>
     {unfolded ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
-      {download ? <DownloadDetail entry={download} service={activeDownloadService()} queueLength={queueLength} /> : <RowExpand
+      <RowExpand logTitle={c.historyTitle}
         log={<>
-          {game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
+          {game.issues.length && (!game.unfinished || game.stalled) && !download ? <div className="lm-needs"><b>{c.whatNeeds}</b>
             <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-          {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} job={freezing} /></div> : null}
+          <History game={game} c={c} job={freezing} download={download} />
         </>}
-        art={freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={moveLeft(freezing.progress, freezing.outcome ? "done" : "working")} />
-          // Cancelled, the cubes go back where they were: the game is as it was.
-          : freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode as FreezeMode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} />
-          : id ? <img className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} src={landscape(id)} alt="" /> : null} />}
+        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <img className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} src={landscape(id)} alt="" /> : null }))} />
     </div></td></tr> : null}
   </>);
+}
+
+/** A freeze, thaw or move in the open row's cells: its animation over the picture, its figures and cancel. */
+function jobView(job: FreezeJob, id: number, tr: typeof translate) {
+  const progress = job.outcome?.cancelled ? 0 : job.outcome?.ok ? 100 : job.progress?.percent ?? 0;
+  const state = job.outcome ? (job.outcome.ok || job.outcome.cancelled ? "done" : "failed") : "working";
+  const { speed, eta } = jobStats(job.progress);
+  const p = job.progress;
+  return {
+    artTitle: tr(jobLabelKey(job.mode)),
+    art: job.mode === "move"
+      ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={progress} state={state} size={moveLeft(p, job.outcome ? "done" : "working")} />
+      : <FreezeBar src={landscape(id)} mode={job.mode as FreezeMode} percent={progress} state={state} size={freezeSize(p)} />,
+    progress,
+    stats: [
+      { label: tr("rowDone"), value: `${Math.floor(progress)} %` },
+      { label: tr("downloadsSpeed"), value: speed ? `${formatBytes(speed)}/s` : "—" },
+      { label: tr("downloadsRemaining"), value: eta ? clock(eta) : "—" },
+      { label: tr("rowProcessed"), value: p?.total_bytes ? `${formatBytes(p.done_bytes)} / ${formatBytes(p.total_bytes)}` : "—" },
+    ],
+    actions: job.outcome ? [] : [{ label: job.cancelling ? tr("freezeCancelling") : tr(jobCancelKey(job.mode)), icon: <X size={14} aria-hidden="true" />, tone: "danger" as const, disabled: Boolean(job.cancelling), onClick: () => cancelFreezeJob(job.appId) }],
+  };
 }
 
 /** A download's state as the grid shows it: first in the grid sorted by state. */
@@ -396,8 +426,9 @@ function downloadStatus(entry: DownloadEntry): Status {
 
 /** A game being downloaded that has no folder in the library yet (just asked for in the catalog): the row and the
  *  download's detail under it. */
-function DownloadRow({ row, entry, columns, queueLength }: { row: GridRow; entry: DownloadEntry; columns: number; queueLength: number }) {
+function DownloadRow({ row, entry, columns, c }: { row: GridRow; entry: DownloadEntry; columns: number; c: LibraryCopy }) {
   const appId = entry.game.app_id ?? entry.snapshot.gameId;
+  const view = useDownloadView(entry, activeDownloadService());
   return (<>
     <tr className="lm-row is-expanded" data-app-id={appId}>
       <td className="lm-cell-check" />
@@ -411,7 +442,7 @@ function DownloadRow({ row, entry, columns, queueLength }: { row: GridRow; entry
       <td className="lm-cell-num">—</td>
       <td className="lm-acts" />
     </tr>
-    <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail"><DownloadDetail entry={entry} service={activeDownloadService()} queueLength={queueLength} /></div></td></tr>
+    <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">{view ? <RowExpand logTitle={c.historyTitle} log={<History c={c} download={entry} />} {...view} /> : null}</div></td></tr>
   </>);
 }
 
@@ -704,7 +735,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
               <tbody>
-                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} queueLength={queueLength} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
+                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} c={c} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
               </tbody>
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />

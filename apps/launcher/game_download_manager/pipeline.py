@@ -357,6 +357,8 @@ class DownloadPipeline:
             downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
             # The archive is all here: unpacking needs about as much again in the games folder.
             room = check_download(downloaded_bytes, downloaded_bytes, Path(game_dir).parent, Path(dest_dir))
+            # The download ends here; unpacking it is the install, a process of its own (the game's log says where one ends).
+            journal.note(game_dir, "descarga", f"terminada; {downloaded_bytes} bytes")
             journal.note(game_dir, "espacio", f"descargado {downloaded_bytes} bytes; libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
             if not room["ok"]:
                 raise NoSpaceError(room)
