@@ -34,6 +34,10 @@ import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts,
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
 import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
+import DownloadDetail, { type DownloadEntry } from "../downloads/DownloadDetail";
+import { activeDownloadService } from "../downloads/activeService";
+import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
+import ManualDownloadForm from "../ManualDownloadForm";
 import "./manager.css";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
@@ -175,7 +179,7 @@ function announceBatch(action: BatchAction, results: Array<{ app_id: number; ok:
 type BatchAction = "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer" | "linked_delete" | "linked_move";
 
 /** One line of the grid, a game with a folder or a member of the library without one, with the values it sorts by. */
-type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame };
+type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame; download?: DownloadEntry };
 type SortKey = "name" | "status" | "path" | "size" | "kind" | "plays" | "idle";
 type Sort = { key: SortKey; dir: 1 | -1 };
 /** Numbers start from the largest, words from A. */
@@ -210,6 +214,8 @@ type RowProps = {
   onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
   retry: (id: number) => void; configure: (game: LibraryGame) => void;
+  /** The game's download, while it has not ended (its detail shows in the row). */
+  downloadOf: (id: number | null | undefined) => DownloadEntry | undefined; queueLength: number;
 };
 
 /** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game whose
@@ -281,7 +287,7 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
   </section>;
 }
 
-function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, verify, verdict, verifying, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
+function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, verify, verdict, verifying, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure, downloadOf, queueLength }: RowProps) {
   const id = game.app_id;
   const key = row.key;
   const open = expanded === id;
@@ -295,6 +301,8 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   // Waiting in the queue, the row only says so; working (or just ended) it shows the log and the freeze bar.
   const freezing = job && !job.queued ? job : undefined;
   const busyFreezing = Boolean(job && !job.outcome);
+  // A download of this game shows its detail in the row, open, while it lasts (Seba, 2026-11-01).
+  const download = downloadOf(id);
   const hosted = Boolean(freezing) && id != null;
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -309,7 +317,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
-      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
+      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : download ? downloadStatus(download) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
       <td><KindCell kind={row.kind} source={row.source} /></td>
@@ -362,11 +370,12 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         </>}
       </td>
     </tr>
-    {open || freezing ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
+    {open || freezing || download ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
+      {download ? <DownloadDetail entry={download} service={activeDownloadService()} queueLength={queueLength} /> : null}
       {open && game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
         <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
       {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
-      {!game.partial ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}${freezing?.mode === "move" ? " has-move" : ""}`}>
+      {!game.partial && (open || freezing) ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}${freezing?.mode === "move" ? " has-move" : ""}`}>
         <History game={game} c={c} job={freezing} />
         {/* Cancelled, the cubes go back where they were: the game is as it was. */}
         {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
@@ -375,6 +384,32 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
       </div></div> : null}
     </div></td></tr> : null}
+  </>);
+}
+
+/** A download's state as the grid shows it: first in the grid sorted by state. */
+function downloadStatus(entry: DownloadEntry): Status {
+  return { rank: 0, label: downloadPhaseLabel(entry.snapshot.phase), tone: ["error", "interrupted"].includes(entry.snapshot.phase) ? "warn" : "busy" };
+}
+
+/** A game being downloaded that has no folder in the library yet (just asked for in the catalog): the row and the
+ *  download's detail under it. */
+function DownloadRow({ row, entry, columns, queueLength }: { row: GridRow; entry: DownloadEntry; columns: number; queueLength: number }) {
+  const appId = entry.game.app_id ?? entry.snapshot.gameId;
+  return (<>
+    <tr className="lm-row" data-app-id={appId}>
+      <td className="lm-cell-check" />
+      <td><span className="lm-thumb"><img src={landscape(appId)} alt="" loading="lazy" /></span></td>
+      <td className="lm-cell-name"><div className="lm-name" title={entry.game.name}>{entry.game.name}</div></td>
+      <td><StatusCell status={row.status} /></td>
+      <td className="lm-cell-path">—</td>
+      <td className="lm-cell-size">—</td>
+      <td><KindCell kind={row.kind} source="" /></td>
+      <td className="lm-cell-num">—</td>
+      <td className="lm-cell-num">—</td>
+      <td className="lm-acts" />
+    </tr>
+    <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail"><DownloadDetail entry={entry} service={activeDownloadService()} queueLength={queueLength} /></div></td></tr>
   </>);
 }
 
@@ -397,6 +432,16 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
       </td>
     </tr>
   );
+}
+
+/** The downloads that have not ended (stopped ones too, to go on), by app id, kept up to date. */
+function useManagerDownloads(): Map<number, DownloadEntry> {
+  const read = () => new Map(activeDownloadService().getDownloads()
+    .filter(entry => !["completed", "cancelled", "external"].includes(entry.snapshot.phase))
+    .map(entry => [entry.game.app_id ?? entry.snapshot.gameId, entry] as const));
+  const [downloads, setDownloads] = useState(read);
+  useEffect(() => activeDownloadService().onGlobalUpdate(() => setDownloads(read())), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return downloads;
 }
 
 /** A column header that sorts: one click sorts, the next one reverses; the arrow says which way. */
@@ -431,6 +476,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const { games, summary, scanning, error } = useLibraryScan();
   useEffect(() => { void loadKidFamily(); }, []);
   const members = useLibraryGames();
+  const downloads = useManagerDownloads();
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>({ key: "size", dir: -1 });
   const [selection, setSelection] = useState<Selection>({});
@@ -592,10 +638,14 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   }, [escapeGuard, onClose, embedded]);
 
   const filters: [Filter, string, number][] = ([["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial], ["frozen", c.frozenFilter, counts.frozen]] as [Filter, string, number][]).filter(([id, , count]) => id === "all" || id === filter || count > 0);
-  const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && matches(member.name, member.app_id ?? member.id)) : [];
+  const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && !downloads.has(member.app_id ?? member.id) && matches(member.name, member.app_id ?? member.id)) : [];
+  // Downloads with no folder in the library yet get their own row (in "All" and in "Unfinished downloads").
+  const loose = filter === "all" || filter === "partial" ? [...downloads.entries()].filter(([appId, entry]) => !games.some(game => game.app_id === appId) && matches(entry.game.name, appId)) : [];
+  const queueLength = [...downloads.values()].filter(entry => entry.snapshot.phase === "queued").length;
   const gridRows: GridRow[] = [
     ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), kind: kindOf(game), source: sourceOf(game), plays: game.plays ?? 0, idle: idleDays(game), game })),
     ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, member })),
+    ...loose.map(([appId, entry]) => ({ key: `download-${appId}`, name: entry.game.name, status: downloadStatus(entry), path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, download: entry })),
   ].sort(compareRows(sort));
   const columns = 10;
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
@@ -603,7 +653,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
   const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }),
     verify: (game: LibraryGame) => void verifyGames([game]), verdict, verifying: verifying?.id ?? null,
-    retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null };
+    retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null,
+    downloadOf: (id: number | null | undefined) => id == null ? undefined : downloads.get(id), queueLength };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -651,10 +702,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
               <tbody>
-                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
+                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} queueLength={queueLength} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
               </tbody>
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />
+            <details className="manual-download-entry"><summary>{t("manualDownloadAdd")}</summary><ManualDownloadForm /></details>
           </div>
         </div>
       </div>

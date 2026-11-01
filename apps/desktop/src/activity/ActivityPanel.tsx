@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, Download, Info, Snowflake, X } from "lucide-react";
-import { digitalDownloadService, isDownloadHistory } from "../catalog/DigitalDownloadService";
+import { isDownloadHistory } from "../catalog/DigitalDownloadService";
+import { activeDownloadService } from "../downloads/activeService";
 import { GaButton } from "../components/ga/Buttons";
 import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
 import { useI18n } from "../i18n";
@@ -14,9 +15,9 @@ type Running = { key: string; appId: number; title: string; percent: number | nu
 
 /** The downloads that have not ended, kept up to date. */
 function useActiveDownloads() {
-  const pending = () => digitalDownloadService.getDownloads().filter(entry => !isDownloadHistory(entry.snapshot.phase));
+  const pending = () => activeDownloadService().getDownloads().filter(entry => !isDownloadHistory(entry.snapshot.phase));
   const [downloads, setDownloads] = useState(pending);
-  useEffect(() => digitalDownloadService.onGlobalUpdate(() => setDownloads(pending())), []);
+  useEffect(() => activeDownloadService().onGlobalUpdate(() => setDownloads(pending())), []); // eslint-disable-line react-hooks/exhaustive-deps
   return downloads;
 }
 
@@ -64,10 +65,9 @@ function dayLabel(at: number, t: ReturnType<typeof useI18n>["t"], locale: string
 /**
  * The Activity panel (docs/GUI_DESIGN.md §4.9 and §4.17): what is running on top (downloads and long tasks, with
  * their bar and cancel), then the history of every notice and process, newest first, grouped by day; each entry with
- * a game takes to its row in the Library Manager. Until the downloads' detail moves there, their full queue is
- * folded at the end (`queue`). Stage: prototype.
+ * a game takes to its row in the Library Manager, where each download and task keeps its detail. Stage: prototype.
  */
-export default function ActivityPanel({ queue, onOpen }: { queue?: ReactNode; onOpen?: () => void }) {
+export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
   const { t, locale } = useI18n();
   const downloads = useActiveDownloads();
   const jobs = useFreezeConsole().jobs.filter(job => !job.outcome);
@@ -79,7 +79,7 @@ export default function ActivityPanel({ queue, onOpen }: { queue?: ReactNode; on
       key: `download:${snapshot.gameId}`, appId: game.app_id ?? snapshot.gameId, title: game.name, percent: snapshot.progress ?? 0,
       waiting: snapshot.phase === "queued" ? t("downloadQueued") : snapshot.phase === "paused" ? t("downloadPaused") : undefined,
       cancel: () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
-        .then(ok => { if (ok) void digitalDownloadService.cancel(snapshot.gameId); }),
+        .then(ok => { if (ok) void activeDownloadService().cancel(snapshot.gameId); }),
     })),
     ...jobs.map(job => ({
       key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name), percent: job.progress?.percent ?? 0,
@@ -106,6 +106,5 @@ export default function ActivityPanel({ queue, onOpen }: { queue?: ReactNode; on
       </div>) : <p className="ga-hint">{t("activityEmpty")}</p>}
       {groups.length ? <div className="ga-actions"><GaButton onClick={clearActivity}>{t("activityClear")}</GaButton></div> : null}
     </section>
-    {queue ? <details className="ga-activity-queue"><summary>{t("activityQueue")}</summary>{queue}</details> : null}
   </div>;
 }

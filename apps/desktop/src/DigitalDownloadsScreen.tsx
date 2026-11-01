@@ -29,7 +29,8 @@ const phaseKeys = {
 export function downloadPhaseLabel(phase: DownloadPhase, locale = getAppLocale()) {
   return translate(phaseKeys[phase], undefined, locale);
 }
-function eta(snapshot: DownloadProgressSnapshot): string {
+/** Time left of a download, while it transfers. */
+export function eta(snapshot: DownloadProgressSnapshot): string {
   if (snapshot.phase !== "downloading" || !snapshot.speedBps || !snapshot.etaSeconds) return "—";
   const seconds = Math.ceil(snapshot.etaSeconds);
   return seconds >= 3600 ? `${Math.floor(seconds / 3600)} h ${Math.ceil((seconds % 3600) / 60)} min`

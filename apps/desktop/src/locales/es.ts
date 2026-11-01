@@ -1435,5 +1435,5 @@ export const es = {
   activityClear: "Borrar historial",
   activityToday: "Hoy",
   activityYesterday: "Ayer",
-  activityQueue: "Cola de descargas (detalle)",
+  manualDownloadAdd: "Añadir descarga manual",
 } as const;

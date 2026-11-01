@@ -50,10 +50,8 @@ import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
 import { cancelFreezeJob, freezeJob, guardAppClose, pauseFreezesWhilePlaying, recoverFreezes, resumeFreezes } from "./freezeJobs";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
-import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DeskPanel from "./desk/DeskPanel";
 import { uiDemo } from "./devDemo/uiDemo";
-import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
@@ -82,9 +80,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const unseenActivity = activity.filter(entry => !entry.seen && entry.state !== "running").length;
   const activityRunning = unfinishedDownloads > 0 || activity.some(entry => entry.state === "running");
   const pendingNoticeShown = useRef(false);
-  // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
-  const demoService = useRef<ReturnType<typeof demoDownloadService>>();
-  if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
   useDeskLayout();
   // The grid has the focus when the app is activated and when a game ends (gameFocus.ts).
   useGridFocus();
@@ -695,8 +690,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><ActivityPanel onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }}
-        queue={<DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} />} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><ActivityPanel onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}

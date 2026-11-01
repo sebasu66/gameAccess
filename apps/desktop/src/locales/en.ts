@@ -1437,5 +1437,5 @@ export const en: Record<keyof typeof es, string> = {
   activityClear: "Clear history",
   activityToday: "Today",
   activityYesterday: "Yesterday",
-  activityQueue: "Download queue (detail)",
+  manualDownloadAdd: "Add manual download",
 };

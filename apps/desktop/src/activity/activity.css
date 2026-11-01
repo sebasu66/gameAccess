@@ -35,5 +35,3 @@ button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); out
 .ga-activity-text strong { font: 700 14px var(--ga-text-family); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-activity-text span { font: 400 13px/1.4 var(--ga-text-family); color: var(--ga-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ga-activity-time { font: 600 12px var(--ga-text-family); color: var(--ga-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ga-activity-queue { border-top: 1px solid var(--ga-line); padding-top: 12px; }
-.ga-activity-queue > summary { cursor: pointer; font: 700 14px var(--ga-text-family); color: var(--ga-muted); padding: 6px 0; }
