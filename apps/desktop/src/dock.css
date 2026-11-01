@@ -76,3 +76,5 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
   box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #cc833355, 0 4px 12px #0006 !important;
 }
 .ga-dock .ga-cube.ga-big-screen-toggle[aria-pressed="true"] { border-color: #d79e6099 !important; color: #fff !important; background: linear-gradient(180deg, #cc833326, #cc83330a) !important; }
+/* Activity: a light while a download or a long task is running. */
+.ga-dock .digital-download-nav.is-active { box-shadow: 0 0 0 1px var(--ga-orange-line), 0 0 14px var(--ga-orange-tint); }

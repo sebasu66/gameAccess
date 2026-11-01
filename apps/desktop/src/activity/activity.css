@@ -1,0 +1,39 @@
+/* The Activity panel (ActivityPanel.tsx, docs/GUI_DESIGN.md §4.17). Running: a name, a bar and cancel per process. */
+.ga-process-tasks { display: grid; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
+.ga-process-tasks ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ga-process-task { display: flex; align-items: center; gap: 8px; }
+.ga-process-task-open { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 14px var(--ga-text-family); text-align: start; cursor: pointer; }
+.ga-process-task-open:hover { border-color: var(--ga-orange-line); }
+.ga-process-task-open:focus-visible, .ga-process-task-cancel:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.ga-process-task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-process-task-state { color: var(--ga-muted); font-variant-numeric: tabular-nums; }
+.ga-process-task-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-process-task-bar > i { display: block; height: 100%; background: var(--ga-orange); transition: width .4s; }
+.ga-process-task-cancel { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); cursor: pointer; }
+.ga-process-task-cancel:hover:not(:disabled) { border-color: var(--ga-danger); }
+.ga-process-task-cancel:disabled { opacity: .5; cursor: default; }
+
+/* History: grouped by day, newest first; an entry with a game is a link to its row in the Library Manager. */
+.ga-activity { display: grid; gap: 20px; }
+.ga-activity .ga-process-tasks { margin-top: 0; padding-top: 0; border-top: 0; }
+.ga-activity-history { display: grid; gap: 12px; }
+.ga-activity-day { display: grid; gap: 6px; }
+.ga-activity-day-label { margin: 6px 0 0; font: 700 13px var(--ga-text-family); color: var(--ga-muted); }
+.ga-activity-day ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ga-activity-link { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--ga-line); border-left: 3px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: inherit; text-align: start; }
+button.ga-activity-link { cursor: pointer; }
+button.ga-activity-link:hover { border-color: var(--ga-orange-line); }
+button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.ga-activity-entry[data-state="done"] .ga-activity-link { border-left-color: var(--ga-ok); }
+.ga-activity-entry[data-tone="frost"] .ga-activity-link { border-left-color: var(--ga-frost); }
+.ga-activity-entry[data-state="failed"] .ga-activity-link { border-left-color: var(--ga-danger); }
+.ga-activity-entry[data-unseen] .ga-activity-link { background: var(--ga-surface-2); }
+.ga-activity-art { width: 32px; height: 48px; border-radius: 4px; object-fit: cover; }
+.ga-activity-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--ga-surface-2); color: var(--ga-muted); }
+.ga-activity-entry[data-state="failed"] .ga-activity-icon { color: var(--ga-danger); }
+.ga-activity-text { display: grid; gap: 2px; min-width: 0; }
+.ga-activity-text strong { font: 700 14px var(--ga-text-family); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-activity-text span { font: 400 13px/1.4 var(--ga-text-family); color: var(--ga-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ga-activity-time { font: 600 12px var(--ga-text-family); color: var(--ga-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ga-activity-queue { border-top: 1px solid var(--ga-line); padding-top: 12px; }
+.ga-activity-queue > summary { cursor: pointer; font: 700 14px var(--ga-text-family); color: var(--ga-muted); padding: 6px 0; }

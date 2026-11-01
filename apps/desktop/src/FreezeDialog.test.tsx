@@ -84,7 +84,9 @@ describe("freezing asks and answers in the app's notice", () => {
     await press("Congelar");
     unmount();
     mount();
-    expect(getNotice()).toBeNull();
+    // No second question: the corner keeps the job's own notice, with its bar (docs/GUI_DESIGN.md §4.9, Activity).
+    expect(getNotice()?.question).toBeFalsy();
+    expect(getNotice()?.progress).not.toBeUndefined();
     expect(freezeJob(game.app_id!)).toBeTruthy();
     expect(freeze).toHaveBeenCalledTimes(1);
     await act(async () => { settle.resolve({ ok: true }); });

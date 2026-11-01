@@ -6,7 +6,7 @@ import { formatBytes } from "./GenericDownloadProgress";
 import { translate } from "./i18n";
 import { libraryDemo, libraryScanState, scanLibrary } from "./libraryScan";
 import { freezeProgress, freezeSignal, hasTauriRuntime, type FreezeProgress } from "./native";
-import { confirmNotice, hideNotice, showNotice, type NoticeAction } from "./notice/notice";
+import { confirmNotice, hideNotice, showNotice, updateNotice, type NoticeAction } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import type { FreezeMode } from "./FreezeDialog";
 import type { CatalogGame } from "./types";
@@ -124,9 +124,13 @@ function announce(job: FreezeJob, outcome: FreezeOutcome): void {
   showNotice({
     game: noticeGame(job.game), title: resultTitle(job.mode, outcome), text: outcome.detail,
     tone: outcome.cancelled ? "info" : outcome.ok ? (job.mode === "move" ? "ok" : "frost") : "error", timer: good, onDismiss: () => dismissFreezeJob(job.appId),
+    activity: { key: jobKey(job.appId), state: outcome.ok ? "done" : outcome.cancelled ? "info" : "failed" },
     actions: [{ label: translate("noticeOk"), kind: outcome.ok ? (job.mode === "move" ? "primary" : "frost") : "secondary", run: () => hideNotice() }],
   });
 }
+
+/** A job's one entry in the activity history (started, working, then its result). */
+const jobKey = (appId: number) => `job:${appId}`;
 
 /** Freeze (either level) or thaw a game: at once when nothing else is working, else queued after it. */
 export function startFreezeJob(game: CatalogGame, mode: JobMode, options: { resume?: boolean } = {}): FreezeJob {
@@ -141,18 +145,20 @@ export function startFreezeJob(game: CatalogGame, mode: JobMode, options: { resu
     starters.delete(appId);
     job.queued = false;
     job.startedAt = Date.now();
+    // Its notice in the corner, with the bar, while no other notice comes (docs/GUI_DESIGN.md §4.9, Activity).
+    const noticeId = showNotice({ game: noticeGame(game), title: freezeTitle(mode, game.name), tone: mode === "move" ? "info" : "frost", progress: 0, activity: { key: jobKey(appId), state: "running" } });
+    const track = (progress: FreezeProgress) => { job.progress = progress; updateNotice(noticeId, { progress: (progress.percent ?? 0) / 100 }); emit(); };
     // The launcher's progress file; an older one (from the last freeze of this game) is not this job's.
     const poll = demo ? 0 : window.setInterval(() => {
       void freezeProgress(appId).then(progress => {
         if (!progress || progress.started_at * 1000 < job.startedAt - 5000 || jobs.get(appId) !== job) return;
-        job.progress = progress;
-        emit();
+        track(progress);
       }).catch(() => undefined);
     }, POLL_MS);
     const work = async (): Promise<FreezeOutcome> => {
       if (mode === "move") return demo ? demoMove() : moveIntoLibrary(appId, Boolean(options.resume));
       try {
-        const result = (demo ? await demoFreeze(mode as FreezeMode, progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId))
+        const result = (demo ? await demoFreeze(mode as FreezeMode, track, () => demoCancels.has(appId))
           : mode === "thaw" ? await digitalProcessManager.thaw(game) : await digitalProcessManager.freeze(game, mode as "freeze" | "deep")) as { cancelled?: boolean; frozen?: { stored_bytes?: number; original_bytes?: number } };
         if (result.cancelled) return { ok: false, cancelled: true, detail: translate(mode === "thaw" ? "lmThawCancelledText" : "lmFreezeCancelledText") };
         const frozen = result.frozen;
@@ -163,7 +169,7 @@ export function startFreezeJob(game: CatalogGame, mode: JobMode, options: { resu
     };
     // The demo move borrows the freeze's simulated progress.
     const demoMove = async (): Promise<FreezeOutcome> => {
-      const result = await demoFreeze("freeze", progress => { job.progress = progress; emit(); }, () => demoCancels.has(appId)) as { cancelled?: boolean };
+      const result = await demoFreeze("freeze", track, () => demoCancels.has(appId)) as { cancelled?: boolean };
       return result.cancelled ? { ok: false, cancelled: true, detail: translate("lmMoveCancelledText") } : { ok: true, detail: translate("moveDone", { size: formatBytes(job.progress?.total_bytes ?? 0), time: clock((Date.now() - job.startedAt) / 1000) }) };
     };
     void work().then(async outcome => {
@@ -188,7 +194,7 @@ export function startFreezeJob(game: CatalogGame, mode: JobMode, options: { resu
   if (ahead) {
     job.queued = true;
     starters.set(appId, run);
-    showNotice({ game: noticeGame(game), title: translate("lmFreezeQueuedTitle"), text: translate("lmFreezeQueuedText", { name: ahead.name }), tone: "frost" });
+    showNotice({ game: noticeGame(game), title: translate("lmFreezeQueuedTitle"), text: translate("lmFreezeQueuedText", { name: ahead.name }), tone: "frost", activity: { key: jobKey(appId), state: "running" } });
   } else run();
   open = true;
   focus = appId;

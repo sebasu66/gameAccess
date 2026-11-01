@@ -5,6 +5,7 @@ import { libraryMembership } from "./libraryMembership";
 import { reportClientError } from "./narrationLog";
 import { getAppLocale, translate } from "./i18n";
 import { confirmNotice, hideNotice, showNotice } from "./notice/notice";
+import { downloadActivityKey } from "./downloadNotifications";
 import { noticeGame } from "./notice/noticeGame";
 import { findAnotherSource } from "./sourceRescue";
 import { reportBadSource } from "./catalog/gameLessons";
@@ -62,6 +63,7 @@ export default function DigitalDownloadErrorDialog() {
         const failed = (error: unknown) => showNotice({ tone: "error", title: translate("toastActionFailed", { error: String(error instanceof Error ? error.message : error) }) });
         showNotice({
           game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,
+          activity: { key: downloadActivityKey(snapshot.gameId), state: "failed" },
           actions: [
             { label: translate("noSpaceKeepPaused"), kind: "primary", run: () => { hideNotice(); void digitalDownloadService.holdPaused(gameId).catch(failed); } },
             { label: translate("noSpaceCancel"), kind: "danger", run: () => void confirmNotice({
@@ -78,6 +80,7 @@ export default function DigitalDownloadErrorDialog() {
       const installFailed = snapshot.resumeStep === "extract" || Boolean(snapshot.steps?.some(step => ["extract", "install"].includes(step.id) && step.state === "failed"));
       showNotice({
         game: game ? noticeGame(game) : undefined, tone: "error", title: translate(installFailed ? "toastInstallFailed" : "toastDownloadFailed", { name }), text,
+        activity: { key: downloadActivityKey(snapshot.gameId), state: "failed" },
         details: game ? { label: translate("noticeShowLog"), load: () => failureLog(game) } : undefined,
         actions: [
           ...(game && installFailed ? [{ label: translate("noticeOpenFolder"), kind: "primary" as const, run: () => void digitalProcessManager.openFolder(game).catch(() => digitalProcessManager.openFolder(game, "download")) }] : []),

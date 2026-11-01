@@ -2,7 +2,8 @@ import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
 import HomeScreen from "./HomeScreen";
-import ProcessTasks from "./ProcessTasks";
+import ActivityPanel from "./activity/ActivityPanel";
+import { useActivity } from "./activity/activity";
 import KidModePanel from "./KidModePanel";
 import GamesScreenButton from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
@@ -18,7 +19,7 @@ import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorage
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { loadHome } from "./api";
 import { useCoverDiagnostics } from "./SteamCover";
@@ -54,7 +55,6 @@ import DeskPanel from "./desk/DeskPanel";
 import { uiDemo } from "./devDemo/uiDemo";
 import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
-import DigitalDownloadToast from "./DigitalDownloadToast";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
@@ -77,6 +77,10 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
   const downloadsOpen = useDesk().includes("downloads");
   const [unfinishedDownloads, setUnfinishedDownloads] = useState(0);
+  // The frame's Activity button: how many entries are unseen, and a light while something runs.
+  const activity = useActivity();
+  const unseenActivity = activity.filter(entry => !entry.seen && entry.state !== "running").length;
+  const activityRunning = unfinishedDownloads > 0 || activity.some(entry => entry.state === "running");
   const pendingNoticeShown = useRef(false);
   // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
   const demoService = useRef<ReturnType<typeof demoDownloadService>>();
@@ -670,7 +674,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       </header>
 
       {(() => {
-        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("processesTitle")} badge={unfinishedDownloads || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
+        const downloadsButton = <GaIconButton className={activityRunning ? "digital-download-nav is-active" : "digital-download-nav"} icon={<Bell size={20} aria-hidden="true" />} label={t("processesTitle")} badge={unseenActivity || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
@@ -691,7 +695,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /><ProcessTasks onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><ActivityPanel onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }}
+        queue={<DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} />} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
@@ -699,7 +704,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       <DigitalDownloadErrorDialog />
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
-      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
     </div>
   );
 }

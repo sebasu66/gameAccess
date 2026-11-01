@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { recordActivity, type ActivityState } from "../activity/activity";
 
 /**
  * The app's single notice (docs/GUI_DESIGN.md §4.9): results, steps and simple confirmations, bottom right.
@@ -6,13 +7,14 @@ import { useSyncExternalStore } from "react";
  * A good result without its own buttons closes itself after 8 s (Seba, 2026-10-31: 3 s went by before it could be
  * read; 5 to 10 s); an error never closes by itself.
  * Long blocking work (updates, catalog database, plugin) stays in the central dialog.
+ * Every notice but a question also leaves its entry in the activity history (activity/activity.ts, §4.9).
  */
 export type NoticeTone = "ok" | "info" | "frost" | "danger" | "error";
 export type NoticeActionKind = "primary" | "secondary" | "danger" | "frost";
 export interface NoticeAction { label: string; kind?: NoticeActionKind; run: () => void }
 export type NoticeStepState = "pending" | "running" | "done" | "failed";
 export interface NoticeStep { label: string; state: NoticeStepState }
-export interface NoticeGame { name: string; image?: string | null }
+export interface NoticeGame { name: string; image?: string | null; appId?: number | null }
 /** A folded section under the text: `load` gives its text the first time it is opened (a log, for instance). */
 export interface NoticeDetails { label: string; load: () => Promise<string> }
 export interface Notice {
@@ -30,6 +32,10 @@ export interface Notice {
   progress?: number | null;
   /** Called once when this notice leaves the screen (closed, timed out or replaced). */
   onDismiss?: () => void;
+  /** Its entry in the activity history: a process gives its key (one entry that changes state); false leaves none. */
+  activity?: { key?: string; state?: ActivityState } | false;
+  /** A question waiting for an answer (confirmNotice): no history entry, what follows the answer has its own. */
+  question?: boolean;
 }
 export type NoticeInput = Omit<Notice, "id" | "actions" | "timer"> & { actions?: NoticeAction[]; timer?: boolean };
 
@@ -54,6 +60,10 @@ export function showNotice(input: NoticeInput): number {
   const working = Boolean(input.steps?.length) || input.progress !== undefined;
   const timer = input.timer ?? (!actions.length && !working && input.tone !== "error");
   current = { ...input, id: nextId++, actions, timer };
+  if (!input.question && input.activity !== false) {
+    const state: ActivityState = input.activity?.state ?? (input.tone === "error" ? "failed" : working ? "running" : input.tone === "ok" || input.tone === "frost" ? "done" : "info");
+    recordActivity({ key: input.activity?.key, title: input.title, text: input.text, tone: input.tone, state, appId: input.game?.appId ?? undefined, name: input.game?.name, image: input.game?.image });
+  }
   settle(previous);
   emit();
   return current.id;
@@ -99,7 +109,7 @@ export function confirmNotice(input: { game?: NoticeGame; title: string; text?: 
       if (!ok) hideNotice(id);
     };
     id = showNotice({
-      game: input.game, title: input.title, text: input.text, tone: input.kind === "frost" ? "frost" : input.kind === "primary" ? "info" : "danger", timer: false,
+      game: input.game, title: input.title, text: input.text, tone: input.kind === "frost" ? "frost" : input.kind === "primary" ? "info" : "danger", timer: false, question: true,
       actions: [{ label: input.cancelLabel, kind: "secondary", run: () => answer(false) }, { label: input.confirmLabel, kind: input.kind ?? "danger", run: () => answer(true) }],
     });
     const resolver = (ok: boolean) => resolve(ok);
@@ -110,7 +120,9 @@ export function confirmNotice(input: { game?: NoticeGame; title: string; text?: 
 /** A notice that walks through steps; the caller marks each one and ends with a result. */
 export function runSteps(input: { game?: NoticeGame; title: string; text?: string; steps: string[]; tone?: NoticeTone }) {
   let steps: NoticeStep[] = input.steps.map(label => ({ label, state: "pending" }));
-  const id = showNotice({ game: input.game, title: input.title, text: input.text, tone: input.tone ?? "info", steps, progress: 0 });
+  // One history entry for the whole walk: the result changes it instead of adding another.
+  const key = `steps:${nextId}`;
+  const id = showNotice({ game: input.game, title: input.title, text: input.text, tone: input.tone ?? "info", steps, progress: 0, activity: { key } });
   const progress = () => steps.filter(step => step.state === "done").length / Math.max(1, steps.length);
   return {
     id,
@@ -121,12 +133,12 @@ export function runSteps(input: { game?: NoticeGame; title: string; text?: strin
     /** Ends well: same notice, result text and the timer (or the given buttons). */
     succeed(result: { title: string; text?: string; actions?: NoticeAction[] }) {
       if (current?.id !== id) return;
-      showNotice({ game: input.game, tone: "ok", ...result, timer: true });
+      showNotice({ game: input.game, tone: "ok", ...result, timer: true, activity: { key } });
     },
     /** Ends with an error: it stays until the player closes it. */
     fail(result: { title: string; text?: string; actions: NoticeAction[] }) {
       if (current?.id !== id) return;
-      showNotice({ game: input.game, tone: "error", ...result, timer: false });
+      showNotice({ game: input.game, tone: "error", ...result, timer: false, activity: { key } });
     },
   };
 }

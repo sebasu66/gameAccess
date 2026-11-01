@@ -137,6 +137,15 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Texto largo: el aviso crece hacia arriba, el ancho no cambia. `z-index` por encima de la ficha y de los paneles.
 - Los diálogos que bloquean la app (actualización, base del catálogo, plugin) siguen en el diálogo central (`src/centralDialog`).
 
+- **Actividad (Seba, 2026-11-01).** Todo aviso, al irse de la esquina, queda en el **historial** del panel Actividad (§4.17), como las notificaciones de Windows 11. Reglas:
+  1. **Una pregunta no va al historial** hasta que se responde: queda en la esquina sin cerrarse sola. Al historial va lo que pasó después (p. ej. "Congelando Hades").
+  2. **Una entrada por proceso** (descarga, congelado, mover...), que cambia de estado: iniciada → en curso → completada / falló, con la hora de inicio y la de fin. No se agrega una entrada nueva al terminar.
+  3. **Lo que corre va aparte**: arriba en el panel, "En curso", con su progreso en vivo; debajo el historial, del más nuevo al más viejo.
+  - Un proceso que empieza muestra su aviso en la esquina con la barra de progreso, sin temporizador, mientras no llegue otro aviso.
+  - Cada entrada que tiene un juego lleva a su fila en el Library Manager, donde está su detalle.
+  - El historial se guarda en la PC (hasta 30 días o 200 entradas) y se agrupa por día; el botón del marco cuenta las entradas sin ver.
+  - Ya no hay indicador flotante de descargas ni consola flotante de congelado.
+
 ### 4.10 Insignia de estado
 - Pastilla de 20 px, texto 11 px, color según estado: naranja (en curso), verde (listo), rojo (error), gris (sin estado).
 
@@ -196,6 +205,8 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Sin foco: gris (`grayscale(1) brightness(.8)`); con mouse o foco toma color. Sin perspectiva: el panel queda plano.
 - Descargas se abre siempre como panel lateral (nunca pantalla completa), en cualquier ancho de ventana.
 - Encabezado §4.6 con `ga-close`; en ventanas chicas el panel es la pantalla completa con `ga-back` (§4.11). El pie queda siempre por encima de los paneles.
+
+- **Actividad (2026-11-01, reemplaza a "Descargas" y a "Procesos y descargas"):** el único panel lateral. Encabezado "Actividad"; **En curso** arriba (descargas y tareas que corren: nombre, barra, cancelar; clic lleva a la fila del juego en el Library Manager); **Historial** debajo, agrupado por día (Hoy, Ayer, fecha), cada entrada con portada o ícono del tono, título, texto, hora y estado; "Borrar historial" al final. Mientras el detalle de las descargas no esté en el Library Manager, la cola completa queda plegada al final del panel.
 
 ### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)
 - Acordeón: el separador entero es un botón (`aria-expanded`) con flecha a la izquierda (gira 90° al abrir), nombre del grupo en mayúsculas 11 px, cantidad entre paréntesis y la línea que se desvanece a la derecha. Al pasar el mouse o con foco, nombre y flecha en blanco; foco con anillo naranja.
