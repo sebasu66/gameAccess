@@ -82,7 +82,7 @@
 .lm-grid th.lm-cell-acts { background: #15191d; }
 .lm-row:hover > td.lm-acts, .lm-row:focus-within > td.lm-acts { background: #1d2124; }
 .lm-row.is-selected > td.lm-acts { background: #22201d; }
-.lm-detail-row > td { padding: 0 8px 12px 120px; background: #ffffff05; }
+.lm-detail-row > td { padding: 0 8px 16px 120px; background: var(--ga-surface); }
 .lm-detail { display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
 /* A grid wider than its window scrolls sideways: the open row's detail stays in the visible part, as wide as it. */
 .lm-detail { position: sticky; left: 120px; max-width: calc(100cqw - 136px); }
@@ -225,16 +225,26 @@
 .lm-status.bad { color: var(--ga-danger-ink); background: color-mix(in srgb, var(--ga-danger) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ga-danger) 33%, transparent); }
 .lm-runcheck { margin-left: 6px; }
 
-/* A download's detail in its game's row (downloads/DownloadDetail.tsx, Seba 2026-11-01): the picture small on the
-   left, the stage, steps and actions on the right; the actions with their names, like the manager's buttons. */
-.lm-detail .lm-download { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); grid-template-areas: "head head" "art progress" "art steps" "art actions"; align-items: start; column-gap: 24px; padding: 4px 0 8px; border-top: 0; }
-.lm-download > .ga-dl-card-head { grid-area: head; }
-.lm-download > .ga-dl-card-art { grid-area: art; }
-.lm-download > .ga-dl-card-progress { grid-area: progress; margin-top: 0; }
-.lm-download > .lm-download-error { grid-area: progress; color: var(--ga-danger); }
-.lm-download > .ga-dl-steps { grid-area: steps; }
-.lm-download > .lm-download-actions { grid-area: actions; display: flex; flex-wrap: wrap; gap: 8px; opacity: 1; transform: none; max-height: none; }
+/* A game's row, open (RowExpand.tsx, Seba 2026-11-01): the row and what opens under it read as one block; the log on
+   the left, the picture with the animation of what is happening on the right. */
+.lm-row.is-expanded > td { background: var(--ga-surface); }
+.lm-row.is-expanded > td.lm-acts { background: #171b1f; }
+.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 400px); gap: 32px; align-items: start; }
+.lm-expand-log { display: grid; gap: 12px; min-width: 0; }
+.lm-expand-log .lm-history { height: 13rem; }
+.lm-expand-art { position: relative; min-width: 0; }
+.lm-expand-still { display: block; width: 100%; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 8px; }
+.lm-expand-still.is-frozen { filter: saturate(.4) brightness(.9); }
+.lm-download { display: grid; gap: 12px; min-width: 0; }
+.lm-download > .ga-dl-card-progress { margin-top: 0; }
+.lm-download > .lm-download-error { color: var(--ga-danger); }
+.lm-download-art { border-radius: 8px; }
+.lm-download-art > .ga-dl-card-badges { position: absolute; top: 8px; right: 8px; }
+.lm-download-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .lm-download-actions > button { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 13px var(--ga-text-family); cursor: pointer; }
 .lm-download-actions > button:hover:not(:disabled) { border-color: var(--ga-orange-line); }
 .lm-download-actions > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
 .lm-download-actions > button:disabled { opacity: .5; cursor: wait; }
+/* The freeze and the move draw at the picture's column width, as the still picture does. */
+.lm-expand-art .lm-fbar { width: 100%; height: auto; margin-right: 0; }
+.lm-expand-art .lm-move { width: 100%; }

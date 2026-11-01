@@ -38,6 +38,7 @@ import DownloadDetail, { type DownloadEntry } from "../downloads/DownloadDetail"
 import { activeDownloadService } from "../downloads/activeService";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
 import ManualDownloadForm from "../ManualDownloadForm";
+import RowExpand from "./RowExpand";
 import "./manager.css";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
@@ -303,6 +304,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const busyFreezing = Boolean(job && !job.outcome);
   // A download of this game shows its detail in the row, open, while it lasts (Seba, 2026-11-01).
   const download = downloadOf(id);
+  const unfolded = open || Boolean(freezing) || Boolean(download);
   const hosted = Boolean(freezing) && id != null;
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -311,9 +313,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
-    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}`} data-app-id={id ?? undefined}>
+    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${unfolded ? " is-expanded" : ""}`} data-app-id={id ?? undefined}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
-      <td><span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span></td>
+      <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span>}</td>
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
@@ -370,19 +372,19 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         </>}
       </td>
     </tr>
-    {open || freezing || download ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
-      {download ? <DownloadDetail entry={download} service={activeDownloadService()} queueLength={queueLength} /> : null}
-      {open && game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
-        <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-      {/* The log and, during a freeze, the game's picture beside it: same top, same height. */}
-      {!game.partial && (open || freezing) ? <div><b>{c.historyTitle}</b><div className={`lm-history-row${freezing ? " has-frost" : ""}${freezing?.mode === "move" ? " has-move" : ""}`}>
-        <History game={game} c={c} job={freezing} />
-        {/* Cancelled, the cubes go back where they were: the game is as it was. */}
-        {freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
+    {unfolded ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
+      {download ? <DownloadDetail entry={download} service={activeDownloadService()} queueLength={queueLength} /> : <RowExpand
+        log={<>
+          {game.issues.length && (!game.unfinished || game.stalled) ? <div><b>{c.whatNeeds}</b>
+            <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
+          {!game.partial ? <div><b>{c.historyTitle}</b><History game={game} c={c} job={freezing} /></div> : null}
+        </>}
+        art={freezing && id && freezing.mode === "move" ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
           state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={moveLeft(freezing.progress, freezing.outcome ? "done" : "working")} />
+          // Cancelled, the cubes go back where they were: the game is as it was.
           : freezing && id ? <FreezeBar src={landscape(id)} mode={freezing.mode as FreezeMode} percent={freezing.outcome?.cancelled ? 0 : freezing.outcome?.ok ? 100 : freezing.progress?.percent ?? 0}
-          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} /> : null}
-      </div></div> : null}
+          state={freezing.outcome ? (freezing.outcome.ok || freezing.outcome.cancelled ? "done" : "failed") : "working"} size={freezeSize(freezing.progress)} />
+          : id ? <img className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} src={landscape(id)} alt="" /> : null} />}
     </div></td></tr> : null}
   </>);
 }
@@ -397,9 +399,9 @@ function downloadStatus(entry: DownloadEntry): Status {
 function DownloadRow({ row, entry, columns, queueLength }: { row: GridRow; entry: DownloadEntry; columns: number; queueLength: number }) {
   const appId = entry.game.app_id ?? entry.snapshot.gameId;
   return (<>
-    <tr className="lm-row" data-app-id={appId}>
+    <tr className="lm-row is-expanded" data-app-id={appId}>
       <td className="lm-cell-check" />
-      <td><span className="lm-thumb"><img src={landscape(appId)} alt="" loading="lazy" /></span></td>
+      <td />
       <td className="lm-cell-name"><div className="lm-name" title={entry.game.name}>{entry.game.name}</div></td>
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path">—</td>

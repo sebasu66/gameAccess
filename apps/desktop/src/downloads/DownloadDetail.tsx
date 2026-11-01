@@ -17,15 +17,16 @@ import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
 import { notify } from "../toasts";
 import type { CatalogGame } from "../types";
+import RowExpand from "../library-manager/RowExpand";
 import "../digital-downloads.css";
 
 export type DownloadEntry = { game: CatalogGame; snapshot: DownloadProgressSnapshot };
 
 /**
  * A download's detail (docs/GUI_DESIGN.md §4.21): in its game's row of the Library Manager, where the game's whole
- * install lives (Seba, 2026-11-01). The name and the plan's icons, a wide picture with the speed drawn over it, the
- * running stage's dial and bar, the steps with the sizes, and its actions: pause or resume, up and down in the queue,
- * go on after a stop, cancel (asked in the notice) and the download's folder.
+ * install lives (Seba, 2026-11-01), with the row's pattern (RowExpand): on the left the running stage's dial and bar,
+ * the steps with the sizes and its actions (pause or resume, up and down in the queue, go on after a stop, cancel
+ * asked in the notice, the download's folder); on the right the game's picture with the speed drawn over it.
  */
 export default function DownloadDetail({ entry, service, queueLength = 0 }: { entry: DownloadEntry; service: DigitalDownloadService; queueLength?: number }) {
   const { t, locale } = useI18n();
@@ -56,18 +57,21 @@ export default function DownloadDetail({ entry, service, queueLength = 0 }: { en
   const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : stage === "check" ? snapshot.checkPercent ?? 0 : 0;
   const stageLabel = stage === "download" ? t("downloadsDownloadBar") : stage === "install" ? t("downloadsInstallBar") : t("downloadsCheckBar");
 
-  return <article className="ga-dl-card lm-download" data-phase={phase}>
-    <header className="ga-dl-card-head">
-      <h3 title={game.name}>{phase === "queued" && position >= 0 ? `${position + 1} · ` : ""}{downloadPhaseLabel(phase, locale)}</h3>
-      <span className="ga-dl-card-badges">
-        {plan ? <span className={`ga-dl-badge plan-${tier}`} title={`${plan.label} · ${plan.hint}`} aria-label={`${plan.label}: ${plan.hint}`}><ArrowDownToLine size={14} aria-hidden="true" /></span> : null}
-        {method === "accelerated" && methodText ? <span className="ga-dl-badge route-accelerated" title={methodText.hint} aria-label={`${methodText.label}: ${methodText.hint}`}><Plus size={13} strokeWidth={3} aria-hidden="true" /></span> : null}
-      </span>
-    </header>
-    <div className="ga-dl-card-art">
-      <DigitalDownloadThumb game={game} />
-      {phase === "downloading" ? <DownloadSpeedSpark samples={service.getSpeedSamples(gameId)} speedBps={snapshot.speedBps} /> : null}
-    </div>
+  const actions = <div className="ga-dl-card-actions lm-download-actions">
+    {phase === "queued" && position > 0 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveUpAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, -1)}><ArrowUp size={16} /><span className="ga-dl-label">{t("downloadsMoveUp")}</span></button> : null}
+    {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveDownAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} /><span className="ga-dl-label">{t("downloadsMoveDown")}</span></button> : null}
+    {canPause ? <button type="button" disabled={busy} onClick={() => void run(() => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
+    {phase === "paused" ? <button type="button" disabled={busy} onClick={() => void run(() => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
+    {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
+    {stopped ? <button type="button" className="ga-download-resume" disabled={busy} onClick={() => void run(() => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}<span className="ga-dl-label">{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</span></button> : null}
+    <button type="button" disabled={busy || phase === "cancelling"} aria-label={t("downloadsCancelAria", { name: game.name })} onClick={cancel}><X size={16} /><span className="ga-dl-label">{stopped ? t("downloadsAbort") : t("downloadsCancel")}</span></button>
+    {hasFolder ? <button type="button" disabled={busy} aria-label={`${t("downloadsOpenFolder")}: ${game.name}`} onClick={() => void run(async () => { await digitalProcessManager.openFolder(game, "download"); })}><FolderOpen size={16} /><span className="ga-dl-label">{t("downloadsOpenFolder")}</span></button> : null}
+  </div>;
+
+  // The log: the stage (its dial and bar), the steps with the sizes and the actions. The picture: the game with the
+  // speed drawn over it while it downloads, and the plan's icons.
+  const log = <div className="lm-download" data-phase={phase}>
+    <b>{phase === "queued" && position >= 0 ? `${position + 1} · ` : ""}{downloadPhaseLabel(phase, locale)}</b>
     {stage ? <div className="ga-download-telemetry ga-dl-card-progress">
       <DownloadDial percent={percent} label={stageLabel} />
       <div className="ga-dl-card-bar">
@@ -86,15 +90,15 @@ export default function DownloadDetail({ entry, service, queueLength = 0 }: { en
         {methodText ? <div><dt>{t("downloadsRouteLabel")}</dt><dd title={methodText.hint}>{methodText.label}</dd></div> : null}
         {plan ? <div><dt>{t("downloadsPlanLabel")}</dt><dd title={plan.hint}>{plan.label}</dd></div> : null}
       </dl>} />
-    <div className="ga-dl-card-actions lm-download-actions">
-      {phase === "queued" && position > 0 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveUpAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, -1)}><ArrowUp size={16} /><span className="ga-dl-label">{t("downloadsMoveUp")}</span></button> : null}
-      {phase === "queued" && position >= 0 && position < queueLength - 1 ? <button type="button" disabled={busy} aria-label={t("downloadsMoveDownAria", { name: game.name })} onClick={() => service.moveInQueue(gameId, 1)}><ArrowDown size={16} /><span className="ga-dl-label">{t("downloadsMoveDown")}</span></button> : null}
-      {canPause ? <button type="button" disabled={busy} onClick={() => void run(() => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
-      {phase === "paused" ? <button type="button" disabled={busy} onClick={() => void run(() => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
-      {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
-      {stopped ? <button type="button" className="ga-download-resume" disabled={busy} onClick={() => void run(() => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}<span className="ga-dl-label">{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</span></button> : null}
-      <button type="button" disabled={busy || phase === "cancelling"} aria-label={t("downloadsCancelAria", { name: game.name })} onClick={cancel}><X size={16} /><span className="ga-dl-label">{stopped ? t("downloadsAbort") : t("downloadsCancel")}</span></button>
-      {hasFolder ? <button type="button" disabled={busy} aria-label={`${t("downloadsOpenFolder")}: ${game.name}`} onClick={() => void run(async () => { await digitalProcessManager.openFolder(game, "download"); })}><FolderOpen size={16} /><span className="ga-dl-label">{t("downloadsOpenFolder")}</span></button> : null}
-    </div>
-  </article>;
+    {actions}
+  </div>;
+  const art = <div className="ga-dl-card-art lm-download-art">
+    <DigitalDownloadThumb game={game} />
+    {phase === "downloading" ? <DownloadSpeedSpark samples={service.getSpeedSamples(gameId)} speedBps={snapshot.speedBps} /> : null}
+    <span className="ga-dl-card-badges">
+      {plan ? <span className={`ga-dl-badge plan-${tier}`} title={`${plan.label} · ${plan.hint}`} aria-label={`${plan.label}: ${plan.hint}`}><ArrowDownToLine size={14} aria-hidden="true" /></span> : null}
+      {method === "accelerated" && methodText ? <span className="ga-dl-badge route-accelerated" title={methodText.hint} aria-label={`${methodText.label}: ${methodText.hint}`}><Plus size={13} strokeWidth={3} aria-hidden="true" /></span> : null}
+    </span>
+  </div>;
+  return <RowExpand log={log} art={art} />;
 }

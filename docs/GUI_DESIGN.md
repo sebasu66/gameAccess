@@ -227,6 +227,11 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - **Variante juegos del niño** (`KidGamesGrid`, pantalla de niños): la misma tabla con cuatro columnas, portada, nombre, interruptor **Sí/No** (pastilla de 32 px, naranja si lo ve) y **límite propio** (General / Específico; el específico con − y + de a 30 minutos hasta el tiempo del día). Sin ancho mínimo: entra en el diálogo.
 - Solo se desplazan las filas (con la barra redonda); título, resumen, botones (apilados a la derecha del resumen), filtros y encabezado de la tabla quedan fijos.
 
+### 4.20b Fila abierta del administrador (`RowExpand`, Seba 2026-11-01)
+- **Una sola fila por juego que se despliega**, con el mismo patrón en todos los casos (descarga, congelado, mover, historial): a la izquierda el **registro** del juego (lo que falta, el historial o los pasos de la descarga con sus acciones); a la derecha la **imagen con la animación** de lo que está pasando (velocidad sobre la imagen, prensa de hielo, cubos al mover; quieta si no pasa nada).
+- Abierta, la fila no muestra la miniatura: el nombre del juego queda arriba, en la fila. Fila y detalle se leen como un solo bloque (mismo fondo).
+- Se abre sola mientras dura una descarga o una tarea del juego, y con el botón Historial.
+
 ### 4.21 Descarga en la lista `digital-download-row` / `ga-dl-card`
 - Cada descarga es una tarjeta: borde `#ffffff12`, radio 10 px (12 la que está en curso), fondo `#ffffff05`, 8 px entre tarjetas; con mouse o foco el fondo y el borde se aclaran.
 - Con mouse o foco la tarjeta crece hacia abajo y se abre una fila de botones debajo de la imagen, alineada a la derecha, con la cruz para quitarla al final. Botones planos de 34 px, solo ícono (el nombre se despliega al pasar el mouse): fondo transparente, borde opaco `#59636a`, ícono naranja.
