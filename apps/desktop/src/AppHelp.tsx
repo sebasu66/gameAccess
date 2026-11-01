@@ -40,32 +40,38 @@ const copy = {
  },
 };
 
-function HelpPanel({ onClose }: { onClose: () => void }) {
+/** The help's topics and the contact: in the help dialog and in Home (docs/GUI_DESIGN.md §0b). */
+export function HelpContent() {
  const { locale } = useI18n(); const c = copy[locale];
- const panel = useDialogFocus(onClose);
  const email = supportEmail();
  const [copied, setCopied] = useState(false);
  const copyMail = () => { void navigator.clipboard?.writeText(email).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => undefined); };
+ return <>
+  {c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
+   <summary>{topic.title}</summary>
+   <ol>{topic.steps.map(step => <li key={step}>{step}</li>)}</ol>
+  </details>)}
+  <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
+   <h3 id="ga-help-contact-title">{c.contact}</h3>
+   <p>{c.contactText}</p>
+   {email
+    ? <div className="ga-help-actions">
+       <a className="ga-help-write" href={supportMailto(email, c.subject)}><Mail size={16} />{c.write}</a>
+       <button type="button" onClick={copyMail}><Copy size={16} />{copied ? c.copied : c.copyMail}</button>
+       <span className="ga-help-address">{email}</span>
+      </div>
+    : <p className="ga-help-missing">{c.noMail}</p>}
+  </div>
+ </>;
+}
+
+function HelpPanel({ onClose }: { onClose: () => void }) {
+ const { locale } = useI18n(); const c = copy[locale];
+ const panel = useDialogFocus(onClose);
  return <div className="ga-settings-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
   <section ref={panel} className="ga-settings-panel ga-help-panel" role="dialog" aria-modal="true" aria-labelledby="ga-help-title">
    <header><div><span className="eyebrow">GAME ACCESS</span><h2 id="ga-help-title">{c.title}</h2><p>{c.subtitle}</p></div><GaClose label={c.close} onClick={onClose} data-dialog-initial /></header>
-   <div className="ga-settings-content">
-    {c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
-     <summary>{topic.title}</summary>
-     <ol>{topic.steps.map(step => <li key={step}>{step}</li>)}</ol>
-    </details>)}
-    <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
-     <h3 id="ga-help-contact-title">{c.contact}</h3>
-     <p>{c.contactText}</p>
-     {email
-      ? <div className="ga-help-actions">
-         <a className="ga-help-write" href={supportMailto(email, c.subject)}><Mail size={16} />{c.write}</a>
-         <button type="button" onClick={copyMail}><Copy size={16} />{copied ? c.copied : c.copyMail}</button>
-         <span className="ga-help-address">{email}</span>
-        </div>
-      : <p className="ga-help-missing">{c.noMail}</p>}
-    </div>
-   </div>
+   <div className="ga-settings-content"><HelpContent /></div>
   </section>
  </div>;
 }

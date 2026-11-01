@@ -38,7 +38,8 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
-import { GaButton, GaClose, GaIconButton } from "./components/ga/Buttons";
+import { GaBack, GaButton, GaIconButton } from "./components/ga/Buttons";
+import { OPEN_LIBRARY_MANAGER_EVENT } from "./libraryManagerNav";
 import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
@@ -240,6 +241,19 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     }, open ? "manager:open" : "manager:close");
   };
   useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
+  // A task of the processes panel takes to its game's row in the manager, from any view of the games.
+  const pendingManager = useRef(false);
+  useEffect(() => {
+    const show = (event: Event) => {
+      const appId = (event as CustomEvent<{ appId?: number }>).detail?.appId;
+      if (appId != null) setManagerFocus(appId);
+      if (view === "library") toggleManager(true);
+      else { pendingManager.current = true; onViewChange("library"); }
+    };
+    window.addEventListener(OPEN_LIBRARY_MANAGER_EVENT, show);
+    return () => window.removeEventListener(OPEN_LIBRARY_MANAGER_EVENT, show);
+  });
+  useEffect(() => { if (view === "library" && pendingManager.current) { pendingManager.current = false; toggleManager(true); } }, [view]);
   // Big picture mode is the grid of ready games only: the library manager closes.
   const bigPicture = useBigPicture();
   useEffect(() => { if (bigPicture) setManagerOpen(false); }, [bigPicture]);
@@ -506,10 +520,9 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
-  // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
-  const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
+  // The manager is a mode of the library (docs/GUI_DESIGN.md §0b): a big button on the library's toolbar, not in the frame.
   const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!managerWanted.current)} /> : null;
+    ? <GaButton className="ga-library-manager-button" icon={<HardDrive size={18} aria-hidden="true" />} onClick={() => toggleManager(true)}>{t("libraryManagerButton")}</GaButton> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -521,12 +534,12 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
-      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
+      </div> : null}{managerButton}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
-            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaBack label={t("back")} onClick={() => toggleManager(false)} /></header>
             <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
           </div>
         ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">
@@ -541,7 +554,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
       {props.actionsTarget && backToTop ? createPortal(backToTop, props.actionsTarget) : null}
-      {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
       {/* A catalog card: the same glass side menu as the library, with only the catalog's actions. */}
       {contextMenu && view === "catalog" && contextMenu.anchor ? (
         <CatalogGameMenu game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}

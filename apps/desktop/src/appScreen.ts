@@ -4,13 +4,13 @@
  * While a screen is on, the games behind it are hidden (html.ga-screen-on) and the game detail closes (LibraryRoom).
  * Changing mode is one step of the transition queue (motion/transitions.ts), animated like the grid and the library
  * manager trading places: what is shown leaves upward and fades, then the new mode comes in from below.
- * Stage: prototype (docs/TAREA-pantallas-y-modos.md, P4); settings and home join later.
+ * Stage: prototype (docs/TAREA-pantallas-y-modos.md, P4, P5 and P8).
  */
 import { useSyncExternalStore } from "react";
 import { dur, gsap } from "./motion/gsap";
 import { nextFrame, queueTransition } from "./motion/transitions";
 
-export type AppScreen = "games" | "kids";
+export type AppScreen = "games" | "home" | "kids" | "settings";
 
 let screen: AppScreen = "games";
 // The last mode asked for (queued changes run in order; asking again for it adds nothing).
@@ -27,7 +27,9 @@ export const useAppScreen = (): AppScreen => useSyncExternalStore(subscribe, get
 /** What a mode shows on the page: the games are the catalog's area, its top bar and the side word; a screen is itself. */
 function shown(mode: AppScreen): Element[] {
   if (typeof document === "undefined") return [];
-  const parts = mode === "games" ? [".app-shell > main", "header.topbar > :not(.topbar-actions)", ".ga-view-rail"] : [".ga-screen"];
+  // A screen by its own mode: while one replaces another, both are on the page for a moment (the old one until React
+  // takes it away), and the new one must be the one brought in.
+  const parts = mode === "games" ? [".app-shell > main", "header.topbar > :not(.topbar-actions)", ".ga-view-rail"] : [`.ga-screen[data-mode="${mode}"]`];
   return parts.flatMap(selector => Array.from(document.querySelectorAll(selector)));
 }
 

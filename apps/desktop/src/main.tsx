@@ -14,7 +14,6 @@ import RuntimeGate from "./RuntimeGate";
 import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
-import { togglePanel, useDesk } from "./desk/desk";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
 import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
@@ -23,7 +22,7 @@ import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
-import { Bell, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
 import AmbientBackground from "./AmbientBackground";
@@ -103,8 +102,7 @@ function CatalogShell() {
   // dialog shows the progress when it takes a while.
   const [prepared, setPrepared] = React.useState(false);
   React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
-  const news = useAnnouncements(prepared);
-  const newsOpen = useDesk().includes("news");
+  useAnnouncements(prepared);
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
@@ -124,7 +122,7 @@ function CatalogShell() {
   }, [mode]);
   return <>
     <LibraryInputController mode={mode} onModeChange={changeMode} />
-    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div>
+    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }

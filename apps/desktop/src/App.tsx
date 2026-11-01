@@ -1,7 +1,8 @@
 import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
-import AppHelp from "./AppHelp";
+import HomeScreen from "./HomeScreen";
+import ProcessTasks from "./ProcessTasks";
 import KidModePanel from "./KidModePanel";
 import GamesScreenButton from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
@@ -50,7 +51,6 @@ import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/Digi
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DeskPanel from "./desk/DeskPanel";
-import NewsPanel from "./NewsPanel";
 import { uiDemo } from "./devDemo/uiDemo";
 import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
@@ -666,12 +666,12 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <GamesScreenButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} />
+          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
         </div>
       </header>
 
       {(() => {
-        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} badge={unfinishedDownloads || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
+        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("processesTitle")} badge={unfinishedDownloads || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
@@ -692,8 +692,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      <DeskPanel id="news" eyebrow="GAME ACCESS" title={t("newsButton")}><NewsPanel games={games} onOpenGame={game => { if (!isWideDesk()) closePanel("news"); openGame(game); }} /></DeskPanel>
-      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /><ProcessTasks onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}

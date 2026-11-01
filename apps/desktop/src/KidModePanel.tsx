@@ -46,7 +46,7 @@ function KidScreen() {
   const { applied } = useKidState();
   // The wizard's last word, a large dialog (MN.27): kept here because the wizard gives way to the panel when it ends.
   const [ready, setReady] = useState<KidReady | null>(null);
-  return <GaScreen id="ga-kid" title={t("familyTitle")} subtitle={t("familySubtitle")} className="ga-kid-panel">
+  return <GaScreen id="ga-kid" mode="kids" title={t("familyTitle")} subtitle={t("familySubtitle")} className="ga-kid-panel">
     <div className="ga-kid-content ga-stack ga-stack-lg">
       <PlusLapsedNote />
       {applied ? <KidControlPanel /> : <KidWizard onPlus={knowPlus} onReady={setReady} />}
