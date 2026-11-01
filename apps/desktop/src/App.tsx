@@ -38,6 +38,7 @@ import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
 import LaunchDialog from "./LaunchDialog";
+import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
 import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
@@ -558,8 +559,12 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       // The game gets the focus; when it ends, Game Access comes back with the grid focused.
       watchGameFocus(playedFolder);
       launchOpened(launch.id);
+      // The automatic fix made it start: keep what worked in the profile and share it (only a real fix, never a plain launch).
+      const learnedFix = autoFixed ? takeLearnedFix(game.app_id ?? game.id) : null;
+      if (learnedFix) void shareRunFix(game, learnedFix);
     } catch (err) {
       resumeFreezes();
+      if (autoFixed) takeLearnedFix(game.app_id ?? game.id);  // the fix did not make it start: nothing to share
       const message = err instanceof Error ? err.message : String(err);
       // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
       if (isBrokenInstall(message)) { closeLaunch(launch.id); setBrokenGame({ game, message }); }

@@ -111,7 +111,7 @@ def video_driver() -> dict:
     script = ("Get-CimInstance Win32_VideoController | Where-Object { $_.DriverDate } | Sort-Object AdapterRAM -Descending | "
               "Select-Object -First 1 Name, DriverVersion, @{n='Date';e={$_.DriverDate.ToString('yyyy-MM-dd')}} | ConvertTo-Json -Compress")
     try:
-        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=15, creationflags=_HIDDEN).stdout.strip()
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, timeout=15, creationflags=_HIDDEN).stdout.decode("utf-8", "replace").strip()
         import json
         data = json.loads(out) if out else {}
         stamp = time.mktime(time.strptime(data["Date"], "%Y-%m-%d"))

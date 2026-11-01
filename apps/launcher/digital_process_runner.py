@@ -1,6 +1,6 @@
 from __future__ import annotations
 from game_execution_manager.fix_backup import DigitalArchiveBackup
-from game_execution_manager.execution_profile import load_profile, apply_before_play
+from game_execution_manager.execution_profile import load_profile, apply_before_play, save_profile, clean_learned_fix
 import argparse
 import json
 import os
@@ -42,11 +42,15 @@ class DigitalProcessRunner:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
 
-    def auto_fix(self, app_id, name, folder, linked_record, freezer, game_options) -> list[dict]:
+    def auto_fix(self, app_id, name, folder, linked_record, freezer, game_options, server_fix=None):
         """The alternatives the launch dialog's "fix it for me" tries before launching again, each reported as
         {id, ok, detail}: start Steam (in the background) for a game that uses it and is not running; thaw it when it is
         frozen; put the fix's backup back (the archive saved when it was installed); put the language files back and
-        stop changing them. A step that fails does not stop the next ones."""
+        stop changing them. A step that fails does not stop the next ones. `server_fix`: what the server knows works for
+        this game; it is applied too (and kept in the profile). Returns (steps, learned): `learned` is what the steps
+        that really changed something did, the candidate to be shared if the game opens afterwards."""
+        server_fix = clean_learned_fix(server_fix) or {}
+        learned = {"steam": False, "language": None, "runtimes": [], "fixBackup": False, "runAsAdmin": False}
         from game_execution_manager.launch_trace import steam_running
         steps: list[dict] = []
 
@@ -57,6 +61,7 @@ class DigitalProcessRunner:
                 ok, detail = False, str(error)
             logger.info("Auto fix %s: %s (%s)", id_, "ok" if ok else "failed", detail)
             steps.append({"id": id_, "ok": ok, "detail": detail})
+            return ok
 
         game_folder = Path(linked_record["path"]) if linked_record else folder
         steam_game = bool(linked_record and linked_record.get("kind") == "steam")
@@ -77,12 +82,13 @@ class DigitalProcessRunner:
             while time.monotonic() < deadline:
                 if steam_running():
                     time.sleep(6)  # it needs a few seconds to be ready for the game
+                    learned["steam"] = True
                     return True, "started in the background"
                 time.sleep(1)
             return False, "Steam did not start"
         step("steam", start_steam)
         if linked_record:
-            return steps
+            return steps, clean_learned_fix(learned)
 
         def install_runtimes():
             from game_execution_manager.runtimes import install, missing_runtimes
@@ -90,9 +96,14 @@ class DigitalProcessRunner:
             if not lacking:
                 return True, "nothing missing"
             results = [(item, *install(Path(item["installer"]), logger)) for item in lacking]
+            learned["runtimes"] = sorted(f"{item['id']} {item['arch']}" for item, ok, _ in results if ok)
             failed = [f"{item['id']} {item['arch']}" for item, ok, _ in results if not ok]
             return not failed, ("failed: " + ", ".join(failed)) if failed else f"installed {len(results)}"
-        step("thaw", lambda: (True, "thawed") if freezer.ensure_thawed(app_id, name) else (True, "not frozen"))
+        def thaw():
+            if freezer.ensure_thawed(app_id, name):
+                return True, "thawed"
+            return True, "not frozen"
+        step("thaw", thaw)
 
         def restore_fix():
             info = DigitalArchiveBackup.info(folder, name)
@@ -103,6 +114,9 @@ class DigitalProcessRunner:
             declared = profile.get("decompressFile", "")
             archive = options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
             DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, archive, restorer_for(self.storage.launcher, app_id))
+            # Play already re-applies it every time unless that was switched off: only then did this step change anything.
+            if not (options["backupEnabled"] and (profile["decompressEachRun"] if declared else True)):
+                learned["fixBackup"] = True
             return True, "fix backup applied"
         step("runtimes", install_runtimes)
         step("fix", restore_fix)
@@ -111,9 +125,21 @@ class DigitalProcessRunner:
             restored = restore_language(folder, logger)
             options = game_options.load(app_id)
             game_options.save(app_id, name, {**options, "language": KEEP_LANGUAGE})
+            if restored:
+                learned["language"] = "keep"
             return True, f"{len(restored)} file(s) restored"
         step("language", keep_language)
-        return steps
+
+        def server_switches():
+            if server_fix.get("runAsAdmin"):
+                options = game_options.load(app_id)
+                game_options.save(app_id, name, {**options, "administrator": True})
+                learned["runAsAdmin"] = True
+            if server_fix:
+                save_profile(self.storage.launcher, app_id, {**load_profile(self.storage.launcher, app_id), "learnedFix": server_fix})
+            return True, "server fix applied" if server_fix else "no server fix"
+        step("server", server_switches)
+        return steps, clean_learned_fix(learned)
 
     def kid_entry(self, app_id, name, linked, chosen="") -> dict:
         """What the family file keeps of a game for a child's account (kid mode, vault/Modo niño.md). The child's Game
@@ -158,7 +184,11 @@ class DigitalProcessRunner:
             if action == "play":
                 # The launch dialog reads this trace live (launch_trace.py).
                 with LaunchTrace(progress_path(self.storage.launcher, app_id), logger) as trace:
-                    result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+                    try:
+                        result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+                    except Exception as error:
+                        trace.finish(False, str(error))
+                        raise
                     trace.finish(bool(result.get("ok")), str(result.get("error") or ""))
             else:
                 result = self._run(action, app_id, name, command, auto_installed, diagnostics)
@@ -305,7 +335,15 @@ class DigitalProcessRunner:
                 needs_steam = steam_game or (checked / "steam_api.dll").is_file() or (checked / "steam_api64.dll").is_file() or onlinefix_hint(checked)
                 return {**result, "ok": True, "folder": str(checked), "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level))}
             if action == "auto-fix":
-                return {**result, "ok": True, "steps": self.auto_fix(app_id, name, folder, linked_record, freezer, game_options)}
+                # `command`: the fix the server had for this game (or empty).
+                steps, learned = self.auto_fix(app_id, name, folder, linked_record, freezer, game_options, json.loads(command or "{}"))
+                return {**result, "ok": True, "steps": steps, "fix": learned}
+            if action == "save-learned-fix":
+                # What made the game run (this PC's fix or the server's): kept in the game's execution profile.
+                fix = clean_learned_fix(json.loads(command or "{}"))
+                if fix:
+                    save_profile(self.storage.launcher, app_id, {**load_profile(self.storage.launcher, app_id), "learnedFix": fix})
+                return {**result, "ok": True, "fix": fix}
             if action == "restore-language":
                 restored = restore_language(folder, logger)
                 options = game_options.load(app_id)
@@ -494,7 +532,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "launch-diagnose", "auto-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "launch-diagnose", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

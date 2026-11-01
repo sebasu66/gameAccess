@@ -7,6 +7,7 @@ import type { ProcessExecutionResult } from "./catalog/DigitalProcessManager";
 import { useDialogFocus } from "./dialogFocus";
 import { useI18n } from "./i18n";
 import { LAUNCH_LOCK_MS, closeLaunch, type LaunchSession } from "./launchSession";
+import { fetchRunFix, holdLearnedFix } from "./catalog/runFixes";
 import { launchProgress, type LaunchProgress } from "./native";
 import "./launch-dialog.css";
 
@@ -70,7 +71,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
     const timer = window.setInterval(() => void read(), 400);
     return () => { live = false; window.clearInterval(timer); };
   }, [appId, session.startedAt, session.phase]);
-  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [progress?.lines.length]);
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [progress?.lines.length]);
   // Error mode: look for the usual causes, once.
   const diagnosed = useRef(false);
   useEffect(() => {
@@ -118,7 +119,10 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
   // touching them, then check the causes again) and launches once more; if that fails too, only the exe's folder is offered.
   const autoFix = () => void work(async () => {
     setNote(t("launchDlgAutoFixing"));
-    await digitalProcessManager.autoFix(game);
+    // "Does the server have a fix for this game?" is asked only now, when it does not run here.
+    const fromServer = await fetchRunFix(appId);
+    const outcome = await digitalProcessManager.autoFix(game, fromServer);
+    holdLearnedFix(appId, outcome.fix ?? fromServer);
     closeLaunch(session.id);
     onRetry(game, true);
   });

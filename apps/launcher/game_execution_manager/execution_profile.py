@@ -43,10 +43,26 @@ def validate_profile(value):
     for flag in ("decompressEachRun", "runAsAdmin"):
         if flag in value and not isinstance(value[flag], bool):
             raise ValueError(f"El campo {flag} debe ser verdadero o falso.")
+    learned = clean_learned_fix(value.get("learnedFix"))
+    value = {key: item for key, item in value.items() if key != "learnedFix"}
+    if learned:
+        value["learnedFix"] = learned
     return {**value, "version": 1, "archivePasswords": passwords, "beforePlay": steps,
             "decompressEachRun": bool(value.get("decompressEachRun", False)), "decompressFile": decompress_file.strip(),
             "executablePatterns": [p.strip() for p in patterns], "runAsAdmin": bool(value.get("runAsAdmin", False)),
             "runSetup": value.get("runSetup"), "setupPattern": setup_pattern.strip(), "setupArguments": setup_args}
+
+LEARNED_RUNTIMES = tuple(f"{kind} {arch}" for kind in ("vc2010", "vc2012", "vc2013", "vc2015", "directx") for arch in ("x86", "x64"))
+
+def clean_learned_fix(value):
+    """What made a game run after the launch dialog's automatic fix (the server keeps the same shape, apps/api/app/
+    run_fixes.py): only known switches, never commands or paths. Anything else is dropped; an empty fix gives None."""
+    if not isinstance(value, dict):
+        return None
+    fix = {"steam": value.get("steam") is True, "language": "keep" if value.get("language") == "keep" else None,
+           "runtimes": sorted({r for r in value.get("runtimes", []) if r in LEARNED_RUNTIMES}) if isinstance(value.get("runtimes"), list) else [],
+           "fixBackup": value.get("fixBackup") is True, "runAsAdmin": value.get("runAsAdmin") is True}
+    return fix if (fix["steam"] or fix["language"] or fix["runtimes"] or fix["fixBackup"] or fix["runAsAdmin"]) else None
 
 def load_profile(launcher, app_id):
     path = profile_path(launcher, app_id)

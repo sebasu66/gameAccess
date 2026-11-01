@@ -63,11 +63,10 @@ class LaunchTrace(logging.Handler):
 
 
 def steam_running() -> bool:
-    if sys.platform != "win32":
-        return False
+    """Steam's process is there (the same check the account switcher uses; it reads bytes: tasklist answers in the console's code page)."""
+    from steam_account_manager.switch import steam_running as running
     try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH"], capture_output=True, text=True, timeout=6, creationflags=_HIDDEN).stdout
-        return "steam.exe" in out.lower()
+        return running()
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -79,7 +78,7 @@ def defender_threats(folder: Path) -> list[str]:
     script = ("Get-MpThreatDetection | ForEach-Object { $_.Resources } | Where-Object { $_ -like '*" + str(folder).replace("'", "''") + "*' } "
               "| Select-Object -First 5")
     try:
-        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=12, creationflags=_HIDDEN).stdout
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, timeout=12, creationflags=_HIDDEN).stdout.decode("utf-8", "replace")
     except (OSError, subprocess.SubprocessError):
         return []
     return [line.strip() for line in out.splitlines() if line.strip()]

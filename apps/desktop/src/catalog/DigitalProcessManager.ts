@@ -9,7 +9,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language" | "auto-fix";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix";
   app_id: number;
   name?: string;
   pid?: number;
@@ -29,6 +29,8 @@ export interface ProcessExecutionResult {
   archives?: string[];
   changed?: string[];
   /** The launch checks (action "launch-diagnose"). */
+  /** What the automatic fix really changed (action "auto-fix"): the fix to share if the game then opens. */
+  fix?: { steam: boolean; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean } | null;
   steps?: Array<{ id: string; ok: boolean; detail: string }>;
   checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
   log?: string;
@@ -147,7 +149,9 @@ export class DigitalProcessManager {
   /** Why a game may not open (the launch dialog's error mode): the launcher's checks, each `{ id, ok, ... }`. */
   diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
   /** The launch dialog's "fix it for me": starts Steam if the game uses it, thaws, re-applies the fix backup and puts the language files back. */
-  autoFix(game: CatalogGame) { return this.execute("auto-fix", game); }
+  autoFix(game: CatalogGame, serverFix?: object | null) { return this.execute("auto-fix", game, undefined, undefined, JSON.stringify(serverFix ?? {})); }
+  /** Keeps what made the game run in its execution profile (`learnedFix`). */
+  saveLearnedFix(game: CatalogGame, fix: object) { return this.execute("save-learned-fix", game, undefined, undefined, JSON.stringify(fix)); }
   /** Puts back the language files a repair changed and stops Game Access from changing this game's language. */
   keepLanguage(game: CatalogGame) { return this.execute("restore-language", game); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }

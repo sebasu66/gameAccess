@@ -82,8 +82,21 @@ class AutoFixTests(unittest.TestCase):
                                       save=lambda app_id, name, values: saved.update(values))
             freezer = SimpleNamespace(ensure_thawed=lambda app_id, name: False)
             runner = DigitalProcessRunner(storage=SimpleNamespace(launcher=Path(tmp)))
-            steps = {step["id"]: step for step in runner.auto_fix(7, "Game", game, None, freezer, options)}
+            done, learned = runner.auto_fix(7, "Game", game, None, freezer, options)
+            steps = {step["id"]: step for step in done}
             self.assertEqual(steps["steam"]["detail"], "not needed")
             self.assertEqual(steps["language"]["ok"], True)
             self.assertEqual(saved["language"], "keep")
+            self.assertEqual(learned, {"steam": False, "language": "keep", "runtimes": [], "fixBackup": False, "runAsAdmin": False})
             self.assertEqual(ini.read_text(encoding="utf-8"), "Language=english\n")
+
+
+class LearnedFixTests(unittest.TestCase):
+    def test_only_known_switches_survive(self):
+        from game_execution_manager.execution_profile import clean_learned_fix, validate_profile
+        self.assertIsNone(clean_learned_fix({"steam": False}))
+        self.assertIsNone(clean_learned_fix("rm -rf"))
+        fix = clean_learned_fix({"steam": True, "language": "spanish", "runtimes": ["vc2015 x64", "calc.exe"], "run": "evil.exe"})
+        self.assertEqual(fix, {"steam": True, "language": None, "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False})
+        self.assertEqual(validate_profile({"learnedFix": {"runAsAdmin": True}})["learnedFix"]["runAsAdmin"], True)
+        self.assertNotIn("learnedFix", validate_profile({"learnedFix": {"command": "x"}}))
