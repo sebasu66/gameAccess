@@ -138,6 +138,10 @@ class GameLibraryManager:
         present = {g["app_id"] for g in games}
         games += [row for row in owned_rows if row["app_id"] not in present]
         self._merge_transfers(games, with_sizes)
+        from .run_checks import RunChecks
+        checks = RunChecks(self.storage.launcher)
+        for game in games:
+            game["run_check"] = checks.get(game.get("app_id"))
         flagged = [g for g in games if not g["standard"]]
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
                       [(g["name"], [i["code"] for i in g["issues"]]) for g in flagged][:50])

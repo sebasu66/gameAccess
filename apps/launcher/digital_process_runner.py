@@ -253,7 +253,63 @@ class DigitalProcessRunner:
         # Keep the established automatic preparation, honoring the user's choice.
         return repair_language(folder, language, logger, known_only=True)
 
+    def verify_run(self, app_id, name, appear=30.0, stable=10.0, probe=None, sleep=None, clock=None):
+        """Library manager: does this game run here? Plays it, waits for its process to show up and stay open, closes it
+        and keeps the verdict (`checked` or `cantRun` with why). A game that is already running, being frozen or deep
+        frozen is not touched (nothing is saved). `probe`, `sleep` and `clock` are injectable for the tests."""
+        import time
+        from game_execution_manager.game_processes import close_all, game_folders, running_in
+        from game_library_manager.run_checks import CANT_RUN, CHECKED, RunChecks
+        probe, sleep, clock = probe or running_in, sleep or time.sleep, clock or time.monotonic
+        checks = RunChecks(self.storage.launcher)
+        record = self.storage.linked.get(app_id)
+        steam = SteamAccountManager(self.storage.launcher) if record and record.get("kind") == "steam" else None
+        folder = Path(record["path"]) if record else self.storage.folder(app_id, name)
+        holder = freeze_holder(GameFreezer(self.storage, logger).records)
+        if holder and int(holder.get("app_id", -1)) == int(app_id):
+            return {"ok": True, "app_id": app_id, "skipped": "freezing"}
+        if GameFreezer(self.storage, logger).describe(app_id, folder, False).get("frozen") == "deep":
+            return {"ok": True, "app_id": app_id, "skipped": "frozen"}
+        folders = game_folders(folder, record, app_id, steam)
+        if probe(folders):
+            return {"ok": True, "app_id": app_id, "skipped": "running"}
+        started = clock()
+        seen: dict[int, dict] = {}
+
+        def verdict(state, detail, problems=None):
+            return {"ok": True, "app_id": app_id, "check": checks.save(app_id, state, detail, clock() - started, problems)}
+
+        played = self.run("play", app_id, name, "", False)
+        if not played.get("ok"):
+            return verdict(CANT_RUN, played.get("error") or "did not start")
+        try:
+            first = None
+            last_alive = None
+            while clock() - started < appear + stable + 10:
+                now = probe(folders)
+                for item in now:
+                    seen[int(item["pid"])] = item
+                if now:
+                    first = first if first is not None else clock()
+                    last_alive = clock()
+                    if clock() - first >= stable:
+                        return verdict(CHECKED, "stayed open " + str(int(clock() - first)) + " s")
+                elif first is not None:
+                    return verdict(CANT_RUN, "it closed by itself after " + str(int(clock() - first)) + " s")
+                elif clock() - started > appear:
+                    return verdict(CANT_RUN, "no game process appeared in " + str(int(appear)) + " s")
+                sleep(1.0)
+            return verdict(CANT_RUN, "it did not stay open")
+        finally:
+            # The test run leaves nothing behind: everything seen (and what is still running from the folders) is closed.
+            for item in probe(folders):
+                seen[int(item["pid"])] = item
+            if seen:
+                close_all(list(seen.values()))
+
     def run(self, action, app_id, name, command="", auto_installed=False):
+        if action == "verify-run":
+            return self.verify_run(app_id, name)
         diagnostics = FlowDiagnostics(logger, action, app_id)
         diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
         # Per invocation, not shared instance state: concurrent calls remain separate.
@@ -622,7 +678,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

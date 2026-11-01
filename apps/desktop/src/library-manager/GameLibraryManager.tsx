@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AlertTriangle, AppWindow, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
-import { digitalProcessManager, type LibraryGame, type LibraryPlan } from "../catalog/DigitalProcessManager";
-import { libraryDemo, scanLibrary, useLibraryScan } from "../libraryScan";
+import { digitalProcessManager, type LibraryGame, type LibraryPlan, type RunCheck } from "../catalog/DigitalProcessManager";
+import { libraryDemo, libraryScanState, scanLibrary, useLibraryScan } from "../libraryScan";
 import type { CatalogGame } from "../types";
 import { Button } from "../components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
@@ -204,6 +204,7 @@ export const idleDays = (game: Pick<LibraryGame, "last_played" | "added_at">, no
 type RowProps = {
   row: GridRow; game: LibraryGame; c: LibraryCopy; busy: boolean; largest: number; focusId: number | null; locale: string; columns: number;
   expanded: number | null; setExpanded: (id: number | null) => void;
+  verify: (game: LibraryGame) => void; verdict: (game: LibraryGame) => RunCheck | null | undefined; verifying: number | null;
   selection: Selection; setSelection: (update: (current: Selection) => Selection) => void;
   findCatalogGame: (game: LibraryGame) => CatalogGame | undefined;
   onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
@@ -220,6 +221,18 @@ function KindCell({ kind, source }: { kind: Kind; source: string }) {
   const { t } = useI18n();
   const [label, title] = kindLabels[kind];
   return <span className="lm-source"><span className={`lm-kind ${kind}`} title={title ? t(title) : undefined}>{t(label)}</span>{source ? <span className="lm-source-name" title={source}>{source}</span> : null}</span>;
+}
+
+/** Games the library manager can try to run: installed or linked, not deep frozen, not a download in progress. */
+const canVerify = (game: LibraryGame) => game.app_id != null && game.installed && game.frozen !== "deep" && !game.partial && !isUnfinished(game) && !isSteamOwned(game);
+
+function RunBadge({ check, running, c }: { check: RunCheck | null | undefined; running: boolean; c: LibraryCopy }) {
+  if (running) return <span className="lm-status busy lm-runcheck"><Loader2 className="animate-spin" />{c.verify}…</span>;
+  if (!check) return null;
+  const when = check.at.replace("T", " ").slice(0, 16);
+  return check.state === "checked"
+    ? <span className="lm-status ok lm-runcheck" title={c.checkedTip(when)}><ShieldCheck />{c.checkedBadge}</span>
+    : <span className="lm-status bad lm-runcheck" title={c.cantRunTip(check.detail, when)}><ShieldAlert />{c.cantRunBadge}</span>;
 }
 
 function StatusCell({ status }: { status: Status }) {
@@ -268,7 +281,7 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
   </section>;
 }
 
-function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
+function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, verify, verdict, verifying, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
   const id = game.app_id;
   const key = row.key;
   const open = expanded === id;
@@ -296,7 +309,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
-      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /></td>
+      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
       <td><KindCell kind={row.kind} source={row.source} /></td>
@@ -323,6 +336,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
               installed and checked, as Fix does, after any change made in "Language and launch". */}
           {retryable(game) && id != null ? <IconAction label={c.retryProcess} tone="accent" disabled={busy} onClick={() => retry(id)}><ArrowClockwise /></IconAction>
             : needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
+          {canVerify(game) ? <IconAction label={c.verify} disabled={busy || verifying != null} onClick={() => verify(game)}>{verifying === id ? <Loader2 className="animate-spin" /> : <ShieldCheck />}</IconAction> : null}
           {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><PhPlay /></IconAction> : null}
           {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
           {!game.frozen && !game.linked && game.installed && id != null ? <>
@@ -424,6 +438,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [pending, setPending] = useState<Pending | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // "Does it run here?": one game, or every installed and linked one in turn (stoppable between games).
+  const [verdicts, setVerdicts] = useState<Record<number, RunCheck>>({});
+  const [verifying, setVerifying] = useState<{ id: number | null; done: number; total: number; name: string } | null>(null);
+  const stopVerify = useRef(false);
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
@@ -433,12 +451,26 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     onImportStarted?.();
     setImportOpen(true);
   }, [startImport]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Games just added (imported, linked from Steam) have never been tried: the manager offers to check them (a notice, never on its own).
+  const knownBefore = useRef<Set<number>>(new Set());
+  const rememberKnown = () => { knownBefore.current = new Set(games.map(game => game.app_id).filter((id): id is number => id != null)); };
+  const suggestVerify = async () => {
+    await scanLibrary();
+    const fresh = libraryScanState().games.filter(game => game.app_id != null && !knownBefore.current.has(game.app_id) && !game.run_check && canVerify(game));
+    if (!fresh.length) return;
+    showNotice({ tone: "info", title: c.verifySuggestTitle(fresh.length), text: c.verifyNote, timer: false, actions: [
+      { label: c.verifySuggestYes, kind: "primary", run: () => { hideNotice(); void verifyGames(fresh); } },
+      { label: c.verifyLater, kind: "secondary", run: () => hideNotice() },
+    ] });
+  };
   const importSteam = async () => {
     setBusy(true);
+    rememberKnown();
     try {
       const result = await syncSteamLibrary(catalog, { refresh: true });
       notify(result.found ? t("steamImported", { linked: result.linked.length, owned: result.owned.length }) : t("steamNotFound"), { tone: result.found ? "success" : "error" });
       notifyLibraryChanged();
+      if (result.found) void suggestVerify();
     } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
   };
   useEffect(() => { if (focusAppId != null) setFilter("all"); }, [focusAppId]);
@@ -455,6 +487,26 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const selectedIds = useMemo(() => rows.filter(game => game.app_id != null && selection[String(game.app_id)]).map(game => game.app_id as number), [rows, selection]);
   const fixable = useMemo(() => games.filter(needsFix).map(game => game.app_id as number), [games]);
   const selectedFixable = selectedIds.filter(id => fixable.includes(id));
+
+  const verifyGames = async (list: LibraryGame[]) => {
+    const queue = list.filter(canVerify);
+    if (!queue.length || verifying || libraryDemo()) return;
+    stopVerify.current = false;
+    let ok = 0, bad = 0, skipped = 0;
+    for (let index = 0; index < queue.length && !stopVerify.current; index++) {
+      const game = queue[index];
+      setVerifying({ id: game.app_id, done: index, total: queue.length, name: game.name });
+      try {
+        const result = await digitalProcessManager.verifyRun(asGame(game));
+        if (result.skipped || !result.check) skipped++;
+        else { setVerdicts(current => ({ ...current, [game.app_id as number]: result.check as RunCheck })); if (result.check.state === "checked") ok++; else bad++; }
+      } catch (failure) { bad++; setVerdicts(current => ({ ...current, [game.app_id as number]: { state: "cantRun", at: new Date().toISOString(), detail: String(failure instanceof Error ? failure.message : failure) } })); }
+    }
+    setVerifying(null);
+    notify(c.verifyDone(ok, bad, skipped), { tone: bad ? "warning" : "success" });
+    void scanLibrary();
+  };
+  const verdict = (game: LibraryGame) => (game.app_id != null ? verdicts[game.app_id] : undefined) ?? game.run_check;
 
   const findCatalogGame = (game: LibraryGame) => catalog.find(item => (item.app_id ?? item.id) === game.app_id) ?? members.find(item => (item.app_id ?? item.id) === game.app_id);
 
@@ -550,6 +602,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
   const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }),
+    verify: (game: LibraryGame) => void verifyGames([game]), verdict, verifying: verifying?.id ?? null,
     retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null };
 
   return (
@@ -564,8 +617,11 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <ActivityBoard scanning={scanning} working={busy} />
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
-            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => setImportOpen(true)}>{c.importGames}</GaButton>
+            <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => { rememberKnown(); setImportOpen(true); }}>{c.importGames}</GaButton>
             <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
+            {verifying
+              ? <GaButton icon={<X size={16} />} onClick={() => { stopVerify.current = true; }} title={c.verifyNote}>{c.verifyRunning(verifying.done, verifying.total, verifying.name)} · {c.verifyCancel}</GaButton>
+              : <GaButton icon={<ShieldCheck size={16} />} disabled={busy} title={c.verifyNote} onClick={() => void verifyGames(games)}>{c.verifyAll} ({games.filter(canVerify).length})</GaButton>}
           </div>
           </div>
           <div className="lm-filters">
@@ -605,7 +661,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 
       {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
       {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} onClose={() => setConfiguring(null)} /> : null}
-      {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { void scanLibrary(); notifyLibraryChanged(); } }} /> : null}
+      {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { notifyLibraryChanged(); void suggestVerify(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
     </TooltipProvider>
   );

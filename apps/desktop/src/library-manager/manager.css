@@ -221,3 +221,6 @@
 .lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
 .lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); fill: color-mix(in srgb, var(--ga-orange) 10%, transparent); }
 @media (prefers-reduced-motion: reduce) { .lm-move-file { animation: none; display: none; } .lm-move-cover img, .lm-move-inner img { transition: none; } }
+.lm-status.ok { color: var(--ga-success); background: color-mix(in srgb, var(--ga-success) 8%, transparent); }
+.lm-status.bad { color: var(--ga-danger-ink); background: color-mix(in srgb, var(--ga-danger) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ga-danger) 33%, transparent); }
+.lm-runcheck { margin-left: 6px; }

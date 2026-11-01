@@ -7,9 +7,11 @@ import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo";
 
+/** The library manager's verdict on whether a game runs on this PC (launcher: game_library_manager/run_checks.py). */
+export interface RunCheck { state: "checked" | "cantRun"; at: string; detail: string; seconds?: number }
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix" | "open-launcher";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix" | "open-launcher" | "verify-run";
   app_id: number;
   name?: string;
   pid?: number;
@@ -31,6 +33,8 @@ export interface ProcessExecutionResult {
   /** The launch checks (action "launch-diagnose"). */
   /** What the automatic fix really changed (action "auto-fix"): the fix to share if the game then opens. */
   fix?: { steam: boolean; launchers: string[]; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean } | null;
+  check?: RunCheck;
+  skipped?: "running" | "frozen" | "freezing";
   steps?: Array<{ id: string; ok: boolean; detail: string }>;
   checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
   log?: string;
@@ -67,7 +71,7 @@ export interface LibraryPlanAction { code: string; label: string; bytes?: number
 export interface LibraryPlan { app_id: number; name: string; actions: LibraryPlanAction[]; freed_bytes?: number; delete_sources?: boolean; error?: string }
 export interface LibraryIssue { code: string; message: string; bytes?: number }
 export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
-export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; /** A folder identified by its emulator/fix file that lacks its AppID in the name. */ misnamed?: boolean; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; /** In ERROR with its download stopped and nothing left in the temporary root: processed as it is by Retry. */ stalled?: boolean; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; /** When the game came into the library (its log's first line). */ added_at?: string; linked?: boolean; link_kind?: "steam" | "folder"; /** The Steam account that owns a Steam game (state "steam_owned": owned, not installed). */ steam_owner?: SteamOwner; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null; /** A move into the library cut short (the app or the PC went off): its half-made copy waits to go on. */ move_pending?: { percent: number; target: string; bytes: number } }
+export interface LibraryGame { app_id: number | null; /** Whether it was tried to run here, and how it went. */ run_check?: RunCheck | null; issues: LibraryIssue[]; /** A folder identified by its emulator/fix file that lacks its AppID in the name. */ misnamed?: boolean; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; /** In ERROR with its download stopped and nothing left in the temporary root: processed as it is by Retry. */ stalled?: boolean; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; /** When the game came into the library (its log's first line). */ added_at?: string; linked?: boolean; link_kind?: "steam" | "folder"; /** The Steam account that owns a Steam game (state "steam_owned": owned, not installed). */ steam_owner?: SteamOwner; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null; /** A move into the library cut short (the app or the PC went off): its half-made copy waits to go on. */ move_pending?: { percent: number; target: string; bytes: number } }
 export interface SteamOwner { id64: string; account: string; persona: string; remembered: boolean }
 /** "freeze": Windows compression, playable as it is; "deep": one 7-Zip archive, thawed before it runs. */
 export type FreezeLevel = "freeze" | "deep";
@@ -150,6 +154,8 @@ export class DigitalProcessManager {
   diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
   /** The launch dialog's "fix it for me": starts Steam if the game uses it, thaws, re-applies the fix backup and puts the language files back. */
   autoFix(game: CatalogGame, serverFix?: object | null) { return this.execute("auto-fix", game, undefined, undefined, JSON.stringify(serverFix ?? {})); }
+  /** Library manager: starts the game, sees whether it stays open, closes it and keeps the verdict (`check`). `skipped`: it was already running, or frozen. */
+  verifyRun(game: CatalogGame) { return this.execute("verify-run", game); }
   /** Opens a store launcher (epic, ubisoft, ea, rockstar, paradox, battlenet) so the player can sign in there. */
   openLauncher(game: CatalogGame, launcher: string) { return this.execute("open-launcher", game, undefined, undefined, launcher); }
   /** Keeps what made the game run in its execution profile (`learnedFix`). */
