@@ -9,7 +9,7 @@ from app import run_fixes
 from app.api_dependencies import get_session
 from app.main import app
 
-FIX = {"steam": True, "language": "keep", "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False}
+FIX = {"steam": True, "launchers": ["ubisoft"], "language": "keep", "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False}
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def test_a_fix_is_offered_once_enough_installations_agree(client):
     assert ask(client)["fix"] is None
     report(client)
     answer = ask(client)
-    assert answer["fix"] == {"steam": True, "language": "keep", "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False}
+    assert answer["fix"] == {"steam": True, "launchers": ["ubisoft"], "language": "keep", "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False}
     assert answer["reports"] == 2
 
 
@@ -55,6 +55,7 @@ def test_the_same_installation_counts_once(client):
 
 def test_only_known_switches_are_accepted(client):
     assert report(client, fix={**FIX, "runtimes": ["calc.exe"]}).status_code == 422
+    assert report(client, fix={**FIX, "launchers": ["calc"]}).status_code == 422
     assert report(client, fix={**FIX, "language": "spanish"}).status_code == 422
     assert report(client, fix={"steam": False}).status_code == 422
 

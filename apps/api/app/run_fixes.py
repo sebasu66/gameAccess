@@ -7,6 +7,7 @@ installations agree on, once `GAMEACCESS_RUNFIX_MIN_REPORTS` (default 2) of them
 
 A fix is only this, validated here and again by the launcher before it is applied:
   steam (bool)       start Steam in the background first
+  launchers (list)   store launchers to start (epic, ubisoft, ea, rockstar, paradox, battlenet)
   language ("keep")  leave the game's language settings as its fix has them
   runtimes (list)    redistributables to install, from KNOWN_RUNTIMES
   fixBackup (bool)   re-apply the fix archive saved when it was installed
@@ -35,6 +36,7 @@ from .api_dependencies import get_session
 
 router = APIRouter(tags=["run-fixes"])
 
+KNOWN_LAUNCHERS = ("epic", "ubisoft", "ea", "rockstar", "paradox", "battlenet")
 KNOWN_RUNTIMES = tuple(f"{kind} {arch}" for kind in ("vc2010", "vc2012", "vc2013", "vc2015", "directx") for arch in ("x86", "x64"))
 REPORTS_PER_HOUR = 20
 _requests: dict[str, list[float]] = {}
@@ -56,6 +58,7 @@ class RunFixReport(SQLModel, table=True):
 
 class RunFix(BaseModel):
     steam: bool = False
+    launchers: list[str] = Field(default_factory=list, max_length=6)
     language: Optional[str] = None
     runtimes: list[str] = Field(default_factory=list, max_length=10)
     fixBackup: bool = False
@@ -74,8 +77,10 @@ def clean_fix(fix: RunFix) -> dict:
     unknown = [item for item in fix.runtimes if item not in KNOWN_RUNTIMES]
     if unknown:
         raise HTTPException(422, "Unknown runtime")
-    cleaned = {"steam": fix.steam, "language": fix.language, "runtimes": sorted(set(fix.runtimes)), "fixBackup": fix.fixBackup, "runAsAdmin": fix.runAsAdmin}
-    if not (cleaned["steam"] or cleaned["language"] or cleaned["runtimes"] or cleaned["fixBackup"] or cleaned["runAsAdmin"]):
+    if any(item not in KNOWN_LAUNCHERS for item in fix.launchers):
+        raise HTTPException(422, "Unknown launcher")
+    cleaned = {"steam": fix.steam, "launchers": sorted(set(fix.launchers)), "language": fix.language, "runtimes": sorted(set(fix.runtimes)), "fixBackup": fix.fixBackup, "runAsAdmin": fix.runAsAdmin}
+    if not (cleaned["steam"] or cleaned["launchers"] or cleaned["language"] or cleaned["runtimes"] or cleaned["fixBackup"] or cleaned["runAsAdmin"]):
         raise HTTPException(422, "An empty fix is not worth keeping")
     return cleaned
 

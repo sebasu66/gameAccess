@@ -10,7 +10,7 @@ import { getApiBaseUrl } from "../settings";
 import { digitalProcessManager } from "./DigitalProcessManager";
 import type { CatalogGame } from "../types";
 
-export interface RunFix { steam: boolean; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean }
+export interface RunFix { steam: boolean; launchers: string[]; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean }
 
 const learned = new Map<number, RunFix>();
 /** The fix the automatic fix found for this game, waiting to know whether the game opened. */

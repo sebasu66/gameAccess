@@ -87,7 +87,7 @@ class AutoFixTests(unittest.TestCase):
             self.assertEqual(steps["steam"]["detail"], "not needed")
             self.assertEqual(steps["language"]["ok"], True)
             self.assertEqual(saved["language"], "keep")
-            self.assertEqual(learned, {"steam": False, "language": "keep", "runtimes": [], "fixBackup": False, "runAsAdmin": False})
+            self.assertEqual(learned, {"steam": False, "launchers": [], "language": "keep", "runtimes": [], "fixBackup": False, "runAsAdmin": False})
             self.assertEqual(ini.read_text(encoding="utf-8"), "Language=english\n")
 
 
@@ -97,6 +97,35 @@ class LearnedFixTests(unittest.TestCase):
         self.assertIsNone(clean_learned_fix({"steam": False}))
         self.assertIsNone(clean_learned_fix("rm -rf"))
         fix = clean_learned_fix({"steam": True, "language": "spanish", "runtimes": ["vc2015 x64", "calc.exe"], "run": "evil.exe"})
-        self.assertEqual(fix, {"steam": True, "language": None, "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False})
+        self.assertEqual(fix, {"steam": True, "launchers": [], "language": None, "runtimes": ["vc2015 x64"], "fixBackup": False, "runAsAdmin": False})
         self.assertEqual(validate_profile({"learnedFix": {"runAsAdmin": True}})["learnedFix"]["runAsAdmin"], True)
         self.assertNotIn("learnedFix", validate_profile({"learnedFix": {"command": "x"}}))
+
+
+class HungGameTests(unittest.TestCase):
+    @unittest.skipUnless(__import__("sys").platform == "win32", "Windows processes")
+    def test_a_process_left_open_in_the_game_folder_is_found_and_closed(self):
+        import os
+        import shutil
+        import subprocess
+        from game_execution_manager.game_processes import close_all, running_in
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "game"
+            game.mkdir()
+            exe = game / "hung.exe"
+            shutil.copy2(Path(os.environ["SystemRoot"]) / "System32" / "ping.exe", exe)
+            process = subprocess.Popen([str(exe), "-n", "60", "127.0.0.1"], stdout=subprocess.DEVNULL)
+            try:
+                found = []
+                for _ in range(10):
+                    found = running_in([game])
+                    if found:
+                        break
+                self.assertEqual([item["pid"] for item in found], [process.pid])
+                self.assertEqual(running_in([Path(tmp) / "elsewhere"]), [])
+                closed, failed = close_all(found)
+                self.assertEqual((closed, failed), (["hung"], []))
+                self.assertIsNotNone(process.wait(timeout=10))
+            finally:
+                if process.poll() is None:
+                    process.kill()

@@ -21,6 +21,7 @@ from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
 from game_execution_manager.game_options import DigitalGameOptions, KEEP_LANGUAGE, effective_language, repair_language, restore_language, supports_language
 from game_execution_manager.launch_trace import LaunchTrace, diagnose, progress_path
+from game_execution_manager import requirements as needs
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog, short_path
 from game_download_manager.unpack import extractor_for, restorer_for
@@ -50,7 +51,7 @@ class DigitalProcessRunner:
         this game; it is applied too (and kept in the profile). Returns (steps, learned): `learned` is what the steps
         that really changed something did, the candidate to be shared if the game opens afterwards."""
         server_fix = clean_learned_fix(server_fix) or {}
-        learned = {"steam": False, "language": None, "runtimes": [], "fixBackup": False, "runAsAdmin": False}
+        learned = {"steam": False, "launchers": [], "language": None, "runtimes": [], "fixBackup": False, "runAsAdmin": False}
         from game_execution_manager.launch_trace import steam_running
         steps: list[dict] = []
 
@@ -65,7 +66,8 @@ class DigitalProcessRunner:
 
         game_folder = Path(linked_record["path"]) if linked_record else folder
         steam_game = bool(linked_record and linked_record.get("kind") == "steam")
-        uses_steam = steam_game or any((game_folder / name_).is_file() for name_ in ("steam_api.dll", "steam_api64.dll", "OnlineFix.ini", "OnlineFix64.dll"))
+        requires = self.game_requires(game_folder, app_id) if game_folder.is_dir() else needs.merge(None)
+        uses_steam = steam_game or requires["steam"]
 
         def start_steam():
             if not uses_steam:
@@ -86,7 +88,55 @@ class DigitalProcessRunner:
                     return True, "started in the background"
                 time.sleep(1)
             return False, "Steam did not start"
+        def close_hung():
+            from game_execution_manager.game_processes import close_all, game_folders, running_in
+            steam = SteamAccountManager(self.storage.launcher) if steam_game else None
+            found = running_in(game_folders(game_folder, linked_record, app_id, steam))
+            if not found:
+                return True, "no game process open"
+            closed, failed = close_all(found)
+            if failed:
+                return False, "could not close: " + ", ".join(failed)
+            return True, "closed: " + ", ".join(closed)
+        # First: a hung game left open holds what the new launch needs.
+        step("processes", close_hung)
         step("steam", start_steam)
+
+        def start_launchers():
+            from game_execution_manager import store_launchers
+            needed = requires["launchers"]
+            if not needed:
+                return True, "none needed"
+            problems, begun = [], []
+            for launcher in needed:
+                ok, why = store_launchers.start(launcher, logger=logger)
+                (begun if ok and why != "already running" else problems if not ok else []).append(launcher)
+            learned["launchers"] = sorted(begun)
+            return not problems, ("not available: " + ", ".join(problems)) if problems else "launchers ready"
+        step("launchers", start_launchers)
+
+        def anticheat_service():
+            from game_execution_manager import anticheat
+            shipped = requires["anticheat"]
+            if not shipped:
+                return True, "no anti-cheat"
+            notes, missing = [], []
+            for key in shipped:
+                now = anticheat.state(key)
+                if now == "stopped":
+                    ok, why = anticheat.start_service(key)
+                    notes.append(f"{anticheat.ANTICHEATS[key]['name']}: {'started' if ok else 'could not start'}")
+                elif now == "missing":
+                    missing.append(anticheat.ANTICHEATS[key]["name"])
+            if missing:
+                # The game installs its anti-cheat's service the first time it runs as administrator.
+                options = game_options.load(app_id)
+                if not options["administrator"]:
+                    game_options.save(app_id, name, {**options, "administrator": True})
+                    learned["runAsAdmin"] = True
+                notes.append("service missing (" + ", ".join(missing) + "): the game will run as administrator to install it")
+            return True, "; ".join(notes) or "anti-cheat service running"
+        step("anticheat", anticheat_service)
         if linked_record:
             return steps, clean_learned_fix(learned)
 
@@ -140,6 +190,33 @@ class DigitalProcessRunner:
             return True, "server fix applied" if server_fix else "no server fix"
         step("server", server_switches)
         return steps, clean_learned_fix(learned)
+
+    def game_requires(self, folder, app_id) -> dict:
+        """What the game needs around it (Steam, store launchers, anti-cheat): what its profile says plus what its files
+        show. Anything new is written back to the profile, so it is known from then on and a plugin or the player can add
+        to it."""
+        profile = load_profile(self.storage.launcher, app_id)
+        declared = needs.merge(profile.get("requires"))
+        found = needs.merge(declared, needs.detect(folder))
+        if found != declared:
+            try:
+                save_profile(self.storage.launcher, app_id, {**profile, "requires": found})
+            except (OSError, ValueError):
+                logger.warning("AppID %s: could not keep what the game requires in its profile", app_id)
+        return found
+
+    @staticmethod
+    def start_store_launchers(folder, launchers=None) -> list[str]:
+        """The games that open through a store's launcher (Epic, Ubisoft Connect, EA...) get it running first. A launcher
+        that is not installed or does not start is only written to the log: the game may not need it after all."""
+        from game_execution_manager import store_launchers
+        started = []
+        for launcher in (store_launchers.needed_by(folder) if launchers is None else launchers):
+            ok, why = store_launchers.start(launcher, logger=logger)
+            logger.info("Launcher %s: %s (%s)", store_launchers.LAUNCHERS[launcher]["name"], "ok" if ok else "not available", why)
+            if ok and why != "already running":
+                started.append(launcher)
+        return started
 
     def kid_entry(self, app_id, name, linked, chosen="") -> dict:
         """What the family file keeps of a game for a child's account (kid mode, vault/Modo niño.md). The child's Game
@@ -332,8 +409,20 @@ class DigitalProcessRunner:
                 checked = Path(linked_record["path"]) if linked_record else folder
                 level = next((g.get("frozen") for g in GameLibraryManager(self.storage).list_games(with_sizes=False) if g.get("app_id") == app_id and g.get("frozen")), "") or ""
                 backups = checked.is_dir() and any(checked.rglob("*.gameaccess-language.bak"))
-                needs_steam = steam_game or (checked / "steam_api.dll").is_file() or (checked / "steam_api64.dll").is_file() or onlinefix_hint(checked)
-                return {**result, "ok": True, "folder": str(checked), "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level))}
+                requires = self.game_requires(checked, app_id) if checked.is_dir() else needs.merge(None)
+                needs_steam = steam_game or requires["steam"]
+                return {**result, "ok": True, "folder": str(checked), "requires": requires,
+                        "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level), requires)}
+            if action == "open-launcher":
+                # The player signs in there (Game Access never types a password): the launcher is started or brought up.
+                from game_execution_manager import store_launchers
+                if command not in store_launchers.KNOWN:
+                    raise ValueError("Unknown launcher")
+                exe = store_launchers.program(command)
+                if exe is None:
+                    raise ValueError(f"{store_launchers.LAUNCHERS[command]['name']} is not installed")
+                os.startfile(str(exe))
+                return {**result, "ok": True, "launcher": command}
             if action == "auto-fix":
                 # `command`: the fix the server had for this game (or empty).
                 steps, learned = self.auto_fix(app_id, name, folder, linked_record, freezer, game_options, json.loads(command or "{}"))
@@ -433,6 +522,7 @@ class DigitalProcessRunner:
                 restore_language(folder, logger)
                 logger.info("AppID %s: no %s files found in the game; its language settings stay as its fix has them", app_id, language)
             onlinefix.restore(folder)
+            self.start_store_launchers(folder, self.game_requires(folder, app_id)["launchers"])
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
             if options["executable"]:
@@ -532,7 +622,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "launch-diagnose", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

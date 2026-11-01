@@ -456,7 +456,7 @@ fn watch(kid: Kid, game: KidGame) {
 
 fn game_pids(game: &KidGame) -> Vec<u32> {
     #[cfg(windows)]
-    return crate::game_focus::game_processes(&crate::app_shortcuts::expand(&game.folder));
+    return game_folders(game).iter().flat_map(|folder| crate::game_focus::game_processes(folder)).collect();
     #[cfg(not(windows))]
     { let _ = game; Vec::new() }
 }
@@ -491,7 +491,7 @@ const GUARD_SIGN_OUT_AFTER: Duration = Duration::from_secs(10);
 /// Other stores' launchers, as parts of their install path (lower case), which games bought there open through
 /// (Seba, 2026-10-31: Ubisoft Connect): never closed.
 const LAUNCHERS: &[&str] = &[r"\ubisoft\ubisoft game launcher\", r"\electronic arts\ea desktop\", r"\epic games\launcher\",
-    r"\rockstar games\launcher\", r"\battle.net\", r"\gog galaxy\"];
+    r"\rockstar games\launcher\", r"\battle.net\", r"\gog galaxy\", r"\paradox interactive\"];
 
 fn guard_norm(path: &str) -> String { path.replace('/', "\\").to_lowercase() }
 
@@ -510,6 +510,53 @@ fn not_allowed<'a>(processes: &'a [crate::game_focus::ProcessImage], allowed: &[
     }).collect()
 }
 
+/// The folders of the child's games: whatever runs from one of them is allowed.
+fn allowed_folders(kid: &Kid) -> Vec<String> {
+    kid.games.iter().flat_map(game_folders).collect()
+}
+
+/// Where a game may run from: the folder the family file names and, for a Steam game, every folder Steam has it in.
+/// Steam runs it where it installed it, which is not always the folder the adult's library showed (Seba, 2026-11-01:
+/// Human Fall Flat, listed in an old copy, ran from another library and the guard closed it as "not allowed").
+fn game_folders(game: &KidGame) -> Vec<String> {
+    let mut folders = vec![crate::app_shortcuts::expand(&game.folder)];
+    if game.steam && game.app_id > 0 { folders.extend(steam_game_dirs(game.app_id, &steam_roots())); }
+    folders.retain(|folder| !folder.trim().is_empty());
+    folders
+}
+
+fn steam_roots() -> Vec<String> {
+    ["ProgramFiles(x86)", "ProgramFiles"].iter().filter_map(|name| std::env::var(name).ok()).map(|base| format!("{base}\\Steam")).collect()
+}
+
+/// The text between the quotes after `"key"` on its line of a Steam .vdf/.acf file (backslashes unescaped).
+fn vdf_values(text: &str, key: &str) -> Vec<String> {
+    text.lines().filter_map(|line| {
+        let parts: Vec<&str> = line.split('"').collect();
+        (parts.len() >= 4 && parts[1].eq_ignore_ascii_case(key)).then(|| parts[3].replace("\\\\", "\\"))
+    }).collect()
+}
+
+/// Every `<library>\steamapps\common\<installdir>` where a Steam library registered in `libraryfolders.vdf` has the
+/// game's manifest (a leftover folder in a library Steam no longer lists does not count).
+fn steam_game_dirs(app_id: i64, roots: &[String]) -> Vec<String> {
+    let mut libraries: Vec<PathBuf> = Vec::new();
+    for root in roots {
+        let root = PathBuf::from(root);
+        if let Ok(text) = std::fs::read_to_string(root.join("steamapps").join("libraryfolders.vdf")) {
+            libraries.extend(vdf_values(&text, "path").into_iter().map(PathBuf::from));
+        }
+        libraries.push(root);
+    }
+    libraries.sort();
+    libraries.dedup();
+    libraries.iter().filter_map(|library| {
+        let text = std::fs::read_to_string(library.join("steamapps").join(format!("appmanifest_{app_id}.acf"))).ok()?;
+        let dir = vdf_values(&text, "installdir").into_iter().next()?;
+        Some(library.join("steamapps").join("common").join(dir).display().to_string())
+    }).collect()
+}
+
 /// Starts the guard in a child's account (nothing in any other). Steam is also asked to start minimised there.
 pub fn start_guard(app: tauri::AppHandle) {
     let Some(kid) = kid_account() else { return };
@@ -520,10 +567,15 @@ pub fn start_guard(app: tauri::AppHandle) {
 
 fn guard_loop(app: tauri::AppHandle, kid: Kid) {
     use tauri::{Emitter, Manager};
-    let allowed: Vec<String> = kid.games.iter().map(|game| crate::app_shortcuts::expand(&game.folder)).filter(|folder| !folder.trim().is_empty()).collect();
+    let mut kid = kid;
     let mut first_seen: HashMap<u32, Instant> = HashMap::new();
     loop {
         std::thread::sleep(GUARD_TICK);
+        // The family file is read again on every tick: the adult can add a game while the child's Game Access runs, and
+        // the child plays it at once (Seba, 2026-11-01: a Steam game the child was allowed to play was closed as "not
+        // allowed" because the guard still had the list from when it started).
+        if let Some(fresh) = kid_account() { kid = fresh; }
+        let allowed = allowed_folders(&kid);
         #[cfg(windows)]
         let processes = crate::game_focus::process_images();
         #[cfg(not(windows))]
@@ -759,6 +811,26 @@ mod tests {
         let mut off = family.clone();
         off.kids[0].enabled = false;
         assert!(kid_for(&off, "S-1-5-21-1-2-3-1007").is_none());
+    }
+
+    #[test]
+    fn a_steam_game_may_run_from_any_library_steam_lists_not_from_a_leftover_copy() {
+        let base = std::env::temp_dir().join(format!("ga-steam-guard-{}", std::process::id()));
+        let (root, listed, leftover) = (base.join("Steam"), base.join("Listed"), base.join("Leftover"));
+        for library in [&root, &listed, &leftover] { std::fs::create_dir_all(library.join("steamapps")).unwrap(); }
+        let escaped = |path: &PathBuf| path.display().to_string().replace('\\', "\\\\");
+        let vdf = format!("\"libraryfolders\"\n{{\n\t\"0\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n\t\"1\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n", escaped(&root), escaped(&listed));
+        std::fs::write(root.join("steamapps").join("libraryfolders.vdf"), vdf).unwrap();
+        let manifest = "\"AppState\"\n{\n\t\"appid\"\t\t\"477160\"\n\t\"installdir\"\t\t\"Human Fall Flat\"\n}\n";
+        std::fs::write(listed.join("steamapps").join("appmanifest_477160.acf"), manifest).unwrap();
+        std::fs::write(leftover.join("steamapps").join("appmanifest_477160.acf"), manifest).unwrap();
+        let dirs = steam_game_dirs(477160, &[root.display().to_string()]);
+        assert_eq!(dirs, vec![listed.join("steamapps").join("common").join("Human Fall Flat").display().to_string()]);
+        let processes = [crate::game_focus::ProcessImage { pid: 9, parent: 1, image: format!("{}\\Human.exe", dirs[0]) }];
+        assert!(not_allowed(&processes, &dirs).is_empty());
+        let old_copy = leftover.join("steamapps").join("common").join("Human Fall Flat").display().to_string();
+        assert_eq!(not_allowed(&processes, &[old_copy]).len(), 1);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

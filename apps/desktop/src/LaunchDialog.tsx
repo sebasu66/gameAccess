@@ -93,7 +93,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
   const failing = (id: string) => checks?.some(check => check.id === id && check.ok === false) ?? false;
   const rows = useMemo(() => (checks ?? []).flatMap(check => {
     const bad = check.ok === false;
-    const row = (text: string) => [{ id: check.id, bad, text }];
+    const row = (text: string, action?: { label: string; run: () => void }) => [{ id: check.id, bad, text, action }];
     switch (check.id) {
       case "path_length": return row(bad ? t("launchDlgPathLong", { length: Number(check.length), limit: Number(check.limit) }) : t("launchDlgPathOk", { length: Number(check.length) }));
       case "path_symbols": return row(bad ? t("launchDlgSymbolsBad", { path: String(check.path) }) : t("launchDlgSymbolsOk"));
@@ -105,11 +105,18 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
       }
       case "runtimes": return row(bad ? t("launchDlgRuntimesBad", { list: ((check.missing as string[] | undefined) ?? []).join(", ") }) : t("launchDlgRuntimesOk"));
       case "gpu_driver": return row(bad ? t("launchDlgDriverOld", { name: String(check.name), date: String(check.date) }) : t("launchDlgDriverOk", { name: String(check.name), date: String(check.date) }));
+      case "processes": return bad ? row(t("launchDlgProcessesBad", { names: ((check.names as string[] | undefined) ?? []).join(", ") })) : [];
+      case "store_launcher": {
+        const name = String(check.name);
+        const signIn = check.installed ? { label: t("launchDlgLauncherSignIn"), run: () => void work(async () => { await digitalProcessManager.openLauncher(game, String(check.launcher)); }) } : undefined;
+        return row(!bad ? t("launchDlgLauncherOk", { name }) : check.installed ? t("launchDlgLauncherStopped", { name }) : t("launchDlgLauncherMissing", { name }), signIn);
+      }
+      case "anticheat_service": return row(bad ? t("launchDlgAnticheatBad", { name: String(check.name), state: String(check.state) }) : t("launchDlgAnticheatOk", { name: String(check.name) }));
       case "language_forced": return row(t("launchDlgLanguageForced"));
       case "frozen": return row(t("launchDlgFrozen"));
       default: return [];
     }
-  }).sort((a, b) => Number(b.bad) - Number(a.bad)), [checks, t]);
+  }).sort((a, b) => Number(b.bad) - Number(a.bad)), [checks, t, game, busy]);
 
   const work = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -149,7 +156,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
         {errorMode && (checks === null || rows.length) ? <section className="ga-launch-checks" aria-label={t("launchDlgChecksLabel")}>
           <span className="ga-label">{t("launchDlgChecksLabel")}</span>
           {checks === null ? <p className="ga-launch-checking"><Loader2 size={15} className="ga-dialog-spin" aria-hidden="true" /> {t("launchDlgChecking")}</p>
-            : <ul>{rows.map((row, index) => <li key={`${row.id}-${index}`} className={row.bad ? "bad" : "ok"}>{row.bad ? <AlertTriangle size={15} aria-hidden="true" /> : <CircleCheck size={15} aria-hidden="true" />}<span>{row.text}</span></li>)}</ul>}
+            : <ul>{rows.map((row, index) => <li key={`${row.id}-${index}`} className={row.bad ? "bad" : "ok"}>{row.bad ? <AlertTriangle size={15} aria-hidden="true" /> : <CircleCheck size={15} aria-hidden="true" />}<span>{row.text}</span>{row.action ? <button type="button" className="ga-launch-row-action" disabled={busy} onClick={row.action.run}>{row.action.label}</button> : null}</li>)}</ul>}
         </section> : null}
 
         <section className="ga-launch-log-wrap" aria-label={t("launchDlgLogLabel")}>

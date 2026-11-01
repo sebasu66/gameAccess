@@ -84,7 +84,7 @@ def defender_threats(folder: Path) -> list[str]:
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
-def diagnose(folder: Path, steam: bool, steam_game: bool, backups_present: bool, frozen: str = "") -> list[dict]:
+def diagnose(folder: Path, steam: bool, steam_game: bool, backups_present: bool, frozen: str = "", requires: dict | None = None) -> list[dict]:
     """The checks the error mode shows. `ok` False is a likely cause; True passed; None could not be checked."""
     checks: list[dict] = []
     text = str(folder)
@@ -105,6 +105,18 @@ def diagnose(folder: Path, steam: bool, steam_game: bool, backups_present: bool,
             pass
     threats = defender_threats(folder) if folder.is_dir() else []
     checks.append({"id": "antivirus", "ok": not missing and not threats, "missing": missing, "threats": threats})
+    from . import anticheat
+    requires = requires or {}
+    for key in (requires.get("anticheat") or anticheat.shipped_with(folder)):
+        checks.append({"id": "anticheat_service", "ok": anticheat.state(key) in ("running", "unknown"), "name": anticheat.ANTICHEATS[key]["name"], "state": anticheat.state(key)})
+    from . import store_launchers
+    for launcher in (requires.get("launchers") or store_launchers.needed_by(folder)):
+        checks.append({"id": "store_launcher", "ok": store_launchers.running(launcher), "launcher": launcher,
+                       "name": store_launchers.LAUNCHERS[launcher]["name"], "installed": store_launchers.program(launcher) is not None})
+    from .game_processes import running_in
+    open_now = running_in([folder]) if folder.is_dir() else []
+    checks.append({"id": "processes", "ok": not open_now, "names": sorted({str(item.get("name", "")) for item in open_now}),
+                   "hung": [str(item.get("name", "")) for item in open_now if not item.get("responding", True)]})
     from .runtimes import missing_runtimes, video_driver
     lacking = missing_runtimes(folder) if folder.is_dir() else []
     checks.append({"id": "runtimes", "ok": not lacking, "missing": [f"{item['id']} {item['arch']}" for item in lacking]})

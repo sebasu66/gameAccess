@@ -43,10 +43,14 @@ def validate_profile(value):
     for flag in ("decompressEachRun", "runAsAdmin"):
         if flag in value and not isinstance(value[flag], bool):
             raise ValueError(f"El campo {flag} debe ser verdadero o falso.")
+    from .requirements import clean as clean_requires
     learned = clean_learned_fix(value.get("learnedFix"))
-    value = {key: item for key, item in value.items() if key != "learnedFix"}
+    requires = clean_requires(value.get("requires"))
+    value = {key: item for key, item in value.items() if key not in ("learnedFix", "requires")}
     if learned:
         value["learnedFix"] = learned
+    if requires:
+        value["requires"] = requires
     return {**value, "version": 1, "archivePasswords": passwords, "beforePlay": steps,
             "decompressEachRun": bool(value.get("decompressEachRun", False)), "decompressFile": decompress_file.strip(),
             "executablePatterns": [p.strip() for p in patterns], "runAsAdmin": bool(value.get("runAsAdmin", False)),
@@ -59,10 +63,12 @@ def clean_learned_fix(value):
     run_fixes.py): only known switches, never commands or paths. Anything else is dropped; an empty fix gives None."""
     if not isinstance(value, dict):
         return None
-    fix = {"steam": value.get("steam") is True, "language": "keep" if value.get("language") == "keep" else None,
+    from .store_launchers import KNOWN as launchers
+    fix = {"steam": value.get("steam") is True, "launchers": sorted({l for l in value.get("launchers", []) if l in launchers}) if isinstance(value.get("launchers"), list) else [],
+           "language": "keep" if value.get("language") == "keep" else None,
            "runtimes": sorted({r for r in value.get("runtimes", []) if r in LEARNED_RUNTIMES}) if isinstance(value.get("runtimes"), list) else [],
            "fixBackup": value.get("fixBackup") is True, "runAsAdmin": value.get("runAsAdmin") is True}
-    return fix if (fix["steam"] or fix["language"] or fix["runtimes"] or fix["fixBackup"] or fix["runAsAdmin"]) else None
+    return fix if (fix["steam"] or fix["launchers"] or fix["language"] or fix["runtimes"] or fix["fixBackup"] or fix["runAsAdmin"]) else None
 
 def load_profile(launcher, app_id):
     path = profile_path(launcher, app_id)

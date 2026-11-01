@@ -65,3 +65,7 @@
 .ga-launch > footer > button { height: 44px; }
 @media (max-width: 640px) { .ga-launch > header { flex-direction: column; text-align: center; } }
 @media (prefers-reduced-motion: reduce) { .ga-launch-art *, .ga-launch-log .cursor { animation: none !important; } .ga-launch-art.is-opened .tick { stroke-dashoffset: 0; } }
+.ga-launch-checks li > span { min-width: 0; flex: 1; }
+.ga-launch-row-action { flex: none; align-self: center; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--ga-orange-line); background: transparent; color: var(--ga-orange-ink); cursor: pointer; }
+.ga-launch-row-action:hover:not(:disabled) { background: var(--ga-orange-tint); }
+.ga-launch-row-action:disabled { opacity: .45; cursor: not-allowed; }
