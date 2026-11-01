@@ -102,6 +102,8 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
         const threats = (check.threats as string[] | undefined) ?? [];
         return [...(check.missing ? row(t("launchDlgAvMissing", { file: String(check.missing) })) : []), ...(threats.length ? row(t("launchDlgAvThreats", { files: threats.join(", ") })) : [])];
       }
+      case "runtimes": return row(bad ? t("launchDlgRuntimesBad", { list: ((check.missing as string[] | undefined) ?? []).join(", ") }) : t("launchDlgRuntimesOk"));
+      case "gpu_driver": return row(bad ? t("launchDlgDriverOld", { name: String(check.name), date: String(check.date) }) : t("launchDlgDriverOk", { name: String(check.name), date: String(check.date) }));
       case "language_forced": return row(t("launchDlgLanguageForced"));
       case "frozen": return row(t("launchDlgFrozen"));
       default: return [];

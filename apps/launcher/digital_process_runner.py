@@ -84,6 +84,14 @@ class DigitalProcessRunner:
         if linked_record:
             return steps
 
+        def install_runtimes():
+            from game_execution_manager.runtimes import install, missing_runtimes
+            lacking = missing_runtimes(game_folder)
+            if not lacking:
+                return True, "nothing missing"
+            results = [(item, *install(Path(item["installer"]), logger)) for item in lacking]
+            failed = [f"{item['id']} {item['arch']}" for item, ok, _ in results if not ok]
+            return not failed, ("failed: " + ", ".join(failed)) if failed else f"installed {len(results)}"
         step("thaw", lambda: (True, "thawed") if freezer.ensure_thawed(app_id, name) else (True, "not frozen"))
 
         def restore_fix():
@@ -96,6 +104,7 @@ class DigitalProcessRunner:
             archive = options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
             DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, archive, restorer_for(self.storage.launcher, app_id))
             return True, "fix backup applied"
+        step("runtimes", install_runtimes)
         step("fix", restore_fix)
 
         def keep_language():

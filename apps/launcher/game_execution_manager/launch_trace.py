@@ -106,6 +106,12 @@ def diagnose(folder: Path, steam: bool, steam_game: bool, backups_present: bool,
             pass
     threats = defender_threats(folder) if folder.is_dir() else []
     checks.append({"id": "antivirus", "ok": not missing and not threats, "missing": missing, "threats": threats})
+    from .runtimes import missing_runtimes, video_driver
+    lacking = missing_runtimes(folder) if folder.is_dir() else []
+    checks.append({"id": "runtimes", "ok": not lacking, "missing": [f"{item['id']} {item['arch']}" for item in lacking]})
+    driver = video_driver()
+    if driver:
+        checks.append({"id": "gpu_driver", "ok": not driver["old"], **driver})
     if backups_present:
         checks.append({"id": "language_forced", "ok": False})
     if frozen:
