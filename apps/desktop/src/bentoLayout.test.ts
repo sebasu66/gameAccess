@@ -123,9 +123,23 @@ describe("big picture bento", () => {
     expect(taken.every(cell => Number(cell.split(":")[1]) <= 7)).toBe(true);
   });
 
-  it("lays wide cards side by side once the portraits run out", () => {
+  it("keeps the count of wide cards that fills the line when there are few portraits", () => {
     const { placements } = bigPictureBento(["F1", "F2", "F3"], ["a"], 7);
-    expect(placements.filter(item => item.row === 2).map(item => [item.value, item.column])).toEqual([["F1", 1], ["a", 4], ["F2", 5]]);
+    expect(placements.filter(item => item.row === 2).map(item => [item.value, item.column])).toEqual([["F1", 1], ["F3", 4], ["F2", 5]]);
+  });
+
+  it("leaves no holes: every line is full for any mix of wide and portrait games", () => {
+    for (const cols of [5, 6, 7, 8, 9, 10]) for (let games = 3; games < 40; games++) for (let wide = 0; wide <= Math.min(games, 10); wide++) {
+      const featured = Array.from({ length: wide }, (_, i) => `F${i}`), regular = Array.from({ length: games - wide }, (_, i) => `r${i}`);
+      const { placements } = bigPictureBento(featured, regular, cols);
+      expect(placements).toHaveLength(games);
+      const taken = cells(placements);
+      expect(new Set(taken).size).toBe(taken.length);
+      const lines = new Map<number, number>();
+      for (const item of placements) lines.set(item.row, (lines.get(item.row) ?? 0) + (item.span ?? 1));
+      const rows = [...lines.keys()].sort((a, b) => a - b);
+      rows.slice(0, -1).forEach(row => expect(lines.get(row)).toBe(cols));
+    }
   });
 
   it("shows every game as a portrait when the window is too narrow for a wide card", () => {

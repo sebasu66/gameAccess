@@ -54,7 +54,7 @@ class DigitalGameOptions:
     def save(self, app_id, name, values):
         options = self.load(app_id)
         options.update({key: values[key] for key in options if key in values})
-        if (not isinstance(options["administrator"], bool) or (options["language"] and options["language"] not in LANGUAGES)
+        if (not isinstance(options["administrator"], bool) or (options["language"] and options["language"] not in LANGUAGES and options["language"] != KEEP_LANGUAGE)
                 or not isinstance(options["backupEnabled"], bool)):
             raise ValueError("Opciones de ejecución no válidas.")
         options["backupArchive"] = str(options["backupArchive"]).strip()
@@ -70,13 +70,67 @@ class DigitalGameOptions:
         write_json(self.path(app_id), options)
         return options
 
+KEEP_LANGUAGE = "keep"  # the player's choice: never touch the game's language settings
+
 def effective_language(options):
     """The game's own choice, else the language the desktop app runs in (passed by the app), else Spanish."""
     chosen = options.get("language") or ""
-    if chosen in LANGUAGES:
+    if chosen in LANGUAGES or chosen == KEEP_LANGUAGE:
         return chosen
     app = os.environ.get(APP_LANGUAGE_ENV, "").strip().lower()
     return app if app in LANGUAGES else "spanish"
+
+_LANGUAGE_NAMES = {
+    "spanish": r"spanish|espa[nñ]ol|castellano|latam|es[-_](?:es|mx|ar|419|la)|es|spa|esn",
+    "english": r"english|en|eng",
+    "portuguese": r"portuguese|portugu[eê]s|pt[-_](?:br|pt)|pt|por|ptb",
+    "french": r"french|fran[cç]ais|fr[-_](?:fr|ca)|fr|fra",
+    "german": r"german|deutsch|de[-_](?:de|at)|de|ger|deu",
+}
+
+def supports_language(folder, language, limit=6000):
+    """Whether the game ships files for `language` (a folder or file named for it, like Spanish/ or text_es.pak). Used
+    before the app's own language is forced into a game's settings: forcing one the game lacks keeps it from opening
+    (a game set to Spanish that has no Spanish). English is assumed. A game whose texts sit inside packed archives shows
+    nothing here, so it is left as its fix has it; the player can still pin a language for it in its options."""
+    if language == "english":
+        return True
+    names = _LANGUAGE_NAMES.get(language)
+    if not names:
+        return False
+    token = re.compile(rf"(?<![a-z])(?:{names})(?![a-z])")
+    root = Path(folder)
+    seen = 0
+    for path in root.rglob("*"):
+        seen += 1
+        if seen > limit:
+            break
+        try:
+            depth = len(path.relative_to(root).parts)
+        except ValueError:
+            continue
+        if depth > 6:
+            continue
+        stem = path.stem.lower() if path.is_file() else path.name.lower()
+        if token.search(stem) and (path.is_dir() or path.suffix.lower() not in (".exe", ".dll")):
+            return True
+    return False
+
+def restore_language(folder, logger=None):
+    """Puts back every settings file a language repair changed (it saved the original next to it)."""
+    restored = []
+    for backup in Path(folder).rglob("*.gameaccess-language.bak"):
+        target = backup.with_name(backup.name[: -len(".gameaccess-language.bak")])
+        try:
+            shutil.copy2(backup, target)
+            backup.unlink()
+            restored.append(str(target.relative_to(folder)))
+            if logger:
+                logger.info("Language restored from backup: %s", target)
+        except OSError as error:
+            if logger:
+                logger.warning("Language restore failed: %s: %s", target, error)
+    return restored
 
 def language_value(current, language, filename):
     short, region = LANGUAGES[language]

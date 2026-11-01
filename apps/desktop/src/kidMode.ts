@@ -174,7 +174,7 @@ export const landscapeArt = (appId: number) => `https://shared.akamai.steamstati
  * What the child's screen shows of each game, from what this (the adult's) Game Access already has, since the child's
  * account has none of its cache (Seba, 2026-10-31: many covers were missing): the portrait cover as the library
  * resolved it, the landscape picture, the Steam account that owns it, and whether it shows large: the adult's liked or
- * most played games (the library's own choice for big picture, featuredGames).
+ * most played games (the library's own choice for big picture, featuredGames: the most recently played).
  */
 async function withPictures(games: KidGame[]): Promise<KidGame[]> {
   const library = new Map(libraryScanState().games.filter(game => game.app_id != null).map(game => [game.app_id as number, game]));

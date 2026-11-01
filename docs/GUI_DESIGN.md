@@ -277,6 +277,12 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - **Control:** `npm run check:css` (y `npm test`, con `src/dialogCss.test.ts`) falla si un `.css` agrega reglas de párrafo o colores sueltos. La deuda vieja está contada por archivo en `apps/desktop/scripts/dialog-css-baseline.json`: puede bajar (`node scripts/check-dialog-css.mjs --update` al limpiar), nunca subir.
 - Sin componentes React para esto: `<p className="ga-hint">` es tan corto como un `<GaHint>`.
 
+### 4.27 Diálogo de inicio de juego `ga-launch` (componente `LaunchDialog`, Seba 2026-11-01)
+- Se abre **apenas se pide jugar** (`launchGame` → `beginLaunch`) y es el único modal mientras el juego arranca. **Los primeros 10 s bloquea todo**: sin `ga-close`, Esc no lo cierra y ningún otro juego se lanza (`launchLocked()`); una barra naranja muestra el tiempo.
+- Cabecera: dibujo SVG animado (mando dentro de un anillo que gira, botones que parpadean; rojo con una X si falla, verde con un tilde que se dibuja al abrir) + eyebrow, título Bebas y texto. Debajo, el **registro en vivo** (monoespaciada 12 px, tiempo desde el inicio, cursor): lo escribe el lanzador (`launch_trace.py`) en `.cache/digital_launch/<appid>-progress.json` y la app lo lee cada 400 ms con `launch_progress`.
+- **Modo error** (el lanzador falló, o pasaron 10 s sin que abra; si abre más tarde se cierra solo): aparece **Qué se revisó** (largo de la ruta, símbolos raros, Steam en ejecución aunque esté en segundo plano, archivos borrados por el antivirus —ejecutable marcado que falta o amenazas de Defender—, idioma cambiado por Game Access, juego congelado); lo que falla va destacado en naranja. Botones, una sola fila de 44 px: **Abrir la ubicación**, **Sin cambiar el idioma** (devuelve los archivos de idioma y fija el juego en "no tocar"), **Descongelar y reintentar** (solo si está congelado) y **Intentar de nuevo** (naranja).
+- Si abre, dice "Listo" y se cierra solo a los 1,4 s. Una instalación rota (faltan archivos) sigue yendo al diálogo de recuperación.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

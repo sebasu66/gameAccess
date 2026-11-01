@@ -19,7 +19,8 @@ from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
 from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
-from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
+from game_execution_manager.game_options import DigitalGameOptions, KEEP_LANGUAGE, effective_language, repair_language, restore_language, supports_language
+from game_execution_manager.launch_trace import LaunchTrace, diagnose, progress_path
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
 from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog, short_path
 from game_download_manager.unpack import extractor_for, restorer_for
@@ -81,7 +82,13 @@ class DigitalProcessRunner:
         diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
         # Per invocation, not shared instance state: concurrent calls remain separate.
         try:
-            result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+            if action == "play":
+                # The launch dialog reads this trace live (launch_trace.py).
+                with LaunchTrace(progress_path(self.storage.launcher, app_id), logger) as trace:
+                    result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+                    trace.finish(bool(result.get("ok")), str(result.get("error") or ""))
+            else:
+                result = self._run(action, app_id, name, command, auto_installed, diagnostics)
             if result.get("ok"):
                 diagnostics.succeed()
             else:
@@ -179,7 +186,7 @@ class DigitalProcessRunner:
                     return {**result, "ok": True, "cancelled": True, "message": str(cancelled)}
             # While a game is being frozen or thawed, nothing else touches it (play, uninstall, repair...).
             owner = freeze_holder(freezer.records)
-            if owner and int(owner.get("app_id", -1)) == int(app_id) and action not in ("status", "snapshot", "game-log", "open-folder", "game-options"):
+            if owner and int(owner.get("app_id", -1)) == int(app_id) and action not in ("status", "snapshot", "game-log", "open-folder", "game-options", "launch-diagnose"):
                 raise ValueError("Se está congelando o descongelando este juego: esperá a que termine o cancelalo.")
             linked_record = self.storage.linked.get(app_id)
             if action == "kid-entry":
@@ -217,6 +224,18 @@ class DigitalProcessRunner:
                 freezer.forget(app_id)
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
+            if action == "launch-diagnose":
+                steam_game = bool(linked_record and linked_record.get("kind") == "steam")
+                checked = Path(linked_record["path"]) if linked_record else folder
+                level = next((g.get("frozen") for g in GameLibraryManager(self.storage).list_games(with_sizes=False) if g.get("app_id") == app_id and g.get("frozen")), "") or ""
+                backups = checked.is_dir() and any(checked.rglob("*.gameaccess-language.bak"))
+                needs_steam = steam_game or (checked / "steam_api.dll").is_file() or (checked / "steam_api64.dll").is_file() or onlinefix_hint(checked)
+                return {**result, "ok": True, "folder": str(checked), "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level))}
+            if action == "restore-language":
+                restored = restore_language(folder, logger)
+                options = game_options.load(app_id)
+                game_options.save(app_id, name, {**options, "language": KEEP_LANGUAGE})
+                return {**result, "ok": True, "restored": restored}
             if action == "game-log":
                 # The game's own steps and, when its installer ran, the end of that installer's log (why it stopped).
                 from game_execution_manager.setup_installer import LOG_FILE
@@ -282,7 +301,16 @@ class DigitalProcessRunner:
             apply_before_play(folder, profile)
             diagnostics.debug("Before-play preparation finished")
             options = game_options.load(app_id)
-            self.patch_crack_language(folder, effective_language(options))
+            language = effective_language(options)
+            if language == KEEP_LANGUAGE:
+                restore_language(folder, logger)
+                logger.info("AppID %s: language settings left as they are (the player chose not to change them)", app_id)
+            elif options["language"] or supports_language(folder, language):
+                self.patch_crack_language(folder, language)
+            else:
+                # The app's own language is only forced into games that ship it: one set to a language it lacks does not open.
+                restore_language(folder, logger)
+                logger.info("AppID %s: no %s files found in the game; its language settings stay as its fix has them", app_id, language)
             onlinefix.restore(folder)
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
@@ -374,12 +402,16 @@ class DigitalProcessRunner:
                 journal.note(folder, "play", f"error: {error}")
             return {**result, "error": str(error)}
 
+def onlinefix_hint(folder: Path) -> bool:
+    """A game with an emulator/fix that still asks Steam to be running."""
+    return any((folder / name).is_file() for name in ("OnlineFix.ini", "OnlineFix64.dll"))
+
 def run_process(action, app_id, name, command="", working_dir=None, auto_installed=False):
     return DigitalProcessRunner().run(action, app_id, name, command, auto_installed)
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "launch-diagnose", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

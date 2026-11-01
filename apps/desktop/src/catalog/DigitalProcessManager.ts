@@ -9,7 +9,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language";
   app_id: number;
   name?: string;
   pid?: number;
@@ -28,6 +28,8 @@ export interface ProcessExecutionResult {
   executables?: string[];
   archives?: string[];
   changed?: string[];
+  /** The launch checks (action "launch-diagnose"). */
+  checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
   log?: string;
   /** The end of the game installer's own log (setup*.exe), when it ran. */
   installer_log?: string;
@@ -141,6 +143,10 @@ export class DigitalProcessManager {
   steamSync(refresh = false, auto = false, api = "") { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto, api })); }
   /** Steam installs the game itself: it asks the library folder and checks the space. */
   steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
+  /** Why a game may not open (the launch dialog's error mode): the launcher's checks, each `{ id, ok, ... }`. */
+  diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
+  /** Puts back the language files a repair changed and stops Game Access from changing this game's language. */
+  keepLanguage(game: CatalogGame) { return this.execute("restore-language", game); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
   /** Free disk space from a game nobody plays (only games Game Access owns, never linked ones). */
   async freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }

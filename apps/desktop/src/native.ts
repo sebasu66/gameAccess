@@ -150,6 +150,13 @@ export async function freezeProgress(appId: number): Promise<FreezeProgress | nu
   return invoke<FreezeProgress | null>("freeze_progress", { appId });
 }
 
+/** What a Play is doing now (`.cache/digital_launch/<appid>-progress.json`, written by the launcher). */
+export interface LaunchProgress { started_at: number; lines: Array<{ at: number; level: string; text: string }>; finished: boolean; ok: boolean | null; error: string }
+export async function launchProgress(appId: number): Promise<LaunchProgress | null> {
+  if (!hasTauriRuntime()) return null;
+  return invoke<LaunchProgress | null>("launch_progress", { appId }).catch(() => null);
+}
+
 /** Tell the freeze going on to stop ("cancel", that game's) or to wait ("pause" / "resume", any game's). */
 /** The import scan as it goes (game_scanner/live.py): the folder being read and the games found so far. */
 export interface ImportScanProgress { folder: string; folders: number; found: Array<{ name: string; path: string; size_bytes: number; kind: string; app_id: number | null }>; done: boolean; cancelled: boolean; started: number }

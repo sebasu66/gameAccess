@@ -191,7 +191,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       }
     }
     if (!bigPicture) return list;
-    // Big picture: the games the player liked or plays the most are shown wide (bentoLayout.featuredGames).
+    // Big picture: the games played most recently are shown wide (bentoLayout.featuredGames).
     const featured = featuredGames(list, card => ({ liked: preferences[card.game.id] === 1, plays: card.plays ?? 0, lastPlayed: Date.parse(card.lastPlayed ?? "") || 0 }));
     return list.map(card => (featured.has(card) ? { ...card, featured: true } : card));
   }, [games, downloads, scan.games, pill, preferences, bigPicture, t]);
@@ -225,7 +225,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   // Big picture mode, or a group picked with its button, shows that one group open, whatever the player closed.
   const layout = useMemo(() => {
     if (bigPicture) {
-      const { placements, tracks } = bigPictureBento(cards.filter(card => card.featured), cards.filter(card => !card.featured), columns);
+      const { placements, tracks } = bigPictureBento(cards.filter(card => card.featured).sort((a, b) => (Date.parse(b.lastPlayed ?? "") || 0) - (Date.parse(a.lastPlayed ?? "") || 0)), cards.filter(card => !card.featured), columns);
       return { placements, tracks, sections: cards.length ? [{ kind: "ready" as const, row: 1, count: cards.length, collapsed: false }] : [] };
     }
     return bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, pill !== "all" ? new Set<BentoKind>() : collapsed, Math.floor(columns * PORTRAIT_SPAN / WIDE_SPAN));

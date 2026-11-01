@@ -173,6 +173,7 @@ fn main() {
             visual_debug::set_visual_debug_viewport,
             digital_commands::run_digital_process,
             digital_commands::freeze_progress,
+            digital_commands::launch_progress,
             digital_commands::freeze_signal,
             digital_commands::import_scan_progress,
             digital_commands::import_scan_stop,

@@ -37,6 +37,8 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
+import LaunchDialog from "./LaunchDialog";
+import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
@@ -61,7 +63,7 @@ import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
-import { installThroughSteam, isSteamOwned, steamOwnerLabel, syncSteamOnStartup } from "./steamLibrary";
+import { installThroughSteam, isSteamOwned, syncSteamOnStartup } from "./steamLibrary";
 import { GaIconButton } from "./components/ga/Buttons";
 let visualDebugStarted = false;
 
@@ -110,6 +112,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
+  const launchSession = useLaunch();
   const gameEndedStop = useRef<(() => void) | null>(null);
   // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
@@ -533,16 +536,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       ] });
       return;
     }
+    // One launch at a time: while the launch dialog is up nothing else starts (a double click, the pad, a shortcut).
+    if (launchLocked()) return;
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
+    const launch = beginLaunch(game);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
-    // A Steam game runs signed in to the account that owns it: Steam may restart to switch accounts.
-    const steamOwner = steamOwnerLabel(libraryScanState().games.find(entry => entry.app_id === game.app_id && entry.link_kind === "steam")?.steam_owner);
-    // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
-    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
-    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
-    run.set(0, "running");
     // Another game's freeze waits while this one is thawed (if deep frozen) and played: it takes every core and the
     // disk. It goes on when the game ends (or if it does not start). Only for a game whose end can be told (its folder).
     const playedFolder = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id))?.folder;
@@ -557,17 +557,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       if (game.app_id) recordPlayed(game.app_id);
       // The game gets the focus; when it ends, Game Access comes back with the grid focused.
       watchGameFocus(playedFolder);
-      steps.forEach((_, index) => run.set(index, "done"));
-      run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
+      launchOpened(launch.id);
     } catch (err) {
       resumeFreezes();
       const message = err instanceof Error ? err.message : String(err);
       // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
-      if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }
-      else run.fail({ title: translate("launchError"), text: message, actions: [
-        { label: translate("close"), run: () => hideNotice() },
-        { label: translate("retry"), kind: "primary", run: () => void launchGame(game, managedShortcut) },
-      ] });
+      if (isBrokenInstall(message)) { closeLaunch(launch.id); setBrokenGame({ game, message }); }
+      else launchFailed(launch.id, message);
     } finally { setLaunchBusy(false); }
   };
 
@@ -695,6 +691,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
+      {launchSession ? <LaunchDialog session={launchSession} onRetry={game => void launchGame(game)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
       {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}

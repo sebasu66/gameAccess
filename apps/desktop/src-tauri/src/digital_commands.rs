@@ -86,6 +86,15 @@ pub(crate) async fn freeze_progress(app_id: u32) -> Result<Option<serde_json::Va
     Ok(std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()))
 }
 
+/// What a Play is doing (`.cache/digital_launch/<appid>-progress.json`, written by the launcher's LaunchTrace): the live
+/// log of the launch dialog. `None` when that game has none.
+#[tauri::command]
+pub(crate) async fn launch_progress(app_id: u32) -> Result<Option<serde_json::Value>, String> {
+    let launcher = find_launcher_dir().ok_or_else(|| "Could not locate launcher directory".to_string())?;
+    let path = launcher_data_dir(&launcher).join(".cache").join("digital_launch").join(format!("{app_id}-progress.json"));
+    Ok(std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok()))
+}
+
 /// Signals to the freeze or thaw going on (game_library_manager/freeze_control.py), as small files next to its
 /// progress: "cancel" asks that game's work to stop and put the game back as it was; "pause" makes every freeze wait
 /// (a game is being played) until "resume".

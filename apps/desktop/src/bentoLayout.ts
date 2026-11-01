@@ -61,51 +61,78 @@ export function bentoLayout<T>(items: BentoItem<T>[], columns: number): BentoPla
 }
 
 /**
- * Big picture mode's bento (only ready games): the favourite and most played games are wide, landscape cards; the
- * others are portraits around them. Every line is one portrait tall; a wide card spans `wide` portrait columns, which
- * with three is about the shape of Steam's header picture (460 × 215). Each line has at most one wide card, on the left
- * and on the right in turn; the portraits fill the rest. When the portraits run out, the remaining wide cards go side
- * by side. Below the divider (row 1), lines start at row 2.
+ * Big picture mode's bento (only ready games): the games played most recently are wide, landscape cards scattered
+ * among the portraits. Every line is one portrait tall and is filled edge to edge: a wide card spans `wide` portrait
+ * columns (three is about the shape of Steam's header picture, 460 × 215). The number of wide cards is adjusted (the
+ * least recent ones go back to portraits, or the next ones turn wide) until the cells add up to whole lines, so the grid
+ * has no holes; when no count makes it exact, the last line is the only one left short. Wide cards are spread evenly
+ * over the lines, most recent first, on the left and on the right in turn. Below the divider (row 1), lines start at row 2.
  */
 export function bigPictureBento<T>(featured: T[], regular: T[], columns: number, wide = 3): { placements: BentoPlacement<T>[]; tracks: BentoTrack[] } {
   const cols = Math.max(1, Math.floor(columns));
   const span = Math.min(wide, cols - 1);
-  // Too narrow for a wide card next to anything: everything is a portrait.
-  const tall = span < 2 ? [...featured, ...regular] : regular;
-  const big = span < 2 ? [] : featured;
+  const all = [...featured, ...regular];
+  const total = all.length;
   const placements: BentoPlacement<T>[] = [];
   const tracks: BentoTrack[] = ["label"];
-  let f = 0, r = 0, line = 0;
-  while (f < big.length || r < tall.length) {
-    const row = 2 + line * 3;
-    const put = (kind: "ready", value: T, column: number, width: number) => placements.push({ value, kind, column, row, rowSpan: 3, ...(width > 1 ? { span: width } : {}) });
-    let first = 1, last = cols;
-    if (f < big.length) {
-      if (line % 2 === 0) { put("ready", big[f++], 1, span); first = span + 1; }
-      else { put("ready", big[f++], cols - span + 1, span); last = cols - span; }
+  const put = (value: T, column: number, row: number, width: number) => placements.push({ value, kind: "ready", column, row, rowSpan: 3, ...(width > 1 ? { span: width } : {}) });
+  // How many wide cards: the wanted number, or the nearest count whose cells fill whole lines.
+  let wides = span < 2 ? 0 : featured.length;
+  if (span >= 2) {
+    const cap = Math.floor(cols / span);
+    const fits = (n: number) => {
+      const cells = total + (span - 1) * n, lines = Math.floor(cells / cols), rest = cells % cols;
+      return n <= lines * cap && total - n >= rest;
+    };
+    const exact = (n: number) => fits(n) && (total + (span - 1) * n) % cols === 0;
+    const wanted = featured.length;
+    let chosen = -1;
+    for (let d = 0; d <= total && chosen < 0; d++) {
+      for (const n of d === 0 ? [wanted] : [wanted - d, wanted + d]) if (n >= 0 && n <= total && chosen < 0 && exact(n)) chosen = n;
     }
-    for (let column = first; column <= last;) {
-      if (r < tall.length) { put("ready", tall[r++], column, 1); column++; }
-      else if (f < big.length && last - column + 1 >= span) { put("ready", big[f++], column, span); column += span; }
-      else break;
+    for (let n = wanted; n >= 0 && chosen < 0; n--) if (fits(n)) chosen = n;
+    wides = Math.max(0, chosen);
+  }
+  const cells = total + (span - 1) * wides;
+  const fullLines = Math.floor(cells / cols);
+  const rest = cells % cols;
+  // The most recent games stay wide; the other featured ones join the portraits, first.
+  const wideQueue = all.slice(0, wides);
+  const tallQueue = all.slice(wides);
+  let w = 0, p = 0;
+  for (let line = 0; line < fullLines; line++) {
+    const row = 2 + line * 3;
+    const here = Math.floor((line + 1) * wides / fullLines) - Math.floor(line * wides / fullLines);
+    const tall = cols - span * here;
+    const n = here + tall;
+    // Wide cards at evenly spaced positions of the line (one: the left end, then the right end, in turn).
+    const slots = new Set<number>(Array.from({ length: here }, (_, j) => here === 1 ? (line % 2 === 0 ? 0 : n - 1) : Math.round(j * (n - 1) / (here - 1))));
+    let column = 1;
+    for (let k = 0; k < n; k++) {
+      if (slots.has(k)) { put(wideQueue[w++], column, row, span); column += span; }
+      else { put(tallQueue[p++], column, row, 1); column++; }
     }
     tracks.push("row", "row", "row");
-    line++;
+  }
+  if (rest) {
+    const row = 2 + fullLines * 3;
+    for (let column = 1; column <= rest; column++) put(tallQueue[p++], column, row, 1);
+    tracks.push("row", "row", "row");
   }
   return { placements, tracks };
 }
 
 export interface PlayRecord { liked: boolean; plays: number; lastPlayed: number }
 /**
- * The games big picture mode shows wide: the ones the player liked or plays the most, about a quarter of them (at
- * least one when any qualifies, none among fewer than three games). Liked games come first, then by plays and by the
- * last time played. A game never liked nor played is never featured.
+ * The games big picture mode shows wide: the ones played most recently, about a quarter of them (at least one when
+ * any was played, none among fewer than three games). A game never played is never featured. Returns them in order,
+ * most recent first.
  */
 export function featuredGames<T>(games: T[], record: (game: T) => PlayRecord, share = 0.25): Set<T> {
   if (games.length < 3) return new Set();
   const limit = Math.max(1, Math.round(games.length * share));
-  const ranked = games.map(game => ({ game, ...record(game) })).filter(item => item.liked || item.plays > 0)
-    .sort((a, b) => Number(b.liked) - Number(a.liked) || b.plays - a.plays || b.lastPlayed - a.lastPlayed);
+  const ranked = games.map(game => ({ game, ...record(game) })).filter(item => item.lastPlayed > 0)
+    .sort((a, b) => b.lastPlayed - a.lastPlayed);
   return new Set(ranked.slice(0, limit).map(item => item.game));
 }
 
