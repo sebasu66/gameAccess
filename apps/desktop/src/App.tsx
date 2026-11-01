@@ -557,7 +557,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
       // The game gets the focus; when it ends, Game Access comes back with the grid focused.
-      watchGameFocus(playedFolder);
+      watchGameFocus(playedFolder, game.app_id);
       launchOpened(launch.id);
       // The automatic fix made it start: keep what worked in the profile and share it (only a real fix, never a plain launch).
       const learnedFix = autoFixed ? takeLearnedFix(game.app_id ?? game.id) : null;

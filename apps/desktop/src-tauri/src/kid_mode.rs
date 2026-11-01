@@ -525,7 +525,7 @@ fn game_folders(game: &KidGame) -> Vec<String> {
     folders
 }
 
-fn steam_roots() -> Vec<String> {
+pub(crate) fn steam_roots() -> Vec<String> {
     ["ProgramFiles(x86)", "ProgramFiles"].iter().filter_map(|name| std::env::var(name).ok()).map(|base| format!("{base}\\Steam")).collect()
 }
 
@@ -539,7 +539,7 @@ fn vdf_values(text: &str, key: &str) -> Vec<String> {
 
 /// Every `<library>\steamapps\common\<installdir>` where a Steam library registered in `libraryfolders.vdf` has the
 /// game's manifest (a leftover folder in a library Steam no longer lists does not count).
-fn steam_game_dirs(app_id: i64, roots: &[String]) -> Vec<String> {
+pub(crate) fn steam_game_dirs(app_id: i64, roots: &[String]) -> Vec<String> {
     let mut libraries: Vec<PathBuf> = Vec::new();
     for root in roots {
         let root = PathBuf::from(root);

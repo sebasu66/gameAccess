@@ -10,10 +10,10 @@ import { hasTauriRuntime } from "./native";
  */
 export const GAME_ENDED_EVENT = "gameaccess:game-ended";
 
-/** Follows the game started from `folder` (its install folder, Steam games included). */
-export function watchGameFocus(folder?: string | null): void {
+/** Follows the game started from `folder` (its install folder) and, for a Steam game (`appId`), every folder Steam has it in. */
+export function watchGameFocus(folder?: string | null, appId?: number | null): void {
   if (!folder || !hasTauriRuntime()) return;
-  void invoke("game_focus_watch", { folder }).catch(() => undefined);
+  void invoke("game_focus_watch", { folder, appId: appId ?? null }).catch(() => undefined);
 }
 
 const CARD = ".ga-bento-card, .library-room-card";

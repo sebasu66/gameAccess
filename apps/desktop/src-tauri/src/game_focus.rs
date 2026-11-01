@@ -158,7 +158,7 @@ fn foreground_pid() -> u32 {
 }
 
 #[cfg(windows)]
-fn watch(app: AppHandle, folder: String, session: u64) {
+fn watch(app: AppHandle, folder: String, app_id: Option<i64>, session: u64) {
     let started = Instant::now();
     let mut appeared: Option<Instant> = None;
     let mut focused: Option<win::HWND> = None;
@@ -166,7 +166,10 @@ fn watch(app: AppHandle, folder: String, session: u64) {
     let ours = std::process::id();
     while SESSION.load(Ordering::SeqCst) == session {
         std::thread::sleep(POLL);
-        let pids = game_processes(&folder);
+        // A Steam game runs where Steam installed it, which may not be the folder Game Access recorded (an old copy in
+        // a library Steam no longer lists): every folder with its manifest counts, read again on each poll, as for the
+        // child's guard (kid_mode.rs).
+        let pids: Vec<u32> = watched_folders(&folder, app_id).iter().flat_map(|dir| game_processes(dir)).collect();
         if pids.is_empty() {
             match appeared {
                 None if started.elapsed() > APPEAR_TIMEOUT => return,
@@ -211,26 +214,41 @@ fn watch(app: AppHandle, folder: String, session: u64) {
     }
 }
 
+/// The recorded folder and, for a Steam game, every folder where Steam has it.
+fn watched_folders(folder: &str, app_id: Option<i64>) -> Vec<String> {
+    let mut folders = vec![folder.to_string()];
+    if let Some(app_id) = app_id.filter(|id| *id > 0) { folders.extend(crate::kid_mode::steam_game_dirs(app_id, &crate::kid_mode::steam_roots())); }
+    folders.retain(|dir| !dir.trim().is_empty());
+    folders.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    folders
+}
+
 /// Follows the game started from `folder`: its window gets the focus, and when it ends Game Access comes back to the
 /// front and emits `gameaccess:game-ended`. A new call replaces the previous session.
 #[tauri::command]
-pub fn game_focus_watch(app: AppHandle, folder: String) -> bool {
+pub fn game_focus_watch(app: AppHandle, folder: String, app_id: Option<i64>) -> bool {
     let session = SESSION.fetch_add(1, Ordering::SeqCst) + 1;
     // A new session replaces the previous one, which may have left the view resting.
     crate::webview_rest::set_game_running(&app, false);
-    if folder.trim().is_empty() || !Path::new(&folder).is_dir() { return false; }
+    if !watched_folders(&folder, app_id).iter().any(|dir| Path::new(dir).is_dir()) { return false; }
     // How the window is now, to put it back the same way when the game ends.
     if let Some(main) = app.get_webview_window("main") { crate::window_fit::remember(&main); }
     #[cfg(windows)]
-    std::thread::spawn(move || watch(app, folder, session));
+    std::thread::spawn(move || watch(app, folder, app_id, session));
     #[cfg(not(windows))]
-    let _ = (app, session);
+    let _ = (app, session, app_id);
     true
 }
 
 #[cfg(test)]
 mod tests {
-    use super::inside;
+    use super::{inside, watched_folders};
+
+    #[test]
+    fn a_game_without_an_app_id_is_followed_in_its_own_folder_only() {
+        assert_eq!(watched_folders(r"D:\Games\Hades", None), vec![r"D:\Games\Hades".to_string()]);
+        assert!(watched_folders("", Some(0)).is_empty());
+    }
 
     #[test]
     fn a_process_belongs_to_the_game_by_its_folder() {
