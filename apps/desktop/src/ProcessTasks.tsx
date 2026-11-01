@@ -1,5 +1,4 @@
 import { X } from "lucide-react";
-import { setAppScreen } from "./appScreen";
 import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "./freezeJobs";
 import { useI18n } from "./i18n";
 import { openLibraryManager } from "./libraryManagerNav";
@@ -23,7 +22,7 @@ export default function ProcessTasks({ onOpen }: { onOpen?: () => void }) {
         const title = freezeTitle(job.mode, job.name);
         return <li key={job.appId} className="ga-process-task">
           <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: job.name })}
-            onClick={() => { onOpen?.(); setAppScreen("games"); openLibraryManager(job.appId); }}>
+            onClick={() => { onOpen?.(); openLibraryManager(job.appId); }}>
             <span className="ga-process-task-name">{title}</span>
             <span className="ga-process-task-state">{job.queued ? t("tasksWaiting") : `${percent}%`}</span>
             <span className="ga-process-task-bar" aria-hidden="true"><i style={{ width: `${job.queued ? 0 : percent}%` }} /></span>

@@ -1,7 +1,4 @@
-import { useEffect, useRef } from "react";
-import { Snowflake } from "lucide-react";
-import { GaClose } from "./components/ga/Buttons";
-import { cancelFreezeJob, collapseFreezeConsole, dismissFreezeJob, jobCancelKey, jobLabelKey, openFreezeConsole, useFreezeConsole, type FreezeJob } from "./freezeJobs";
+import type { FreezeJob } from "./freezeJobs";
 import { formatBytes } from "./GenericDownloadProgress";
 import { useI18n, type TranslationKey } from "./i18n";
 import type { FreezeEvent, FreezeProgress } from "./native";
@@ -94,82 +91,4 @@ export function stats(progress: FreezeProgress | undefined) {
   const speed = progress.done_bytes / elapsed;
   const share = progress.percent / 100;
   return { speed, eta: share > 0.02 ? elapsed * (1 - share) / share : 0 };
-}
-
-function JobView({ job, t }: { job: FreezeJob; t: Translate }) {
-  const progress = job.progress;
-  const state = job.outcome ? (job.outcome.ok ? "done" : "failed") : "working";
-  const percent = job.outcome?.ok ? 100 : progress?.percent ?? 0;
-  const steps: readonly string[] = progress?.steps ?? STEPS_OF[job.mode];
-  const current = steps.indexOf(progress?.step ?? steps[0]);
-  const { speed, eta } = stats(progress);
-  const log = useRef<HTMLOListElement>(null);
-  const events = progress?.events ?? [];
-  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }); }, [events.length]);
-  return (<>
-    <div className="gfc-stage">
-      <FreezeArt mode={job.mode} percent={percent} state={state} />
-      <div className="gfc-figures">
-        <strong>{Math.floor(percent)}<small>%</small></strong>
-        {progress?.total_bytes ? <span>{formatBytes(progress.done_bytes)} / {formatBytes(progress.total_bytes)}</span> : null}
-        {state === "working" && speed > 0 ? <span>{t("freezeSpeed", { speed: formatBytes(speed) })}{eta ? ` · ${t("freezeEta", { time: clock(eta) })}` : ""}</span> : null}
-        {state !== "working" ? <span className={`gfc-result is-${state}`}>{job.outcome?.detail}</span> : null}
-      </div>
-    </div>
-    <ol className="gfc-steps">
-      {steps.map((step, index) => {
-        const status = state === "done" || index < current ? "done" : index === current ? (state === "failed" ? "failed" : "active") : "pending";
-        return <li key={step} className={`is-${status}`}><i />{t(STEP_KEYS[step] ?? "freezeStepCompress")}</li>;
-      })}
-    </ol>
-    <div className={`gfc-bar is-${state}`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(percent)}><i style={{ width: `${percent}%` }} /></div>
-    <p className="gfc-file" title={progress?.file || undefined}>{state === "working" ? progress?.file || " " : " "}</p>
-    <ol ref={log} className="gfc-log" tabIndex={-1}>
-      {events.map((event, index) => (
-        <li key={index} className={`is-${event.kind}`}><time>{clock(event.at - (progress?.started_at ?? event.at))}</time><span>{eventText(event, job, t)}</span></li>
-      ))}
-      {state === "working" ? <li className="gfc-cursor"><time>{clock((progress?.updated_at ?? 0) - (progress?.started_at ?? 0))}</time><span>▍</span></li> : null}
-    </ol>
-  </>);
-}
-
-/** The freeze console: a floating panel at the bottom left, outside the flow of the app (nothing else is blocked).
- *  It shows the job of the game being frozen or thawed, its steps, bar, speed, time left, the file being worked on
- *  and the launcher's events. Its close folds it into a chip while the work goes on; once the work ends, it takes
- *  the job out. */
-export default function FreezeConsole() {
-  const { t } = useI18n();
-  const state = useFreezeConsole();
-  const { open, focus } = state;
-  // A job shown in place (its row in the Library Manager) is not repeated here.
-  const jobs = state.jobs.filter(item => !state.inline.includes(item.appId));
-  if (!jobs.length) return null;
-  const job = jobs.find(item => item.appId === focus) ?? jobs[jobs.length - 1];
-  const working = jobs.filter(item => !item.outcome);
-  const title = t(jobLabelKey(job.mode));
-  if (!open) {
-    const shown = working[0] ?? job;
-    return (
-      <button type="button" className={`ga-freeze-chip${shown.outcome ? (shown.outcome.ok ? " is-done" : " is-failed") : ""}`} onClick={() => openFreezeConsole(shown.appId)}
-        title={t("freezeConsoleShow", { name: shown.name })} aria-label={t("freezeConsoleShow", { name: shown.name })}>
-        <Snowflake size={16} className={shown.outcome ? "" : "gfc-spin"} aria-hidden="true" />
-        <span>{shown.name}</span>
-        <b>{shown.outcome ? (shown.outcome.ok ? t("freezeConsoleDone") : t("freezeConsoleFailed")) : `${Math.floor(shown.progress?.percent ?? 0)}%`}</b>
-      </button>
-    );
-  }
-  return (
-    <aside className="ga-freeze-console" aria-label={t("freezeConsoleLabel")}>
-      <header>
-        <div><span className="gfc-eyebrow">{title}</span><h3 title={job.name}>{job.name}</h3></div>
-        <GaClose label={job.outcome ? t("close") : t("freezeConsoleHide")} onClick={() => (job.outcome ? dismissFreezeJob(job.appId) : collapseFreezeConsole())} />
-      </header>
-      {jobs.length > 1 ? <div className="gfc-tabs">
-        {jobs.map(item => <button key={item.appId} type="button" aria-pressed={item.appId === job.appId} onClick={() => openFreezeConsole(item.appId)}>{item.name}</button>)}
-      </div> : null}
-      <JobView key={job.appId} job={job} t={t} />
-      {job.outcome ? null : <button type="button" className="gfc-cancel" disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}>
-        {job.cancelling ? t("freezeCancelling") : t(jobCancelKey(job.mode))}</button>}
-    </aside>
-  );
 }

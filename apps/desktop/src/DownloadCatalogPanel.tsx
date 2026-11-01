@@ -40,6 +40,7 @@ import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaBack, GaButton, GaIconButton } from "./components/ga/Buttons";
 import { OPEN_LIBRARY_MANAGER_EVENT } from "./libraryManagerNav";
+import { setAppScreen } from "./appScreen";
 import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
@@ -246,6 +247,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   useEffect(() => {
     const show = (event: Event) => {
       const appId = (event as CustomEvent<{ appId?: number }>).detail?.appId;
+      setAppScreen("games");
       if (appId != null) setManagerFocus(appId);
       if (view === "library") toggleManager(true);
       else { pendingManager.current = true; onViewChange("library"); }

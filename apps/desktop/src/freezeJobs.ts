@@ -12,6 +12,7 @@ import type { FreezeMode } from "./FreezeDialog";
 import type { CatalogGame } from "./types";
 import type { TranslationKey } from "./i18n";
 import { clock } from "./FreezeConsole";
+import { openLibraryManager } from "./libraryManagerNav";
 
 /**
  * Freezing a big game takes minutes. The work belongs to the app, not to what asked for it: one freeze or thaw at a
@@ -74,17 +75,12 @@ export function runningFreezeJob(): FreezeJob | undefined {
   return [...jobs.values()].find(job => !job.outcome && !job.queued);
 }
 
-/** Show the console, on this game's job when given. */
+/** Show a game's job: its row in the Library Manager, which keeps the job's detail (the processes panel lists it
+ *  under Tasks; there is no floating console any more, docs/GUI_DESIGN.md §0b). */
 export function openFreezeConsole(appId?: number): void {
-  open = true;
   if (appId != null) focus = appId;
   emit();
-}
-
-/** Fold the console into its small chip; the work goes on. */
-export function collapseFreezeConsole(): void {
-  open = false;
-  emit();
+  if (typeof window !== "undefined") openLibraryManager(appId);
 }
 
 /** A view that shows this game's job in place (while mounted): the floating console leaves it out. Returns the
