@@ -23,8 +23,8 @@ const mount = async () => {
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
   await act(async () => { root.render(<DigitalGameOptions game={game} onClose={() => undefined} />); });
 };
-const type = (input: HTMLInputElement, value: string) => {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+const type = (input: HTMLTextAreaElement, value: string) => {
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, value);
   input.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
@@ -32,7 +32,7 @@ describe("un juego vinculado (de Steam o de una carpeta)", () => {
   it("muestra solo su comando de ejecución, con el de siempre como guía y la ayuda de las formas de ejecutarlo", async () => {
     gameOptions.mockResolvedValue({ ok: true, linked: true, command: "", default_command: "steam://rungameid/1145360" });
     await mount();
-    const input = host.querySelector<HTMLInputElement>("#game-command")!;
+    const input = host.querySelector<HTMLTextAreaElement>("#game-command")!;
     expect(input.placeholder).toBe("steam://rungameid/1145360");
     expect(host.querySelector("select")).toBeNull();
     expect(host.querySelector("#game-command-help")).toBeNull();
@@ -40,12 +40,14 @@ describe("un juego vinculado (de Steam o de una carpeta)", () => {
     act(() => help.click());
     expect(help.getAttribute("aria-expanded")).toBe("true");
     expect(host.querySelector("#game-command-help")?.textContent).toContain("-applaunch");
+    expect(host.querySelectorAll("#game-command-help details")).toHaveLength(3);
+    expect([...host.querySelectorAll<HTMLDetailsElement>("#game-command-help details")].some(item => item.open)).toBe(false);
   });
   it("guarda el comando escrito a mano", async () => {
     gameOptions.mockResolvedValue({ ok: true, linked: true, command: "", default_command: "steam://rungameid/1145360" });
     saveLaunchCommand.mockResolvedValue({ ok: true, linked: true, command: "steam://run/1145360//-dx11/", default_command: "steam://rungameid/1145360" });
     await mount();
-    act(() => type(host.querySelector<HTMLInputElement>("#game-command")!, "steam://run/1145360//-dx11/"));
+    act(() => type(host.querySelector<HTMLTextAreaElement>("#game-command")!, "steam://run/1145360//-dx11/"));
     await act(async () => { host.querySelector<HTMLButtonElement>("footer > button")!.click(); });
     expect(saveLaunchCommand).toHaveBeenCalledWith(game, "steam://run/1145360//-dx11/");
     expect(host.textContent).toContain("Opciones guardadas.");

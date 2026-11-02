@@ -5,8 +5,10 @@ folder: the record and the play history live under `.cache/digital_linked`, outs
 from __future__ import annotations
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from atomic_json import write_json
 from launcher_data import data_dir
@@ -29,21 +31,75 @@ def launch_command(record: dict) -> str:
     return str(record.get("command") or "").strip() or default_command(record)
 
 
+WAIT_LINE = re.compile(r"^(?:wait|esperar)\s+(\d{1,3})$", re.I)
+MAX_WAIT = 120
+
+
+def command_lines(command: str) -> list[str]:
+    """The launch command, one step per line, run in order (blank lines and # notes are skipped)."""
+    return [line.strip() for line in str(command or "").splitlines() if line.strip() and not line.strip().startswith("#")]
+
+
+def masked(command: str) -> str:
+    """The command as it goes into logs: the password after `-login user` never does."""
+    return re.sub(r'(-login\s+("[^"]*"|\S+)\s+)("[^"]*"|\S+)', r"\1****", str(command or ""))
+
+
 def checked_command(command: str) -> str:
-    """A launch command the user typed: a steam:// address, or an existing .exe with its arguments. "" = Steam's own."""
+    """A launch command the user typed, one step per line: a steam:// address, an existing .exe with its arguments
+    (the game's own, or steam.exe -shutdown / -login / -applaunch) or `wait N` (seconds). "" = the default one."""
     from game_execution_manager.launch import parse_arguments
-    command = str(command or "").strip()
-    if not command:
-        return ""
-    if any(char in command for char in "\r\n\x00"):
-        raise ValueError("El comando no puede tener saltos de línea.")
-    if command.lower().startswith("steam://"):
-        return command
-    parts = parse_arguments(command)
-    exe = Path(parts[0]) if parts else None
-    if exe is None or exe.suffix.lower() != ".exe" or not exe.is_file():
-        raise ValueError("El comando tiene que ser una dirección steam:// o un .exe que exista, con sus argumentos.")
-    return command
+    if "\x00" in str(command or ""):
+        raise ValueError("El comando tiene caracteres no válidos.")
+    lines = command_lines(command)
+    for line in lines:
+        wait = WAIT_LINE.match(line)
+        if wait:
+            if not 0 < int(wait.group(1)) <= MAX_WAIT:
+                raise ValueError(f"La espera va de 1 a {MAX_WAIT} segundos.")
+            continue
+        if line.lower().startswith("steam://"):
+            continue
+        parts = parse_arguments(line)
+        exe = Path(parts[0]) if parts else None
+        if exe is None or exe.suffix.lower() != ".exe" or not exe.is_file():
+            raise ValueError(f"Cada línea tiene que ser una dirección steam://, un .exe que exista con sus argumentos o «wait N»: {masked(line)}")
+    return "\n".join(lines)
+
+
+def run_sequence(command: str, sleep=time.sleep, probe=None) -> dict:
+    """Runs the launch command's steps in order. A step waits for its program to end (up to 10 s) before the next one;
+    steam.exe -shutdown also waits until Steam is really closed (up to 30 s), so a -login after it starts a new Steam."""
+    from game_execution_manager.launch import parse_arguments
+    lines = command_lines(command)
+    flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
+    pid = None
+    for index, line in enumerate(lines):
+        last = index == len(lines) - 1
+        wait = WAIT_LINE.match(line)
+        if wait:
+            sleep(min(int(wait.group(1)), MAX_WAIT))
+            continue
+        if line.lower().startswith("steam://"):
+            os.startfile(line)
+            continue
+        parts = parse_arguments(line)
+        process = subprocess.Popen(parts, cwd=str(Path(parts[0]).parent), creationflags=flags, close_fds=True)
+        pid = process.pid
+        if last:
+            break
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        if any(part.lower() == "-shutdown" for part in parts[1:]):
+            if probe is None:
+                from game_execution_manager.game_processes import running_in as probe
+            for _ in range(30):
+                if not probe([Path(parts[0]).parent]):
+                    break
+                sleep(1)
+    return {"pid": pid, "command": masked("\n".join(lines))}
 
 
 class LinkedGames:
@@ -87,7 +143,7 @@ class LinkedGames:
         record["command"] = checked_command(command)
         write_json(self.dir / f"{int(app_id)}.json", record)
         self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
-        journal.note(self.log_dir(app_id), "opciones", f"comando de ejecución: {launch_command(record) or 'automático'}")
+        journal.note(self.log_dir(app_id), "opciones", f"comando de ejecución: {masked(launch_command(record)).replace(chr(10), ' / ') or 'automático'}")
         return record
 
     def unlink(self, app_id: int, hide: bool = True) -> None:
@@ -163,7 +219,7 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
     if action in ("game-options", "save-game-options"):
         if action == "save-game-options":
             record = linked.set_command(app_id, json.loads(payload or "{}").get("command", ""))
-            logger.info("AppID %s: launch command saved: %s", app_id, launch_command(record) or "automatic")
+            logger.info("AppID %s: launch command saved: %s", app_id, masked(launch_command(record)).replace(chr(10), " / ") or "automatic")
         return {"linked": True, "command": str(record.get("command") or ""), "default_command": default_command(record)}
     if action == "status":
         return linked.status(record)
@@ -186,15 +242,14 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
         if not folder.is_dir():
             raise ValueError("La carpeta vinculada ya no existe.")
         custom = str(record.get("command") or "").strip()
-        if custom and not custom.lower().startswith("steam://"):
-            # The user's own command: an executable (the game's, steam.exe -applaunch...) with its arguments, from its folder.
-            from game_execution_manager.launch import parse_arguments
-            parts = parse_arguments(custom)
-            flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
-            process = subprocess.Popen(parts, cwd=str(Path(parts[0]).parent), creationflags=flags, close_fds=True)
+        steps = command_lines(custom)
+        if steps and not (len(steps) == 1 and steps[0].lower().startswith("steam://")):
+            # The user's own steps, in order: sign Steam out and in to an account, run the game's executable without
+            # Steam (some games open better that way)... A single steam:// address still goes through the owner's account.
+            outcome = run_sequence(custom)
             linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
-            journal.note(linked.log_dir(app_id), "play", f"lanzado: {custom} (pid {process.pid})")
-            return {"pid": process.pid, "command": custom}
+            journal.note(linked.log_dir(app_id), "play", f"lanzado: {outcome['command']}" + (f" (pid {outcome['pid']})" if outcome["pid"] else ""))
+            return outcome
         if record["kind"] == "steam" or custom:
             command = launch_command(record)
             if steam is not None:

@@ -62,6 +62,34 @@ def test_only_steam_addresses_and_existing_executables_are_accepted(linked):
     _, own = linked
     assert checked_command("") == ""
     assert checked_command("STEAM://rungameid/5") == "STEAM://rungameid/5"
-    for bad in ["notepad", "http://example.com", f'"{own / "missing.exe"}"', "steam://run/1\n&calc"]:
+    for bad in ["notepad", "http://example.com", f'"{own / "missing.exe"}"', "steam://run/1\n&calc", "wait 999"]:
         with pytest.raises(ValueError):
             checked_command(bad)
+
+
+def test_steps_sign_steam_out_and_in_then_run_the_game_in_order_without_logging_the_password(linked, monkeypatch):
+    games, own = linked
+    steam = own / "steam.exe"
+    steam.write_bytes(b"x")
+    command = f'"{steam}" -shutdown\n\n# then the other account\n"{steam}" -login kid "s3cret pass"\nwait 5\nsteam://rungameid/100'
+    assert checked_command(command).count("\n") == 3
+    events = []
+
+    class Process:
+        def __init__(self, parts):
+            self.pid = len(events)
+            events.append(("run", parts[1:]))
+
+        def wait(self, timeout):
+            events.append(("waited", timeout))
+
+    monkeypatch.setattr(linked_module.subprocess, "Popen", lambda parts, **kw: Process(parts))
+    monkeypatch.setattr(linked_module.os, "startfile", lambda target: events.append(("open", target)), raising=False)
+    still_open = iter([True, False])
+    outcome = linked_module.run_sequence(checked_command(command), sleep=lambda s: events.append(("sleep", s)), probe=lambda _: next(still_open))
+    assert events == [("run", ["-shutdown"]), ("waited", 10), ("sleep", 1), ("run", ["-login", "kid", "s3cret pass"]), ("waited", 10),
+                      ("sleep", 5), ("open", "steam://rungameid/100")]
+    assert "s3cret" not in outcome["command"] and "-login kid ****" in outcome["command"]
+    games.set_command(100, command)
+    history = linked_module.journal.read(games.log_dir(100))
+    assert "-login kid ****" in history and "s3cret" not in history

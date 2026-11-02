@@ -106,8 +106,13 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-game-config .ga-stack>.ga-path-control{margin:0;font-size:14px}
 /* A linked game's launch command: its label with the help button beside it; the help lists the ways to run a game. */
 .ga-game-config .ga-command-label{display:flex;align-items:center;justify-content:space-between;gap:var(--ga-space-1)}
-.ga-game-config .ga-path-control #game-command{font-family:ui-monospace,Consolas,monospace}
+.ga-game-config .ga-path-control #game-command{box-sizing:border-box;width:100%;min-width:0;min-height:96px;padding:10px 12px;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-field-bg);color:var(--ga-white);font:13px/1.5 ui-monospace,Consolas,monospace;resize:vertical;white-space:pre;overflow-x:auto}
+.ga-game-config .ga-path-control #game-command:focus-visible{outline:2px solid var(--ga-orange);outline-offset:3px}
 .ga-command-help{display:grid;gap:var(--ga-space-1);padding:12px 14px;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-surface)}
+.ga-command-step{border-top:1px solid var(--ga-line);padding-top:8px}
+.ga-command-step>summary{cursor:pointer;font-weight:700;color:var(--ga-white)}
+.ga-command-step>summary:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
+.ga-command-step>dl{margin-top:10px}
 .ga-command-help dl{display:grid;gap:10px;margin:0}
 .ga-command-help dt code{color:var(--ga-orange-ink);overflow-wrap:anywhere}
 .ga-command-help dd{margin:2px 0 0;color:var(--ga-muted);font-size:13px}
