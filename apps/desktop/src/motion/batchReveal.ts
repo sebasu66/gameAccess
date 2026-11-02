@@ -15,6 +15,19 @@ import { gsap, motionOk, ScrollTrigger } from "./gsap";
 
 const EASE = "power3";
 
+/** The cards inside the scroller's view that are still hidden: shown now. A card ScrollTrigger measured before the
+ *  grid moved (a filter, the sliding window) never gets its onEnter while it sits in view, and would stay empty. */
+function revealInView(scroller: HTMLElement, cards: Iterable<Element>): void {
+  const view = scroller.getBoundingClientRect();
+  const hidden = [...cards].filter(card => {
+    if (Number(gsap.getProperty(card, "opacity")) >= 1) return false;
+    // Where it sits without its hidden offset.
+    const box = card.getBoundingClientRect(), offset = Number(gsap.getProperty(card, "y")) || 0;
+    return box.bottom - offset > view.top && box.top - offset < view.bottom;
+  });
+  if (hidden.length) gsap.to(hidden, { opacity: 1, y: 0, ease: EASE, stagger: 0.15, overwrite: true });
+}
+
 export function useBatchReveal(container: RefObject<HTMLElement>, selector: string, mounted: unknown, layout: unknown): void {
   const triggers = useRef(new Map<Element, ScrollTrigger>());
 
@@ -28,7 +41,7 @@ export function useBatchReveal(container: RefObject<HTMLElement>, selector: stri
       if (!element.isConnected) { trigger.kill(); known.delete(element); }
     }
     const fresh = [...host.querySelectorAll<HTMLElement>(selector)].filter(element => !known.has(element));
-    if (!fresh.length) return;
+    if (!fresh.length) { ScrollTrigger.refresh(); revealInView(scroller, known.keys()); return; }
     // Set before the first paint, so a new card never flashes in its final place.
     gsap.set(fresh, { opacity: 0, y: 100 });
     const created = ScrollTrigger.batch(fresh, {
@@ -39,11 +52,17 @@ export function useBatchReveal(container: RefObject<HTMLElement>, selector: stri
       onLeaveBack: batch => gsap.set(batch, { opacity: 0, y: 100, overwrite: true }),
     });
     created.forEach((trigger, index) => known.set(fresh[index], trigger));
+    // The cards that stayed may have moved with the new ones: measure again, and show what is in view.
+    ScrollTrigger.refresh();
+    revealInView(scroller, known.keys());
   }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The grid moved (a group opened, a card changed group, another width): measure again.
   useLayoutEffect(() => {
-    if (triggers.current.size) ScrollTrigger.refresh();
+    const scroller = container.current?.closest<HTMLElement>(".library-section-scroll");
+    if (!triggers.current.size || !scroller) return;
+    ScrollTrigger.refresh();
+    revealInView(scroller, triggers.current.keys());
   }, [layout]);
 
   useLayoutEffect(() => {
