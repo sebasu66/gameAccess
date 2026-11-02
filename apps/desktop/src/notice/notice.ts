@@ -33,7 +33,7 @@ export interface Notice {
   /** Called once when this notice leaves the screen (closed, timed out or replaced). */
   onDismiss?: () => void;
   /** Its entry in the activity history: a process gives its key (one entry that changes state); false leaves none. */
-  activity?: { key?: string; state?: ActivityState } | false;
+  activity?: { key?: string; state?: ActivityState; news?: string } | false;
   /** A question waiting for an answer (confirmNotice): no history entry, what follows the answer has its own. */
   question?: boolean;
 }
@@ -62,7 +62,7 @@ export function showNotice(input: NoticeInput): number {
   current = { ...input, id: nextId++, actions, timer };
   if (!input.question && input.activity !== false) {
     const state: ActivityState = input.activity?.state ?? (input.tone === "error" ? "failed" : working ? "running" : input.tone === "ok" || input.tone === "frost" ? "done" : "info");
-    recordActivity({ key: input.activity?.key, title: input.title, text: input.text, tone: input.tone, state, appId: input.game?.appId ?? undefined, name: input.game?.name, image: input.game?.image });
+    recordActivity({ key: input.activity?.key, title: input.title, text: input.text, tone: input.tone, state, news: input.activity?.news, appId: input.game?.appId ?? undefined, name: input.game?.name, image: input.game?.image });
   }
   settle(previous);
   emit();

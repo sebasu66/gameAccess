@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { useI18n } from "./i18n";
+import { getAppScreen, setAppScreen } from "./appScreen";
 
 type Props = {
   query: string;
@@ -24,8 +25,17 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || !["f", "k"].includes(event.key.toLowerCase())) return;
       event.preventDefault();
       event.stopPropagation();
-      inputRef.current?.focus({ preventScroll: true });
-      inputRef.current?.select();
+      const focus = () => { inputRef.current?.focus({ preventScroll: true }); inputRef.current?.select(); };
+      if (getAppScreen() === "games") { focus(); return; }
+      // From another mode (Home, Settings, parental): back to the games, then the field once it shows.
+      setAppScreen("games");
+      const started = Date.now();
+      const whenShown = () => {
+        const input = inputRef.current;
+        if (input && getAppScreen() === "games" && input.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) !== false && Number(getComputedStyle(input.closest(".app-shell > main") ?? input).opacity) > .5) focus();
+        else if (Date.now() - started < 3000) window.setTimeout(whenShown, 50);
+      };
+      whenShown();
     };
 
     window.addEventListener("keydown", handleSearchShortcut, true);

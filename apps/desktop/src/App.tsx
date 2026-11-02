@@ -5,7 +5,7 @@ import HomeScreen from "./HomeScreen";
 import ActivityPanel from "./activity/ActivityPanel";
 import { useActivity } from "./activity/activity";
 import KidModePanel from "./KidModePanel";
-import GamesScreenButton from "./GamesScreenButton";
+import GamesScreenButton, { LibraryManagerButton } from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
@@ -664,7 +664,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
+          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><LibraryManagerButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
         </div>
       </header>
 

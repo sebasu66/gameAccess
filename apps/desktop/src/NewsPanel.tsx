@@ -1,18 +1,42 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { queryCatalogCache } from "./catalogCache";
 import { AnnouncementBody } from "./centralDialog/CentralDialogView";
 import { markNewsRead, useNews } from "./centralDialog/useAnnouncements";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
+import { OPEN_NEWS_EVENT, takePendingNews } from "./newDownloads";
 import SteamCover from "./SteamCover";
 import type { CatalogGame } from "./types";
 import "./news-panel.css";
 
 const TIPS = ["newsTip1", "newsTip2", "newsTip3"] as const;
 
-/** The games a news item lists (by app id, read from the catalog database), each with a link to its detail page. */
-function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game: CatalogGame) => void }) {
+/** How many covers show before "See all": a news item can bring hundreds of games. */
+const FIRST = 24;
+
+/**
+ * Games as a grid of covers with their names (Seba, 2026-11-02: the long list showed little in much space); each
+ * opens its game's detail. Long ones show the first FIRST and "See all".
+ */
+function GameGrid({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
   const { t } = useI18n();
+  const [all, setAll] = useState(false);
+  const shown = all ? games : games.slice(0, FIRST);
+  return <div className="ga-stack">
+    <ul className="ga-news-grid">
+      {shown.map(game => <li key={game.id}>
+        <button type="button" className="ga-news-tile" aria-label={t("selectGameAria", { name: game.name })} onClick={() => onOpenGame(game)}>
+          <span className="ga-news-tile-cover"><SteamCover game={game} /></span>
+          <span className="ga-news-tile-name">{game.name}</span>
+        </button>
+      </li>)}
+    </ul>
+    {games.length > FIRST ? <div className="ga-actions"><GaButton onClick={() => setAll(value => !value)}>{all ? t("newsShowLess") : t("newsShowAll", { count: games.length })}</GaButton></div> : null}
+  </div>;
+}
+
+/** The games a news item lists (by app id, read from the catalog database), as a grid that opens their detail. */
+function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game: CatalogGame) => void }) {
   const [games, setGames] = useState<CatalogGame[]>([]);
   const key = appIds.join(",");
   useEffect(() => {
@@ -26,13 +50,7 @@ function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   if (!games.length) return null;
-  return <ul className="ga-news-games">
-    {games.map(game => <li key={game.id}>
-      <span className="ga-news-cover"><SteamCover game={game} /></span>
-      <div><b>{game.name}</b></div>
-      <GaButton variant="secondary" onClick={() => onOpenGame(game)}>{t("newsSee")}</GaButton>
-    </li>)}
-  </ul>;
+  return <GameGrid games={games} onOpenGame={onOpenGame} />;
 }
 const DAY = 86_400_000;
 
@@ -51,9 +69,21 @@ export default function NewsPanel({ games, onOpenGame }: { games: CatalogGame[];
   const tip = TIPS[new Date().getDate() % TIPS.length];
   const date = (value?: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString(locale === "es" ? "es-AR" : "en-US", { day: "numeric", month: "long", year: "numeric" }) : "";
   const [latest, ...older] = items;
+  // A notice or an Activity entry asked for one news item: it opens and comes into view.
+  const [focus, setFocus] = useState<string | null>(() => takePendingNews());
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const show = (event: Event) => { takePendingNews(); setFocus((event as CustomEvent<string>).detail); };
+    window.addEventListener(OPEN_NEWS_EVENT, show);
+    return () => window.removeEventListener(OPEN_NEWS_EVENT, show);
+  }, []);
+  useEffect(() => {
+    if (!focus) return;
+    root.current?.querySelector(`[data-news-id="${CSS.escape(focus)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focus, items.length]);
   return (
-    <div className="ga-news">
-      {latest ? <article className="ga-news-latest">
+    <div className="ga-news" ref={root}>
+      {latest ? <article className="ga-news-latest" data-news-id={latest.id}>
         <span className="ga-news-eyebrow">{t("newsLatest")}{latest.date ? ` · ${date(latest.date)}` : ""}</span>
         <h3>{latest.title}</h3>
         <AnnouncementBody text={latest.body} />
@@ -61,17 +91,11 @@ export default function NewsPanel({ games, onOpenGame }: { games: CatalogGame[];
       </article> : <p className="ga-news-empty">{t("newsEmpty")}</p>}
       {recent.length ? <section>
         <h4 className="ga-news-section">{t("newsNewInCatalog")}</h4>
-        <ul className="ga-news-games">
-          {recent.map(game => <li key={game.id}>
-            <span className="ga-news-cover"><SteamCover game={game} /></span>
-            <div><b>{game.name}</b><span>{date(game.release_date?.slice(0, 10))}</span></div>
-            <GaButton variant="secondary" onClick={() => onOpenGame(game)}>{t("newsSee")}</GaButton>
-          </li>)}
-        </ul>
+        <GameGrid games={recent} onOpenGame={onOpenGame} />
       </section> : null}
       {older.length ? <section>
         <h4 className="ga-news-section">{t("newsOlder")}</h4>
-        {older.map(item => <details key={item.id} className="ga-news-older"><summary><b>{item.title}</b>{item.date ? <span>{date(item.date)}</span> : null}</summary><AnnouncementBody text={item.body} />{item.games?.length ? <NewsGames appIds={item.games} onOpenGame={onOpenGame} /> : null}</details>)}
+        {older.map(item => <details key={item.id} className="ga-news-older" data-news-id={item.id} open={focus === item.id || undefined}><summary><b>{item.title}</b>{item.date ? <span>{date(item.date)}</span> : null}</summary><AnnouncementBody text={item.body} />{item.games?.length ? <NewsGames appIds={item.games} onOpenGame={onOpenGame} /> : null}</details>)}
       </section> : null}
       <p className="ga-news-tip"><b>{t("newsTipTitle")}</b> {t(tip)}</p>
     </div>

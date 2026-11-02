@@ -35,14 +35,19 @@ beforeEach(() => {
 afterEach(() => { if (root) act(() => root?.unmount()); root = null; document.body.innerHTML = ""; vi.useRealTimers(); });
 
 describe("new downloads: notice, news item and bell", () => {
-  it("a finding shows the notice with OK and More and the 3 s timer; More opens the News panel", async () => {
-    const { recordNewDownloads, getNotice, translate } = await app();
+  it("a finding shows the notice with OK and More and the 3 s timer; More goes to the news item on Home", async () => {
+    const { recordNewDownloads, getNotice, translate, takePendingNews } = await app();
+    const { SCREEN_CHANGE_EVENT } = await import("./appScreen");
+    const changed = vi.fn();
+    window.addEventListener(SCREEN_CHANGE_EVENT, changed);
     recordNewDownloads([30, 40], "catalog");
     const notice = getNotice()!;
-    expect(notice).toMatchObject({ title: translate("newDownloadsTitle"), text: translate("newDownloadsTextMany", { count: 2 }), timer: true });
+    expect(notice).toMatchObject({ title: translate("newDownloadsTitle"), text: `${translate("newDownloadsTextMany", { count: 2 })} ${translate("newDownloadsFromCatalog")}`, timer: true });
     expect(notice.actions.map(action => action.label)).toEqual([translate("noticeOk"), translate("newDownloadsMore")]);
     notice.actions[1].run();
-    expect(mocks.openPanel).toHaveBeenCalledWith("news");
+    expect(changed).toHaveBeenCalled();
+    window.removeEventListener(SCREEN_CHANGE_EVENT, changed);
+    expect(takePendingNews()).toMatch(/^downloads-/);
     expect(getNotice()).toBeNull();
   });
 
@@ -62,15 +67,15 @@ describe("new downloads: notice, news item and bell", () => {
     expect(session.newsSnapshot().items).toHaveLength(1);
   });
 
-  it("the News panel lists the games and View opens each game's page", async () => {
+  it("the News panel shows the games as a grid and each cover opens its game's page", async () => {
     const session = await app();
     session.recordNewDownloads([40, 30], "catalog");
     const onOpenGame = vi.fn();
     const container = document.body.appendChild(document.createElement("div"));
     root = createRoot(container);
     await act(async () => root!.render(<session.NewsPanel games={[]} onOpenGame={onOpenGame} />));
-    const rows = [...container.querySelectorAll(".ga-news-latest .ga-news-games li")];
-    expect(rows.map(row => row.querySelector("b")?.textContent)).toEqual(["Delta", "Gamma"]);
+    const rows = [...container.querySelectorAll(".ga-news-latest .ga-news-grid li")];
+    expect(rows.map(row => row.querySelector(".ga-news-tile-name")?.textContent)).toEqual(["Delta", "Gamma"]);
     act(() => rows[1].querySelector("button")!.click());
     expect(onOpenGame).toHaveBeenCalledWith(expect.objectContaining({ app_id: 30, name: "Gamma" }));
   });
@@ -82,5 +87,12 @@ describe("new downloads: notice, news item and bell", () => {
     expect(session.recordNewDownloads([30], "plugin")).toBeNull();
     expect(session.getNotice()).toBeNull();
     expect(session.recordNewDownloads([30, 40], "plugin")?.appIds).toEqual([40]);
+  });
+
+  it("the notice says who found the games and its entry leads to the news item on Home", async () => {
+    const session = await app();
+    const item = session.recordNewDownloads([30], "plugin", "Fuentes X");
+    expect(session.getNotice()?.text).toContain("Fuentes X");
+    expect(session.getNotice()?.activity).toEqual({ news: item!.id });
   });
 });

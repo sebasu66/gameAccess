@@ -16,7 +16,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { dur, gsap, motionOk, useGSAP } from "./motion/gsap";
 import { queueTransition, transitionsBusy } from "./motion/transitions";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, Download, FolderInput, HardDrive, LayoutGrid, Loader2, Play, Snowflake, Star, X } from "lucide-react";
+import { ArrowUpDown, ArrowUpToLine, Download, FolderInput, LayoutGrid, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -38,8 +38,8 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
-import { GaBack, GaButton, GaIconButton } from "./components/ga/Buttons";
-import { OPEN_LIBRARY_MANAGER_EVENT } from "./libraryManagerNav";
+import { GaButton, GaIconButton } from "./components/ga/Buttons";
+import { CLOSE_LIBRARY_MANAGER_EVENT, OPEN_LIBRARY_MANAGER_EVENT, setLibraryManagerShown } from "./libraryManagerNav";
 import { setAppScreen } from "./appScreen";
 import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
@@ -252,9 +252,13 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       if (view === "library") toggleManager(true);
       else { pendingManager.current = true; onViewChange("library"); }
     };
+    const hide = () => { if (managerWanted.current) toggleManager(false); };
     window.addEventListener(OPEN_LIBRARY_MANAGER_EVENT, show);
-    return () => window.removeEventListener(OPEN_LIBRARY_MANAGER_EVENT, show);
+    window.addEventListener(CLOSE_LIBRARY_MANAGER_EVENT, hide);
+    return () => { window.removeEventListener(OPEN_LIBRARY_MANAGER_EVENT, show); window.removeEventListener(CLOSE_LIBRARY_MANAGER_EVENT, hide); };
   });
+  useEffect(() => { setLibraryManagerShown(showManager); }, [showManager]);
+  useEffect(() => () => setLibraryManagerShown(false), []);
   useEffect(() => { if (view === "library" && pendingManager.current) { pendingManager.current = false; toggleManager(true); } }, [view]);
   // Big picture mode is the grid of ready games only: the library manager closes.
   const bigPicture = useBigPicture();
@@ -522,9 +526,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
-  // The manager is a mode of the library (docs/GUI_DESIGN.md §0b): a big button on the library's toolbar, not in the frame.
-  const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaButton className="ga-library-manager-button" icon={<HardDrive size={18} aria-hidden="true" />} onClick={() => toggleManager(true)}>{t("libraryManagerButton")}</GaButton> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -536,12 +537,12 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
-      </div> : null}{managerButton}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
+      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
-            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaBack label={t("back")} onClick={() => toggleManager(false)} /></header>
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div></header>
             <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
           </div>
         ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">

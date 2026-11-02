@@ -20,6 +20,8 @@ export interface ActivityEntry {
   appId?: number;
   name?: string;
   image?: string | null;
+  /** A news item on Home that has the detail (the games a plugin or the catalog made downloadable). */
+  news?: string;
   startedAt: number;
   endedAt?: number;
   seen: boolean;

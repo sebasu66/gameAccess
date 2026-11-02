@@ -27,7 +27,7 @@ Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nue
 
 | Nivel | Qué es | Reglas |
 |---|---|---|
-| **Pantalla / modo** | Cambia todo el contenido principal. Se elige desde el marco: Home, Juegos (Catálogo / Librería, alternados junto al buscador), Configuración, Niños en casa. | Ancho completo, sin fondo de superposición y sin `ga-close`. Se sale cambiando de modo; un subpaso (p. ej. Library Manager dentro de Librería) vuelve con `ga-back` (§4.11). |
+| **Pantalla / modo** | Cambia todo el contenido principal. Se elige desde el marco: Home, Juegos (Catálogo / Librería, alternados junto al buscador), Library Manager, Configuración, Niños en casa. | Ancho completo, sin fondo de superposición y sin `ga-close`. Se sale cambiando de modo. El Library Manager es un modo más (Seba, 2026-11-02): botón propio en la botonera del marco, siempre visible, sin pasar por la Librería ni volver con `ga-back`. |
 | **Panel lateral** | Columna a la derecha que no bloquea. | Hay uno solo: **Procesos y descargas** (Descargas arriba como hoy; Tareas debajo, solo mientras alguna corre: nombre, progreso, cancelar, y clic lleva a la tarea en el Library Manager). §4.17. |
 | **Diálogo** | Bloquea para confirmar, avisar, validar, pedir un dato corto o seguir un proceso crítico con progreso (Importar, actualización de la base de juegos). | Chico, `ga-close`, como mucho un botón principal (§4.6). **Uno solo a la vez:** ningún diálogo abre otro; si hace falta algo más, se cierra el primero o se resuelve como pantalla. Los procesos críticos no se minimizan. |
 | **Gate** | Cubre toda la app hasta resolverse: actualización, activación. (La clave de padre ya no es un gate: es un diálogo antes de Control parental, 2026-10-31.) | Uno solo a la vez, por encima de todo. |
@@ -150,7 +150,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Pastilla de 20 px, texto 11 px, color según estado: naranja (en curso), verde (listo), rojo (error), gris (sin estado).
 
 ### 4.11 Botón volver `ga-back` (pantallas completas)
-- Pantallas completas (gestor de descargas, gestor de biblioteca): no tienen botón cerrar; tienen **botón volver** arriba a la derecha, en el lugar del cerrar.
+- Pantallas completas: no tienen botón cerrar. El gestor de biblioteca es un modo (§0b) y no lleva volver; se sale eligiendo otro modo.
 - Flecha y texto ("Volver" / "Back"). Rojo con el mismo fondo, borde y resplandor que `ga-close`.
 - **Alto 54 px** y radio **5 px**, igual que los pulgares de la ficha de juego.
 - Escape lo activa, igual que el cerrar de un overlay.
@@ -158,7 +158,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.12 Overlay y pantalla completa
 - **Overlay** (panel flotante, con borde): tiene `ga-close` arriba a la derecha, vidrio esmerilado y borde degradado (§4.6). Escape lo cierra.
 - **Pantalla completa** (gestor de descargas, gestor de biblioteca): no tiene cerrar sino `ga-back` (§4.11). Escape vuelve.
-- **Pantalla / modo** (§0b: Home, Juegos, Configuración, Niños en casa): ocupa toda la zona principal sin fondo de superposición y no tiene cerrar ni volver; se sale eligiendo otro modo en el marco. Configuración y Niños en casa dejan de ser diálogos. Molde único `GaScreen` (`components/ga/Screen.tsx`, `appScreen.ts`, `.ga-screen` en `ga-design.css`):
+- **Pantalla / modo** (§0b: Home, Juegos, Library Manager, Configuración, Niños en casa): ocupa toda la zona principal sin fondo de superposición y no tiene cerrar ni volver; se sale eligiendo otro modo en el marco. Configuración y Niños en casa dejan de ser diálogos. Molde único `GaScreen` (`components/ga/Screen.tsx`, `appScreen.ts`, `.ga-screen` en `ga-design.css`):
   - Contenido **centrado** (hasta 1200 px). Un panel lateral abierto (Descargas) angosta la pantalla desde su lado y el contenido se corre junto a él, como el catálogo.
   - Llega **hasta abajo**: su fondo baja hasta la abertura del marco (entre las pestañas del pie, que quedan encima de sus esquinas); su contenido llena la altura, desplaza adentro y sus botones quedan justo por encima de las pestañas.
   - Mientras se ve, los juegos de atrás **no se dibujan** (`html.ga-screen-on`, `content-visibility: hidden`), pero conservan su estado para volver.
@@ -206,7 +206,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Descargas se abre siempre como panel lateral (nunca pantalla completa), en cualquier ancho de ventana.
 - Encabezado §4.6 con `ga-close`; en ventanas chicas el panel es la pantalla completa con `ga-back` (§4.11). El pie queda siempre por encima de los paneles.
 
-- **Actividad (2026-11-01, reemplaza a "Descargas" y a "Procesos y descargas"):** el único panel lateral. Encabezado "Actividad"; **En curso** arriba (descargas y tareas que corren: nombre, barra, cancelar; clic lleva a la fila del juego en el Library Manager); **Historial** debajo, agrupado por día (Hoy, Ayer, fecha), cada entrada con portada o ícono del tono, título, texto, hora y estado; "Borrar historial" al final. El detalle de cada descarga (imagen con la velocidad, etapa, pasos, tamaños, Pausar/Reanudar, Subir/Bajar en la cola, seguir tras un corte, Cancelar, carpeta) está en la fila de su juego en el Library Manager, abierto mientras dura (`downloads/DownloadDetail.tsx`); una descarga sin carpeta todavía tiene su propia fila. "Añadir descarga manual" está al final del Library Manager.
+- **Actividad (2026-11-01, reemplaza a "Descargas" y a "Procesos y descargas"):** el único panel lateral. Encabezado "Actividad"; **En curso** arriba (descargas y tareas que corren: nombre, barra, cancelar; clic lleva a la fila del juego en el Library Manager); **Historial** debajo, agrupado por día (Hoy, Ayer, fecha), cada entrada con portada o ícono del tono, título, texto, hora y estado; "Borrar historial" al final. El detalle de cada descarga (imagen con la velocidad, etapa, pasos, tamaños, Pausar/Reanudar, Subir/Bajar en la cola, seguir tras un corte, Cancelar, carpeta) está en la fila de su juego en el Library Manager, abierto mientras dura (`downloads/DownloadDetail.tsx`); una descarga sin carpeta todavía tiene su propia fila. "Añadir descarga manual" está al final del Library Manager. Cada entrada dice de quién viene (p. ej. "Los encontró el plugin X") y lleva a su detalle: un juego, a su fila del Library Manager; una novedad (juegos nuevos para descargar), a esa novedad en Home, cuyos juegos se ven como **grilla de carátulas con título** (clic abre la ficha; las primeras 24 y "Ver los N").
 
 ### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)
 - Acordeón: el separador entero es un botón (`aria-expanded`) con flecha a la izquierda (gira 90° al abrir), nombre del grupo en mayúsculas 11 px, cantidad entre paréntesis y la línea que se desvanece a la derecha. Al pasar el mouse o con foco, nombre y flecha en blanco; foco con anillo naranja.

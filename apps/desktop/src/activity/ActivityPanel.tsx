@@ -6,6 +6,7 @@ import { GaButton } from "../components/ga/Buttons";
 import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
 import { useI18n } from "../i18n";
 import { openLibraryManager } from "../libraryManagerNav";
+import { openNews } from "../newDownloads";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
 import { clearActivity, markActivitySeen, useActivity, type ActivityEntry } from "./activity";
@@ -48,7 +49,9 @@ function HistoryRow({ entry, onOpen }: { entry: ActivityEntry; onOpen?: () => vo
     <time className="ga-activity-time">{span}</time>
   </>;
   return <li className="ga-activity-entry" data-state={entry.state} data-tone={entry.tone} data-unseen={!entry.seen || undefined}>
-    {entry.appId
+    {entry.news
+      ? <button type="button" className="ga-activity-link" aria-label={t("activityOpenNews", { name: entry.title })} onClick={() => { onOpen?.(); openNews(entry.news!); }}>{body}</button>
+      : entry.appId
       ? <button type="button" className="ga-activity-link" aria-label={t("tasksOpen", { name: entry.name ?? entry.title })} onClick={() => { onOpen?.(); openLibraryManager(entry.appId); }}>{body}</button>
       : <div className="ga-activity-link">{body}</div>}
   </li>;
