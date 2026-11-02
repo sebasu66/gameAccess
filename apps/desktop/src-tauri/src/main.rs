@@ -161,6 +161,7 @@ fn main() {
             steam_commands::steam_metadata_worker_poll,
             steam_commands::steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
+            steam_artwork::steam_featured_app_ids,
             steam_commands::machine_profile,
             download_events::register_download_job,
             download_events::record_download_completion,

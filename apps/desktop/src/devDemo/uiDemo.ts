@@ -41,6 +41,9 @@ export const demoCatalog: CatalogGame[] = /* @__PURE__ */ Array.from({ length: M
   return copy ? { ...base, id: base.id * 1000 + copy, name: `${base.name} ${copy + 1}`, slug: `${base.slug}-${copy + 1}` } : base;
 });
 
+/** What the sample Steam store features (catalog banner); 999999 is a featured game the catalog does not have. */
+export const demoFeaturedAppIds = [553850, 999999, 1245620, 1086940, 2215430, 1091500, 1174180];
+
 /** Games the sample player keeps in the library without having them installed yet. */
 export const demoLibraryMembers = (): CatalogGame[] => demoCatalogSize()
   ? demoCatalog.slice(0, 80)  // a long library too, like a real one (80+ games)

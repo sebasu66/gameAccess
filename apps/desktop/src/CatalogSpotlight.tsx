@@ -15,9 +15,9 @@ export function daysSinceRelease(date: string | null | undefined, now = Date.now
 }
 
 /**
- * Banner at the top of the catalog: the games that came out on Steam these days, one at a time. The slides (game and a
- * wide image that really loads) are fetched early (spotlightSlides.ts), so the banner is complete when the catalog
- * appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
+ * Banner at the top of the catalog: the games the Steam store features now (or, without them, the ones that came out
+ * these days), one at a time. The slides (game and a wide image that really loads) are fetched early
+ * (spotlightSlides.ts), so the banner is complete when the catalog appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
  */
 export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: CatalogGame) => boolean; onOpen: (game: CatalogGame) => void }) {
   const { t } = useI18n();
@@ -74,7 +74,7 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
 
   if (!game) return null;
   const days = daysSinceRelease(game.release_date);
-  const eyebrow = days === null ? t("spotlightNew") : days === 0 ? t("spotlightToday") : days === 1 ? t("spotlightOneDay") : t("spotlightDays", { days });
+  const eyebrow = slide.featured ? t("spotlightFeatured") : days === null ? t("spotlightNew") : days === 0 ? t("spotlightToday") : days === 1 ? t("spotlightOneDay") : t("spotlightDays", { days });
   return (
     <section ref={root} className="ga-spotlight" aria-label={t("spotlightLabel")}>
       {layers.map((url, layer) => url ? <img key={layer} className="ga-spotlight-image" data-front={layer === front || undefined} src={url} alt="" /> : null)}

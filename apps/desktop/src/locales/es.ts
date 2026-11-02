@@ -955,7 +955,8 @@ export const es = {
   noticeCancel: "Cancelar",
   languageNameEs: "Español",
   languageNameEn: "English",
-  spotlightLabel: "Lo último en Steam",
+  spotlightLabel: "Destacados en Steam",
+  spotlightFeatured: "Destacado en Steam",
   spotlightNew: "Nuevo en Steam",
   spotlightToday: "Nuevo en Steam · hoy",
   spotlightOneDay: "Nuevo en Steam · hace 1 día",
@@ -1446,4 +1447,8 @@ export const es = {
   logDownload: "Descarga",
   logDownloadDone: "Descarga terminada",
   logInstall: "Instalación",
+  repairGameWorking: "Reparando el juego…",
+  repairGameDone: "El juego está listo para jugar",
+  repairGameNotReady: "El juego todavía no está listo para jugar",
+  repairGameFailed: "No se pudo reparar el juego",
 } as const;

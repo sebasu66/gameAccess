@@ -957,7 +957,8 @@ export const en: Record<keyof typeof es, string> = {
   noticeCancel: "Cancel",
   languageNameEs: "Español",
   languageNameEn: "English",
-  spotlightLabel: "Latest on Steam",
+  spotlightLabel: "Featured on Steam",
+  spotlightFeatured: "Featured on Steam",
   spotlightNew: "New on Steam",
   spotlightToday: "New on Steam · today",
   spotlightOneDay: "New on Steam · 1 day ago",
@@ -1448,4 +1449,8 @@ export const en: Record<keyof typeof es, string> = {
   logDownload: "Download",
   logDownloadDone: "Download finished",
   logInstall: "Install",
+  repairGameWorking: "Repairing the game…",
+  repairGameDone: "The game is ready to play",
+  repairGameNotReady: "The game is not ready to play yet",
+  repairGameFailed: "Could not repair the game",
 };
