@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { activitySnapshot, clearActivity, markActivitySeen, recordActivity } from "./activity";
+import { activitySnapshot, clearActivity, markActivitySeen, MERGE_WINDOW_MS, recordActivity } from "./activity";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 
 describe("activity history (docs/GUI_DESIGN.md §4.9)", () => {
@@ -32,5 +32,29 @@ describe("activity history (docs/GUI_DESIGN.md §4.9)", () => {
     clearActivity();
     expect(activitySnapshot().map(entry => entry.key)).toEqual(["job:1"]);
     recordActivity({ key: "job:1", title: "Congelado", tone: "frost", state: "done" });
+  });
+
+  it("joins a notice into the last one of its kind: one more line, or the new text in place of the old", () => {
+    const at = Date.now();
+    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 383 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at);
+    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 22 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at + 60_000);
+    expect(activitySnapshot()).toHaveLength(1);
+    expect(activitySnapshot()[0].lines?.map(line => line.text)).toEqual(["Ya se pueden descargar 383 juegos más.", "Ya se pueden descargar 22 juegos más."]);
+    recordActivity({ title: "Tu perfil de gustos", text: "Perfil: 0 %.", tone: "info", state: "info", kind: "taste", merge: "replace" }, at + 120_000);
+    recordActivity({ title: "Tu perfil de gustos", text: "Perfil: 27 %.", tone: "info", state: "info", kind: "taste", merge: "replace" }, at + 180_000);
+    expect(activitySnapshot()).toHaveLength(2);
+    expect(activitySnapshot()[0]).toMatchObject({ kind: "taste", text: "Perfil: 27 %." });
+    // The news entry is not the newest any more but still recent: a new batch joins it and brings it to the top.
+    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 5 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at + 240_000);
+    expect(activitySnapshot().map(entry => entry.kind)).toEqual(["news", "taste"]);
+    expect(activitySnapshot()[0].lines).toHaveLength(3);
+  });
+
+  it("an old entry of the kind that is not the newest gets a new entry instead", () => {
+    const at = Date.now() - 3 * MERGE_WINDOW_MS;
+    recordActivity({ title: "Verificación de juegos", text: "65 corren", tone: "ok", state: "done", kind: "verify", merge: "replace" }, at);
+    recordActivity({ title: "Otra cosa", tone: "info", state: "info" }, at + 1000);
+    recordActivity({ title: "Verificación de juegos", text: "1 corre", tone: "ok", state: "done", kind: "verify", merge: "replace" });
+    expect(activitySnapshot().filter(entry => entry.kind === "verify")).toHaveLength(2);
   });
 });

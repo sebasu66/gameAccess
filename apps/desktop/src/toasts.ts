@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { hideNotice, showNotice, type NoticeTone } from "./notice/notice";
+import { hideNotice, showNotice, type NoticeActivity, type NoticeTone } from "./notice/notice";
 import { translate } from "./i18n";
 
 /**
@@ -59,7 +59,7 @@ export function dismissToast(id: number): void {
   emit();
 }
 
-export function notify(message: string, options: { tone?: ToastTone; durationMs?: number; silent?: boolean } = {}): number {
+export function notify(message: string, options: { tone?: ToastTone; durationMs?: number; silent?: boolean; activity?: NoticeActivity } = {}): number {
   const text = message.trim();
   if (!text) return 0;
   // The same message twice in a row (a retry, a double event) refreshes the visible one instead of stacking.
@@ -71,7 +71,7 @@ export function notify(message: string, options: { tone?: ToastTone; durationMs?
   if (!options.silent && typeof window !== "undefined") playToastBeep();
   // Errors and messages meant to stay (duration 0) wait for the player; the rest close with the timer.
   const sticky = toast.tone === "error" || toast.durationMs <= 0;
-  showNotice({ title: text, tone: NOTICE_TONE[toast.tone], actions: sticky ? [{ label: translate("close"), run: () => hideNotice() }] : undefined });
+  showNotice({ title: text, tone: NOTICE_TONE[toast.tone], actions: sticky ? [{ label: translate("close"), run: () => hideNotice() }] : undefined, activity: options.activity });
   emit();
   return toast.id;
 }

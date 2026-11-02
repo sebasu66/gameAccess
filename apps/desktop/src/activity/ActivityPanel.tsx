@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, Download, Info, Snowflake, X } from "lucide-react";
+import { AlertTriangle, Check, Download, Heart, Info, ShieldCheck, Snowflake, Sparkles, X, type LucideIcon } from "lucide-react";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import { activeDownloadService } from "../downloads/activeService";
 import { GaButton } from "../components/ga/Buttons";
@@ -35,20 +35,42 @@ function RunningRow({ item, onOpen }: { item: Running; onOpen?: () => void }) {
   </li>;
 }
 
-const ICON = { ok: Check, info: Info, frost: Snowflake, danger: AlertTriangle, error: AlertTriangle } as const;
+/** The kinds of entries, each with its icon; its colour and gradient are in activity.css (`data-kind`). */
+const KIND_ICON: Record<string, LucideIcon> = { news: Sparkles, taste: Heart, verify: ShieldCheck, download: Download, freeze: Snowflake, failed: AlertTriangle, done: Check, info: Info };
 
-/** One entry of the history: cover or the tone's icon, title, text, when, and the way to its game's row. */
+/** What an entry is about: its own kind, or its process (by its key), or how it ended. */
+export function entryKind(entry: ActivityEntry): string {
+  if (entry.state === "failed") return "failed";
+  if (entry.kind) return entry.kind;
+  if (entry.key.startsWith("download:")) return "download";
+  if (entry.tone === "frost" || /^(freeze|job):/.test(entry.key)) return "freeze";
+  return entry.state === "done" ? "done" : "info";
+}
+
+/** One entry of the history: its kind's icon in its corner (with the game's cover when it has one), title, text (or
+ *  the lines of the notices joined into it, each with its time), when, and the way to its detail. */
 function HistoryRow({ entry, onOpen }: { entry: ActivityEntry; onOpen?: () => void }) {
   const { t, locale } = useI18n();
-  const Icon = entry.key.startsWith("download:") && entry.state === "done" ? Download : ICON[entry.tone];
+  const kind = entryKind(entry);
+  const Icon = KIND_ICON[kind] ?? Info;
   const time = (at: number) => new Date(at).toLocaleTimeString(locale === "es" ? "es-AR" : "en-US", { hour: "2-digit", minute: "2-digit" });
   const span = entry.endedAt && entry.endedAt - entry.startedAt > 60_000 ? `${time(entry.startedAt)} – ${time(entry.endedAt)}` : time(entry.endedAt ?? entry.startedAt);
+  const lines = entry.lines && entry.lines.length > 1 ? entry.lines : null;
+  // Joined notices show their own times in their lines: the entry says only when the last one came.
+  const when = lines ? time(entry.endedAt ?? entry.startedAt) : span;
   const body: ReactNode = <>
-    {entry.image ? <img className="ga-activity-art" src={entry.image} alt="" /> : <span className="ga-activity-icon"><Icon size={16} aria-hidden="true" /></span>}
-    <span className="ga-activity-text"><strong>{entry.title}</strong>{entry.text ? <span>{entry.text}</span> : null}</span>
-    <time className="ga-activity-time">{span}</time>
+    <span className="ga-activity-mark">
+      {entry.image ? <img className="ga-activity-art" src={entry.image} alt="" /> : null}
+      <span className="ga-activity-icon"><Icon size={entry.image ? 14 : 20} aria-hidden="true" /></span>
+    </span>
+    <span className="ga-activity-text">
+      <strong>{entry.title}</strong>
+      {lines ? <ul className="ga-activity-lines">{lines.map(line => <li key={line.at}><time>{time(line.at)}</time>{line.text}</li>)}</ul>
+        : entry.text ? <span>{entry.text}</span> : null}
+    </span>
+    <time className="ga-activity-time">{when}</time>
   </>;
-  return <li className="ga-activity-entry" data-state={entry.state} data-tone={entry.tone} data-unseen={!entry.seen || undefined}>
+  return <li className="ga-activity-entry" data-kind={kind} data-state={entry.state} data-tone={entry.tone} data-unseen={!entry.seen || undefined}>
     {entry.news
       ? <button type="button" className="ga-activity-link" aria-label={t("activityOpenNews", { name: entry.title })} onClick={() => { onOpen?.(); openNews(entry.news!); }}>{body}</button>
       : entry.appId

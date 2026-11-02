@@ -504,7 +504,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     }
     rememberTasteGame(games.find(game => game.id === gameId));
     const done = value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : (next[gameId] === -1 ? t("toastFewerLikeThis") : t("toastDislikeRemoved"));
-    setToast(`${done} ${tasteProgressText(buildTasteProfile(preferences, games), buildTasteProfile(next, games), personalOrderState().on, t)}`);
+    // The profile keeps learning from every thumb: its one history entry shows how far it is now (activity.ts).
+    const progress = tasteProgressText(buildTasteProfile(preferences, games), buildTasteProfile(next, games), personalOrderState().on, t);
+    notify(`${done} ${progress}`, { activity: { kind: "taste", merge: "replace", title: t("activityTasteTitle"), text: progress } });
   };
 
   const startDownload = async (game: CatalogGame) => {

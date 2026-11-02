@@ -5,6 +5,9 @@ import type { NoticeTone } from "../notice/notice";
  * The activity history (docs/GUI_DESIGN.md §4.9 and §4.17): every notice and every background process leaves an
  * entry here, shown in the Activity panel like Windows 11's notifications. One entry per process: a download or a
  * freeze keeps its key and changes state (started, working, done or failed) instead of adding a second entry.
+ * A notice of a kind (new downloads, the taste profile, a verification) joins the last entry of its kind when that is
+ * the newest entry or is less than an hour old (Seba, 2026-11-02): "lines" adds its text as one more line under the
+ * same title, "replace" puts its text in place of the old one. The same text is never listed twice in a row.
  * Kept on this computer: up to 200 entries, none older than 30 days.
  */
 export type ActivityState = "running" | "done" | "failed" | "info";
@@ -22,15 +25,26 @@ export interface ActivityEntry {
   image?: string | null;
   /** A news item on Home that has the detail (the games a plugin or the catalog made downloadable). */
   news?: string;
+  /** What it is about (`news`, `taste`, `verify`…): its look in the panel, and what a new notice of it joins. */
+  kind?: string;
+  /** The texts of the notices joined into this entry, oldest first, each with when it came. */
+  lines?: Array<{ at: number; text: string }>;
   startedAt: number;
   endedAt?: number;
   seen: boolean;
 }
-export type ActivityInput = Omit<ActivityEntry, "id" | "startedAt" | "endedAt" | "seen" | "key"> & { key?: string };
+export type ActivityInput = Omit<ActivityEntry, "id" | "startedAt" | "endedAt" | "seen" | "key" | "lines"> & {
+  key?: string;
+  /** How a notice of the same kind joins the last one: one more line, or the new text in place of the old. */
+  merge?: "lines" | "replace";
+};
 
 const STORAGE_KEY = "gameaccess:activity";
 const MAX_ENTRIES = 200;
 const MAX_AGE_MS = 30 * 86_400_000;
+/** A notice joins the last one of its kind within this time (or when that one is still the newest entry). */
+export const MERGE_WINDOW_MS = 60 * 60_000;
+const MAX_LINES = 6;
 const listeners = new Set<() => void>();
 let entries: ActivityEntry[] = load();
 let nextId = 1;
@@ -55,15 +69,37 @@ function save(next: ActivityEntry[]) {
 }
 
 /** Adds an entry, or changes the one of the same process (same key) and brings it to the top. Returns its key. */
-export function recordActivity(input: ActivityInput): string {
-  const key = input.key ?? `notice:${Date.now()}:${nextId++}`;
-  const now = Date.now();
+export function recordActivity(input: ActivityInput, now = Date.now()): string {
+  const { merge, ...fields } = input;
+  const joined = !input.key && input.kind && merge ? joinable(input.kind, now) : undefined;
+  if (joined) return join(joined, fields, merge!, now);
+  const key = input.key ?? `notice:${now}:${nextId++}`;
   const previous = entries.find(entry => entry.key === key);
   // The end is when it stopped running; an entry that never ran ends when it happens.
   const endedAt = input.state === "running" ? undefined : previous && previous.state !== "running" && previous.endedAt ? previous.endedAt : now;
-  const entry: ActivityEntry = { ...previous, ...input, key, id: previous?.id ?? key, startedAt: previous?.startedAt ?? now, endedAt, seen: false };
+  const entry: ActivityEntry = { ...previous, ...fields, key, id: previous?.id ?? key, startedAt: previous?.startedAt ?? now, endedAt, seen: false };
   save([entry, ...entries.filter(item => item.key !== key)]);
   return key;
+}
+
+/** The last entry of a kind that a new notice of it joins: the newest of the history, or one less than an hour old. */
+function joinable(kind: string, now: number): ActivityEntry | undefined {
+  const history = entries.filter(entry => entry.state !== "running");
+  const last = history.find(entry => entry.kind === kind);
+  if (!last) return undefined;
+  return last === history[0] || now - (last.endedAt ?? last.startedAt) < MERGE_WINDOW_MS ? last : undefined;
+}
+
+/** A notice joined into the last entry of its kind: that entry comes to the top with the new information. */
+function join(previous: ActivityEntry, fields: Omit<ActivityInput, "merge">, merge: "lines" | "replace", now: number): string {
+  const lines = previous.lines ?? (previous.text ? [{ at: previous.endedAt ?? previous.startedAt, text: previous.text }] : []);
+  const text = fields.text ?? "";
+  const next: ActivityEntry = merge === "lines"
+    ? { ...previous, ...fields, title: previous.title, lines: text && lines.at(-1)?.text !== text ? [...lines, { at: now, text }].slice(-MAX_LINES) : lines }
+    // Replaced, it is as if it had just come: its time is the new one.
+    : { ...previous, ...fields, lines: undefined, startedAt: now };
+  save([{ ...next, endedAt: now, seen: false }, ...entries.filter(item => item.key !== previous.key)]);
+  return previous.key;
 }
 
 /** Opening the panel counts every entry as seen. */

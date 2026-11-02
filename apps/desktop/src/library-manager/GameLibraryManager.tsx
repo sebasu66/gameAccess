@@ -599,7 +599,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       } catch (failure) { bad++; setVerdicts(current => ({ ...current, [game.app_id as number]: { state: "cantRun", at: new Date().toISOString(), detail: String(failure instanceof Error ? failure.message : failure) } })); }
     }
     setVerifying(null);
-    notify(c.verifyDone(ok, bad, skipped), { tone: bad ? "warning" : "success" });
+    notify(c.verifyDone(ok, bad, skipped), { tone: bad ? "warning" : "success", activity: { kind: "verify", merge: "replace", title: translate("activityVerifyTitle"), text: c.verifyDone(ok, bad, skipped) } });
     void scanLibrary();
   };
   const verdict = (game: LibraryGame) => (game.app_id != null ? verdicts[game.app_id] : undefined) ?? game.run_check;
