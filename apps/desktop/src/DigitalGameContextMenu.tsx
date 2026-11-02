@@ -1,6 +1,5 @@
 import DigitalGameOptions from "./DigitalGameOptions";
 import DigitalGameLog from "./DigitalGameLog";
-import GameRecoveryDialog from "./GameRecoveryDialog";
 import { useI18n } from "./i18n";
 import { libraryMembership, useLibraryBusy, useLibraryGames } from "./libraryMembership";
 import { removeLibraryGame } from "./libraryActions";
@@ -20,6 +19,7 @@ import { useLibraryEntry } from "./libraryScan";
 import { digitalCatalogService, type DigitalCatalog } from "./catalog/DigitalCatalog";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import { gameStateManager } from "./GameStateManager";
+import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import type { CatalogGame } from "./types";
 
 export interface DigitalContextMenuRequest {
@@ -71,6 +71,17 @@ interface Props {
   onPlay?: (game: CatalogGame) => void | Promise<void>;
 }
 
+/** "Repair game": the launcher looks at the folder again (unpacks, installs, finds the executable) and says how it went. */
+async function repairGame(game: CatalogGame) {
+  showNotice({ game: noticeGame(game), tone: "info", title: translate("repairGameWorking"), text: game.name, progress: null });
+  try {
+    const result = await digitalProcessManager.repairGame(game);
+    showNotice({ game: noticeGame(game), tone: result.analysis?.ready ? "ok" : "error", title: translate(result.analysis?.ready ? "repairGameDone" : "repairGameNotReady"), text: game.name });
+  } catch (error) {
+    showNotice({ game: noticeGame(game), tone: "error", title: translate("repairGameFailed"), text: error instanceof Error ? error.message : String(error), actions: [{ label: translate("close"), run: () => hideNotice() }] });
+  }
+}
+
 export default function DigitalGameContextMenu({
   request,
   onClose,
@@ -88,7 +99,6 @@ export default function DigitalGameContextMenu({
   const [renaming, setRenaming] = useState(false);
   const [configuring, setConfiguring] = useState(false);
   const [showingLog, setShowingLog] = useState(false);
-  const [repairing, setRepairing] = useState(false);
   const [freezing, setFreezing] = useState<FreezeMode | null>(null);
   // A freeze outlives this menu: while one runs, the menu only offers to watch it (never a second one).
   const freezeWork = useFreezeJob(request.game.app_id ?? request.game.id);
@@ -156,7 +166,7 @@ export default function DigitalGameContextMenu({
 
   return (
     <div className="ga-digital-menu-root" style={{display:"contents"}} onPointerDown={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==="Escape")onClose();event.stopPropagation();}}>
-      {!configuring && !showingLog && !repairing && !renaming && !freezing ? (
+      {!configuring && !showingLog && !renaming && !freezing ? (
         <div
           className="ga-game-options"
           role="menu"
@@ -190,7 +200,7 @@ export default function DigitalGameContextMenu({
           </button>
           <button type="button" role="menuitem" disabled={!canUninstall} onClick={() => setConfiguring(true)}>{label.options}</button>
           <button type="button" role="menuitem" disabled={!entry || libraryBusy} onClick={() => setRenaming(true)}>{t("renameMenu")}</button>
-          {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => setRepairing(true)}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
+          {request.status?.needs_repair ? <button type="button" role="menuitem" disabled={!canManage} onClick={() => { void repairGame(request.game); onClose(); }}>⚠ {locale === "es" ? "Reparar juego" : "Repair game"}</button> : null}
           <button type="button" role="menuitem" disabled={!appId || !state.canOpenInstallFolder && !state.installed && !state.prepared} onClick={() => setShowingLog(true)}>{locale === "es" ? "Ver registro" : "View log"}</button>
           {freezeWork && freezeWork.mode !== "move" ? <button type="button" role="menuitem" onClick={() => setFreezing(freezeWork.mode as FreezeMode)}><Snowflake size={16} /> {t(freezeWork.mode === "thaw" ? "thawRunning" : "freezeRunning")}</button> : null}
           {canFreeze && !freezeWork && !entry?.frozen ? <button type="button" role="menuitem" onClick={() => setFreezing("freeze")}><Snowflake size={16} /> {t("freezeMenu")}</button> : null}
@@ -208,7 +218,6 @@ export default function DigitalGameContextMenu({
           </button>}
         </div>
       ) : null}
-      {repairing ? <GameRecoveryDialog game={request.game} mode="broken" message={request.status?.repair_warning || (locale === "es" ? "El juego no está listo para ejecutarse." : "The game is not ready to run.")} onClose={onClose} /> : null}
       {freezing ? <FreezeDialog game={request.game} mode={freezing} onClose={onClose} /> : null}
       {renaming ? <RenameGameDialog game={request.game} current={entry?.label ?? ""} onClose={onClose} /> : null}
       {showingLog ? <DigitalGameLog game={request.game} onClose={onClose} /> : null}

@@ -1449,4 +1449,8 @@ export const en: Record<keyof typeof es, string> = {
   logDownload: "Download",
   logDownloadDone: "Download finished",
   logInstall: "Install",
+  repairGameWorking: "Repairing the game…",
+  repairGameDone: "The game is ready to play",
+  repairGameNotReady: "The game is not ready to play yet",
+  repairGameFailed: "Could not repair the game",
 };

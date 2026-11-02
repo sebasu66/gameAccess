@@ -95,12 +95,16 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-path-control{display:grid;gap:7px;margin:14px 0;font-size:12px;font-weight:650}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-path-control input,:is(.ga-settings-panel,.ga-settings-screen) .ga-path-control select{box-sizing:border-box;width:100%;min-width:0;padding:10px 12px;border:1px solid #ffffff35;border-radius:8px;background:#111416;color:#f4f4f2;font:inherit}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-path-control input:focus-visible,:is(.ga-settings-panel,.ga-settings-screen) select:focus-visible,.ga-settings-group>summary:focus-visible{outline:2px solid #d79d5d;outline-offset:3px}
-:is(.ga-settings-panel,.ga-settings-screen) .ga-storage-settings p,.ga-game-config p{margin:10px 0;line-height:1.6}
+:is(.ga-settings-panel,.ga-settings-screen) .ga-storage-settings p{margin:10px 0;line-height:1.6}
 :is(.ga-settings-panel,.ga-settings-screen) button:disabled{opacity:.5;cursor:default}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-danger-option,.ga-game-options .ga-danger-option{color:#f4d2d2;border:1px solid #dd8c8c99;background:#6b313155}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-danger-option:hover,.ga-game-options .ga-danger-option:hover{background:#80343488;border-color:#ebb6b6}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-settings-error{color:#f0c3c3;white-space:pre-wrap}
 .ga-game-config{width:min(600px,100%)}
+/* Language and launch: each tab is one stack (16 px between fields); a field keeps its label 8 px above the control. */
+.ga-game-config .ga-tabs-panel{padding-top:var(--ga-space-1)}
+.ga-game-config .ga-stack>.ga-path-control{margin:0;font-size:14px}
+.ga-game-config .ga-stack .ga-style-toggle{font-size:14px;font-weight:650}
 .ga-game-options{max-height:calc(100vh - 80px);overflow:auto}
 .ga-help-panel{width:min(640px,100%)}
 .ga-help-topic ol{margin:10px 0 4px;padding-left:22px;line-height:1.7;font-size:13.5px;color:#d9dce2}
@@ -109,7 +113,6 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-help-write{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:#cc8333;color:#1a0d04;font:750 12px Manrope,"Segoe UI",sans-serif;text-decoration:none}.ga-help-write:hover{filter:brightness(1.1)}.ga-help-write:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .ga-help-address{font-size:12px;color:#a5a7ad}.ga-help-missing{color:#deb37d !important}
 .ga-game-log{max-height:48vh;overflow:auto;margin:10px 0;padding:12px;white-space:pre-wrap;word-break:break-word;font:12px/1.55 ui-monospace,Consolas,monospace;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);border-radius:8px}
-.ga-automation-form textarea{width:100%;font:13px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
 
 .ga-library-manager { width: min(960px, 94vw); max-height: 90vh; }
 .ga-library-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 12px; }

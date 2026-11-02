@@ -9,6 +9,7 @@ from atomic_json import write_json
 from launcher_data import data_dir
 from .archives import ARCHIVE_SUFFIXES, checked_archive
 from .launch import checked_executable, parse_arguments
+from .runtimes import REDIST_DIRS
 
 LANGUAGES = {"spanish": ("es", "ES"), "english": ("en", "US"),
              "portuguese": ("pt", "BR"), "french": ("fr", "FR"), "german": ("de", "DE")}
@@ -34,6 +35,9 @@ class DigitalGameOptions:
         executables = []
         if folder.is_dir():
             for candidate in folder.rglob("*.exe"):
+                # The redistributables the game ships (_CommonRedist, DirectX...) are never the game: not offered.
+                if any(REDIST_DIRS.match(part) for part in candidate.relative_to(folder).parts[:-1]):
+                    continue
                 try:
                     checked_executable(folder, str(candidate.relative_to(folder)))
                     executables.append(str(candidate.relative_to(folder)))

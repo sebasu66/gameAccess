@@ -57,7 +57,6 @@ import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
-import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
@@ -118,7 +117,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
     getCatalogMode() === "digital", setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
-  const [brokenGame, setBrokenGame] = useState<{ game: CatalogGame; message: string } | null>(null);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
@@ -564,9 +562,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       resumeFreezes();
       if (autoFixed) takeLearnedFix(game.app_id ?? game.id);  // the fix did not make it start: nothing to share
       const message = err instanceof Error ? err.message : String(err);
-      // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
-      if (isBrokenInstall(message)) { closeLaunch(launch.id); setBrokenGame({ game, message }); }
-      else launchFailed(launch.id, message);
+      // Every failure, a broken install too, goes to the launch dialog's error mode: its checks and automatic fix.
+      launchFailed(launch.id, message);
     } finally { setLaunchBusy(false); }
   };
 
@@ -696,7 +693,6 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
-      {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
     </div>
   );
