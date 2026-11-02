@@ -65,11 +65,12 @@ function HistoryRow({ entry, onOpen }: { entry: ActivityEntry; onOpen?: () => vo
       <span className="ga-activity-icon"><Icon size={entry.image ? 14 : 20} aria-hidden="true" /></span>
     </span>
     <span className="ga-activity-text">
+      {/* The time goes over the title, not in a column of its own (Seba, 2026-11-02). */}
+      <time className="ga-activity-time">{when}</time>
       <strong>{entry.title}</strong>
       {lines ? <ul className="ga-activity-lines">{lines.map(line => <li key={line.at}><time>{time(line.at)}</time>{line.text}</li>)}</ul>
         : entry.text ? <span>{entry.text}</span> : null}
     </span>
-    <time className="ga-activity-time">{when}</time>
   </>;
   return <li className="ga-activity-entry" data-kind={kind} data-state={entry.state} data-tone={entry.tone} data-unseen={!entry.seen || undefined}>
     {entry.news

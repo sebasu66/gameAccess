@@ -28,7 +28,7 @@
 .ga-activity-entry[data-kind="verify"][data-tone="danger"] { --kind: var(--ga-warn); }
 .ga-activity-entry[data-kind="freeze"] { --kind: var(--ga-frost); }
 .ga-activity-entry[data-kind="failed"] { --kind: var(--ga-danger); }
-.ga-activity-link { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 14px 16px; box-sizing: border-box; border-radius: 10px;
+.ga-activity-link { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 14px; padding: 14px 16px; box-sizing: border-box; border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--kind) 30%, transparent);
   background: linear-gradient(105deg, color-mix(in srgb, var(--kind) 20%, transparent), color-mix(in srgb, var(--kind) 4%, transparent) 65%), var(--ga-surface);
   color: var(--ga-white); font: inherit; text-align: start; }
@@ -48,4 +48,4 @@ button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); out
 /* The lines of the notices joined into one entry, each with its time. */
 .ga-activity-lines { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font: 400 14px/1.4 var(--ga-text-family); color: var(--ga-text-ink); }
 .ga-activity-lines time { margin-right: 8px; font-weight: 700; color: var(--kind); font-variant-numeric: tabular-nums; }
-.ga-activity-time { padding-top: 3px; font: 600 12px var(--ga-text-family); color: var(--ga-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ga-activity-time { font: 700 12px/1.2 var(--ga-text-family); letter-spacing: .02em; color: color-mix(in srgb, var(--kind) 75%, var(--ga-white)); font-variant-numeric: tabular-nums; white-space: nowrap; }
