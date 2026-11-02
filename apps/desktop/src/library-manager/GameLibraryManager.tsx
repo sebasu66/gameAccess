@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
 import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
@@ -21,7 +21,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
-import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
+import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { clock, eventText, stats as jobStats } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
 import ActivityBoard from "./ActivityBoard";
@@ -38,7 +38,7 @@ import { DownloadLog, useDownloadView, type DownloadEntry } from "../downloads/D
 import { activeDownloadService } from "../downloads/activeService";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
 import ManualDownloadForm from "../ManualDownloadForm";
-import RowExpand from "./RowExpand";
+import RowExpand, { RowMenu, type RowAction } from "./RowExpand";
 import { ArtworkFallback, GameWideArt } from "../GameArt";
 import "./manager.css";
 
@@ -106,8 +106,22 @@ function sourceOf(game: LibraryGame): string {
 
 
 const FILLED = { weight: "fill" as const };
+const MENU_ICON = { weight: "fill" as const, size: 16 };
+/** One action of a game, with its name: for the open row's menu and the context menu. */
+const act = (label: string, icon: ReactNode, onClick: () => void, extra: Partial<RowAction> = {}): RowAction =>
+  ({ label, icon: <IconContext.Provider value={MENU_ICON}>{icon}</IconContext.Provider>, onClick, ...extra });
 
-function IconAction({ label, onClick, disabled, tone, pressed, children }: { label: string; onClick: () => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; pressed?: boolean; children: React.ReactNode }) {
+/** Where a row's context menu opens: at the pointer (right click) or under its "⋯" button. */
+type MenuAt = { x: number; y: number } | null;
+const menuAt = (event: ReactMouseEvent): { x: number; y: number } => {
+  if (event.type === "contextmenu") return { x: event.clientX, y: event.clientY };
+  const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  return { x: box.right - 240, y: box.bottom + 4 };
+};
+/** A click on a row opens or closes it, unless it was on one of its controls. */
+const onControl = (event: ReactMouseEvent) => Boolean((event.target as HTMLElement).closest("button, input, a, select, label, textarea"));
+
+function IconAction({ label, onClick, disabled, tone, pressed, children }: { label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void; disabled?: boolean; tone?: "danger" | "frost" | "accent"; pressed?: boolean; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -116,12 +130,6 @@ function IconAction({ label, onClick, disabled, tone, pressed, children }: { lab
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
-}
-
-/** Thaw a frozen game: opens the same dialog as the game menu (it narrates the work, a notice if it is closed). */
-function ThawAction({ game, c, disabled, onClick }: { game: LibraryGame; c: LibraryCopy; disabled: boolean; onClick: () => void }) {
-  const running = useFreezeJob(game.app_id);
-  return <IconAction label={c.thaw} tone="frost" disabled={disabled || Boolean(running)} onClick={onClick}>{running ? <Loader2 className="animate-spin" /> : <PhFlame />}</IconAction>;
 }
 
 /** The game's log. A freeze or thaw of the game going on (or just ended) is one group at its end: its title, the
@@ -326,8 +334,59 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
     return () => { release(); if (!freezeJob(id)) dismissFreezeJob(id); };
   }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
+  const [menu, setMenu] = useState<MenuAt>(null);
+  const failed = (failure: unknown) => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" });
+  const openDownloadFolder = act(c.openDownloadFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game), "download"), { disabled: libraryDemo() });
+  // What the game offers, by its state (the same list in the open row and in the context menu).
+  const actions: RowAction[] = busyFreezing && job
+    // While it is frozen, thawed or waiting for that, the game only offers to cancel it (nothing else touches it).
+    ? [act(job.cancelling ? translate("freezeCancelling") : translate(jobCancelKey(job.mode)), <X size={16} />, () => cancelFreezeJob(job.appId), { tone: "danger", disabled: Boolean(job.cancelling) })]
+    : unfinished && !game.transfer_active ? [
+      // A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
+      // without one, the transfer starts again from the catalog.
+      game.resume_step
+        ? act(game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload, <PhPlay />, () => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failed), { tone: "accent", disabled: busy })
+        : act(!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther, <PhPlay />, () => { if (catalogGame) onInstall?.(catalogGame); }, { tone: "accent", disabled: !catalogGame || busy }),
+      ...(game.partial ? [act(c.restart, <ArrowCounterClockwise />, () => setPending({ kind: "discard", game, restart: true }), { disabled: busy })] : []),
+      ...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []),
+      openDownloadFolder,
+      act(c.discardAll, <Trash />, () => setPending({ kind: "discard", game, restart: false }), { tone: "danger", disabled: busy }),
+    ] : game.partial || game.transfer_active ? [openDownloadFolder] : [
+      ...(game.installed && game.frozen !== "deep" && catalogGame && onPlay ? [act(c.play, <PhPlay />, () => void onPlay(catalogGame), { tone: "accent", disabled: busy })] : []),
+      ...(isSteamOwned(game) ? [act(translate("steamInstallMenu"), <DownloadSimple />, () => onInstall?.(catalogGame ?? asGame(game)), { tone: "accent", disabled: busy })] : []),
+      // A folder that ended in ERROR (an installer that failed, say) is processed again straight away: unpacked,
+      // installed and checked, as Fix does, after any change made in "Language and launch".
+      ...(retryable(game) && id != null ? [act(c.retryProcess, <ArrowClockwise />, () => retry(id), { tone: "accent", disabled: busy })]
+        : needsFix(game) && id != null ? [act(c.fix, <MagicWand />, () => void askPlan([id]), { tone: "accent", disabled: busy })] : []),
+      ...(canVerify(game) ? [act(c.verify, verifying === id ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />, () => verify(game), { disabled: busy || verifying != null })] : []),
+      ...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []),
+      act(c.openFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game)), { disabled: libraryDemo() || isSteamOwned(game) }),
+      ...(game.frozen && !game.linked && id != null ? [act(c.thaw, <PhFlame />, () => setThawing(game, "thaw"), { tone: "frost", disabled: busy })] : []),
+      ...(!game.frozen && !game.linked && game.installed && id != null ? [
+        act(c.freeze, <PhSnowflake />, () => setThawing(game, "freeze"), { tone: "frost", disabled: busy }),
+        act(c.deepFrozen, <PhSnowflake />, () => setThawing(game, "deep"), { tone: "frost", disabled: busy }),
+      ] : []),
+      // A move cut short (the app or the PC went off): it goes on from what it copied, or that copy is deleted.
+      // A game linked from a folder of the player's: moved into the games folder or deleted from disk with its folder.
+      ...(game.move_pending && id != null ? [
+        act(translate("moveResume"), <ArrowSquareIn />, () => startFreezeJob(catalogGame ?? asGame(game), "move", { resume: true }), { tone: "accent", disabled: busy }),
+        act(translate("moveDiscard"), <Trash />, () => void confirmNotice({ title: translate("moveDiscardTitle", { name: game.name }), text: translate("moveDiscardText"), confirmLabel: translate("moveDiscard"), cancelLabel: c.cancel, kind: "danger" }).then(ok => { if (ok) { hideNotice(); void discardMove(catalogGame ?? asGame(game)); } }), { tone: "danger", disabled: busy }),
+      ] : game.link_kind === "folder" && game.installed && id != null ? [
+        act(c.linkedMove, <ArrowSquareIn />, () => setPending({ kind: "linked_move", game }), { tone: "accent", disabled: busy }),
+        act(c.linkedDelete, <Trash />, () => setPending({ kind: "linked_delete", game }), { tone: "danger", disabled: busy }),
+      ] : []),
+      // A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved).
+      ...(game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? [act(c.steamUninstall, <Trash />, () => setPending({ kind: "steam_uninstall", game }), { tone: "danger", disabled: busy || id == null })] : []),
+      act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null }),
+    ];
+  // While it downloads, its buttons (pause, cancel…) are under the picture: the menu only keeps what is not one of them.
+  const downloadMenu = [...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []), openDownloadFolder];
+  // The context menu also opens and closes the row; the open row shows the rest beside its log.
+  const history = act(open ? c.historyHide : c.history, <Scroll />, () => setExpanded(open ? null : id));
   return (<>
-    <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${unfolded ? " is-expanded" : ""}`} data-app-id={id ?? undefined}>
+    <tr ref={ref} className={`lm-row is-openable${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${unfolded ? " is-expanded" : ""}`} data-app-id={id ?? undefined}
+      aria-expanded={unfolded} onClick={event => { if (!onControl(event) && id != null && !download && !freezing) setExpanded(open ? null : id); }}
+      onContextMenu={event => { event.preventDefault(); setMenu(menuAt(event)); }}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
       <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <GameWideArt game={{ app_id: id, name: game.name }} compact /> : <ArtworkFallback name={game.name} compact />}</span>}</td>
       <td className="lm-cell-name">
@@ -339,52 +398,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td><KindCell kind={row.kind} source={row.source} /></td>
       <td className="lm-cell-num">{row.plays || "—"}</td>
       <td className="lm-cell-num">{row.idle ?? "—"}</td>
-      <td className="lm-acts">
-        {busyFreezing && job ? <>
-          {/* While it is frozen, thawed or waiting for that, the game only offers to cancel it (nothing else touches it). */}
-          <IconAction label={job.cancelling ? translate("freezeCancelling") : translate(jobCancelKey(job.mode))} tone="danger"
-            disabled={Boolean(job.cancelling)} onClick={() => cancelFreezeJob(job.appId)}><X /></IconAction>
-          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
-        </> : unfinished && !game.transfer_active ? <>
-          {/* A stopped download goes on from the step it reached, through the Download Manager (no plugin needed);
-              without one, the transfer starts again from the catalog. */}
-          {game.resume_step ? <IconAction label={game.resume_step === "extract" ? c.resumeExtract : c.resumeDownload} tone="accent" disabled={busy} onClick={() => void digitalDownloadService.retry(catalogGame ?? asGame(game)).then(() => scanLibrary(), failure => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" }))}><PhPlay /></IconAction>
-            : <IconAction label={!catalogGame ? c.cannotResume : game.transfer_kind === "pieces" ? c.resumePieces : c.resumeOther} tone="accent" disabled={!catalogGame || busy} onClick={() => catalogGame && onInstall?.(catalogGame)}><PhPlay /></IconAction>}
-          {game.partial ? <IconAction label={c.restart} disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: true })}><ArrowCounterClockwise /></IconAction> : null}
-          <IconAction label={c.discardAll} tone="danger" disabled={busy} onClick={() => setPending({ kind: "discard", game, restart: false })}><Trash /></IconAction>
-          {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
-          <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction>
-        </> : game.partial || game.transfer_active ? <IconAction label={c.openDownloadFolder} disabled={libraryDemo()} onClick={() => void digitalProcessManager.openFolder(asGame(game), "download")}><PhFolderOpen /></IconAction> : <>
-          {isSteamOwned(game) ? <IconAction label={translate("steamInstallMenu")} tone="accent" disabled={busy} onClick={() => onInstall?.(catalogGame ?? asGame(game))}><DownloadSimple /></IconAction> : null}
-          {/* A folder that ended in ERROR (an installer that failed, say) is processed again straight away: unpacked,
-              installed and checked, as Fix does, after any change made in "Language and launch". */}
-          {retryable(game) && id != null ? <IconAction label={c.retryProcess} tone="accent" disabled={busy} onClick={() => retry(id)}><ArrowClockwise /></IconAction>
-            : needsFix(game) && id != null ? <IconAction label={c.fix} tone="accent" disabled={busy} onClick={() => void askPlan([id])}><MagicWand /></IconAction> : null}
-          {canVerify(game) ? <IconAction label={c.verify} disabled={busy || verifying != null} onClick={() => verify(game)}>{verifying === id ? <Loader2 className="animate-spin" /> : <ShieldCheck />}</IconAction> : null}
-          {game.installed && game.frozen !== "deep" && catalogGame && onPlay ? <IconAction label={c.play} disabled={busy} onClick={() => void onPlay(catalogGame)}><PhPlay /></IconAction> : null}
-          {game.frozen && !game.linked && id != null ? <ThawAction game={game} c={c} disabled={busy} onClick={() => setThawing(game, "thaw")} /> : null}
-          {!game.frozen && !game.linked && game.installed && id != null ? <>
-            <IconAction label={c.freeze} tone="frost" disabled={busy} onClick={() => setThawing(game, "freeze")}><PhSnowflake /></IconAction>
-            <IconAction label={c.deepFrozen} tone="frost" disabled={busy} onClick={() => setThawing(game, "deep")}><PhSnowflake /><b>+</b></IconAction>
-          </> : null}
-          {configurable(game) ? <IconAction label={c.options} disabled={busy} onClick={() => configure(game)}><GearSix /></IconAction> : null}
-          <IconAction label={c.history} onClick={() => setExpanded(open ? null : id)}><Scroll /></IconAction>
-          <IconAction label={c.openFolder} disabled={libraryDemo() || isSteamOwned(game)} onClick={() => void digitalProcessManager.openFolder(asGame(game))}><PhFolderOpen /></IconAction>
-          {/* A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved). */}
-          {/* A game linked from a folder of the player's: moved into the games folder (renamed to the standard, then
-              handled like any game Game Access installed) or deleted from disk with its folder. */}
-          {/* A move cut short (the app or the PC went off): it goes on from what it copied, or that copy is deleted. */}
-          {game.move_pending && id != null ? <>
-            <IconAction label={translate("moveResume")} tone="accent" disabled={busy} onClick={() => startFreezeJob(catalogGame ?? asGame(game), "move", { resume: true })}><ArrowSquareIn /></IconAction>
-            <IconAction label={translate("moveDiscard")} tone="danger" disabled={busy} onClick={() => void confirmNotice({ title: translate("moveDiscardTitle", { name: game.name }), text: translate("moveDiscardText"), confirmLabel: translate("moveDiscard"), cancelLabel: c.cancel, kind: "danger" }).then(ok => { if (ok) { hideNotice(); void discardMove(catalogGame ?? asGame(game)); } })}><Trash /></IconAction>
-          </> : game.link_kind === "folder" && game.installed && id != null ? <>
-            <IconAction label={c.linkedMove} tone="accent" disabled={busy} onClick={() => setPending({ kind: "linked_move", game })}><ArrowSquareIn /></IconAction>
-            <IconAction label={c.linkedDelete} tone="danger" disabled={busy} onClick={() => setPending({ kind: "linked_delete", game })}><Trash /></IconAction>
-          </> : null}
-          {game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? <IconAction label={c.steamUninstall} tone="danger" disabled={busy || id == null} onClick={() => setPending({ kind: "steam_uninstall", game })}><Trash /></IconAction> : null}
-          <IconAction label={game.linked ? c.unlink : c.uninstall} tone="danger" disabled={busy || id == null} onClick={() => id != null && setPending({ kind: "uninstall", ids: [id] })}>{game.linked ? <LinkBreak /> : <Trash />}</IconAction>
-        </>}
-      </td>
+      <td className="lm-acts"><IconAction label={c.moreActions} pressed={Boolean(menu)} onClick={event => setMenu(menuAt(event))}><DotsThree weight="bold" /></IconAction></td>
     </tr>
     {unfolded ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
       <RowExpand logTitle={c.historyTitle}
@@ -393,8 +407,10 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
           <History game={game} c={c} job={freezing} download={download} />
         </>}
-        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))} />
+        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))}
+        menuTitle={c.actionsTitle} menu={busyFreezing ? [] : download ? downloadMenu : actions} />
     </div></td></tr> : null}
+    {menu ? <RowMenu at={menu} title={game.name} actions={busyFreezing || download ? actions : [history, ...actions]} onClose={() => setMenu(null)} /> : null}
   </>);
 }
 
@@ -449,8 +465,13 @@ function DownloadRow({ row, entry, columns, c }: { row: GridRow; entry: Download
 
 /** A game of the library with no folder yet: Install, or take it out of the library. */
 function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGame; c: LibraryCopy; onInstall?: (game: CatalogGame) => void }) {
-  return (
-    <tr className="lm-row">
+  const [menu, setMenu] = useState<MenuAt>(null);
+  const actions = [
+    ...(onInstall ? [act(c.install, <DownloadSimple />, () => onInstall(game), { tone: "accent" })] : []),
+    act(c.unlink, <LinkBreak />, () => libraryMembership.remove(game), { tone: "danger" }),
+  ];
+  return (<>
+    <tr className="lm-row" onContextMenu={event => { event.preventDefault(); setMenu(menuAt(event)); }}>
       <td className="lm-cell-check" />
       <td><span className="lm-thumb">{game.app_id ? <GameWideArt game={game} compact /> : null}</span></td>
       <td className="lm-cell-name"><div className="lm-name" title={game.name}>{game.name}</div></td>
@@ -460,12 +481,10 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
       <td><KindCell kind={row.kind} source="" /></td>
       <td className="lm-cell-num">—</td>
       <td className="lm-cell-num">—</td>
-      <td className="lm-acts">
-        {onInstall ? <IconAction label={c.install} tone="accent" onClick={() => onInstall(game)}><DownloadSimple /></IconAction> : null}
-        <IconAction label={c.unlink} tone="danger" onClick={() => libraryMembership.remove(game)}><LinkBreak /></IconAction>
-      </td>
+      <td className="lm-acts"><IconAction label={c.moreActions} pressed={Boolean(menu)} onClick={event => setMenu(menuAt(event))}><DotsThree weight="bold" /></IconAction></td>
     </tr>
-  );
+    {menu ? <RowMenu at={menu} title={game.name} actions={actions} onClose={() => setMenu(null)} /> : null}
+  </>);
 }
 
 /** The downloads that have not ended (stopped ones too, to go on), by app id, kept up to date. */
