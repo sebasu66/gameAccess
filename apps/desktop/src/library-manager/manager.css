@@ -235,11 +235,11 @@
 .lm-row.is-expanded > td { background: var(--ga-surface); }
 .lm-row.is-expanded > td.lm-acts { background: #171b1f; }
 .lm-detail { container: lm-row / inline-size; }
-.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, max-content); column-gap: 24px; align-items: stretch; min-height: 12rem; }
+.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr); column-gap: 24px; align-items: stretch; min-height: 12rem; }
 .lm-expand-log { position: relative; min-width: 0; }
 .lm-expand-log > .lm-cell-title { display: block; }
-/* The log's content does not size the row: it fills the half (under its title) and scrolls inside. */
-.lm-expand-log-body { position: absolute; inset: 26px 0 0; display: flex; flex-direction: column; gap: 10px; }
+/* The log's content does not size the row: it fills the half (under its title) and scrolls inside, on the picture's lines. */
+.lm-expand-log-body { position: absolute; inset: 24px 0; display: flex; flex-direction: column; gap: 10px; }
 .lm-expand-log .lm-history { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; max-width: none; }
 .lm-expand-log .lm-needs { flex: none; max-height: 40%; overflow: auto; }
 .lm-cell-title { font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; color: var(--ga-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -247,23 +247,33 @@
 @container lm-row (max-width: 640px) {
   .lm-expand { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
   .lm-expand-log-body { position: static; height: 12rem; margin-top: 10px; }
+  .lm-detail .lm-expand .lm-stage { grid-template-columns: minmax(0, 360px); }
+  .lm-detail .lm-expand.has-controls .lm-stage { grid-template-columns: minmax(0, 360px) 96px; }
 }
 
 /* The task's picture: the game's wide image with the animation of what is happening; with figures, its base fades into
    black and they sit on it. Beside it, the task's controls together in one column of tall buttons. */
-/* The picture keeps the game's wide proportion and never grows past 15rem high (32rem wide): the same size for a
-   download, a freeze and a move, whatever the row's width. The log takes the rest of the row. */
-.lm-stage { display: grid; grid-template-columns: minmax(0, 32rem); gap: 12px; min-width: 0; }
-.lm-expand.has-controls .lm-stage { grid-template-columns: minmax(0, 32rem) 96px; }
-.lm-stage-art { position: relative; align-self: start; border-radius: 8px; overflow: hidden; background: var(--ga-shade); }
-.lm-stage-art > :is(img, .lm-download-art, .lm-fbar, .lm-move) { display: block; width: 100%; }
-.lm-stage-art.has-facts { padding-bottom: 44px; }
-.lm-stage-art.has-facts::after { content: ""; position: absolute; left: 0; right: 0; bottom: 44px; height: 45%; background: linear-gradient(transparent, var(--ga-shade)); pointer-events: none; }
-.lm-expand-still { aspect-ratio: 460 / 215; object-fit: cover; }
+/* The half fills with a faint grid of 24 px cells (as the freeze's), fading out to the right, and everything sits on its
+   lines: 24 px inside, the picture 15 × 7 cells (360 × 168, the game's wide proportion), its figures 2 more cells, the
+   controls 4 cells wide one cell beside it. The same size for a download, a freeze and a move, whatever the row's width. */
+.lm-stage { position: relative; display: grid; grid-template-columns: 360px; align-content: start; gap: 24px; min-width: 0; padding: 24px; }
+.lm-stage::before { content: ""; position: absolute; inset: 0; pointer-events: none; --guide: color-mix(in srgb, var(--ga-white) 9%, transparent);
+  background: linear-gradient(var(--guide) 1px, transparent 1px) 0 0 / 100% 24px, linear-gradient(90deg, var(--guide) 1px, transparent 1px) 0 0 / 24px 100%;
+  -webkit-mask: linear-gradient(90deg, black 55%, transparent); mask: linear-gradient(90deg, black 55%, transparent); }
+.lm-expand.has-controls .lm-stage { grid-template-columns: 360px 96px; }
+.lm-stage-art { position: relative; align-self: start; border-radius: 8px; overflow: hidden; background: var(--ga-shade); box-shadow: 0 0 0 1px var(--ga-line); }
+.lm-stage-art > :is(img, .lm-download-art, .lm-fbar, .lm-move, .ga-art-fallback) { display: block; width: 100%; aspect-ratio: 15 / 7; }
+.lm-stage-art.has-facts { padding-bottom: 48px; }
+.lm-stage-art.has-facts::after { content: ""; position: absolute; left: 0; right: 0; bottom: 48px; height: 45%; background: linear-gradient(transparent, var(--ga-shade)); pointer-events: none; }
+.lm-stage-controls { position: relative; }
+.lm-expand-still { object-fit: cover; }
 .lm-expand-still.is-frozen { filter: saturate(.4) brightness(.9); }
 .lm-stage-art .lm-fbar { height: auto; margin-right: 0; }
-/* The move keeps its own layout (cover | files | folder) over the picture's box. */
-.lm-stage-art > .lm-move { display: flex; height: auto; aspect-ratio: 460 / 215; }
+/* The cubes were laid out for a 13rem bar: scaled to the smaller picture (184 px of cubes into its 144). */
+.lm-stage-art .lm-fbar-cubes { transform: scale(.78); transform-origin: 0 0; }
+/* The move keeps its own layout (cover | files | folder) over the picture's box; the half's grid is its grid. */
+.lm-stage-art > .lm-move { display: flex; height: auto; }
+.lm-stage-art > .lm-move::before { display: none; }
 .lm-stage-art :is(.lm-fbar-readout, .lm-move-readout) { display: none; }
 .lm-download-art { border-radius: 0; aspect-ratio: 460 / 215; }
 .lm-stage-art .lm-download-art img { width: 100%; height: 100%; object-fit: cover !important; }
@@ -276,7 +286,7 @@
 .lm-ring circle { fill: none; stroke-width: 3; stroke: var(--ga-line); }
 .lm-ring circle + circle { stroke: var(--ga-orange); stroke-linecap: round; transition: stroke-dasharray .4s; }
 .lm-ring b { position: relative; font: 800 12px/1 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
-.lm-stage-facts { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; min-height: 44px; padding: 8px 14px; box-sizing: border-box;
+.lm-stage-facts { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; min-height: 48px; padding: 8px 14px; box-sizing: border-box;
   font: 700 15px/1.3 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
 .lm-stage-facts > span + span::before { content: "·"; margin-right: 18px; color: var(--ga-muted); }
 .lm-stage-controls { display: flex; flex-direction: column; gap: 8px; }
