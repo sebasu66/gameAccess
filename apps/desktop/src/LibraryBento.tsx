@@ -143,7 +143,8 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
   const [renaming, setRenaming] = useState<CatalogGame | null>(null);
   const dwell = useRef(0);
-  const openMenu = useCallback((card: Card, slot: HTMLElement) => { if (!bigPictureActive()) setMenuFor(current => current ?? { card, slot }); }, []);
+  // A right click on another card closes the open menu and opens that card's at once; on the same card it stays.
+  const openMenu = useCallback((card: Card, slot: HTMLElement) => { if (!bigPictureActive()) setMenuFor(current => (current?.card.key === card.key ? current : { card, slot })); }, []);
   const rest = (key: string) => { window.clearTimeout(dwell.current); dwell.current = window.setTimeout(() => setDotFor(key), DWELL_MS); };
   const leave = (key: string) => { window.clearTimeout(dwell.current); if (menuFor?.card.key !== key) setDotFor(current => (current === key ? null : current)); };
   useEffect(() => () => window.clearTimeout(dwell.current), []);
@@ -357,7 +358,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         ))}
       </div>
       {!cards.length ? <p className="ga-bento-empty">{t("bentoEmpty")}</p> : null}
-      {menuFor ? <SideMenu card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onRename={setRenaming}
+      {menuFor ? <SideMenu key={menuFor.card.key} card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onRename={setRenaming}
         onClose={() => { setMenuFor(null); setDotFor(null); }} /> : null}
       {renaming ? <RenameGameDialog game={renaming} current={scan.games.find(entry => entry.app_id === renaming.app_id)?.label ?? ""} onClose={() => setRenaming(null)} /> : null}
     </div>

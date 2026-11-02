@@ -15,18 +15,21 @@ import { setBigPictureActive } from "./bigPicture";
 import type { CatalogGame } from "./types";
 
 const game: CatalogGame = { id: 620, slug: "portal-2", name: "Portal 2", app_id: 620, credit_cost_per_hour: 0, copies_total: 1, copies_available: 1 };
+const other: CatalogGame = { id: 400, slug: "portal", name: "Portal", app_id: 400, credit_cost_per_hour: 0, copies_total: 1, copies_available: 1 };
 const entry = (extra: Partial<LibraryGame> = {}) => ({ app_id: 620, name: "Portal 2", folder: "Portal 2 (620)", state: "ready", installed: true, standard: true, issues: [], ...extra }) as unknown as LibraryGame;
 
 const downloads = {}, preferences = {};
 let root: Root | null = null;
 afterEach(() => { if (root) act(() => root?.unmount()); root = null; document.body.innerHTML = ""; setBigPictureActive(false); });
 
-function mount() {
+function mount(games = [game]) {
   const container = document.createElement("div");
   container.className = "library-section-scroll";
+  // jsdom lays nothing out: a tall scroller, so the sliding window mounts every card.
+  Object.defineProperty(container, "clientHeight", { value: 4000 });
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root!.render(<LibraryBento games={[game]} downloads={downloads} preferences={preferences} pill="all" indexes={new Map([[620, 0]])} onSelect={() => undefined} onContextMenu={() => undefined} />));
+  act(() => root!.render(<LibraryBento games={games} downloads={downloads} preferences={preferences} pill="all" indexes={new Map(games.map((item, index) => [item.id, index]))} onSelect={() => undefined} onContextMenu={() => undefined} />));
   return container;
 }
 
@@ -51,5 +54,18 @@ describe("the library's bento card", () => {
     expect(card).not.toBeNull();
     act(() => { card!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 })); });
     expect(document.querySelector(".ga-side-menu")).not.toBeNull();
+  });
+
+  it("a right click on another card closes the open menu and opens that card's", () => {
+    entries = [entry(), entry({ app_id: 400, name: "Portal", folder: "Portal (400)" })];
+    const container = mount([game, other]);
+    const rightClick = (id: number) => act(() => { container.querySelector<HTMLElement>(`.ga-bento-card[data-library-game-id="${id}"]`)!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2 })); });
+    rightClick(620);
+    expect(document.querySelector(".ga-side-menu")?.getAttribute("aria-label")).toContain("Portal 2");
+    rightClick(400);
+    const menus = document.querySelectorAll(".ga-side-menu");
+    expect(menus).toHaveLength(1);
+    expect(menus[0].getAttribute("aria-label")).not.toContain("Portal 2");
+    expect(menus[0].getAttribute("aria-label")).toContain("Portal");
   });
 });

@@ -97,6 +97,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - **Todos los botones naranjas son el mismo componente**, los dibuje quien los dibuje (acción principal de un diálogo, Jugar/Descargar/Ver en Steam de la ficha, Jugar en descargas, Aplicar filtros, primario del diálogo central, opción principal del menú lateral): fondo `--ga-btn-bg`, texto `--ga-btn-ink`, letra `--ga-btn-font`, sin brillo; hover `--ga-btn-bg-hover` (`ga-design.css`).
 - Una sola acción principal visible por diálogo. Confirmar, Activar, Guardar, Mostrar resultados: todos naranja.
 - Peligro (desinstalar, borrar): fondo `#a64c41`, texto blanco. Nunca naranja.
+- **Menú lateral de una tarjeta** (`GameSideMenu.tsx`, Seba 2026-11-02): sigue abierto mientras el puntero esté en la tarjeta o en los botones del menú, en una caja un 10 % de la altura de la tarjeta más alta arriba y abajo, sin margen hacia los lados (`menuHoldArea`). Si el puntero sale, se cierra a los 1,5 s. Solo toman el puntero sus botones, no el vidrio; un clic derecho en otra tarjeta, aunque el menú esté encima, cierra este y abre el de esa.
 
 ### 4.3 Botón secundario `ga-btn-secondary`
 - Fondo `#ffffff08`, borde 1 px `#ffffff25`, texto blanco. **Altura 44 px** (igual que el principal), radio 8 px.
