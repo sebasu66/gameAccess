@@ -11,12 +11,16 @@ import AppDialog from "./AppDialog";
 import { Button } from "./components/ui/button";
 import { Checkbox } from "./components/ui/checkbox";
 import { Input } from "./components/ui/input";
+import { checkAntivirus } from "./AntivirusDialog";
+import { ANTIVIRUS_CHECK_EVENT, ANTIVIRUS_SOLVED_EVENT, openAntivirusDialog, requestAntivirusCheck } from "./antivirusExclusion";
 const copy = {
  es:{title:"Descargas y juegos",deleteSources:"Borrar archivos de descarga al terminar",deleteHint:"Elimina los comprimidos e instaladores ya usados. Se conserva el archivo de fix declarado.",games:"Carpeta de juegos",temporary:"Descargas temporales",hint:"Hay una sola carpeta de juegos: al cambiarla, los juegos que ya tenés se pueden mover a la nueva.",save:"Guardar rutas",saved:"Rutas guardadas.",library:"Biblioteca",clear:"Vaciar biblioteca",confirm:"¿Vaciar toda la biblioteca?",warning:"Se quitarán todos los juegos de tu biblioteca y se desinstalarán sus archivos locales. Esta acción no se puede deshacer.",cancel:"Volver",blocked:"Detén las descargas antes de cambiar rutas o vaciar la biblioteca.",done:"Biblioteca vaciada.",unavailable:"Las rutas se configuran en el cliente de escritorio.",count:"Juegos en la biblioteca",autoFreeze:"Congelar los juegos que no uso",autoFreezeHint:"Al mes sin jugar, el juego se comprime con la compresión de Windows y se sigue jugando igual. A los tres meses pasa a congelado profundo: ocupa menos y se descongela solo al jugar. Nunca toca juegos vinculados."},
  en:{title:"Downloads and games",deleteSources:"Delete download files when finished",deleteHint:"Removes archives and installers already used. The declared fix archive is kept.",games:"Game folder",temporary:"Temporary downloads",hint:"There is one games folder: when it changes, the games you already have can move to the new one.",save:"Save paths",saved:"Paths saved.",library:"Library",clear:"Clear library",confirm:"Clear the entire library?",warning:"All games will be removed from your library and their local files uninstalled. This cannot be undone.",cancel:"Back",blocked:"Stop downloads before changing paths or clearing the library.",done:"Library cleared.",unavailable:"Paths are configured in the desktop client.",count:"Games in library",autoFreeze:"Freeze the games I do not play",autoFreezeHint:"After a month without playing, the game is compressed with Windows compression and still plays the same. After three months it is deep frozen: it takes less space and thaws on its own when played. Linked games are never touched."},
 };
 export default function DigitalStorageSettings(){
- const {locale}=useI18n();const c=copy[locale];
+ const {locale,t}=useI18n();const c=copy[locale];
+ // Whether the antivirus leaves the direct-download folders alone (null: not known yet).
+ const [antivirusOk,setAntivirusOk]=useState<boolean|null>(null);
  const [settings,setSettings]=useState<StorageSettings|null>(null);
  const [pending,setPending]=useState(false);const [message,setMessage]=useState("");const [error,setError]=useState("");
  const [confirm,setConfirm]=useState(false);
@@ -29,9 +33,13 @@ export default function DigitalStorageSettings(){
  const members=useLibraryGames();const libraryBusy=useLibraryBusy();
  const native=typeof window!=="undefined"&&"__TAURI_INTERNALS__" in window;
  useEffect(()=>digitalDownloadService.onGlobalUpdate(()=>setActive(digitalDownloadService.hasActiveDownloads())),[]);
+ useEffect(()=>{if(!native)return;let live=true;const read=()=>void checkAntivirus().then(found=>{if(live)setAntivirusOk(!found);}).catch(()=>undefined);read();
+   // Read again when the folders change or the dialog has just added the exclusion.
+   for(const name of [ANTIVIRUS_CHECK_EVENT,ANTIVIRUS_SOLVED_EVENT])window.addEventListener(name,read);
+   return()=>{live=false;for(const name of [ANTIVIRUS_CHECK_EVENT,ANTIVIRUS_SOLVED_EVENT])window.removeEventListener(name,read);};},[native]);
  useEffect(()=>{if(!native)return;let live=true;void digitalProcessManager.settings().then(result=>{if(live){setSettings(result.settings??null);setRootWarning(localizeLauncherText(result.games_root_warning??""));if(result.settings?.previous_roots.length)void planRelocation(result.settings.games_root);}}).catch(error=>{if(live)setError(String(error));});return()=>{live=false;};},[native]);
  const save=async()=>{if(!settings)return;setPending(true);setError("");setMessage("");
-   try{if(digitalDownloadService.hasActiveDownloads())throw new Error(c.blocked);const result=await digitalProcessManager.saveSettings(settings);setSettings(result.settings??settings);setRootWarning(localizeLauncherText(result.games_root_warning??""));setMessage(c.saved);await planRelocation((result.settings??settings).games_root);}
+   try{if(digitalDownloadService.hasActiveDownloads())throw new Error(c.blocked);const result=await digitalProcessManager.saveSettings(settings);setSettings(result.settings??settings);setRootWarning(localizeLauncherText(result.games_root_warning??""));setMessage(c.saved);await planRelocation((result.settings??settings).games_root);requestAntivirusCheck();}
    catch(error){setError(String(error));}finally{setPending(false);}
  };
  // Saved at once (it changes no folder, so it does not wait for "Save paths").
@@ -59,6 +67,10 @@ export default function DigitalStorageSettings(){
     <div className="grid gap-1"><label htmlFor="ga-auto-freeze" className="text-sm font-semibold">{c.autoFreeze}</label><p className="m-0 text-sm text-muted-foreground">{c.autoFreezeHint}</p></div>
    </div>
    <p className="m-0 text-sm text-muted-foreground">{c.hint}</p>
+   {antivirusOk!==null?<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card/50 p-4">
+    <div className="grid gap-1"><span className="text-sm font-semibold">{t("avSettingsTitle")}</span><p role="status" className={`ga-status ${antivirusOk?"is-ok":"is-warn"}`}>{antivirusOk?t("avSettingsOk"):t("avSettingsMissing")}</p></div>
+    {antivirusOk?null:<GaButton onClick={openAntivirusDialog}>{t("avSettingsCheck")}</GaButton>}
+   </div>:null}
    <div><GaButton variant="primary" disabled={locked||!settings} onClick={()=>void save()}>{c.save}</GaButton></div>
   </>:<p className="m-0 text-sm text-muted-foreground">{c.unavailable}</p>}
   <details className="ga-settings-group rounded-lg border border-border bg-card/50 p-4"><summary className="cursor-pointer text-sm font-bold">{c.library}</summary><div className="mt-3 flex items-center justify-between gap-4"><p className="m-0 text-sm text-muted-foreground">{c.count}: {members.length}</p><Button variant="destructive" disabled={locked||!members.length} onClick={()=>setConfirm(true)}>{c.clear}</Button></div></details>

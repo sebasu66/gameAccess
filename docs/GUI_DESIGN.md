@@ -313,6 +313,11 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Si abre, dice "Listo" y se cierra solo a los 1,4 s. Una instalación rota (faltan archivos) sigue yendo al diálogo de recuperación.
 - **Variante del niño** (`KidScreen`, `kid`; Seba 2026-11-02): bloquea **todo el tiempo** que el juego tarda en abrir (sin límite de 10 s: espera a que corra un proceso del juego, `kid_game_open`; Rust se rinde a los 90 s), con una franja naranja que corre en vez de la barra de tiempo. Sin registro, sin "Qué se revisó" ni arreglo automático. Si falla: el error y un solo botón naranja **Volver a mis juegos**, más el `ga-close`. El mando y las flechas no mueven nada detrás mientras está abierto.
 
+### 4.28 Diálogo del antivirus `ga-av` (componente `AntivirusDialog`, Seba 2026-11-02)
+- Diálogo grande con las medidas de §4.26 (las mismas que `KidReadyDialog`; `antivirus-dialog.css`): eyebrow "Descarga directa", título Bebas 52 px, texto principal 18 px y dos tarjetas lado a lado del mismo alto: **Por qué hace falta** (`--ga-warn`) y **Solo para la descarga directa** (`--ga-ok`). Debajo, `ga-label` **Carpetas** con cada ruta en monoespaciada sobre `--ga-surface`.
+- Botones, una fila de 44 px a la derecha: **Agregar la excepción** (naranja; un solo permiso de Windows), **Hacerlo a mano** y **No, gracias**. A mano (otro antivirus, Defender de una organización, permiso negado o error): los pasos en `ga-label` + lista, y **Abrir Seguridad de Windows** (naranja, solo Defender) o **Copiar las carpetas**, más **Ya lo hice** y **No, gracias**.
+- Espera a que el diálogo central (bienvenida, novedades, tareas largas) se cierre: nunca se apila. Vista previa: `?uiDemo=1&antivirus=missing|other|managed`.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

@@ -62,6 +62,7 @@ import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
 import { installThroughSteam, isSteamOwned, syncSteamOnStartup } from "./steamLibrary";
 import { GaIconButton } from "./components/ga/Buttons";
+import AntivirusGate from "./AntivirusDialog";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -695,6 +696,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
+      <AntivirusGate />
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
     </div>
   );

@@ -22,6 +22,8 @@ Var GaGamesText
 Var GaDownloadsText
 Var GaParental
 Var GaParentalBox
+Var GaAntivirus
+Var GaAntivirusBox
 
 ; Absolute local path (X:\...), not a disk root.
 !macro GaCheckFolder path
@@ -42,6 +44,7 @@ Var GaParentalBox
 ; ($PassiveMode) already exist.
 !macro GAMEACCESS_FOLDERS_PAGE
   Page custom GaFoldersCreate GaFoldersLeave
+  Page custom GaAntivirusCreate GaAntivirusLeave
 
 ; $R0 = a folder -> $R1 = 1 when games may not start from it: longer than 40 characters (the limit
 ; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space, backslash and
@@ -225,6 +228,59 @@ Function GaFoldersLeave
     Abort
   ${EndIf}
 FunctionEnd
+
+; The antivirus page: whether Microsoft Defender leaves the two folders alone (only for direct download). Checked by
+; default; NSIS_HOOK_POSTINSTALL runs defender-exclusion.ps1, which skips folders already covered by an exclusion and
+; records the result in HKLM\Software\gameAccess (DefenderExclusions) for the app (antivirusExclusion.ts).
+Function GaAntivirusCreate
+  ${If} $PassiveMode = 1
+    Abort
+  ${EndIf}
+  ${If} $GaAntivirus == ""
+    StrCpy $GaAntivirus "1"
+  ${EndIf}
+  ${If} $LANGUAGE = 1034
+    !insertmacro MUI_HEADER_TEXT "Antivirus" "Que el antivirus no rompa los juegos de descarga directa."
+    StrCpy $1 "Los fixes y cracks de los juegos de descarga directa a veces se marcan como amenaza aunque no lo sean (falsos positivos). El antivirus borra esa DLL o ese .exe sin avisar y el juego deja de abrir."
+    StrCpy $2 "Por eso conviene que Microsoft Defender no revise la carpeta de juegos ni la de descargas. Solo hace falta para la descarga directa: los juegos de Steam y los vinculados no lo necesitan, y el resto de la PC se sigue revisando como siempre."
+    StrCpy $3 "Excluir la carpeta de juegos y la de descargas de Microsoft Defender"
+    StrCpy $4 "Si usás otro antivirus, Game Access te muestra cómo hacerlo al abrirse."
+  ${Else}
+    !insertmacro MUI_HEADER_TEXT "Antivirus" "Keep the antivirus from breaking direct-download games."
+    StrCpy $1 "The fixes and cracks of direct-download games are sometimes flagged as threats although they are not (false positives). The antivirus deletes that DLL or .exe without a word and the game no longer starts."
+    StrCpy $2 "So Microsoft Defender should leave the games folder and the downloads folder alone. It is only needed for direct download: Steam and linked games do not need it, and the rest of the PC is checked as usual."
+    StrCpy $3 "Exclude the games folder and the downloads folder from Microsoft Defender"
+    StrCpy $4 "If you use another antivirus, Game Access shows you how when it opens."
+  ${EndIf}
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u $1
+  Pop $0
+  ${NSD_CreateLabel} 0 36u 100% 30u $2
+  Pop $0
+  ${NSD_CreateLabel} 0 72u 100% 22u "$GaGamesDir$\r$\n$GaDownloadsDir"
+  Pop $0
+  ${NSD_CreateCheckbox} 0 100u 100% 12u $3
+  Pop $GaAntivirusBox
+  ${If} $GaAntivirus == "1"
+    ${NSD_Check} $GaAntivirusBox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 118u 100% 12u $4
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function GaAntivirusLeave
+  ${NSD_GetState} $GaAntivirusBox $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $GaAntivirus "1"
+  ${Else}
+    StrCpy $GaAntivirus "0"
+  ${EndIf}
+FunctionEnd
 !macroend
 
 ; What earlier versions left behind and nothing uses any more (vault/Modo niño.md, MN.23): the same-account kid
@@ -246,6 +302,18 @@ FunctionEnd
     WriteRegStr HKLM "${GA_REGKEY}" "ParentalDefault" $GaParental
     SetRegView lastused
     CreateDirectory $GaGamesDir
+    ; The antivirus page (the installer already runs as administrator: no second permission question). The 64-bit
+    ; PowerShell when there is one, so Defender's module and the registry are the machine's own.
+    ${If} $GaAntivirus == "1"
+    ${AndIf} ${FileExists} "$INSTDIR\runtime\defender-exclusion.ps1"
+      StrCpy $1 "powershell.exe"
+      ${If} ${FileExists} "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+        StrCpy $1 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+      ${EndIf}
+      DetailPrint "Microsoft Defender: $GaGamesDir | $GaDownloadsDir"
+      nsExec::Exec `"$1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\defender-exclusion.ps1" -Paths "$GaGamesDir|$GaDownloadsDir"`
+      Pop $0
+    ${EndIf}
   ${EndIf}
 !macroend
 

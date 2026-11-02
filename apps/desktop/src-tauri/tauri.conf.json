@@ -56,7 +56,8 @@
       "runtime/launcher": "runtime/launcher",
       "runtime/python": "runtime/python",
       "../../../deploy/catalog-cache": "runtime/catalog",
-      "../../../tools/windows/kid-account.ps1": "runtime/kid-account.ps1"
+      "../../../tools/windows/kid-account.ps1": "runtime/kid-account.ps1",
+      "../../../tools/windows/defender-exclusion.ps1": "runtime/defender-exclusion.ps1"
     },
     "icon": [
       "icons/icon.ico"

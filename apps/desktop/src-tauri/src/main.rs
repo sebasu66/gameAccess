@@ -34,6 +34,7 @@ mod process_control;
 mod kid_mode;
 mod windows_account;
 mod app_shortcuts;
+mod antivirus;
 
 use std::{env, sync::Mutex};
 
@@ -194,7 +195,10 @@ fn main() {
             app_shortcuts::shortcuts_list,
             app_shortcuts::shortcut_add,
             app_shortcuts::shortcut_remove,
-            app_shortcuts::shortcut_open
+            app_shortcuts::shortcut_open,
+            antivirus::antivirus_probe,
+            antivirus::antivirus_add_exclusions,
+            antivirus::antivirus_open_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
