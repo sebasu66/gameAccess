@@ -1,0 +1,30 @@
+/* A plugin's tab in Settings (PluginSettings.tsx): its state, its download lists, a search among its records and
+   uninstalling it. Text, stacks and groups come from the dialog template (components/ga/content.css). */
+.ga-plugin-settings { max-width: 960px; }
+.ga-plugin-title { margin: 0; color: var(--ga-white); font: 700 20px/1.3 var(--ga-text-family); }
+.ga-plugin-state { color: var(--ga-error); font-weight: 700; }
+.ga-plugin-state.is-on { color: var(--ga-ok); }
+.ga-plugin-group { padding: 20px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
+.ga-plugin-group > legend { float: left; width: 100%; margin-bottom: var(--ga-space-1); }
+.ga-plugin-group > legend + * { clear: both; }
+
+/* A field and its buttons in one row, all the same height; the field takes what is left. */
+.ga-plugin-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 0; }
+.ga-plugin-row > input:not([hidden]) { flex: 1 1 280px; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-field-bg); color: var(--ga-white); font: 14px var(--ga-text-family); }
+.ga-plugin-row > input:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+
+/* Lists: the feeds and the search results, one line each with its button at the end. */
+.ga-plugin-feeds, .ga-plugin-results { display: grid; margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--ga-line); }
+.ga-plugin-feeds:empty { display: none; }
+.ga-plugin-feeds > li, .ga-plugin-results > li { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 0; }
+.ga-plugin-feeds > li + li, .ga-plugin-results > li + li { border-top: 1px solid var(--ga-line); }
+.ga-plugin-feeds code { flex: 1; min-width: 0; overflow: hidden; color: var(--ga-orange-ink); text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-results { max-height: 420px; overflow-y: auto; }
+.ga-plugin-results > li { padding-inline: 8px; border-radius: 6px; cursor: context-menu; }
+.ga-plugin-results > li:hover { background: var(--ga-surface-2); }
+.ga-plugin-result-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ga-white); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-result-meta { flex: none; color: var(--ga-muted); font-size: 13px; }
+.ga-plugin-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-surface); color: var(--ga-muted); font: 700 16px/1 var(--ga-text-family); cursor: pointer; }
+.ga-plugin-icon:hover:not(:disabled) { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.ga-plugin-icon:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.ga-plugin-icon:disabled { opacity: .5; cursor: default; }

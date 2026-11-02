@@ -12,10 +12,10 @@ const releaseYear = (game: CatalogGame) => /\b(\d{4})\b/.exec(String(game.releas
  * listed to pick one (arrows and Enter work too). Used wherever the app must know exactly which game something is
  * (a manual download), so it never has to invent an AppID.
  */
-export default function GamePicker({ value, onChange, label }: { value: CatalogGame | null; onChange: (game: CatalogGame | null) => void; label: string }) {
+export default function GamePicker({ value, onChange, label, initialText = "" }: { value: CatalogGame | null; onChange: (game: CatalogGame | null) => void; label: string; initialText?: string }) {
   const { t } = useI18n();
   const id = useId();
-  const [text, setText] = useState(value?.name ?? "");
+  const [text, setText] = useState(value?.name ?? initialText);
   const [results, setResults] = useState<CatalogGame[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);

@@ -94,6 +94,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
+            plugin_registry::uninstall_plugin,
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
             game_focus::game_focus_watch,

@@ -2,7 +2,9 @@ import DigitalStorageSettings from "./DigitalStorageSettings";
 import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import LanguageSwitch from "./LanguageSwitch";
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import PluginSettings from "./PluginSettings";
+import { getPluginStatuses, pollPluginRuntime, subscribePluginStatuses } from "./catalog/PluginRuntime";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
 import { Settings, RotateCcw, Play } from "lucide-react";
@@ -19,6 +21,9 @@ const copy = {
 function SettingsScreen() {
  const { locale, t } = useI18n(); const c = copy[locale];
  const [style, setStyle] = useState(loadPixelStyle);
+ // One tab per connected plugin (its lists, its search, uninstalling it); none when there is no plugin.
+ const plugins = useSyncExternalStore(subscribePluginStatuses, getPluginStatuses, getPluginStatuses);
+ useEffect(() => { void pollPluginRuntime(); }, []);
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
  return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
@@ -35,6 +40,7 @@ function SettingsScreen() {
      <GaButton icon={<Play size={16} />} onClick={() => { setAppScreen("games"); window.setTimeout(() => window.dispatchEvent(new Event("gameaccess:replay-logo")), 900); }}>{c.replay}</GaButton>
     </div></div>
    </> },
+   ...plugins.map(plugin => ({ id: `plugin-${plugin.id}`, label: plugin.name, content: <PluginSettings plugin={plugin} /> })),
   ]} /><BuildStamp /></div>
  </GaScreen>;
 }

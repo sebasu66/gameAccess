@@ -6,10 +6,10 @@ import type {CatalogGame} from "./types";
 import {useI18n} from "./i18n";
 import GamePicker from "./GamePicker";
 import "./operations.css";
-export default function ManualDownloadForm({game,onDone}:{game?:CatalogGame;onDone?:()=>void}) {
+export default function ManualDownloadForm({game,onDone,initialUrl="",initialQuery=""}:{game?:CatalogGame;onDone?:()=>void;initialUrl?:string;initialQuery?:string}) {
  const {locale,t}=useI18n(); const es=locale==="es";
  // Which game it is must be known: chosen from the catalog, never invented (a made-up AppID left two copies of one game).
- const [picked,setPicked]=useState<CatalogGame|null>(null); const [url,setUrl]=useState("");
+ const [picked,setPicked]=useState<CatalogGame|null>(null); const [url,setUrl]=useState(initialUrl);
  const [size,setSize]=useState(""); const [passwords,setPasswords]=useState("");
  const [profile,setProfile]=useState<ExecutionProfile|null>(null); const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
  const submit=async(event:React.FormEvent)=>{
@@ -32,7 +32,7 @@ export default function ManualDownloadForm({game,onDone}:{game?:CatalogGame;onDo
   }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
  };
  return <form className="manual-download-form" onSubmit={event=>void submit(event)}>
-  {!game&&<GamePicker label={es?"Juego":"Game"} value={picked} onChange={setPicked}/>}
+  {!game&&<GamePicker label={es?"Juego":"Game"} value={picked} onChange={setPicked} initialText={initialQuery}/>}
   <label>{es?"Enlace de descarga o magnet":"Download link or magnet"}<input required autoComplete="off" value={url} onChange={e=>setUrl(e.target.value)}/></label>
   <details><summary>{es?"Opciones avanzadas":"Advanced options"}</summary>
    <label>{es?"Tamaño (opcional)":"Size (optional)"}<input placeholder="12 GB" value={size} onChange={e=>setSize(e.target.value)}/></label>
