@@ -163,11 +163,14 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
       // A folder with a problem the library manager reports (misnamed, a failed install...) shows here too, with an
       // alert, so the library and the manager agree. A folder installed by hand counts as installed.
       const problem = entry?.folder && !entry.unfinished ? entry.issues?.find(issue => !NOTICE_ONLY.has(issue.code)) : undefined;
-      const attention = problem?.message ?? (twice > 1 ? t("bentoTwice", { count: twice, folder: entry?.folder ?? "" }) : undefined);
+      const blocked = problem?.message ?? (twice > 1 ? t("bentoTwice", { count: twice, folder: entry?.folder ?? "" }) : undefined);
+      // A game that was tried here and did not open (the library manager's verdict) shows the alert with the reason too.
+      const cantRun = entry?.run_check?.state === "cantRun" ? t("bentoCantRun", { why: entry.run_check.detail }) : undefined;
+      const attention = blocked ?? cantRun;
       const installed = !orphan && (state.installed || state.prepared || Boolean(entry?.installed) || Boolean(entry?.misnamed));
       const kind: BentoKind = installed ? (entry?.frozen === "deep" ? "deep" : "ready") : orphan ? "ready" : "pending";
       // Big picture shows only what can be played.
-      if (bigPicture ? kind !== "ready" || attention : pill !== "all" && kind !== pill) return [];
+      if (bigPicture ? kind !== "ready" || blocked : pill !== "all" && kind !== pill) return [];
       return [{ key, orphan, game, kind, frozen: installed ? entry?.frozen : undefined, status, steamOwner: entry?.link_kind === "steam" ? entry.steam_owner : undefined, plays: entry?.plays, lastPlayed: entry?.last_played, attention }];
     };
     const list: Card[] = games.flatMap(game => {

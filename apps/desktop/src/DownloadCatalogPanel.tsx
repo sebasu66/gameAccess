@@ -146,7 +146,9 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
         {entry.label || [entry.source_provider, entry.source_title].filter(Boolean).join(" · ")}</div> : null}
       {entry?.frozen ? <FrozenSize entry={entry} /> : null}
-      {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
+      {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div>
+        // A game that was tried here and did not open: the same warning, with the reason in its tooltip.
+        : entry?.run_check?.state === "cantRun" ? <div className="ga-card-flag" title={t("bentoCantRun", { why: entry.run_check.detail })}>⚠ {t("cardCantRun")}</div> : null}
     </div>
   );
 });

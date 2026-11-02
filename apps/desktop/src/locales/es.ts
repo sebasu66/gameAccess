@@ -723,6 +723,8 @@ export const es = {
   inUseRetry: "Reintentar",
   bentoAttention: "Necesita atención en el administrador de biblioteca",
   bentoTwice: "Este juego está en {{count}} carpetas; esta es {{folder}}. Revisalo en el administrador de biblioteca.",
+  bentoCantRun: "No abrió en esta PC: {{why}}",
+  cardCantRun: "No abrió en esta PC",
   libPlanIdentified: "Identificado como AppID {{app_id}} por {{file}}",
   libPlanRename: "Renombrar la carpeta a {{folder}}",
   libPlanAdopt: "Revisarla como cualquier juego instalado (ejecutable y estado)",

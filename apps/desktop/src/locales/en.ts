@@ -725,6 +725,8 @@ export const en: Record<keyof typeof es, string> = {
   inUseRetry: "Retry",
   bentoAttention: "Needs attention in the library manager",
   bentoTwice: "This game is in {{count}} folders; this one is {{folder}}. Check it in the library manager.",
+  bentoCantRun: "Did not open on this PC: {{why}}",
+  cardCantRun: "Did not open on this PC",
   libPlanIdentified: "Identified as AppID {{app_id}} by {{file}}",
   libPlanRename: "Rename the folder to {{folder}}",
   libPlanAdopt: "Check it like any installed game (executable and status)",
