@@ -379,8 +379,6 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ...(game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? [act(c.steamUninstall, <Trash />, () => setPending({ kind: "steam_uninstall", game }), { tone: "danger", disabled: busy || id == null })] : []),
       act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null }),
     ];
-  // While it downloads, its buttons (pause, cancel…) are under the picture: the menu only keeps what is not one of them.
-  const downloadMenu = [...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []), openDownloadFolder];
   // The context menu also opens and closes the row; the open row shows the rest beside its log.
   const history = act(open ? c.historyHide : c.history, <Scroll />, () => setExpanded(open ? null : id));
   return (<>
@@ -407,8 +405,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
           <History game={game} c={c} job={freezing} download={download} />
         </>}
-        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))}
-        menuTitle={c.actionsTitle} menu={busyFreezing ? [] : download ? downloadMenu : actions} />
+        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))} />
     </div></td></tr> : null}
     {menu ? <RowMenu at={menu} title={game.name} actions={busyFreezing || download ? actions : [history, ...actions]} onClose={() => setMenu(null)} /> : null}
   </>);
@@ -426,11 +423,11 @@ function jobView(job: FreezeJob, id: number, tr: typeof translate) {
       ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={progress} state={state} size={moveLeft(p, job.outcome ? "done" : "working")} />
       : <FreezeBar src={landscape(id)} mode={job.mode as FreezeMode} percent={progress} state={state} size={freezeSize(p)} />,
     progress,
+    // Values only, at the picture's base (the percentage is the ring over it).
     stats: [
-      { label: tr("rowDone"), value: `${Math.floor(progress)} %` },
-      { label: tr("downloadsSpeed"), value: speed ? `${formatBytes(speed)}/s` : "—" },
-      { label: tr("downloadsRemaining"), value: eta ? clock(eta) : "—" },
       { label: tr("rowProcessed"), value: p?.total_bytes ? `${formatBytes(p.done_bytes)} / ${formatBytes(p.total_bytes)}` : "—" },
+      { label: tr("downloadsRemaining"), value: eta ? clock(eta) : "—" },
+      { label: tr("downloadsSpeed"), value: speed ? `${formatBytes(speed)}/s` : "—" },
     ],
     actions: job.outcome ? [] : [{ label: job.cancelling ? tr("freezeCancelling") : tr(jobCancelKey(job.mode)), icon: <X size={14} aria-hidden="true" />, tone: "danger" as const, disabled: Boolean(job.cancelling), onClick: () => cancelFreezeJob(job.appId) }],
   };

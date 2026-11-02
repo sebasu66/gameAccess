@@ -227,66 +227,77 @@
 .lm-runcheck { margin-left: 6px; }
 
 /* A game's row, open (RowExpand.tsx, GUI_DESIGN §4.20b): the row and what opens under it read as one block. Inside,
-   one grid with three cells, the same in every open row so they line up: log | picture (with the process's buttons and
-   figures under it) | the game's actions. Each cell has a title line of the same height, then its content, all starting
-   at the top. The log takes the height of the tallest of the others (at least its minimum), so no column of the row is
-   taller than the rest. On a narrow manager the actions go under the picture. */
+   two halves, the same in every open row: the game's log | the task's picture with its controls beside it. The log
+   takes the height of the picture (never less than its minimum) and scrolls inside: both halves end on one line. */
 .lm-row.is-openable { cursor: pointer; }
 .lm-row.is-expanded > td { background: var(--ga-surface); }
 .lm-row.is-expanded > td.lm-acts { background: #171b1f; }
 .lm-detail { container: lm-row / inline-size; }
-.lm-expand { display: grid; grid-template-columns: minmax(260px, 1.5fr) minmax(240px, 1fr) minmax(190px, 220px); grid-template-areas: "log art menu";
-  column-gap: 24px; row-gap: 16px; align-items: stretch; min-height: 15rem; }
-@container lm-row (max-width: 760px) {
-  .lm-expand { grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1fr); grid-template-areas: "log art" "log menu"; }
-}
-.lm-cell { display: grid; grid-template-rows: 16px auto; row-gap: 10px; align-content: start; min-width: 0; }
-.lm-cell-log { grid-area: log; position: relative; grid-template-rows: 16px 1fr; }
-.lm-cell-art { grid-area: art; }
-.lm-cell-menu { grid-area: menu; }
+.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: 24px; align-items: stretch; min-height: 12rem; }
+.lm-expand-log { position: relative; min-width: 0; }
+.lm-expand-log > .lm-cell-title { display: block; }
+/* The log's content does not size the row: it fills the half (under its title) and scrolls inside. */
+.lm-expand-log-body { position: absolute; inset: 26px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.lm-expand-log .lm-history { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; max-width: none; }
+.lm-expand-log .lm-needs { flex: none; max-height: 40%; overflow: auto; }
 .lm-cell-title { font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; color: var(--ga-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-cell-body { display: grid; gap: 12px; align-content: start; min-width: 0; }
-/* The log's content does not size the row: it fills the cell (under its title) and scrolls inside. */
-.lm-cell-log > .lm-cell-body { position: absolute; inset: 26px 0 0; display: flex; flex-direction: column; gap: 10px; }
-.lm-cell-log .lm-history { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; max-width: none; }
-.lm-cell-log .lm-needs { flex: none; max-height: 40%; overflow: auto; }
+/* Narrow: the log goes over the picture, with its own height. */
+@container lm-row (max-width: 640px) {
+  .lm-expand { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
+  .lm-expand-log-body { position: static; height: 12rem; margin-top: 10px; }
+}
 
-/* The picture: the game's wide image with the animation of the process, and its bar along the base. */
-.lm-art { position: relative; border-radius: 8px; overflow: hidden; background: var(--ga-surface-2); }
-.lm-art > :is(img, .lm-download-art, .lm-fbar, .lm-move) { display: block; width: 100%; }
+/* The task's picture: the game's wide image with the animation of what is happening; with figures, its base fades into
+   black and they sit on it. Beside it, the task's controls together in one column of tall buttons. */
+.lm-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.lm-expand.has-controls .lm-stage { grid-template-columns: minmax(0, 1fr) 96px; }
+.lm-stage-art { position: relative; align-self: start; border-radius: 8px; overflow: hidden; background: var(--ga-shade); }
+.lm-stage-art > :is(img, .lm-download-art, .lm-fbar, .lm-move) { display: block; width: 100%; }
+.lm-stage-art.has-facts { padding-bottom: 44px; }
+.lm-stage-art.has-facts::after { content: ""; position: absolute; left: 0; right: 0; bottom: 44px; height: 45%; background: linear-gradient(transparent, var(--ga-shade)); pointer-events: none; }
 .lm-expand-still { aspect-ratio: 460 / 215; object-fit: cover; }
 .lm-expand-still.is-frozen { filter: saturate(.4) brightness(.9); }
-.lm-art .lm-fbar { height: auto; margin-right: 0; }
-.lm-art :is(.lm-fbar-readout, .lm-move-readout) { display: none; }
-.lm-download-art { border-radius: 0; }
+.lm-stage-art .lm-fbar { height: auto; margin-right: 0; }
+.lm-stage-art .lm-move { height: auto; aspect-ratio: 460 / 215; }
+.lm-stage-art :is(.lm-fbar-readout, .lm-move-readout) { display: none; }
+.lm-download-art { border-radius: 0; aspect-ratio: 460 / 215; }
+.lm-stage-art .lm-download-art img { width: 100%; height: 100%; object-fit: cover !important; }
 .lm-download-art > .ga-dl-card-badges { position: absolute; top: 8px; right: 8px; }
-.lm-art-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--ga-panel); }
-.lm-art-bar > b { display: block; height: 100%; background: var(--ga-orange); transition: width .4s; }
-
-/* The process's buttons, under the picture: one row, the same height, sharing its width. */
-.lm-process-actions { display: flex; gap: 8px; }
-.lm-process-actions > button { flex: 1 1 0; min-width: 0; }
-
-/* The figures: label over value, in two columns under the picture. */
-.lm-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
-.lm-stats > div { display: grid; gap: 2px; min-width: 0; }
-.lm-stats dt { font: 700 11px/1.3 var(--ga-text-family); letter-spacing: .06em; text-transform: uppercase; color: var(--ga-muted); }
-.lm-stats dd { margin: 0; font: 700 15px/1.3 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* The speed is in the figures at the base: the graph alone stays over the picture. */
+.lm-stage-art .ga-dl-spark > strong { display: none; }
+.lm-stage-title { position: absolute; top: 14px; left: 62px; z-index: 1; padding: 3px 8px; border-radius: 5px; background: var(--ga-shade-soft); color: var(--ga-white); font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; }
+.lm-ring { position: absolute; top: 8px; left: 8px; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--ga-shade-soft); }
+.lm-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.lm-ring circle { fill: none; stroke-width: 3; stroke: var(--ga-line); }
+.lm-ring circle + circle { stroke: var(--ga-orange); stroke-linecap: round; transition: stroke-dasharray .4s; }
+.lm-ring b { position: relative; font: 800 12px/1 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
+.lm-stage-facts { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; min-height: 44px; padding: 8px 14px; box-sizing: border-box;
+  font: 700 15px/1.3 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
+.lm-stage-facts > span + span::before { content: "·"; margin-right: 18px; color: var(--ga-muted); }
+.lm-stage-controls { display: flex; flex-direction: column; gap: 8px; }
+.lm-stage-controls > button { flex: 1 1 0; min-height: 52px; display: grid; place-items: center; align-content: center; gap: 6px; padding: 8px 6px; border-radius: 8px;
+  border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 700 13px/1.15 var(--ga-text-family); text-align: center; cursor: pointer; }
+.lm-stage-controls > button > svg { width: 22px; height: 22px; }
+.lm-stage-controls > button:hover:not(:disabled) { border-color: var(--ga-orange-line); background: var(--ga-surface-2); }
+.lm-stage-controls > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.lm-stage-controls > button.is-danger { color: var(--ga-danger-ink); }
+.lm-stage-controls > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
+.lm-stage-controls > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.lm-stage-controls > button:disabled { opacity: .5; cursor: default; }
 
 /* The game's actions: each with its icon and name, one under the other, all the cell's width (also the context menu). */
 .lm-row-actions { display: grid; gap: 6px; }
-:is(.lm-row-actions, .lm-process-actions) > button { display: flex; align-items: center; justify-content: flex-start; gap: 8px; height: 34px; padding: 0 12px; border-radius: 6px;
+.lm-row-actions > button { display: flex; align-items: center; justify-content: flex-start; gap: 8px; height: 34px; padding: 0 12px; border-radius: 6px;
   border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 13px var(--ga-text-family); text-align: start; cursor: pointer; }
-.lm-process-actions > button { justify-content: center; }
-:is(.lm-row-actions, .lm-process-actions) > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:is(.lm-row-actions, .lm-process-actions) > button > :is(svg, :not(span)) { flex: none; }
-:is(.lm-row-actions, .lm-process-actions) > button:hover:not(:disabled) { border-color: var(--ga-orange-line); background: var(--ga-surface-2); }
-:is(.lm-row-actions, .lm-process-actions) > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
-:is(.lm-row-actions, .lm-process-actions) > button.is-frost { color: var(--ga-frost); }
-:is(.lm-row-actions, .lm-process-actions) > button.is-danger { color: var(--ga-danger-ink); }
-:is(.lm-row-actions, .lm-process-actions) > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
-:is(.lm-row-actions, .lm-process-actions) > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
-:is(.lm-row-actions, .lm-process-actions) > button:disabled { opacity: .5; cursor: default; }
+.lm-row-actions > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-row-actions > button > :is(svg, :not(span)) { flex: none; }
+.lm-row-actions > button:hover:not(:disabled) { border-color: var(--ga-orange-line); background: var(--ga-surface-2); }
+.lm-row-actions > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.lm-row-actions > button.is-frost { color: var(--ga-frost); }
+.lm-row-actions > button.is-danger { color: var(--ga-danger-ink); }
+.lm-row-actions > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
+.lm-row-actions > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.lm-row-actions > button:disabled { opacity: .5; cursor: default; }
 
 /* The context menu (right click on a row or its "⋯"): the same list, on a glass panel by the pointer. */
 .lm-menu { position: fixed; z-index: 4000; display: grid; gap: 10px; width: 240px; max-height: calc(100vh - 16px); overflow: auto; padding: 12px;

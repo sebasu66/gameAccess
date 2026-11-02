@@ -24,7 +24,7 @@
   --ga-danger:#be4750; --ga-danger-hover:#d65c65; --ga-danger-ink:#e1898f; --ga-success:#a0d2b4;
   --ga-ok:var(--ga-success); --ga-warn:var(--ga-orange); --ga-error:var(--ga-danger-hover);
   --ga-label-ink:#d79d5d; --ga-orange-ink:#ffd0a0; --ga-orange-tint:#cc83331a; --ga-orange-line:#d79e6066;
-  --ga-surface:#ffffff08; --ga-surface-2:#ffffff12; --ga-field-bg:#0d1114;
+  --ga-shade:#000; --ga-shade-soft:#000000aa; --ga-surface:#ffffff08; --ga-surface-2:#ffffff12; --ga-field-bg:#0d1114;
   --ga-text-family:Manrope,"Segoe UI",sans-serif; --ga-text-min:14px; --ga-text-size:16px; --ga-hint-size:15px; --ga-text-leading:1.5;
   --ga-text-ink:#e6dccd; --ga-hint-font:400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
   --ga-label-font:800 13px/1.3 Manrope,"Segoe UI",sans-serif; --ga-label-track:.14em; --ga-status-font:700 14px/1.4 Manrope,"Segoe UI",sans-serif;

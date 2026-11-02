@@ -4,15 +4,6 @@ import { createPortal } from "react-dom";
 export interface RowStat { label: string; value: string }
 export interface RowAction { label: string; icon: ReactNode; onClick: () => void; disabled?: boolean; tone?: "accent" | "danger" | "frost" }
 
-/** One cell of the open row: a title line of the same height in every cell (empty when it has none), then its content.
- *  So the cells start on the same line whatever they hold. */
-function Cell({ area, title, children }: { area: "log" | "art" | "menu"; title?: string; children?: ReactNode }) {
-  return <section className={`lm-cell lm-cell-${area}`} aria-label={title}>
-    <span className="lm-cell-title" aria-hidden={title ? undefined : true}>{title ?? " "}</span>
-    <div className="lm-cell-body">{children}</div>
-  </section>;
-}
-
 /** A button of an action list: its icon and its name. A long name ("Resume: continues from…") shows its first part;
  *  the whole of it is its tooltip. */
 function ActionButton({ action, onDone }: { action: RowAction; onDone?: () => void }) {
@@ -23,45 +14,60 @@ function ActionButton({ action, onDone }: { action: RowAction; onDone?: () => vo
   </button>;
 }
 
-/** The game's actions, each with its name, one under the other (the open row's menu and the context menu). */
+/** The game's actions, each with its name, one under the other (the context menu). */
 export function ActionList({ actions, onDone }: { actions: RowAction[]; onDone?: () => void }) {
   return <div className="lm-row-actions">{actions.map(action => <ActionButton key={action.label} action={action} onDone={onDone} />)}</div>;
 }
 
+/** The task's percentage: a small ring over the picture. */
+function PercentRing({ value, label }: { value: number; label?: string }) {
+  const done = Math.max(0, Math.min(100, value));
+  return <span className="lm-ring" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(done)}>
+    <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" /><circle cx="18" cy="18" r="15.5" pathLength={100} strokeDasharray={`${done} 100`} /></svg>
+    <b>{Math.floor(done)}%</b>
+  </span>;
+}
+
 /**
- * A game's row of the Library Manager, open (docs/GUI_DESIGN.md §4.20b, Seba 2026-11-02): one grid with the same three
- * cells for every process (a download, its install, a freeze, a move) and for the game's history alone:
- * - the game's log (its one log: download, install, setup, each play, each freeze) with the running process at its end.
- *   It takes the height of the other cells (never less than its minimum): the row never has a taller column;
- * - the game's wide picture with the animation of what is happening and its bar at the base; under it the process's
- *   buttons in one row and its figures (done, speed, time left, how much of the total);
- * - the game's actions, each with its name, one under the other.
- * Empty cells keep their place, so every open row lines up with the others.
+ * A game's row of the Library Manager, open (docs/GUI_DESIGN.md §4.20b, Seba 2026-11-02): one component with the same
+ * two halves for every case, so every open row is built alike:
+ * - left, the game's log (its one log: download, install, setup, each play, each freeze, with the running task as its
+ *   last group). It takes the height of the right half and scrolls inside: no half is taller than the other;
+ * - right, the task's picture: the game's wide image with the animation of what is happening (speed graph, ice press,
+ *   cubes), its lower part fading into black, the task's figures over that dark base without labels, its percentage in
+ *   a small ring over the image; and beside it, one column of tall buttons with all the task's controls together.
+ *   With no task running it is the game's still picture alone. The game's actions are in its "⋯" menu, never here.
  */
-export default function RowExpand({ logTitle, log, artTitle, art, progress, stats = [], actions = [], menuTitle, menu = [] }: {
+export default function RowExpand({ logTitle, log, artTitle, art, progress, stats = [], actions = [] }: {
   logTitle: string; log: ReactNode; artTitle?: string; art: ReactNode;
-  /** 0..100 for the bar at the picture's base; undefined or null hides it. */
-  progress?: number | null; stats?: RowStat[];
-  /** The running process's buttons (pause, resume, cancel…), under the picture. */
+  /** 0..100 for the ring over the picture; undefined or null hides it. */
+  progress?: number | null;
+  /** The task's figures, shown as their values only (the label is their tooltip). */
+  stats?: RowStat[];
+  /** All the task's controls (pause, resume, cancel, open its folder…), in the column beside the picture. */
   actions?: RowAction[];
-  menuTitle?: string; menu?: RowAction[];
 }) {
-  return <div className="lm-expand">
-    <Cell area="log" title={logTitle}>{log}</Cell>
-    <Cell area="art" title={artTitle}>
-      <div className="lm-art">
+  // A figure not known yet ("—") is left out rather than shown empty.
+  const facts = stats.filter(stat => stat.value && stat.value !== "—");
+  return <div className={`lm-expand${actions.length ? " has-controls" : ""}`}>
+    <section className="lm-expand-log" aria-label={logTitle}>
+      <span className="lm-cell-title">{logTitle}</span>
+      <div className="lm-expand-log-body">{log}</div>
+    </section>
+    <section className="lm-stage" aria-label={artTitle}>
+      <div className={`lm-stage-art${facts.length ? " has-facts" : ""}`}>
         {art}
-        {progress != null ? <i className="lm-art-bar" role="progressbar" aria-label={artTitle} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><b style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></i> : null}
+        {artTitle ? <span className="lm-stage-title">{artTitle}</span> : null}
+        {progress != null ? <PercentRing value={progress} label={artTitle} /> : null}
+        {facts.length ? <div className="lm-stage-facts">{facts.map(stat => <span key={stat.label} title={stat.label}>{stat.value}</span>)}</div> : null}
       </div>
-      {actions.length ? <div className="lm-process-actions">{actions.map(action => <ActionButton key={action.label} action={action} />)}</div> : null}
-      {stats.length ? <dl className="lm-stats">{stats.map(stat => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl> : null}
-    </Cell>
-    <Cell area="menu" title={menu.length ? menuTitle : undefined}>{menu.length ? <ActionList actions={menu} /> : null}</Cell>
+      {actions.length ? <div className="lm-stage-controls">{actions.map(action => <ActionButton key={action.label} action={action} />)}</div> : null}
+    </section>
   </div>;
 }
 
-/** The game's actions as a context menu (right click on the row, or its "⋯" button): the same list as the open row's,
- *  each with its name. Escape, a click outside or choosing one closes it. */
+/** The game's actions as a context menu (right click on the row, or its "⋯" button): each with its name. Escape, a
+ *  click outside or choosing one closes it. */
 export function RowMenu({ at, title, actions, onClose }: { at: { x: number; y: number }; title: string; actions: RowAction[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState(at);

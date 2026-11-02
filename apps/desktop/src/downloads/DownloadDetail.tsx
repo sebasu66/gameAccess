@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowDownToLine, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowDownToLine, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
 import type { DigitalDownloadService } from "../catalog/DigitalDownloadService";
 import { DigitalDownloadThumb } from "../DigitalDownloadArtwork";
+import { digitalProcessManager } from "../catalog/DigitalProcessManager";
 import { downloadPhaseLabel, eta } from "../DigitalDownloadsScreen";
 import { downloadBars } from "../downloadBars";
 import { downloadMethodLabel, planLabel } from "../downloadMethod";
@@ -65,14 +66,14 @@ export function useDownloadView(entry: DownloadEntry | undefined, service: Digit
       {method === "accelerated" && methodText ? <span className="ga-dl-badge route-accelerated" title={methodText.hint} aria-label={`${methodText.label}: ${methodText.hint}`}><Plus size={13} strokeWidth={3} aria-hidden="true" /></span> : null}
     </span> : null}
   </div>;
+  // Shown as values only, at the picture's base (the percentage is the ring over it): downloaded of the total, time
+  // left and speed; while installing, the size alone.
   const stats: RowStat[] = install ? [
-    { label: t("rowDone"), value: `${Math.round(bars.install)} %` },
     { label: t("downloadsSize"), value: total },
   ] : [
-    { label: t("rowDone"), value: percent == null ? "—" : `${Math.round(percent)} %` },
-    { label: t("downloadsSpeed"), value: phase === "downloading" ? `${formatDownloadBytes(snapshot.speedBps, locale)}/s` : "—" },
-    { label: t("downloadsRemaining"), value: eta(snapshot) },
     { label: t("downloadsDownloaded"), value: started || (snapshot.bytesDownloaded ?? 0) > 0 ? `${formatDownloadBytes(snapshot.bytesDownloaded, locale)} / ${total}` : total },
+    { label: t("downloadsRemaining"), value: eta(snapshot) },
+    ...(phase === "downloading" ? [{ label: t("downloadsSpeed"), value: `${formatDownloadBytes(snapshot.speedBps, locale)}/s` }] : []),
   ];
   const cancel = () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
     .then(ok => { if (ok) void run(() => service.cancel(gameId)); });
@@ -82,6 +83,7 @@ export function useDownloadView(entry: DownloadEntry | undefined, service: Digit
     // Only after a failure: it goes on from the step it reached (unpacking again, or the rest of the download).
     ...(stopped ? [{ label: t("downloadsRetry"), icon: snapshot.resumeStep ? <Play size={14} aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />, tone: "accent" as const, disabled: busy, onClick: () => void run(() => service.retry(game)) }] : []),
     { label: t("downloadsCancel"), icon: <X size={14} aria-hidden="true" />, tone: "danger", disabled: busy || phase === "cancelling", onClick: cancel },
+    { label: t("noticeOpenFolder"), icon: <FolderOpen size={14} aria-hidden="true" />, onClick: () => void digitalProcessManager.openFolder(game, "download").catch(() => undefined) },
   ];
   return { artTitle, art, progress: percent, stats, actions };
 }
