@@ -6,11 +6,14 @@ import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import { focusCard } from "./BigScreenControls";
 import { GamepadInput } from "./gamepadInput";
-import { confirmNotice, hideNotice, runSteps, showNotice } from "./notice/notice";
-import { noticeGame } from "./notice/noticeGame";
+import { confirmNotice, showNotice } from "./notice/notice";
 import { narrate } from "./narrationLog";
 import { landscapeArt, readKidSession, type KidGame, type KidSession } from "./kidMode";
 import { resolveLibraryCover } from "./libraryCoverResolver";
+import LaunchDialog from "./LaunchDialog";
+import { beginLaunch, closeLaunch, getLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
+import { applyKidScale } from "./kidScale";
+import type { CatalogGame } from "./types";
 import "./big-picture.css";
 import "./kid-screen.css";
 
@@ -22,6 +25,26 @@ import "./kid-screen.css";
 const KID_CARDS = ".ga-kid-card";
 const FIVE_MINUTES = 300;
 const SIGN_OUT_AFTER_MS = 60_000;
+/** The launch dialog holds the screen until the game opens; kid_mode.rs gives up after 90 s, this is only a backstop. */
+const OPEN_WAIT_MS = 120_000;
+const pause = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
+/** The game as the launch dialog takes it. */
+const launchGameOf = (game: KidGame): CatalogGame => ({ id: game.appId, slug: "", name: game.name, app_id: game.appId > 0 ? game.appId : null,
+  credit_cost_per_hour: 0, copies_total: 0, copies_available: 0 });
+
+/** Waits until the game the child started is running (kid_game_open); rejects when it never opened. */
+async function waitUntilOpen(demo: boolean): Promise<void> {
+  if (demo) { await pause(3000); if (new URLSearchParams(window.location.search).has("launchFail")) throw "did_not_open"; return; }
+  const deadline = Date.now() + OPEN_WAIT_MS;
+  while (Date.now() < deadline) {
+    const open = await invoke<boolean | null>("kid_game_open");
+    if (open) return;
+    if (open === null) throw "did_not_open";
+    await pause(1000);
+  }
+  throw "did_not_open";
+}
 
 /**
  * Which games show large (Seba, 2026-10-31): a bento of two sizes only, portrait and landscape, the landscape three
@@ -66,6 +89,11 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
   const [error, setError] = useState("");
   const warned = useRef(false);
   const signOut = () => { if (!demo) void invoke("kid_sign_out"); };
+  const launch = useLaunch();
+  const [launchText, setLaunchText] = useState("");
+
+  // The screen's size follows the monitor: its resolution and Windows' scale (kidScale.ts).
+  useEffect(() => applyKidScale(), []);
 
   useEffect(() => {
     document.body.classList.add("ga-big-screen", "ga-kid-screen");
@@ -111,40 +139,39 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
 
   const play = async (game: KidGame, afterClosing = false): Promise<void> => {
     setError("");
-    if (over) return;
+    // While a game is starting the launch dialog holds the screen: another tap, Enter or A starts nothing.
+    if (over || (launchLocked() && !afterClosing)) return;
     if (spent(game)) { setError(t("kidGameSpent")); return; }
-    // The same notice as playing on the adult's account (App.tsx launchGame): its steps, then playing or the error,
-    // which stays until it is closed, so whoever is there sees why a game did not open.
-    const steps = [game.steam ? t("kidLaunchStepSteam") : t("launchStepPrepare"), t("launchStepStart")];
-    // Steam's sign-in window does not fill in the account the first time on this Windows account: the notice names it.
-    const steamText = game.steamAccount ? t("kidLaunchSteamAccount", { account: game.steamAccount }) : t("kidLaunchSteamDetail");
-    const run = runSteps({ game: noticeGame({ name: game.name, app_id: game.appId > 0 ? game.appId : null, capsule_image: null, header_image: null }), title: t("launchTitle"), text: game.steam ? steamText : t("launchDetail"), steps });
-    run.set(0, "running");
+    // The launch dialog, as on the adult's account (App.tsx launchGame), from the tap until the game is running.
+    // Steam's sign-in window does not fill in the account the first time on this Windows account: the dialog names it.
+    setLaunchText(game.steam ? game.steamAccount ? t("kidLaunchSteamAccount", { account: game.steamAccount }) : t("kidLaunchSteamDetail") : "");
+    const run = getLaunch()?.game.id === game.appId && afterClosing ? getLaunch()! : beginLaunch(launchGameOf(game));
     try {
       if (!demo) await invoke("kid_play", { appId: game.appId });
-      run.set(0, "done"); run.set(1, "done");
-      run.succeed({ title: t("launchPlayingTitle"), text: t("launchPlayingText", { name: game.name }) });
       setSession(current => ({ ...current, playing: game.appId }));
+      await waitUntilOpen(demo);
+      launchOpened(run.id);
     } catch (failure) {
       const code = String(failure);
       // Another game is open (Seba, 2026-10-31): the child chooses, close it and open this one, or leave it be.
       if (code === "already_playing" && !afterClosing && !demo) {
-        hideNotice(run.id);
+        closeLaunch(run.id);
         const before = session.kid.games.find(item => item.appId === session.playing)?.name;
         const swap = await confirmNotice({ title: t("kidSwapTitle"), text: before ? t("kidSwapText", { before, name: game.name }) : t("kidSwapTextUnknown", { name: game.name }),
           confirmLabel: t("kidSwapConfirm"), cancelLabel: t("kidSwapCancel"), kind: "primary" });
         if (!swap) return;
+        const again = beginLaunch(launchGameOf(game));
         try { await invoke("kid_stop_playing"); }
-        catch { setError(t("kidSwapFailed")); showNotice({ tone: "error", title: t("launchError"), text: t("kidSwapFailed") }); return; }
+        catch { launchFailed(again.id, t("kidSwapFailed")); return; }
         setSession(current => ({ ...current, playing: null }));
         return play(game, true);
       }
-      const expected = ["time_up", "paused", "game_time_up", "already_playing"].includes(code);
+      if (code === "did_not_open") setSession(current => ({ ...current, playing: current.playing === game.appId ? null : current.playing }));
+      const expected = ["time_up", "paused", "game_time_up", "already_playing", "did_not_open"].includes(code);
       const text = code === "time_up" ? t("kidTimeUpTitle") : code === "paused" ? t("kidPausedTitle") : code === "game_time_up" ? t("kidGameSpent")
-        : code === "already_playing" ? t("kidAlreadyPlaying") : code === "no_executable" ? t("kidNoExecutable", { name: game.name }) : t("kidPlayFailedDetail", { name: game.name, error: code });
-      run.set(0, "failed");
-      run.fail({ title: t("launchError"), text, actions: [{ label: t("close"), kind: "secondary", run: () => hideNotice(run.id) }] });
-      setError(text);
+        : code === "already_playing" ? t("kidAlreadyPlaying") : code === "no_executable" ? t("kidNoExecutable", { name: game.name })
+        : code === "did_not_open" ? t("kidLaunchNotOpened", { name: game.name }) : t("kidPlayFailedDetail", { name: game.name, error: code });
+      launchFailed(run.id, text);
       // Kept in the child's log by kid_mode.rs; an unexpected one also reaches the server.
       if (!expected) void narrate(`Kid mode: ${game.name} (${game.appId}) did not start: ${code}`, { area: "KID_MODE", level: "ERROR" });
     }
@@ -155,7 +182,10 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
   // Keyboard: arrows move between the games, Enter plays the focused one; Escape and F11 do nothing here.
   useEffect(() => {
     const keys = (event: KeyboardEvent) => {
-      if (event.key === "Escape" || event.key === "F11" || event.key === "F5") { event.preventDefault(); event.stopPropagation(); return; }
+      if (event.key === "F11" || event.key === "F5") { event.preventDefault(); event.stopPropagation(); return; }
+      // The launch dialog is up: its own keys (Tab, Enter, Escape once it can close) and nothing behind it.
+      if (getLaunch()) { if (event.key.startsWith("Arrow")) event.preventDefault(); return; }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
       const direction = ({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" } as const)[event.key as "ArrowLeft"];
       if (direction) { event.preventDefault(); focusCard(direction, KID_CARDS); }
     };
@@ -171,6 +201,8 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
       const pad = Array.from(navigator.getGamepads?.() ?? []).find(item => item?.connected && item.mapping === "standard");
       if (pad && document.hasFocus()) {
         for (const action of input.read(pad, now)) {
+          // The launch dialog is up: A presses its button (once it has one), nothing else moves.
+          if (getLaunch()) { if (action === "accept") document.querySelector<HTMLElement>(".ga-launch footer button, .ga-launch .ga-launch-close")?.click(); continue; }
           if (action === "left" || action === "right" || action === "up" || action === "down") focusCard(action, KID_CARDS);
           else if (action === "accept") {
             const id = Number(document.activeElement?.closest<HTMLElement>(KID_CARDS)?.dataset.kidGame);
@@ -206,6 +238,7 @@ export default function KidScreen({ initial, demo = false }: { initial: KidSessi
     <p className="ga-big-picture-label" role="status"><Gamepad2 size={20} aria-hidden="true" /><strong>{playing ? t("kidPlaying", { name: playing.name }) : t("bigPictureTitle")}</strong>
       <span className="ga-pad-legend"><span className="ga-pad-key is-a">A</span>{t("kidPlayKeys")}</span>
       <span className="ga-pad-legend"><span className="ga-pad-key"><Move size={15} strokeWidth={2.4} aria-hidden="true" /></span>{t("kidMoveKeys")}</span></p>
+    {launch ? <LaunchDialog session={launch} kid text={launchText} /> : null}
     {over ? <div className="ga-kid-over" role="alertdialog" aria-labelledby="ga-kid-over-title">
       <section><h2 id="ga-kid-over-title">{session.paused ? t("kidPausedTitle") : t("kidTimeUpTitle")}</h2><p>{session.paused ? t("kidPausedText") : t("kidTimeUpText")}</p>
         <GaButton variant="primary" icon={<LogOut size={18} aria-hidden="true" />} onClick={signOut} autoFocus>{t("kidLeave")}</GaButton></section>

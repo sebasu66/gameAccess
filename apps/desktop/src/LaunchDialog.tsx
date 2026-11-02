@@ -41,7 +41,13 @@ function LaunchArt({ mode }: { mode: "starting" | "error" | "opened" }) {
  * be closed; it shows a drawing and the launcher's live log. If the game has not opened by then (or the launch fails)
  * it turns into the error mode: the usual causes checked and the ways to try again.
  */
-export default function LaunchDialog({ session, onRetry }: { session: LaunchSession; onRetry: (game: LaunchSession["game"], autoFixed: boolean) => void }) {
+/**
+ * `kid`: the child's screen (KidScreen.tsx, Seba 2026-11-02). It holds the screen the whole time the game is starting,
+ * not only the first 10 s, so an impatient child cannot tap other games; it closes when the game opens, and a failure
+ * says what happened with one way back. No log, checks or automatic fix: the child cannot repair the adult's library.
+ * `text`: what the child is told while it starts (the Steam account to sign in with, the first time).
+ */
+export default function LaunchDialog({ session, onRetry, kid = false, text: kidText }: { session: LaunchSession; onRetry?: (game: LaunchSession["game"], autoFixed: boolean) => void; kid?: boolean; text?: string }) {
   const { t } = useI18n();
   const { game } = session;
   const appId = game.app_id ?? game.id;
@@ -53,7 +59,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
   const logRef = useRef<HTMLDivElement>(null);
 
   const elapsed = now - session.startedAt;
-  const slow = session.phase === "starting" && elapsed >= LAUNCH_LOCK_MS;
+  const slow = !kid && session.phase === "starting" && elapsed >= LAUNCH_LOCK_MS;
   const errorMode = session.phase === "failed" || slow;
   const locked = session.phase === "starting" && !slow;
   const mode = session.phase === "opened" ? "opened" : errorMode ? "error" : "starting";
@@ -61,7 +67,7 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 250); return () => window.clearInterval(timer); }, []);
   // The live log: what the launcher writes while it prepares and starts the game.
   useEffect(() => {
-    if (session.phase === "opened") return;
+    if (session.phase === "opened" || kid) return;
     let live = true;
     const read = async () => {
       const found = await launchProgress(appId);
@@ -70,12 +76,12 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
     void read();
     const timer = window.setInterval(() => void read(), 400);
     return () => { live = false; window.clearInterval(timer); };
-  }, [appId, session.startedAt, session.phase]);
+  }, [appId, session.startedAt, session.phase, kid]);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [progress?.lines.length]);
   // Error mode: look for the usual causes, once.
   const diagnosed = useRef(false);
   useEffect(() => {
-    if (!errorMode || diagnosed.current) return;
+    if (!errorMode || kid || diagnosed.current) return;
     diagnosed.current = true;
     void digitalProcessManager.diagnoseLaunch(game).then(result => setChecks(result.checks ?? [])).catch(() => setChecks([]));
   }, [errorMode, game]);
@@ -131,13 +137,13 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
     const outcome = await digitalProcessManager.autoFix(game, fromServer);
     holdLearnedFix(appId, outcome.fix ?? fromServer);
     closeLaunch(session.id);
-    onRetry(game, true);
+    onRetry?.(game, true);
   });
   const title = mode === "opened" ? t("launchDlgOpened", { name: game.name })
     : session.phase === "failed" ? t("launchDlgFailedTitle", { name: game.name })
     : slow ? t("launchDlgSlowTitle", { name: game.name }) : t("launchDlgStarting", { name: game.name });
   const text = mode === "opened" ? t("launchPlayingText", { name: game.name })
-    : session.phase === "failed" ? session.error : slow ? t("launchDlgSlowText") : t("launchDlgStartingText");
+    : session.phase === "failed" ? session.error : slow ? t("launchDlgSlowText") : kid ? kidText || t("kidLaunchWaiting") : t("launchDlgStartingText");
 
   return (
     <div className="ga-dialog-backdrop ga-launch-backdrop" role="presentation" onPointerDown={event => event.stopPropagation()} onContextMenu={event => event.preventDefault()}>
@@ -149,27 +155,28 @@ export default function LaunchDialog({ session, onRetry }: { session: LaunchSess
             <span className="ga-dialog-eyebrow">{t("launchDlgEyebrow")}</span>
             <h2 id="ga-launch-title" className="ga-launch-title">{title}</h2>
             <p role="status" aria-live="polite">{text}</p>
-            {locked ? <span className="ga-launch-bar" aria-hidden="true"><span style={{ width: `${Math.min(100, (elapsed / LAUNCH_LOCK_MS) * 100)}%` }} /></span> : null}
+            {locked ? <span className={kid ? "ga-launch-bar is-waiting" : "ga-launch-bar"} aria-hidden="true"><span style={kid ? undefined : { width: `${Math.min(100, (elapsed / LAUNCH_LOCK_MS) * 100)}%` }} /></span> : null}
           </div>
         </header>
 
-        {errorMode && (checks === null || rows.length) ? <section className="ga-launch-checks" aria-label={t("launchDlgChecksLabel")}>
+        {errorMode && !kid && (checks === null || rows.length) ? <section className="ga-launch-checks" aria-label={t("launchDlgChecksLabel")}>
           <span className="ga-label">{t("launchDlgChecksLabel")}</span>
           {checks === null ? <p className="ga-launch-checking"><Loader2 size={15} className="ga-dialog-spin" aria-hidden="true" /> {t("launchDlgChecking")}</p>
             : <ul>{rows.map((row, index) => <li key={`${row.id}-${index}`} className={row.bad ? "bad" : "ok"}>{row.bad ? <AlertTriangle size={15} aria-hidden="true" /> : <CircleCheck size={15} aria-hidden="true" />}<span>{row.text}</span>{row.action ? <button type="button" className="ga-launch-row-action" disabled={busy} onClick={row.action.run}>{row.action.label}</button> : null}</li>)}</ul>}
         </section> : null}
 
-        <section className="ga-launch-log-wrap" aria-label={t("launchDlgLogLabel")}>
+        {kid ? null : <section className="ga-launch-log-wrap" aria-label={t("launchDlgLogLabel")}>
           <span className="ga-label">{t("launchDlgLogLabel")}</span>
           <div className="ga-launch-log" ref={logRef}>
             {lines.length ? lines.map((line, index) => <div key={index} className={line.level === "WARNING" || line.level === "ERROR" ? "warn" : undefined}><time>{line.at.toFixed(1)}s</time><span>{line.text}</span></div>)
               : <div className="idle"><time>0.0s</time><span>{t("launchDlgLogEmpty")}</span></div>}
             {mode === "starting" ? <div className="cursor" aria-hidden="true">▌</div> : null}
           </div>
-        </section>
+        </section>}
         {note ? <p className="ga-launch-note" role="status">{note}</p> : null}
 
-        {errorMode ? <footer>
+        {errorMode && kid ? <footer><GaButton variant="primary" onClick={close} autoFocus>{t("kidLaunchBack")}</GaButton></footer>
+        : errorMode ? <footer>
           {session.autoFixed
             ? <GaButton variant="primary" disabled={busy} onClick={() => void work(async () => { await digitalProcessManager.openFolder(game, "exe"); })}>{t("launchDlgOpenExe")}</GaButton>
             : <GaButton variant="primary" disabled={busy || checks === null} onClick={autoFix} icon={busy ? <Loader2 size={16} className="ga-dialog-spin" aria-hidden="true" /> : <Wrench size={16} aria-hidden="true" />}>{t("launchDlgAutoFix")}</GaButton>}

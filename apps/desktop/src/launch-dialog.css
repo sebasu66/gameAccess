@@ -10,6 +10,9 @@
 .ga-launch.is-opened .ga-launch-title { color: var(--ga-success); }
 .ga-launch-bar { margin-top: 6px; height: 6px; border-radius: 3px; background: var(--ga-surface-2); overflow: hidden; }
 .ga-launch-bar span { display: block; height: 100%; background: var(--ga-orange); transition: width .25s linear; }
+/* The child's screen waits for the game itself, with no fixed time: a stripe that keeps running. */
+.ga-launch-bar.is-waiting span { width: 35%; animation: ga-launch-wait 1.4s ease-in-out infinite; }
+@keyframes ga-launch-wait { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 
 /* Drawing */
 .ga-launch-art { flex: none; width: 168px; height: 126px; overflow: visible; }
@@ -64,7 +67,7 @@
 .ga-launch > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 .ga-launch > footer > button { height: 44px; }
 @media (max-width: 640px) { .ga-launch > header { flex-direction: column; text-align: center; } }
-@media (prefers-reduced-motion: reduce) { .ga-launch-art *, .ga-launch-log .cursor { animation: none !important; } .ga-launch-art.is-opened .tick { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .ga-launch-art *, .ga-launch-log .cursor, .ga-launch-bar.is-waiting span { animation: none !important; } .ga-launch-art.is-opened .tick { stroke-dashoffset: 0; } }
 .ga-launch-checks li > span { min-width: 0; flex: 1; }
 .ga-launch-row-action { flex: none; align-self: center; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--ga-orange-line); background: transparent; color: var(--ga-orange-ink); cursor: pointer; }
 .ga-launch-row-action:hover:not(:disabled) { background: var(--ga-orange-tint); }

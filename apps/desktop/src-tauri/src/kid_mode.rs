@@ -562,7 +562,23 @@ pub fn start_guard(app: tauri::AppHandle) {
     let Some(kid) = kid_account() else { return };
     // The launcher's Steam switch (steam_account_manager/switch.py) starts Steam with -silent: no window after signing in.
     std::env::set_var("GAMEACCESS_STEAM_SILENT", "1");
+    if kid.games.iter().any(|game| game.steam) { std::thread::spawn(start_steam_silently); }
     std::thread::spawn(move || guard_loop(app, kid));
+}
+
+/// Steam starts in the background as kid mode starts (Seba, 2026-11-02): it is ready for the child's Steam games and
+/// shows no window. Only when it is installed and not already running (Game Access may have been opened again).
+fn start_steam_silently() {
+    #[cfg(windows)]
+    {
+        if crate::game_focus::process_images().iter().any(|process| guard_norm(&process.image).ends_with(r"\steam.exe")) { return; }
+        let steam = gameaccess_desktop::native_core::runtime_prerequisites().steam_path.map(|root| PathBuf::from(root).join("steam.exe"));
+        let Some(steam) = steam.filter(|path| path.is_file()) else { log("INFO", "Steam is not installed: not started.".into()); return };
+        match Command::new(&steam).arg("-silent").creation_flags(CREATE_NO_WINDOW).spawn() {
+            Ok(_) => log("INFO", format!("Started {:?} -silent for kid mode.", steam)),
+            Err(error) => log("WARN", format!("Could not start {:?} -silent: {error}.", steam)),
+        }
+    }
 }
 
 fn guard_loop(app: tauri::AppHandle, kid: Kid) {
@@ -628,6 +644,23 @@ fn stop_playing() -> Result<(), String> {
     }
     if let Ok(mut playing) = PLAYING.lock() { *playing = None; }
     Ok(())
+}
+
+/// Whether the game the child just started has opened (Seba, 2026-11-02: the child's launch dialog holds the screen
+/// until it does): Some(true) once a process of the game runs, Some(false) while it is still on its way, None when no
+/// game is being played any more (it did not open within APPEAR_GRACE, or it ended).
+#[tauri::command]
+pub fn kid_game_open() -> Option<bool> {
+    let kid = kid_account()?;
+    let own = {
+        let mut playing = PLAYING.lock().ok()?;
+        let current = playing.as_mut()?;
+        let own = current.child.as_mut().and_then(|child| child.try_wait().ok()).map(|done| done.is_none()).unwrap_or(false);
+        (current.app_id, own)
+    };
+    if own.1 { return Some(true); }
+    let game = kid.games.iter().find(|game| game.app_id == own.0)?;
+    Some(!game_pids(game).is_empty())
 }
 
 /// Signs the child out (the "Leave" button, and the end of the day's time).
