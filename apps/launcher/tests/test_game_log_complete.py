@@ -82,3 +82,21 @@ def test_saving_the_options_of_a_library_game_writes_them(tmp_path):
     assert result["ok"]
     line = journal.read(storage.folder(60, "Options fixture")).splitlines()[-1]
     assert "opciones | " in line and "idioma: sin adaptar" in line and "administrador: sí" in line
+
+
+def test_a_folder_game_keeps_executable_arguments_and_administrator_and_logs_them(tmp_path, monkeypatch):
+    instance, storage, game = linked_runner(tmp_path)
+    shown = instance.run("game-options", 1940340, "Darkest Dungeon II")
+    assert shown["kind"] == "folder" and shown["executables"] == ["Darkest Dungeon II.exe"]
+    assert shown["options"]["executable"] == "Darkest Dungeon II.exe"  # the doubled path, repaired
+    saved = instance.run("save-game-options", 1940340, "Darkest Dungeon II", '{"executable": "Darkest Dungeon II.exe", "arguments": "-windowed", "administrator": false}')
+    assert saved["ok"] and saved["options"]["arguments"] == "-windowed"
+    assert "opciones | ejecutable: Darkest Dungeon II.exe; argumentos: -windowed; administrador: no" in log_of(storage)
+    started = []
+
+    class Process:
+        pid = 9
+    monkeypatch.setattr(linked_module.subprocess, "Popen", lambda args, **kwargs: started.append(args) or Process())
+    instance.run("play", 1940340, "Darkest Dungeon II")
+    assert started[-1][1:] == ["-windowed"]
+    assert "lanzado: Darkest Dungeon II.exe -windowed (pid 9)" in log_of(storage)

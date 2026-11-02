@@ -32,19 +32,7 @@ class DigitalGameOptions:
 
     def inspect(self, app_id, name):
         folder = self.storage.folder(app_id, name)
-        executables = []
-        if folder.is_dir():
-            for candidate in folder.rglob("*.exe"):
-                # The redistributables the game ships (_CommonRedist, DirectX...) are never the game: not offered.
-                if any(REDIST_DIRS.match(part) for part in candidate.relative_to(folder).parts[:-1]):
-                    continue
-                try:
-                    checked_executable(folder, str(candidate.relative_to(folder)))
-                    executables.append(str(candidate.relative_to(folder)))
-                except ValueError:
-                    continue
-                if len(executables) >= 250:
-                    break
+        executables = game_executables(folder)
         archives = []
         if folder.is_dir():
             for candidate in folder.rglob("*"):
@@ -52,7 +40,7 @@ class DigitalGameOptions:
                     archives.append(str(candidate.relative_to(folder)))
                 if len(archives) >= 100:
                     break
-        return {"options": self.load(app_id), "executables": sorted(executables, key=str.lower),
+        return {"options": self.load(app_id), "executables": executables,
                 "archives": sorted(archives, key=str.lower), "folder": str(folder)}
 
     def save(self, app_id, name, values):
@@ -73,6 +61,23 @@ class DigitalGameOptions:
             options["executable"] = str(checked_executable(folder, options["executable"]).relative_to(folder))
         write_json(self.path(app_id), options)
         return options
+
+def game_executables(folder: Path) -> list[str]:
+    """The .exe files a game's folder offers to run, relative to it. The redistributables it ships (_CommonRedist,
+    DirectX...) are never the game: not offered."""
+    executables = []
+    if folder.is_dir():
+        for candidate in folder.rglob("*.exe"):
+            if any(REDIST_DIRS.match(part) for part in candidate.relative_to(folder).parts[:-1]):
+                continue
+            try:
+                checked_executable(folder, str(candidate.relative_to(folder)))
+                executables.append(str(candidate.relative_to(folder)))
+            except ValueError:
+                continue
+            if len(executables) >= 250:
+                break
+    return sorted(executables, key=str.lower)
 
 KEEP_LANGUAGE = "keep"  # the player's choice: never touch the game's language settings
 

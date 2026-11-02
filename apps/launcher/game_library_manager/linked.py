@@ -23,7 +23,7 @@ def default_command(record: dict) -> str:
     folder's game with its executable ("" while it is still to be found)."""
     if record.get("kind") == "steam":
         return f"steam://rungameid/{int(record['app_id'])}"
-    return f'"{record["executable"]}"' if record.get("executable") else ""
+    return f'"{whole_path(record["executable"])}"' if record.get("executable") else ""
 
 
 def launch_command(record: dict) -> str:
@@ -146,6 +146,25 @@ class LinkedGames:
         journal.note(self.log_dir(app_id), "opciones", f"comando de ejecución: {masked(launch_command(record)).replace(chr(10), ' / ') or 'automático'}")
         return record
 
+    def set_launch(self, app_id: int, values: dict) -> dict:
+        """A folder's game: the executable it runs (relative to its folder, "" = found by itself), its arguments and
+        whether it runs as administrator. These replace a command typed before (that one is for Steam games)."""
+        from game_execution_manager.launch import checked_executable, parse_arguments
+        record = self.get(app_id)
+        if not record:
+            raise ValueError("El juego no está vinculado.")
+        folder = Path(record["path"])
+        chosen = str(values.get("executable") or "").strip()
+        arguments = str(values.get("arguments") or "").strip()
+        parse_arguments(arguments)
+        record.update({"executable": str(checked_executable(folder, chosen)) if chosen else "", "arguments": arguments,
+                       "administrator": bool(values.get("administrator")), "command": ""})
+        write_json(self.dir / f"{int(app_id)}.json", record)
+        self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
+        journal.note(self.log_dir(app_id), "opciones", "; ".join([f"ejecutable: {chosen or 'automático'}", f"argumentos: {arguments or 'ninguno'}",
+                                                                  f"administrador: {'sí' if record['administrator'] else 'no'}"]))
+        return record
+
     def unlink(self, app_id: int, hide: bool = True) -> None:
         """Forget the link and its history. The game itself is never touched. A Steam game the user takes out of the
         library is remembered as hidden, so the automatic Steam import does not bring it back (`hide=False` after an
@@ -224,6 +243,22 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
     """The few things that can be done with a linked game; nothing here writes inside its folder. A Steam game is run
     by Steam, signed in to the account that owns it (`steam`: the Steam Account Manager), with its launch command."""
     app_id, folder = record["app_id"], Path(record["path"])
+    if action in ("game-options", "save-game-options") and record.get("kind") == "folder":
+        # A folder's game has the same launch options as a game of the library (executable, arguments, administrator);
+        # the launch command with its steps is for Steam games.
+        from game_execution_manager.game_options import game_executables
+        if action == "save-game-options":
+            record = linked.set_launch(app_id, json.loads(payload or "{}"))
+            logger.info("AppID %s: linked launch options saved; executable=%s; arguments=%s; administrator=%s", app_id,
+                        record["executable"] or "automatic", record["arguments"] or "none", record["administrator"])
+        exe = whole_path(record.get("executable") or "")
+        try:
+            relative = str(Path(exe).resolve().relative_to(folder.resolve())) if exe else ""
+        except ValueError:
+            relative = exe
+        return {"linked": True, "kind": "folder", "executables": game_executables(folder),
+                "options": {"executable": relative, "arguments": str(record.get("arguments") or ""),
+                            "administrator": bool(record.get("administrator")), "language": "", "backupEnabled": False, "backupArchive": ""}}
     if action in ("game-options", "save-game-options"):
         if action == "save-game-options":
             record = linked.set_command(app_id, json.loads(payload or "{}").get("command", ""))
@@ -275,10 +310,18 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
             exe = candidates[0][0] if candidates else None
         if exe is None:
             raise ValueError("No se encontró el ejecutable del juego vinculado.")
+        from game_execution_manager.launch import parse_arguments
+        arguments = parse_arguments(str(record.get("arguments") or ""))
+        if record.get("administrator"):
+            from game_execution_manager.launch import launch_as_administrator
+            linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
+            pid = launch_as_administrator(exe, arguments, exe.parent)
+            journal.note(linked.log_dir(app_id), "play", f"lanzado como administrador: {exe.name}" + (f" {' '.join(arguments)}" if arguments else "") + f" (pid {pid})")
+            return {"pid": pid, "command": str(exe), "administrator": True}
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
         linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
         try:
-            process = subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
+            process = subprocess.Popen([str(exe), *arguments], cwd=str(exe.parent), creationflags=flags, close_fds=True)
         except OSError as error:
             if getattr(error, "winerror", None) != 740:
                 raise
@@ -286,11 +329,11 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
             # set to run as administrator.
             from game_execution_manager.launch import launch_as_administrator
             journal.note(linked.log_dir(app_id), "play", f"{exe.name} pide permisos de administrador; se lanza como administrador")
-            pid = launch_as_administrator(exe, [], exe.parent)
+            pid = launch_as_administrator(exe, arguments, exe.parent)
             journal.note(linked.log_dir(app_id), "play", f"lanzado como administrador: {exe.name} (pid {pid})")
             logger.info("AppID %s: linked game launched as administrator; executable=%s; pid=%s", app_id, exe, pid)
             return {"pid": pid, "command": str(exe), "administrator": True}
-        journal.note(linked.log_dir(app_id), "play", f"lanzado: {exe.name} (pid {process.pid})")
+        journal.note(linked.log_dir(app_id), "play", f"lanzado: {exe.name}" + (f" {' '.join(arguments)}" if arguments else "") + f" (pid {process.pid})")
         logger.info("AppID %s: linked game launched; executable=%s; pid=%s", app_id, exe, process.pid)
         return {"pid": process.pid, "command": str(exe)}
     raise ValueError("Esta acción no está disponible para juegos vinculados: sus archivos no se modifican.")

@@ -39,10 +39,12 @@ def test_the_command_is_saved_used_to_play_and_cleared_back_to_the_default(linke
     run_linked("save-game-options", games.get(100), games, LOG, payload=json.dumps({"command": " "}))
     run_linked("play", games.get(100), games, LOG)
     assert started == ["steam://run/100//-dx11/", "steam://rungameid/100"]
-    # A folder game can be started through Steam too: it is the same kind of game, with another command.
-    run_linked("save-game-options", games.get(200), games, LOG, payload=json.dumps({"command": "steam://rungameid/200"}))
-    run_linked("play", games.get(200), games, LOG)
-    assert started[-1] == "steam://rungameid/200"
+    # A folder's game has the launch options of any game instead (Seba, 2026-11-02): no command, a command typed
+    # before is dropped when they are saved.
+    games.set_command(200, "steam://rungameid/200")
+    shown = run_linked("save-game-options", games.get(200), games, LOG, payload=json.dumps({"executable": "", "arguments": "-windowed"}))
+    assert shown["kind"] == "folder" and "command" not in shown and games.get(200)["command"] == ""
+    assert shown["options"]["arguments"] == "-windowed"
 
 
 def test_an_executable_command_runs_with_its_arguments_from_its_folder(linked, monkeypatch):

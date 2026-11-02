@@ -35,9 +35,10 @@ export interface ProcessExecutionResult {
   fix?: { steam: boolean; launchers: string[]; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean } | null;
   check?: RunCheck;
   skipped?: "running" | "frozen" | "freezing";
-  /** A linked game's options (Steam or a folder: the same thing, only its launch command changes): `command` is the one
-   *  the user set ("" = `default_command`). */
+  /** A linked game's options. A Steam game: `command` is the one the user set ("" = `default_command`). A folder's game
+   *  (`kind: "folder"`): `options` and `executables` as any game of the library (executable, arguments, administrator). */
   linked?: boolean;
+  kind?: "steam" | "folder";
   default_command?: string;
   steps?: Array<{ id: string; ok: boolean; detail: string }>;
   checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
