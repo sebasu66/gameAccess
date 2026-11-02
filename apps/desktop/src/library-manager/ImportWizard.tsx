@@ -26,6 +26,12 @@ import { duplicateRows, suggest } from "./matching";
 type Step = "drives" | "scanning" | "results" | "importing" | "done";
 
 /** The folders the player added to the search, remembered on this computer (each with whether it is ticked). */
+/** The game's executable as a whole path: the scan gives it whole already, an older one only its name. */
+export function wholeExecutable(folder: string, executable: string): string {
+  if (!executable) return "";
+  return /^([a-z]:[\\/]|\\\\)/i.test(executable) ? executable : `${folder}\\${executable}`.replace(/\\\\+/g, "\\");
+}
+
 const FOLDERS_KEY = "gameaccess:import-folders";
 function readFolders(): Array<{ path: string; on: boolean }> {
   try {
@@ -148,7 +154,7 @@ export function ImportWizard({ catalog, c, onClose }: { catalog: CatalogGame[]; 
 
   const run = async () => {
     setStep("importing");
-    const items: ImportItem[] = chosenRows.map(row => ({ app_id: row.choice as number, name: nameOf(row.choice as number) ?? row.candidate.name, path: row.candidate.path, mode: row.candidate.can_move ? row.mode : "link", kind: row.candidate.kind, executable: row.candidate.executable ? `${row.candidate.path}\\${row.candidate.executable}`.replace(/\\\\+/g, "\\") : "" }));
+    const items: ImportItem[] = chosenRows.map(row => ({ app_id: row.choice as number, name: nameOf(row.choice as number) ?? row.candidate.name, path: row.candidate.path, mode: row.candidate.can_move ? row.mode : "link", kind: row.candidate.kind, executable: wholeExecutable(row.candidate.path, row.candidate.executable) }));
     try {
       const outcome: Array<{ app_id: number; ok: boolean; error?: string }> = demo() ? items.map(item => ({ app_id: item.app_id, ok: true })) : (await digitalProcessManager.importRun(items)).results ?? [];
       imported.current = outcome.some(item => item.ok);

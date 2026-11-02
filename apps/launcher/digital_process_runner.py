@@ -316,9 +316,36 @@ class DigitalProcessRunner:
             if seen:
                 close_all(list(seen.values()))
 
+    def journal_dir(self, app_id, name):
+        """The folder of the game's log (its Library Manager history): a linked game's own folder of logs (its files are
+        never written), otherwise the game's folder. None when the game has no folder yet."""
+        try:
+            if self.storage.linked.get(app_id):
+                folder = self.storage.linked.log_dir(app_id)
+                folder.mkdir(parents=True, exist_ok=True)
+                return folder
+            folder = self.storage.folder(app_id, name)
+            return folder if folder.is_dir() else GameLibraryManager(self.storage).identified_folder(app_id)
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def note(self, app_id, name, step, detail=""):
+        folder = self.journal_dir(app_id, name) if app_id else None
+        if folder is not None:
+            journal.note(folder, step, detail)
+
     def run(self, action, app_id, name, command="", auto_installed=False):
         if action == "verify-run":
-            return self.verify_run(app_id, name, force=bool(json.loads(command or "{}").get("force")))
+            force = bool(json.loads(command or "{}").get("force"))
+            # Every verification and its verdict go to the game's log, with why it failed (Seba, 2026-11-02).
+            self.note(app_id, name, "verificación", "empieza" + ("; se cierra antes el juego que quedó abierto" if force else ""))
+            try:
+                outcome = self.verify_run(app_id, name, force=force)
+            except Exception as error:
+                self.note(app_id, name, "verificación", f"error: {error}")
+                raise
+            self.note(app_id, name, "verificación", verify_line(outcome))
+            return outcome
         diagnostics = FlowDiagnostics(logger, action, app_id)
         diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
         # Per invocation, not shared instance state: concurrent calls remain separate.
@@ -334,6 +361,7 @@ class DigitalProcessRunner:
                     trace.finish(bool(result.get("ok")), str(result.get("error") or ""))
             else:
                 result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+            self.journal_result(action, app_id, name, command, result)
             if result.get("ok"):
                 diagnostics.succeed()
             else:
@@ -344,6 +372,41 @@ class DigitalProcessRunner:
             raise
         finally:
             diagnostics.discard()
+
+    def journal_result(self, action, app_id, name, command, result):
+        """What a game's action did, in its log: each change of its options and every error, so the history says why
+        something failed. A play of a game of the library writes its own steps (and its error) as it goes."""
+        step = JOURNALED.get(action)
+        if not step or not app_id:
+            return
+        linked = bool(self.storage.linked.get(app_id))
+        if not result.get("ok"):
+            if action != "play" or linked:
+                self.note(app_id, name, step, f"error: {result.get('error') or 'falló'}")
+            return
+        detail = ""
+        if action == "save-game-options" and not linked:  # a linked game's command is noted where it is saved
+            options = result.get("options") or {}
+            language = options.get("language")
+            detail = "; ".join([f"ejecutable: {options.get('executable') or 'automático'}",
+                                f"argumentos: {options.get('arguments') or 'ninguno'}",
+                                f"idioma: {'sin adaptar' if language == KEEP_LANGUAGE else language or 'automático'}",
+                                f"administrador: {'sí' if options.get('administrator') else 'no'}",
+                                f"descomprimir el fix en cada inicio: {'sí' if options.get('backupEnabled') else 'no'}"])
+        elif action == "repair-language":
+            changed = result.get("changed")
+            detail = "idioma adaptado" + (f": {', '.join(map(str, changed))}" if isinstance(changed, list) and changed else "")
+        elif action == "restore-language":
+            detail = "idioma original devuelto; queda sin adaptar"
+        elif action == "auto-fix":
+            detail = "; ".join(f"{s.get('id')}: {'bien' if s.get('ok') else 'falló'}" + (f" ({s.get('detail')})" if s.get("detail") else "")
+                               for s in result.get("steps") or []) or "nada que arreglar"
+        elif action == "save-learned-fix":
+            detail = "se guardó lo que lo hizo correr" if result.get("fix") else ""
+        elif action == "set-label":
+            detail = f"etiqueta: {command or 'ninguna'}"
+        if detail:
+            self.note(app_id, name, step, detail)
 
     def _run(self, action, app_id, name, command, auto_installed, diagnostics):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
@@ -699,6 +762,23 @@ class DigitalProcessRunner:
             if action == "play" and "folder" in locals():
                 journal.note(folder, "play", f"error: {error}")
             return {**result, "error": str(error)}
+
+# The game's actions whose result goes to its log, and the step they are written under.
+JOURNALED = {"play": "play", "save-game-options": "opciones", "repair-language": "idioma", "restore-language": "idioma",
+             "auto-fix": "arreglo", "save-learned-fix": "arreglo", "set-label": "opciones", "install-setup": "instalador",
+             "game-repair": "reparación", "game-analyze": "analisis", "freeze": "freeze", "deep-freeze": "freeze", "thaw": "freeze",
+             "kid-entry": "modo niño"}
+
+SKIPPED = {"freezing": "no se probó: se está congelando o descongelando", "frozen": "no se probó: está congelado profundo",
+           "running": "no se probó: el juego ya está abierto"}
+
+def verify_line(outcome: dict) -> str:
+    """A verification's verdict for the game's log: runs or not, and why."""
+    if outcome.get("skipped"):
+        return SKIPPED.get(outcome["skipped"], f"no se probó: {outcome['skipped']}")
+    check = outcome.get("check") or {}
+    verdict = "corre" if check.get("state") == "checked" else "no corre"
+    return f"{verdict}: {check.get('detail') or 'sin detalle'}" + (f" ({check['seconds']} s)" if check.get("seconds") else "")
 
 def onlinefix_hint(folder: Path) -> bool:
     """A game with an emulator/fix that still asks Steam to be running."""

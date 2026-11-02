@@ -127,7 +127,7 @@ class LinkedGames:
         folder = Path(path)
         if not folder.is_dir():
             raise ValueError("La carpeta del juego no existe.")
-        record = {"app_id": int(app_id), "name": name, "path": str(folder.resolve()), "kind": kind, "executable": executable}
+        record = {"app_id": int(app_id), "name": name, "path": str(folder.resolve()), "kind": kind, "executable": whole_path(executable)}
         self.dir.mkdir(parents=True, exist_ok=True)
         write_json(self.dir / f"{int(app_id)}.json", record)
         self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
@@ -181,6 +181,14 @@ class LinkedGames:
         present = folder.is_dir()
         return {"folder": str(folder), "installed": present, "state": "linked", "linked": True, "link_kind": record["kind"],
                 "needs_repair": False, **({} if present else {"error": "La carpeta vinculada ya no existe."})}
+
+
+def whole_path(executable: str) -> str:
+    """An executable's path as the scan gave it: the last absolute path when the folder was put in front of one that
+    already had it ("C:\\games\\X\\C:\\games\\X\\x.exe")."""
+    text = str(executable or "").strip()
+    starts = [m.start() for m in re.finditer(r"[A-Za-z]:[\\/]", text)]
+    return text[starts[-1]:] if len(starts) > 1 else text
 
 
 def protected_folders() -> list[Path]:
@@ -261,14 +269,27 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
             owner = outcome.get("steam_owner")
             journal.note(linked.log_dir(app_id), "play", f"lanzado: Steam{f' ({owner})' if owner else ''}")
             return outcome
-        exe = Path(record["executable"]) if record.get("executable") else None
+        exe = Path(whole_path(record["executable"])) if record.get("executable") else None
         if not exe or not exe.is_file():
             candidates = find_candidates(folder, record["name"]) if find_candidates else []
             exe = candidates[0][0] if candidates else None
         if exe is None:
             raise ValueError("No se encontró el ejecutable del juego vinculado.")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
-        process = subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
+        linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
+        try:
+            process = subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True)
+        except OSError as error:
+            if getattr(error, "winerror", None) != 740:
+                raise
+            # The game asks for administrator rights (WinError 740): Windows asks the player, as Play does for a game
+            # set to run as administrator.
+            from game_execution_manager.launch import launch_as_administrator
+            journal.note(linked.log_dir(app_id), "play", f"{exe.name} pide permisos de administrador; se lanza como administrador")
+            pid = launch_as_administrator(exe, [], exe.parent)
+            journal.note(linked.log_dir(app_id), "play", f"lanzado como administrador: {exe.name} (pid {pid})")
+            logger.info("AppID %s: linked game launched as administrator; executable=%s; pid=%s", app_id, exe, pid)
+            return {"pid": pid, "command": str(exe), "administrator": True}
         journal.note(linked.log_dir(app_id), "play", f"lanzado: {exe.name} (pid {process.pid})")
         logger.info("AppID %s: linked game launched; executable=%s; pid=%s", app_id, exe, process.pid)
         return {"pid": process.pid, "command": str(exe)}
