@@ -1,5 +1,7 @@
 import type { FreezeMode } from "../FreezeDialog";
 import { formatBytes } from "../GenericDownloadProgress";
+import { GameWideArt } from "../GameArt";
+import type { CatalogGame } from "../types";
 
 type State = "working" | "done" | "failed";
 
@@ -19,7 +21,7 @@ const small = (index: number) => ({ x: Math.floor(index / SMALL_ROWS) * (SMALL +
  * the picture a faint grid of lines completes the bar's shape and runs on to the right, fading out. The result of the
  * work is told in the app's notice (freezeJobs), not here. (A move into the library has its own picture: MoveArt.)
  */
-export default function FreezeBar({ src, mode, percent, state, size }: { src: string; mode: FreezeMode; percent: number; state: State; size: string }) {
+export default function FreezeBar({ game, mode, percent, state, size }: { game: Pick<CatalogGame, "app_id" | "name">; mode: FreezeMode; percent: number; state: State; size: string }) {
   const share = Math.max(0, Math.min(1, percent / 100));
   // How many cubes are packed now: freezing packs them from the first one, thawing unpacks them from the last.
   const packed = Math.round((mode === "thaw" ? 1 - share : share) * COUNT);
@@ -27,7 +29,7 @@ export default function FreezeBar({ src, mode, percent, state, size }: { src: st
   return (
     <div className={`lm-fbar is-${state}`}>
       <i className="lm-fbar-grid" aria-hidden="true" />
-      <img className="lm-fbar-picture" src={src} alt="" aria-hidden="true" />
+      <GameWideArt game={game} className="lm-fbar-picture" lazy={false} />
       <div className="lm-fbar-cubes" aria-hidden="true">
         {Array.from({ length: COUNT }, (_, index) => {
           const place = index < packed ? small(index) : big(index);

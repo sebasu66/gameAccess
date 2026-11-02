@@ -62,7 +62,6 @@ const retryable = (game: LibraryGame) => game.state === "ERROR" && (Boolean(game
 const isUnfinished = (game: LibraryGame) => Boolean(game.partial) || (Boolean(game.transfer_bytes) && !game.transfer_active);
 const needsFix = (game: LibraryGame) => !game.standard && !game.partial && !game.linked && !game.unfinished && !isUnfinished(game);
 const landscape = (appId: number | null | undefined) => appId ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg` : "";
-const portrait = (appId: number) => `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_600x900.jpg`;
 
 type Translate = ReturnType<typeof useI18n>["t"];
 type StatusTone = "frost" | "warn" | "busy" | "muted";
@@ -420,8 +419,8 @@ function jobView(job: FreezeJob, id: number, tr: typeof translate) {
   return {
     artTitle: tr(jobLabelKey(job.mode)),
     art: job.mode === "move"
-      ? <MoveArt cover={portrait(id)} wide={landscape(id)} percent={progress} state={state} size={moveLeft(p, job.outcome ? "done" : "working")} />
-      : <FreezeBar src={landscape(id)} mode={job.mode as FreezeMode} percent={progress} state={state} size={freezeSize(p)} />,
+      ? <MoveArt game={job.game} percent={progress} state={state} size={moveLeft(p, job.outcome ? "done" : "working")} />
+      : <FreezeBar game={job.game} mode={job.mode as FreezeMode} percent={progress} state={state} size={freezeSize(p)} />,
     progress,
     // Values only, at the picture's base (the percentage is the ring over it).
     stats: [

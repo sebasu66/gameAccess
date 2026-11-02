@@ -5,6 +5,7 @@ import { useI18n } from "../i18n";
 import { GaButton } from "../components/ga/Buttons";
 import { hideNotice, useNotice, type Notice, type NoticeDetails, type NoticeTone } from "./notice";
 import { useOpeningSettled } from "../centralDialog/openingSettled";
+import { GameThumb } from "../GameArt";
 import "./notice.css";
 
 const TONE_ICON: Record<NoticeTone, typeof Check> = { ok: Check, info: Download, frost: Snowflake, danger: Trash2, error: AlertTriangle };
@@ -69,7 +70,8 @@ export default function GaNotice() {
   return (
     <div ref={root} className="ga-notice" data-tone={shown.tone} data-timer={shown.timer || undefined} role={shown.tone === "error" ? "alert" : "status"} aria-live="polite" aria-label={t("toastRegion")}>
       <div className="ga-notice-head">
-        {shown.game?.image ? <img className="ga-notice-art" src={shown.game.image} alt="" /> : <span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>}
+        {shown.game?.image || shown.game?.appId ? <GameThumb appId={shown.game.appId} image={shown.game.image} className="ga-notice-art" fallback={<span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>} />
+          : <span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>}
         <div className="ga-notice-text"><strong>{shown.title}</strong>{shown.text ? <span>{shown.text}</span> : null}</div>
       </div>
       {shown.timer ? (

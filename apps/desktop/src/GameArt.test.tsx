@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const resolve = vi.fn(async (): Promise<string | null> => null);
 vi.mock("./libraryCoverResolver", () => ({ resolveLibraryCover: () => resolve(), forgetLibraryCover: vi.fn(), cachedLibraryCover: () => null }));
 
-import { GameWideArt } from "./GameArt";
+import { GameThumb, GameWideArt } from "./GameArt";
 import SteamCover from "./SteamCover";
 import type { CatalogGame } from "./types";
 import { rememberedArtwork, resetArtworkMemory } from "./gameArtwork";
@@ -77,5 +77,16 @@ describe("una portada sin arte vertical", () => {
       await fire("load");
       expect(host.querySelector(".ga-art-composed")?.hasAttribute("data-loaded")).toBe(true);
     } finally { vi.useRealTimers(); }
+  });
+});
+
+describe("la miniatura de un aviso", () => {
+  it("si ninguna portada carga muestra el ícono del aviso, nunca una imagen rota", async () => {
+    act(() => root.render(<GameThumb appId={42} image="https://x/broken.jpg" className="ga-notice-art" fallback={<span className="icon" />} />));
+    expect(image()!.getAttribute("src")).toBe("https://x/broken.jpg");
+    while (image()) await fire("error");
+    await act(async () => { await Promise.resolve(); });
+    expect(host.querySelector("img")).toBeNull();
+    expect(host.querySelector(".icon")).not.toBeNull();
   });
 });

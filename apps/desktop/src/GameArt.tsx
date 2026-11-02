@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import "./game-art.css";
-import { artworkChain, artworkMonogram, isUsableArtwork, markArtworkBroken, rememberArtwork, wideCandidates, type ArtKind } from "./gameArtwork";
-import { forgetLibraryCover, resolveLibraryCover } from "./libraryCoverResolver";
+import { artworkChain, artworkMonogram, isUsableArtwork, markArtworkBroken, portraitCandidates, rememberArtwork, wideCandidates, type ArtKind } from "./gameArtwork";
+import { isPortraitArtwork } from "./libraryArtwork";
+import { cachedLibraryCover, forgetLibraryCover, resolveLibraryCover, type ArtworkSize } from "./libraryCoverResolver";
 import type { CatalogGame } from "./types";
 
 type WideGame = Partial<Pick<CatalogGame, "app_id" | "header_image" | "capsule_image" | "hero_image">> & { name: string };
@@ -37,17 +38,15 @@ export function useArtworkChain(appId: number | null | undefined, kind: ArtKind,
 }
 
 /**
- * The wide chain: the catalog's header and Steam's unhashed paths first, and only when all of them failed, the
- * hashed header from the store API (recent games publish nothing else). The API is asked once per card.
+ * A chain that ends by asking Steam: the static candidates first, and only when all of them failed, the hashed path
+ * from the store API (recent games publish nothing else). The API is asked once per picture.
  */
-export function useWideArtwork(game: WideGame) {
-  const appId = game.app_id ?? null;
-  const [candidates] = useState(() => artworkChain(appId, "wide", wideCandidates(game)));
+function useResolvingChain(appId: number | null, kind: ArtKind, size: ArtworkSize, candidates: string[], accept?: (width: number, height: number) => boolean) {
   const [resolved, setResolved] = useState<string | null>(null);
   const [lookup, setLookup] = useState<"idle" | "asking" | "done">("idle");
   const sources = useMemo(() => resolved ? [...candidates, resolved] : candidates, [candidates, resolved]);
-  const chain = useArtworkChain(appId, "wide", sources, undefined, url => { if (appId && url === resolved) forgetLibraryCover(appId, "wide"); });
-  // Once per card. The request is only cancelled when the card unmounts (scrolled past), not by its own state change.
+  const chain = useArtworkChain(appId, kind, sources, accept, url => { if (appId && url === resolved) forgetLibraryCover(appId, size); });
+  // Once per picture. The request is only cancelled when it unmounts (scrolled past), not by its own state change.
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
@@ -59,10 +58,35 @@ export function useWideArtwork(game: WideGame) {
       if (url && !candidates.includes(url)) setResolved(url);
       setLookup("done");
     };
-    void resolveLibraryCover(appId, "wide", current.signal).then(finish, () => finish(null));
-  }, [chain.exhausted, lookup, appId, candidates]);
-  // While Steam is asked, the card keeps its own background: the title would only flash before the picture.
+    void resolveLibraryCover(appId, size, current.signal).then(finish, () => finish(null));
+  }, [chain.exhausted, lookup, appId, candidates, size]);
+  // While Steam is asked, the picture keeps its own background: the fallback would only flash before the picture.
   return { ...chain, waiting: chain.exhausted && Boolean(appId) && lookup !== "done" };
+}
+
+/** The wide chain: `prefer` (a download's hero, say), the catalog's header and Steam's unhashed paths, then the hashed header. */
+export function useWideArtwork(game: WideGame, prefer: Array<string | null | undefined> = []) {
+  const appId = game.app_id ?? null;
+  const [candidates] = useState(() => artworkChain(appId, "wide", [...prefer, ...wideCandidates(game)]));
+  return useResolvingChain(appId, "wide", "wide", candidates);
+}
+
+/**
+ * A small portrait thumbnail (a notice, an Activity entry): the image it was given, then what the grids resolved or
+ * remembered for the game, then Steam's paths. When nothing loads it draws `fallback` (the notice's icon), never a
+ * broken image.
+ */
+export function GameThumb({ appId, image, className, fallback = null }: { appId?: number | null; image?: string | null; className?: string; fallback?: ReactNode }) {
+  return <ThumbBody key={`${appId ?? ""}:${image ?? ""}`} appId={appId ?? null} image={image ?? null} className={className} fallback={fallback} />;
+}
+
+function ThumbBody({ appId, image, className, fallback }: { appId: number | null; image: string | null; className?: string; fallback: ReactNode }) {
+  const [candidates] = useState(() => artworkChain(appId, "portrait",
+    [image, cachedLibraryCover(appId, "1x"), cachedLibraryCover(appId, "2x"), ...portraitCandidates({ app_id: appId, capsule_image: null }, "1x")]));
+  const art = useResolvingChain(appId, "portrait", "1x", candidates, isPortraitArtwork);
+  if (art.exhausted) return <>{art.waiting ? null : fallback}</>;
+  return <img key={art.source} className={className} src={art.source!} alt="" draggable={false}
+    style={{ visibility: art.loaded ? "visible" : "hidden" }} onError={art.onError} onLoad={art.onLoad} />;
 }
 
 /** The last resort: the title over a background, never a hole or a broken image. `compact` shows two letters. */
@@ -73,12 +97,12 @@ export function ArtworkFallback({ name, compact, className }: { name: string; co
 }
 
 /** A wide picture for landscape grids (library manager, kid mode, bento wide cards) with its own repair chain. */
-export function GameWideArt({ game, className, compact, lazy = true }: { game: WideGame; className?: string; compact?: boolean; lazy?: boolean }) {
-  return <WideArtBody key={game.app_id ?? game.name} game={game} className={className} compact={compact} lazy={lazy} />;
+export function GameWideArt({ game, className, compact, lazy = true, prefer }: { game: WideGame; className?: string; compact?: boolean; lazy?: boolean; prefer?: Array<string | null | undefined> }) {
+  return <WideArtBody key={game.app_id ?? game.name} game={game} className={className} compact={compact} lazy={lazy} prefer={prefer} />;
 }
 
-function WideArtBody({ game, className, compact, lazy }: { game: WideGame; className?: string; compact?: boolean; lazy: boolean }) {
-  const art = useWideArtwork(game);
+function WideArtBody({ game, className, compact, lazy, prefer }: { game: WideGame; className?: string; compact?: boolean; lazy: boolean; prefer?: Array<string | null | undefined> }) {
+  const art = useWideArtwork(game, prefer);
   if (art.exhausted) return art.waiting ? null : <ArtworkFallback name={game.name} compact={compact} className={className} />;
   return <img key={art.source} className={className} src={art.source!} alt="" draggable={false} loading={lazy ? "lazy" : undefined}
     style={{ visibility: art.loaded ? "visible" : "hidden" }} onError={art.onError} onLoad={art.onLoad} />;

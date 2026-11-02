@@ -1,4 +1,7 @@
 import { formatBytes } from "../GenericDownloadProgress";
+import { GameWideArt } from "../GameArt";
+import SteamCover from "../SteamCover";
+import type { CatalogGame } from "../types";
 
 type State = "working" | "done" | "failed";
 
@@ -16,17 +19,14 @@ export function moveLeft(progress: { done_bytes: number; total_bytes: number; fi
  * it reads as a folder), fills from the bottom up:
  * at 100 % the frame on the left is empty and the folder full. Cancelled, the caller passes 0 % (the game is back where
  * it was); a failure stands still with a red frame. The share and what is left to copy are written under the flowing files.
+ * Both pictures repair themselves (SteamCover, GameWideArt): a recent game has no unhashed Steam art.
  */
-export default function MoveArt({ cover, wide, percent, state, size }: { cover: string; wide: string; percent: number; state: State; size: string }) {
+export default function MoveArt({ game, percent, state, size }: { game: Pick<CatalogGame, "app_id" | "name">; percent: number; state: State; size: string }) {
   const share = Math.max(0, Math.min(100, percent));
-  const swap = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    // A game without a portrait cover on Steam: its landscape picture, cropped to the frame.
-    if (wide && event.currentTarget.src !== wide) event.currentTarget.src = wide;
-  };
   return (
     <div className={`lm-move is-${state}`} aria-hidden="true">
       <div className="lm-move-cover">
-        <img src={cover} alt="" draggable={false} onError={swap} style={{ clipPath: `inset(${share}% 0 0 0)` }} />
+        <div className="lm-move-clip" style={{ clipPath: `inset(${share}% 0 0 0)` }}><SteamCover game={{ id: game.app_id ?? 0, ...game } as CatalogGame} /></div>
       </div>
       <div className="lm-move-middle">
         <div className="lm-move-flow">
@@ -46,7 +46,7 @@ export default function MoveArt({ cover, wide, percent, state, size }: { cover: 
           <path d="M3 14 V94 a3 3 0 0 0 3 3 H114 a3 3 0 0 0 3 -3 V24 a3 3 0 0 0 -3 -3 H54 L45 9 H6 a3 3 0 0 0 -3 3 Z" vectorEffect="non-scaling-stroke" />
         </svg>
         <div className="lm-move-inner">
-          <img src={wide} alt="" draggable={false} style={{ clipPath: `inset(${100 - share}% 0 0 0)` }} />
+          <div className="lm-move-clip" style={{ clipPath: `inset(${100 - share}% 0 0 0)` }}><GameWideArt game={game} lazy={false} /></div>
         </div>
       </div>
     </div>

@@ -9,6 +9,7 @@ import { openLibraryManager } from "../libraryManagerNav";
 import { openNews } from "../newDownloads";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
+import { GameThumb } from "../GameArt";
 import { clearActivity, markActivitySeen, useActivity, type ActivityEntry } from "./activity";
 import "./activity.css";
 
@@ -60,7 +61,7 @@ function HistoryRow({ entry, onOpen }: { entry: ActivityEntry; onOpen?: () => vo
   const when = lines ? time(entry.endedAt ?? entry.startedAt) : span;
   const body: ReactNode = <>
     <span className="ga-activity-mark">
-      {entry.image ? <img className="ga-activity-art" src={entry.image} alt="" /> : null}
+      {entry.image || entry.appId ? <GameThumb appId={entry.appId} image={entry.image} className="ga-activity-art" /> : null}
       <span className="ga-activity-icon"><Icon size={entry.image ? 14 : 20} aria-hidden="true" /></span>
     </span>
     <span className="ga-activity-text">
