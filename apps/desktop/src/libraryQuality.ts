@@ -162,19 +162,6 @@ export function releaseYear(game: CatalogGame): number | null {
   return released ? released.getUTCFullYear() : null;
 }
 
-/** Reviews a game needs before its score says anything, and how long it must have been out. */
-export const MIN_REVIEWS_TO_JUDGE = 10;
-export const NEW_RELEASE_DAYS = 30;
-
-/** No score yet, too few reviews, or released in the last month. */
-function isUnproven(game: CatalogGame, now: number): boolean {
-  if (typeof game.steam_review_score !== "number") return true;
-  const reviews = game.steam_review_count;
-  if (typeof reviews !== "number" || reviews < MIN_REVIEWS_TO_JUDGE) return true;
-  const released = parseReleaseDate(game.release_date);
-  return released !== null && now - released.getTime() < NEW_RELEASE_DAYS * 86400000;
-}
-
 /**
  * The score and year sliders.
  *
@@ -192,11 +179,9 @@ function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters, no
   }
   if (filters.minReviewScore !== undefined) {
     const score = game.steam_review_score;
-    if (filters.spareUnprovenGames) {
-      // Only a game with a real track record can be "badly reviewed": it needs a handful of
-      // reviews and must have been out for a while. New and unrated games are not hidden.
-      if (isUnproven(game, now)) return true;
-    }
+    // Only a game with no score at all is spared: a known score under the bar is out, even with few
+    // reviews or a recent release (Seba, 2026-11-02: "rating >= 8" showed a game at 33 % with 6 reviews).
+    if (filters.spareUnprovenGames && typeof score !== "number") return true;
     if (typeof score !== "number" || score < filters.minReviewScore) return false;
   }
   if (filters.maxAgeDays !== undefined) {

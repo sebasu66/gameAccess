@@ -64,7 +64,7 @@ export interface LibrarySearchFilters {
    * Undefined means no bar.
    */
   minReviewScore?: number;
-  /** With a minimum score: do not hide games that are new or have too few reviews to judge. */
+  /** With a minimum score: do not hide games that have no score yet (a known score under the bar always hides). */
   spareUnprovenGames?: boolean;
   /**
    * Minimum number of reviews a game must have (the "at least 100 reviews" checkbox).

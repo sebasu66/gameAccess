@@ -1530,9 +1530,11 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
             };
             let include_unrated = params.include_recent_unrated.unwrap_or(true);
             let p_idx = sql_params.len() + 1;
+            // Only a game with no score at all is spared: a known score under the bar is out, even with few
+            // reviews or a recent release (Seba, 2026-11-02: "rating >= 8" showed a game at 33 % with 6 reviews).
             if include_unrated {
                 where_clauses.push(format!(
-                    "(m.steam_review_score >= ?{0} OR m.steam_review_score IS NULL OR COALESCE(m.steam_review_count, 0) < 10 OR (m.release_date IS NOT NULL AND (julianday('now') - julianday(m.release_date)) <= 30.0))",
+                    "(m.steam_review_score >= ?{0} OR m.steam_review_score IS NULL)",
                     p_idx
                 ));
             } else {
@@ -2438,8 +2440,8 @@ mod tests {
         // Game 1: high rating (80), old release (100 days ago) -> keep
         // Game 2: low rating (40), 50 reviews, old release (100 days ago) -> exclude
         // Game 3: unrated -> keep
-        // Game 4: low rating (30), few reviews (5), old release (100 days ago) -> keep
-        // Game 5: low rating (40), 50 reviews, recent release (5 days ago) -> keep
+        // Game 4: low rating (30), few reviews (5), old release (100 days ago) -> exclude (a known score under the bar)
+        // Game 5: low rating (40), 50 reviews, recent release (5 days ago) -> exclude (a known score under the bar)
         let old_date: String = conn.query_row("SELECT date('now', '-100 days')", [], |r| r.get(0)).unwrap();
         let recent_date: String = conn.query_row("SELECT date('now', '-5 days')", [], |r| r.get(0)).unwrap();
 
@@ -2457,13 +2459,10 @@ mod tests {
             ..Default::default()
         };
         let result = query_catalog_conn(&conn, &params).unwrap();
-        assert_eq!(result.total, 4, "Games 1, 3, 4, 5 should match. Game 2 (established low score) excluded");
-        let matched_ids: Vec<i64> = result.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
-        assert!(matched_ids.contains(&1));
-        assert!(!matched_ids.contains(&2));
-        assert!(matched_ids.contains(&3));
-        assert!(matched_ids.contains(&4));
-        assert!(matched_ids.contains(&5));
+        assert_eq!(result.total, 2, "Games 1 and 3 should match: only a game with no score is spared");
+        let mut matched_ids: Vec<i64> = result.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+        matched_ids.sort();
+        assert_eq!(matched_ids, vec![1, 3]);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
