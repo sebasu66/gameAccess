@@ -13,6 +13,7 @@ import { useLibraryScan } from "./libraryScan";
 import { libraryMembership } from "./libraryMembership";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
+import { GameWideArt } from "./GameArt";
 import { downloadManager } from "./downloadManager";
 import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, bigPictureBento, featuredGames, type BentoKind } from "./bentoLayout";
 import { coverGap, coverMin, coverTracks } from "./overviewSizing";
@@ -31,7 +32,6 @@ const LANDSCAPE = 215 / 460;
 /** The grid counts half columns: a portrait spans two, a game to install three (1.5 times as wide). */
 const PORTRAIT_SPAN = 2, WIDE_SPAN = 3;
 const gridColumn = (kind: BentoKind, column: number, span = 1) => kind === "pending" ? `${(column - 1) * WIDE_SPAN + 1} / span ${WIDE_SPAN}` : `${(column - 1) * PORTRAIT_SPAN + 1} / span ${PORTRAIT_SPAN * span}`;
-const landscape = (game: CatalogGame) => game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/header.jpg` : game.header_image ?? game.capsule_image ?? "";
 /** Which group of the library is shown: all of them, or only one (the three buttons on the filter strip). */
 export type LibraryPill = "all" | BentoKind;
 
@@ -88,8 +88,8 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
       onClick={() => (card.orphan ? onManage?.(game) : onSelect(index))}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
-      {card.featured ? <img className="ga-bento-feature" src={landscape(game)} alt="" loading="lazy" />
-        : kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <img className="ga-bento-landscape" src={landscape(game)} alt="" loading="lazy" />}
+      {card.featured ? <GameWideArt game={game} className="ga-bento-feature" />
+        : kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={game} /></span> : <GameWideArt game={game} className="ga-bento-landscape" />}
       {card.attention ? <span className="ga-bento-alert" title={`${t("bentoAttention")}: ${card.attention}`} aria-hidden="true"><AlertTriangle size={15} /></span> : null}
       {frozen && kind !== "deep" ? <span className="ga-bento-frost" title={t("bentoFrozen")} aria-hidden="true"><Snowflake size={15} /></span> : null}
       {kind === "deep" ? <span className="ga-bento-ice" aria-hidden="true"><Snowflake size={20} /><span>{t("bentoIce")}</span></span> : null}
@@ -349,7 +349,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         ))}
         {leaving.map(({ card, style }) => (
           <div key={`leaving-${card.key}`} className="ga-bento-slot" style={style} data-leaving="true" aria-hidden="true">
-            <div className="ga-bento-card" data-kind={card.kind}>{card.kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={card.game} /></span> : <img className="ga-bento-landscape" src={landscape(card.game)} alt="" />}</div>
+            <div className="ga-bento-card" data-kind={card.kind}>{card.kind !== "pending" ? <span className="ga-bento-cover"><SteamCover game={card.game} /></span> : <GameWideArt game={card.game} className="ga-bento-landscape" lazy={false} />}</div>
           </div>
         ))}
       </div>

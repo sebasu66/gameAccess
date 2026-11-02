@@ -7,6 +7,7 @@ import { loadShortcuts, useShortcuts } from "./appShortcuts";
 import { kidDays, setKidDraft, setKidGameMinutes, toggleKidGame, toggleKidShortcut, useKidState, type Kid } from "./kidMode";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import type { AppShortcut } from "./appShortcuts";
+import { ArtworkFallback, GameWideArt } from "./GameArt";
 import "./library-manager/manager.css";
 
 /**
@@ -18,20 +19,19 @@ import "./library-manager/manager.css";
 const STEP = 30;
 /** Without a daily limit a game's own limit still needs a ceiling. */
 const NO_DAILY_CEILING = 6 * 60;
-const landscape = (appId: number) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
 
-interface Row { appId: number; name: string; image: string; toggle: () => void }
+interface Row { appId: number; name: string; toggle: () => void }
 
 /** Installed library games and shortcuts, plus any game the child already has that the scan has not listed yet. */
 function useRows(draft: Kid): Row[] {
   const { games } = useLibraryScan();
   const shortcuts = useShortcuts();
   const fromLibrary = games.filter((game): game is LibraryGame & { app_id: number } => game.app_id != null && game.installed)
-    .map(game => ({ appId: game.app_id, name: game.name, image: landscape(game.app_id), toggle: () => toggleKidGame(game) }));
-  const fromShortcuts = shortcuts.map((shortcut: AppShortcut) => ({ appId: -shortcut.id, name: shortcut.name, image: "", toggle: () => toggleKidShortcut(shortcut) }));
+    .map(game => ({ appId: game.app_id, name: game.name, toggle: () => toggleKidGame(game) }));
+  const fromShortcuts = shortcuts.map((shortcut: AppShortcut) => ({ appId: -shortcut.id, name: shortcut.name, toggle: () => toggleKidShortcut(shortcut) }));
   const listed = new Set([...fromLibrary, ...fromShortcuts].map(row => row.appId));
   const onlyChosen = draft.games.filter(game => !listed.has(game.appId))
-    .map(game => ({ appId: game.appId, name: game.name, image: game.appId > 0 ? landscape(game.appId) : "", toggle: () => toggleKidGame({ app_id: game.appId, name: game.name, folder: game.folder } as LibraryGame) }));
+    .map(game => ({ appId: game.appId, name: game.name, toggle: () => toggleKidGame({ app_id: game.appId, name: game.name, folder: game.folder } as LibraryGame) }));
   return [...fromLibrary, ...fromShortcuts, ...onlyChosen].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -79,7 +79,7 @@ export default function KidGamesGrid() {
       <tbody>{rows.map(row => {
         const chosen = draft.games.find(game => game.appId === row.appId);
         return <tr key={row.appId} className={chosen ? "lm-row is-selected" : "lm-row"}>
-          <td><span className="lm-thumb">{row.image ? <img src={row.image} alt="" loading="lazy" /> : null}</span></td>
+          <td><span className="lm-thumb">{row.appId > 0 ? <GameWideArt game={{ app_id: row.appId, name: row.name }} compact /> : <ArtworkFallback name={row.name} compact />}</span></td>
           <td className="lm-cell-name"><div className="lm-name" title={row.name}>{row.name}</div></td>
           <td><button type="button" className="ga-kid-switch" aria-pressed={Boolean(chosen)} aria-label={t("kidShowAria", { name: row.name })} onClick={row.toggle}>
             <span>{chosen ? t("kidYes") : t("kidNo")}</span></button></td>

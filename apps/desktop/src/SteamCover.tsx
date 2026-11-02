@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { Gamepad2 } from "lucide-react";
-import { isPortraitArtwork, libraryArtworkCandidates } from "./libraryArtwork";
-import { cachedLibraryCover, resolveLibraryCover } from "./libraryCoverResolver";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isPortraitArtwork } from "./libraryArtwork";
+import { artworkChain, portraitCandidates, rememberedArtwork } from "./gameArtwork";
+import { useArtworkChain, WideInPortrait } from "./GameArt";
+import { cachedLibraryCover, forgetLibraryCover, resolveLibraryCover } from "./libraryCoverResolver";
 import { useCoverTier, type CoverTier } from "./coverSize";
 import { debugLog, debugTrace, flushDebugLog } from "./debugLog";
 import type { CatalogGame } from "./types";
@@ -32,59 +33,56 @@ export function flushCoverDiagnostics(): void {
 }
 
 function CoverBody({ game, tier }: { game: CatalogGame; tier: CoverTier }) {
-  const [resolved, setResolved] = useState<string | null>(() => cachedLibraryCover(game.app_id, tier));
-  // The resolver answers with the size the grid needs. The catalog capsule is only a fallback, so a card
+  const appId = game.app_id ?? null;
+  // What loaded last time comes first and needs no resolver; otherwise the resolver's cached answer.
+  const [resolved, setResolved] = useState<string | null>(() => rememberedArtwork(appId, "portrait") ?? cachedLibraryCover(appId, tier));
+  // The resolver answers with the size the grid needs. The other candidates are only a fallback, so a card
   // never downloads a fixed-size (or wrong-orientation) image before the resolver has answered.
-  const [resolveDone, setResolveDone] = useState(() => Boolean(resolved) || !game.app_id);
-  const [candidates] = useState(() => libraryArtworkCandidates(game));
-  const sources = resolved ? [resolved, ...candidates] : resolveDone ? candidates : [];
-  const [sourceIndex, setSourceIndex] = useState(0);
-  const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  const [resolveDone, setResolveDone] = useState(() => Boolean(resolved) || !appId);
+  const [candidates] = useState(() => portraitCandidates(game, tier));
+  const sources = useMemo(() => !resolveDone && !resolved ? [] : artworkChain(appId, "portrait", resolved ? [resolved, ...candidates] : candidates),
+    [appId, candidates, resolveDone, resolved]);
+  const chain = useArtworkChain(appId, "portrait", sources, (width, height) => {
+    const portrait = isPortraitArtwork(width, height);
+    coverStats.probes++;
+    if (portrait) coverStats.portrait++; else coverStats.landscape++;
+    return portrait;
+  }, (url) => {
+    coverStats.failed++;
+    debugTrace("COVERS", `app_id=${appId} falló ${url}`);
+    // A resolved path that stopped loading (Steam moved the art to a new hash) is asked again next time.
+    if (appId && url === resolved) forgetLibraryCover(appId, tier);
+  });
   const attempted = useRef(false);
-  const source = sources[sourceIndex];
   useEffect(() => {
     coverStats.cards++;
-    debugTrace("COVERS", `app_id=${game.app_id} tier=${tier} candidatos=${candidates.length} conResuelta=${Boolean(resolved)}`);
-  }, [game.app_id, candidates.length, resolved, tier]);
+    debugTrace("COVERS", `app_id=${appId} tier=${tier} candidatos=${candidates.length} conResuelta=${Boolean(resolved)}`);
+  }, [appId, candidates.length, resolved, tier]);
   useEffect(() => {
-    if (!game.app_id || resolved || attempted.current) return;
+    if (!appId || resolved || attempted.current) return;
     // A ref, not state: setting state here re-ran the effect and its cleanup cancelled the request.
     // Only an unmount (or a tier change) cancels now, which is what a scrolled-past card should do.
     attempted.current = true;
     // Wait a moment before asking: a card that is scrolled past within this time never asks at all.
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      resolveLibraryCover(game.app_id!, tier, controller.signal).then((url) => {
+      resolveLibraryCover(appId, tier, controller.signal).then((url) => {
         if (controller.signal.aborted) return;
-        if (url) { coverStats.resolvedApi++; setResolved(url); setSourceIndex(0); }
+        if (url) { coverStats.resolvedApi++; setResolved(url); }
         setResolveDone(true);
       }).catch(() => { if (!controller.signal.aborted) setResolveDone(true); });
     }, 150);
     return () => { window.clearTimeout(timer); controller.abort(); attempted.current = false; };
-  }, [game.app_id, resolved, tier]);
-  if (!source) {
+  }, [appId, resolved, tier]);
+  // Still asking: the card keeps its own background, without a placeholder that would flash.
+  if (!resolveDone && !resolved) return null;
+  if (chain.exhausted) {
     coverStats.noSource++;
-    return <span className="library-cover-fallback"><Gamepad2 size={34} /><span>{game.name}</span></span>;
+    // No portrait anywhere: the wide picture whole, then the title over a background.
+    return <WideInPortrait game={game} />;
   }
-  const next = () => {
-    coverStats.failed++;
-    debugTrace("COVERS", `app_id=${game.app_id} candidato ${sourceIndex + 1}/${sources.length} falló`);
-    setSourceIndex((current) => current + 1);
-  };
-  return <img key={source} src={source} alt="" draggable={false} loading="lazy" style={{ visibility: loadedSource === source ? "visible" : "hidden", objectFit: "contain" }} onError={next} onLoad={(event) => {
-    const image = event.currentTarget;
-    coverStats.probes++;
-    const portrait = isPortraitArtwork(image.naturalWidth, image.naturalHeight);
-    if (portrait) {
-      coverStats.portrait++;
-      debugTrace("COVERS", `app_id=${game.app_id} portrait ok ${image.naturalWidth}x${image.naturalHeight} (candidato ${sourceIndex + 1})`);
-      setLoadedSource(source);
-    } else {
-      coverStats.landscape++;
-      debugTrace("COVERS", `app_id=${game.app_id} descartada por no ser portrait ${image.naturalWidth}x${image.naturalHeight} (candidato ${sourceIndex + 1})`);
-      next();
-    }
-  }} />;
+  return <img key={chain.source} src={chain.source!} alt="" draggable={false} loading="lazy" style={{ visibility: chain.loaded ? "visible" : "hidden", objectFit: "contain" }}
+    onError={chain.onError} onLoad={chain.onLoad} />;
 }
 
 /** Remounts the cover body when the grid zoom moves it to another size tier. */

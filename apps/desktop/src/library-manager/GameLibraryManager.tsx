@@ -39,6 +39,7 @@ import { activeDownloadService } from "../downloads/activeService";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
 import ManualDownloadForm from "../ManualDownloadForm";
 import RowExpand from "./RowExpand";
+import { ArtworkFallback, GameWideArt } from "../GameArt";
 import "./manager.css";
 
 /** The main library re-reads the games folder on focus: fixed, discarded or removed games show up there right away. */
@@ -328,7 +329,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   return (<>
     <tr ref={ref} className={`lm-row${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${unfolded ? " is-expanded" : ""}`} data-app-id={id ?? undefined}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
-      <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <img src={landscape(id)} alt="" loading="lazy" /> : null}</span>}</td>
+      <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <GameWideArt game={{ app_id: id, name: game.name }} compact /> : <ArtworkFallback name={game.name} compact />}</span>}</td>
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
       </td>
@@ -392,7 +393,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
             <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
           <History game={game} c={c} job={freezing} download={download} />
         </>}
-        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <img className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} src={landscape(id)} alt="" /> : null }))} />
+        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))} />
     </div></td></tr> : null}
   </>);
 }
@@ -451,7 +452,7 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
   return (
     <tr className="lm-row">
       <td className="lm-cell-check" />
-      <td><span className="lm-thumb">{game.app_id ? <img src={landscape(game.app_id)} alt="" loading="lazy" /> : null}</span></td>
+      <td><span className="lm-thumb">{game.app_id ? <GameWideArt game={game} compact /> : null}</span></td>
       <td className="lm-cell-name"><div className="lm-name" title={game.name}>{game.name}</div></td>
       <td><StatusCell status={row.status} /></td>
       <td className="lm-cell-path">—</td>

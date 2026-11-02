@@ -11,9 +11,20 @@ fn get_client() -> &'static reqwest::blocking::Client {
     })
 }
 
-/// `small` asks for the 300x450 capsule (cards at or below 300 device pixels); otherwise the 600x900 one.
-/// Each size falls back to the other, because some titles only publish one of them.
-fn portrait_url(response: &serde_json::Value, app_id: u32, small: bool) -> Option<String> {
+/// Which store asset a card asks for.
+#[derive(Clone, Copy)]
+enum ArtSize {
+    /// The 300x450 capsule (cards at or below 300 device pixels).
+    Small,
+    /// The 600x900 capsule.
+    Large,
+    /// The hashed header, for wide cards whose unhashed `header.jpg` does not exist.
+    Wide,
+}
+
+/// Each portrait size falls back to the other, because some titles only publish one of them; the header falls
+/// back to the 616x353 main capsule. A portrait never falls back to a wide asset.
+fn portrait_url(response: &serde_json::Value, app_id: u32, size: ArtSize) -> Option<String> {
     let item = response
         .get("response")?
         .get("store_items")?
@@ -23,7 +34,11 @@ fn portrait_url(response: &serde_json::Value, app_id: u32, small: bool) -> Optio
         return None;
     }
     let assets = item.get("assets")?;
-    let (first, second) = if small { ("library_capsule", "library_capsule_2x") } else { ("library_capsule_2x", "library_capsule") };
+    let (first, second) = match size {
+        ArtSize::Small => ("library_capsule", "library_capsule_2x"),
+        ArtSize::Large => ("library_capsule_2x", "library_capsule"),
+        ArtSize::Wide => ("header", "main_capsule"),
+    };
     let filename = assets
         .get(first)
         .or_else(|| assets.get(second))?
@@ -38,7 +53,7 @@ fn portrait_url(response: &serde_json::Value, app_id: u32, small: bool) -> Optio
     ))
 }
 
-fn fetch_portrait(app_id: u32, small: bool) -> Result<Option<String>, String> {
+fn fetch_portrait(app_id: u32, size: ArtSize) -> Result<Option<String>, String> {
     let input = serde_json::json!({
         "ids": [{"appid": app_id}],
         "context": {"language": "english", "country_code": "US"},
@@ -58,13 +73,17 @@ fn fetch_portrait(app_id: u32, small: bool) -> Result<Option<String>, String> {
     }
 
     let payload: serde_json::Value = response.json().map_err(|error| error.to_string())?;
-    Ok(portrait_url(&payload, app_id, small))
+    Ok(portrait_url(&payload, app_id, size))
 }
 
 #[tauri::command]
 pub async fn steam_library_cover(app_id: u32, size: Option<String>) -> Result<Option<String>, String> {
-    let small = size.as_deref() == Some("1x");
-    tauri::async_runtime::spawn_blocking(move || fetch_portrait(app_id, small))
+    let size = match size.as_deref() {
+        Some("1x") => ArtSize::Small,
+        Some("wide") => ArtSize::Wide,
+        _ => ArtSize::Large,
+    };
+    tauri::async_runtime::spawn_blocking(move || fetch_portrait(app_id, size))
         .await
         .map_err(|error| error.to_string())?
 }
@@ -147,20 +166,27 @@ mod tests {
     #[test]
     fn uses_hashed_library_asset_only() {
         let response = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}?t=1","library_capsule_2x":"abc/library_capsule_2x.jpg","header":"wide.jpg"}}]}});
-        assert_eq!(portrait_url(&response,42,false).unwrap(),"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/42/abc/library_capsule_2x.jpg?t=1");
-        assert!(portrait_url(&response, 43, false).is_none());
+        assert_eq!(portrait_url(&response,42,ArtSize::Large).unwrap(),"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/42/abc/library_capsule_2x.jpg?t=1");
+        assert!(portrait_url(&response, 43, ArtSize::Large).is_none());
     }
     #[test]
     fn does_not_substitute_landscape_assets() {
         let response = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}","header":"wide.jpg"}}]}});
-        assert!(portrait_url(&response, 42, false).is_none());
+        assert!(portrait_url(&response, 42, ArtSize::Large).is_none());
     }
     #[test]
     fn picks_the_requested_portrait_size_with_fallback() {
         let both = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}","library_capsule":"abc/library_capsule.jpg","library_capsule_2x":"abc/library_capsule_2x.jpg"}}]}});
-        assert!(portrait_url(&both, 42, true).unwrap().ends_with("abc/library_capsule.jpg"));
-        assert!(portrait_url(&both, 42, false).unwrap().ends_with("abc/library_capsule_2x.jpg"));
+        assert!(portrait_url(&both, 42, ArtSize::Small).unwrap().ends_with("abc/library_capsule.jpg"));
+        assert!(portrait_url(&both, 42, ArtSize::Large).unwrap().ends_with("abc/library_capsule_2x.jpg"));
         let only_large = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}","library_capsule_2x":"abc/library_capsule_2x.jpg"}}]}});
-        assert!(portrait_url(&only_large, 42, true).unwrap().ends_with("abc/library_capsule_2x.jpg"));
+        assert!(portrait_url(&only_large, 42, ArtSize::Small).unwrap().ends_with("abc/library_capsule_2x.jpg"));
+    }
+    #[test]
+    fn wide_asks_for_the_hashed_header_then_the_main_capsule() {
+        let header = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}","header":"abc/header.jpg","main_capsule":"abc/capsule_616x353.jpg","library_capsule":"abc/library_capsule.jpg"}}]}});
+        assert!(portrait_url(&header, 42, ArtSize::Wide).unwrap().ends_with("abc/header.jpg"));
+        let capsule = serde_json::json!({"response":{"store_items":[{"appid":42,"assets":{"asset_url_format":"steam/apps/42/${FILENAME}","main_capsule":"abc/capsule_616x353.jpg"}}]}});
+        assert!(portrait_url(&capsule, 42, ArtSize::Wide).unwrap().ends_with("abc/capsule_616x353.jpg"));
     }
 }
