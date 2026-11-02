@@ -1447,8 +1447,4 @@ export const es = {
   logDownload: "Descarga",
   logDownloadDone: "Descarga terminada",
   logInstall: "Instalación",
-  repairGameWorking: "Reparando el juego…",
-  repairGameDone: "El juego está listo para jugar",
-  repairGameNotReady: "El juego todavía no está listo para jugar",
-  repairGameFailed: "No se pudo reparar el juego",
 } as const;
