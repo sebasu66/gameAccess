@@ -16,6 +16,36 @@ from game_download_manager.ui_text import ui
 KINDS = ("steam", "folder")
 
 
+def default_command(record: dict) -> str:
+    """How a linked game starts when the user set nothing: a Steam game through Steam (as its desktop shortcuts), a
+    folder's game with its executable ("" while it is still to be found)."""
+    if record.get("kind") == "steam":
+        return f"steam://rungameid/{int(record['app_id'])}"
+    return f'"{record["executable"]}"' if record.get("executable") else ""
+
+
+def launch_command(record: dict) -> str:
+    """A linked game, from Steam or from a folder, is the same thing: only the command that starts it changes."""
+    return str(record.get("command") or "").strip() or default_command(record)
+
+
+def checked_command(command: str) -> str:
+    """A launch command the user typed: a steam:// address, or an existing .exe with its arguments. "" = Steam's own."""
+    from game_execution_manager.launch import parse_arguments
+    command = str(command or "").strip()
+    if not command:
+        return ""
+    if any(char in command for char in "\r\n\x00"):
+        raise ValueError("El comando no puede tener saltos de línea.")
+    if command.lower().startswith("steam://"):
+        return command
+    parts = parse_arguments(command)
+    exe = Path(parts[0]) if parts else None
+    if exe is None or exe.suffix.lower() != ".exe" or not exe.is_file():
+        raise ValueError("El comando tiene que ser una dirección steam:// o un .exe que exista, con sus argumentos.")
+    return command
+
+
 class LinkedGames:
     def __init__(self, launcher: Path):
         self.dir = data_dir(launcher) / ".cache" / "digital_linked"
@@ -47,6 +77,17 @@ class LinkedGames:
         self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
         journal.note(self.log_dir(app_id), "vinculado", f"{kind}: {record['path']}")
         self.unhide(app_id)
+        return record
+
+    def set_command(self, app_id: int, command: str) -> dict:
+        """Keeps the launch command of a linked game ("" goes back to the default one)."""
+        record = self.get(app_id)
+        if not record:
+            raise ValueError("El juego no está vinculado.")
+        record["command"] = checked_command(command)
+        write_json(self.dir / f"{int(app_id)}.json", record)
+        self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
+        journal.note(self.log_dir(app_id), "opciones", f"comando de ejecución: {launch_command(record) or 'automático'}")
         return record
 
     def unlink(self, app_id: int, hide: bool = True) -> None:
@@ -115,10 +156,15 @@ def deletable_reason(folder: Path, keep: list[Path] = ()) -> str:
     return ""
 
 
-def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_candidates=None, steam=None) -> dict:
+def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_candidates=None, steam=None, payload: str = "") -> dict:
     """The few things that can be done with a linked game; nothing here writes inside its folder. A Steam game is run
-    by Steam, signed in to the account that owns it (`steam`: the Steam Account Manager)."""
+    by Steam, signed in to the account that owns it (`steam`: the Steam Account Manager), with its launch command."""
     app_id, folder = record["app_id"], Path(record["path"])
+    if action in ("game-options", "save-game-options"):
+        if action == "save-game-options":
+            record = linked.set_command(app_id, json.loads(payload or "{}").get("command", ""))
+            logger.info("AppID %s: launch command saved: %s", app_id, launch_command(record) or "automatic")
+        return {"linked": True, "command": str(record.get("command") or ""), "default_command": default_command(record)}
     if action == "status":
         return linked.status(record)
     if action == "uninstall":
@@ -139,12 +185,23 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
     if action == "play":
         if not folder.is_dir():
             raise ValueError("La carpeta vinculada ya no existe.")
-        if record["kind"] == "steam":
+        custom = str(record.get("command") or "").strip()
+        if custom and not custom.lower().startswith("steam://"):
+            # The user's own command: an executable (the game's, steam.exe -applaunch...) with its arguments, from its folder.
+            from game_execution_manager.launch import parse_arguments
+            parts = parse_arguments(custom)
+            flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
+            process = subprocess.Popen(parts, cwd=str(Path(parts[0]).parent), creationflags=flags, close_fds=True)
+            linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
+            journal.note(linked.log_dir(app_id), "play", f"lanzado: {custom} (pid {process.pid})")
+            return {"pid": process.pid, "command": custom}
+        if record["kind"] == "steam" or custom:
+            command = launch_command(record)
             if steam is not None:
-                outcome = steam.play(app_id)
+                outcome = steam.play(app_id, command)
             else:
-                os.startfile(f"steam://rungameid/{app_id}")
-                outcome = {"command": f"steam://rungameid/{app_id}"}
+                os.startfile(command)
+                outcome = {"command": command}
             linked.log_dir(app_id).mkdir(parents=True, exist_ok=True)
             owner = outcome.get("steam_owner")
             journal.note(linked.log_dir(app_id), "play", f"lanzado: Steam{f' ({owner})' if owner else ''}")

@@ -185,15 +185,17 @@ class SteamAccountManager:
         return table, rows
 
     # -- play and install ----------------------------------------------------------------------------
-    def play(self, app_id: int) -> dict:
-        """Sign Steam in to the owner when needed, then ask Steam to run the game."""
+    def play(self, app_id: int, command: str = "") -> dict:
+        """Sign Steam in to the owner when needed, then ask Steam to run the game (`command`: a steam:// address the
+        user set for it, else rungameid)."""
         info = self.owner_of(app_id)
         outcome = {"steam_owner": info.get("owner_name", ""), "switched": False}
         if self.root and self.settings()["switch_accounts"] and info.get("owner_name"):
             switcher = self.switcher or SteamSwitcher(Path(self.root) / "steam.exe", self.log)
             outcome.update(switcher.ensure_account(client.id32(info["owner_id64"]), info["owner_name"]))
-        os.startfile(f"steam://rungameid/{int(app_id)}")
-        return {**outcome, "command": f"steam://rungameid/{int(app_id)}"}
+        command = command or f"steam://rungameid/{int(app_id)}"
+        os.startfile(command)
+        return {**outcome, "command": command}
 
     def uninstall(self, app_id: int, linked=None) -> dict:
         """Delete an installed Steam game from disk, as Steam's own "Uninstall" does: its folder under

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
-import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Link2, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
@@ -37,7 +37,7 @@ import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary
 import { DownloadLog, useDownloadView, type DownloadEntry } from "../downloads/DownloadDetail";
 import { activeDownloadService } from "../downloads/activeService";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
-import ManualDownloadForm from "../ManualDownloadForm";
+import ManualLinkDialog from "./ManualLinkDialog";
 import RowExpand, { RowMenu, type RowAction } from "./RowExpand";
 import { ArtworkFallback, GameWideArt } from "../GameArt";
 import "./manager.css";
@@ -239,9 +239,10 @@ type RowProps = {
   downloadOf: (id: number | null | undefined) => DownloadEntry | undefined; queueLength: number;
 };
 
-/** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game whose
- *  folder Game Access runs (not Steam's, nor one whose files sit in the deep-freeze archive). */
-const configurable = (game: LibraryGame) => game.app_id != null && kindOf(game) !== "steam" && !game.partial && game.frozen !== "deep";
+/** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game on this
+ *  PC (not one only owned in Steam, nor one whose files sit in the deep-freeze archive). A linked game, from Steam or from
+ *  a folder, gets its launch command instead. */
+const configurable = (game: LibraryGame) => game.app_id != null && !isSteamOwned(game) && !game.partial && game.frozen !== "deep";
 
 /** The source (DD, Steam, folder) and, next to it, the provider of the download or the Steam account that owns it. */
 function KindCell({ kind, source }: { kind: Kind; source: string }) {
@@ -540,6 +541,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
   useEffect(() => { void scanLibrary(); }, []);
   useEffect(() => {
     if (!startImport) return;
@@ -592,7 +594,12 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       const game = queue[index];
       setVerifying({ id: game.app_id, done: index, total: queue.length, name: game.name });
       try {
-        const result = await digitalProcessManager.verifyRun(asGame(game));
+        let result = await digitalProcessManager.verifyRun(asGame(game));
+        // One game checked on purpose and still open (a test that stopped on a dialog nobody accepted): close it and try again.
+        if (result.skipped === "running" && queue.length === 1
+          && await confirmNotice({ title: c.verifyOpenTitle(game.name), text: c.verifyOpenText, confirmLabel: c.verifyOpenYes, cancelLabel: c.cancel })) {
+          result = await digitalProcessManager.verifyRun(asGame(game), true);
+        }
         if (result.skipped || !result.check) skipped++;
         else { setVerdicts(current => ({ ...current, [game.app_id as number]: result.check as RunCheck })); if (result.check.state === "checked") ok++; else bad++; }
       } catch (failure) { bad++; setVerdicts(current => ({ ...current, [game.app_id as number]: { state: "cantRun", at: new Date().toISOString(), detail: String(failure instanceof Error ? failure.message : failure) } })); }
@@ -678,7 +685,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [escapeGuard, setEscapeGuard] = useState(false);
-  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(freezing) || Boolean(configuring)), [pending, importOpen, freezing, configuring]);
+  useEffect(() => setEscapeGuard(Boolean(pending) || importOpen || Boolean(freezing) || Boolean(configuring) || linkOpen), [pending, importOpen, freezing, configuring, linkOpen]);
   useEffect(() => {
     if (embedded) return;
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape" && !escapeGuard) onClose(); };
@@ -719,6 +726,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => { rememberKnown(); setImportOpen(true); }}>{c.importGames}</GaButton>
             <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
+            <GaButton icon={<Link2 size={16} />} disabled={busy} onClick={() => setLinkOpen(true)}>{t("manualDownloadAdd")}</GaButton>
             {verifying
               ? <GaButton icon={<X size={16} />} onClick={() => { stopVerify.current = true; }} title={c.verifyNote}>{c.verifyRunning(verifying.done, verifying.total, verifying.name)} · {c.verifyCancel}</GaButton>
               : <GaButton icon={<ShieldCheck size={16} />} disabled={busy} title={c.verifyNote} onClick={() => void verifyGames(games)}>{c.verifyAll} ({games.filter(canVerify).length})</GaButton>}
@@ -755,12 +763,12 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
               </tbody>
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />
-            <details className="manual-download-entry"><summary>{t("manualDownloadAdd")}</summary><ManualDownloadForm /></details>
           </div>
         </div>
       </div>
 
       {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
+      {linkOpen ? <ManualLinkDialog onClose={() => setLinkOpen(false)} /> : null}
       {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} onClose={() => setConfiguring(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { notifyLibraryChanged(); void suggestVerify(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}

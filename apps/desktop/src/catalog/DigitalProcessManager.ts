@@ -35,6 +35,10 @@ export interface ProcessExecutionResult {
   fix?: { steam: boolean; launchers: string[]; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean } | null;
   check?: RunCheck;
   skipped?: "running" | "frozen" | "freezing";
+  /** A linked game's options (Steam or a folder: the same thing, only its launch command changes): `command` is the one
+   *  the user set ("" = `default_command`). */
+  linked?: boolean;
+  default_command?: string;
   steps?: Array<{ id: string; ok: boolean; detail: string }>;
   checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
   log?: string;
@@ -154,8 +158,10 @@ export class DigitalProcessManager {
   diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
   /** The launch dialog's "fix it for me": starts Steam if the game uses it, thaws, re-applies the fix backup and puts the language files back. */
   autoFix(game: CatalogGame, serverFix?: object | null) { return this.execute("auto-fix", game, undefined, undefined, JSON.stringify(serverFix ?? {})); }
-  /** Library manager: starts the game, sees whether it stays open, closes it and keeps the verdict (`check`). `skipped`: it was already running, or frozen. */
-  verifyRun(game: CatalogGame) { return this.execute("verify-run", game); }
+  /** Library manager: starts the game, sees whether it stays open, closes it and keeps the verdict (`check`). `skipped`: it was already running, or frozen; `force`: one already running is closed and tried again. */
+  verifyRun(game: CatalogGame, force = false) { return this.execute("verify-run", game, undefined, undefined, force ? JSON.stringify({ force: true }) : undefined); }
+  /** A linked game's launch command ("" goes back to the default one). */
+  saveLaunchCommand(game: CatalogGame, command: string) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify({ command })); }
   /** Opens a store launcher (epic, ubisoft, ea, rockstar, paradox, battlenet) so the player can sign in there. */
   openLauncher(game: CatalogGame, launcher: string) { return this.execute("open-launcher", game, undefined, undefined, launcher); }
   /** Keeps what made the game run in its execution profile (`learnedFix`). */

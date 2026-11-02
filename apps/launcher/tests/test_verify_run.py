@@ -90,3 +90,14 @@ def test_the_library_list_carries_the_verdict(tmp_path):
     RunChecks(storage.launcher).save(60, "checked", "ok", 12)
     games = GameLibraryManager(storage).list_games(with_sizes=False)
     assert next(g for g in games if g["app_id"] == 60)["run_check"]["state"] == "checked"
+
+
+def test_a_game_left_open_is_closed_and_tried_again_when_the_user_asks(tmp_path, monkeypatch):
+    instance, storage = runner(tmp_path)
+    closed = []
+    import game_execution_manager.game_processes as gp
+    monkeypatch.setattr(gp, "close_all", lambda items: closed.extend(i["pid"] for i in items) or (["game"], []))
+    clock = Clock()
+    answers = iter([[process(9)], [], [], [process()]])  # open from before, closed, then the new run shows up
+    result = instance.verify_run(60, "Verify fixture", probe=lambda _: next(answers, [process()]), sleep=clock.sleep, clock=clock, force=True)
+    assert result["check"]["state"] == "checked" and closed[0] == 9

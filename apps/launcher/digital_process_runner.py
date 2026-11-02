@@ -253,10 +253,11 @@ class DigitalProcessRunner:
         # Keep the established automatic preparation, honoring the user's choice.
         return repair_language(folder, language, logger, known_only=True)
 
-    def verify_run(self, app_id, name, appear=30.0, stable=10.0, probe=None, sleep=None, clock=None):
+    def verify_run(self, app_id, name, appear=30.0, stable=10.0, probe=None, sleep=None, clock=None, force=False):
         """Library manager: does this game run here? Plays it, waits for its process to show up and stay open, closes it
         and keeps the verdict (`checked` or `cantRun` with why). A game that is already running, being frozen or deep
-        frozen is not touched (nothing is saved). `probe`, `sleep` and `clock` are injectable for the tests."""
+        frozen is not touched (nothing is saved); `force` (the user agreed): a running game is closed first and tried
+        again, as one left open by a test that stopped on a dialog. `probe`, `sleep` and `clock` are injectable for the tests."""
         import time
         from game_execution_manager.game_processes import close_all, game_folders, running_in
         from game_library_manager.run_checks import CANT_RUN, CHECKED, RunChecks
@@ -271,7 +272,15 @@ class DigitalProcessRunner:
         if GameFreezer(self.storage, logger).describe(app_id, folder, False).get("frozen") == "deep":
             return {"ok": True, "app_id": app_id, "skipped": "frozen"}
         folders = game_folders(folder, record, app_id, steam)
-        if probe(folders):
+        open_now = probe(folders)
+        if open_now and force:
+            close_all(open_now)
+            for _ in range(10):
+                sleep(1.0)
+                open_now = probe(folders)
+                if not open_now:
+                    break
+        if open_now:
             return {"ok": True, "app_id": app_id, "skipped": "running"}
         started = clock()
         seen: dict[int, dict] = {}
@@ -309,7 +318,7 @@ class DigitalProcessRunner:
 
     def run(self, action, app_id, name, command="", auto_installed=False):
         if action == "verify-run":
-            return self.verify_run(app_id, name)
+            return self.verify_run(app_id, name, force=bool(json.loads(command or "{}").get("force")))
         diagnostics = FlowDiagnostics(logger, action, app_id)
         diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
         # Per invocation, not shared instance state: concurrent calls remain separate.
@@ -432,7 +441,7 @@ class DigitalProcessRunner:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
                 outcome = run_linked(action, linked_record, self.storage.linked, logger,
                                      lambda game_folder, game_name: gem.find_candidates(game_folder, game_name, "", [], logger),
-                                     SteamAccountManager(self.storage.launcher) if linked_record["kind"] == "steam" else None)
+                                     SteamAccountManager(self.storage.launcher) if linked_record["kind"] == "steam" else None, command)
                 return {**result, "ok": True, "folder": linked_record["path"], **outcome}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
@@ -581,8 +590,18 @@ class DigitalProcessRunner:
             self.start_store_launchers(folder, self.game_requires(folder, app_id)["launchers"])
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
+            chosen = None
             if options["executable"]:
-                candidates = [(checked_executable(folder, options["executable"]), parse_arguments(options["arguments"]))]
+                try:
+                    chosen = checked_executable(folder, options["executable"])
+                except ValueError as missing:
+                    if (folder / options["executable"]).is_file():
+                        raise  # there but refused (a link, not an .exe): never worked around
+                    # The chosen executable is gone (a folder inside the game renamed by hand): search again, as the first time.
+                    logger.warning("AppID %s: chosen executable %s not usable (%s); searching the folder again", app_id, options["executable"], missing)
+                    journal.note(folder, "play", f"el ejecutable elegido ya no está ({options['executable']}); se busca de nuevo")
+            if chosen is not None:
+                candidates = [(chosen, parse_arguments(options["arguments"]))]
             else:
                 candidates = self.get_candidates(folder, name, command, profile.get("executablePatterns", []))
                 extra = parse_arguments(options["arguments"])
@@ -600,7 +619,9 @@ class DigitalProcessRunner:
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             
             last_error = None
+            attempted: list[Path] = []
             for executable, arguments in candidates:
+                attempted.append(executable)
                 logger.info(f"Intentando ejecutar: {executable} {arguments}")
                 try:
                     diagnostics.debug("Starting candidate=%s cwd=%s", executable, executable.parent)
@@ -641,9 +662,19 @@ class DigitalProcessRunner:
                         
                         try:
                             rel_path = executable.relative_to(folder)
-                            if not exe_marker.exists():
+                            # What was remembered and failed this time (a folder renamed inside the game) is replaced
+                            # by what just worked: the marker, our play.bat and the executable chosen in the options.
+                            stale_bat = play_bat.is_file() and play_bat.resolve() in [item.resolve() for item in attempted[:-1]]
+                            remembered = exe_marker.read_text(encoding="utf-8").strip() if exe_marker.is_file() else ""
+                            if remembered != str(rel_path):
                                 exe_marker.write_text(str(rel_path), encoding="utf-8")
-                                
+                            if options["executable"] and chosen is None:
+                                game_options.save(app_id, name, {**options, "executable": str(rel_path)})
+                                journal.note(folder, "play", f"ejecutable actualizado en las opciones: {rel_path}")
+                            if stale_bat:
+                                play_bat.unlink()
+                                journal.note(folder, "play", f"play.bat ya no servía; se rehízo para {rel_path}")
+
                             if not play_bat.exists():
                                 rel_dir = executable.parent.relative_to(folder)
                                 exe_name = executable.name

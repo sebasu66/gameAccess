@@ -104,6 +104,13 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 /* Language and launch: each tab is one stack (16 px between fields); a field keeps its label 8 px above the control. */
 .ga-game-config .ga-tabs-panel{padding-top:var(--ga-space-1)}
 .ga-game-config .ga-stack>.ga-path-control{margin:0;font-size:14px}
+/* A linked game's launch command: its label with the help button beside it; the help lists the ways to run a game. */
+.ga-game-config .ga-command-label{display:flex;align-items:center;justify-content:space-between;gap:var(--ga-space-1)}
+.ga-game-config .ga-path-control #game-command{font-family:ui-monospace,Consolas,monospace}
+.ga-command-help{display:grid;gap:var(--ga-space-1);padding:12px 14px;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-surface)}
+.ga-command-help dl{display:grid;gap:10px;margin:0}
+.ga-command-help dt code{color:var(--ga-orange-ink);overflow-wrap:anywhere}
+.ga-command-help dd{margin:2px 0 0;color:var(--ga-muted);font-size:13px}
 .ga-game-config .ga-stack .ga-style-toggle{font-size:14px;font-weight:650}
 .ga-game-options{max-height:calc(100vh - 80px);overflow:auto}
 .ga-help-panel{width:min(640px,100%)}
@@ -147,3 +154,7 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-settings-screen-content { padding: 0; overflow: auto; }
 .ga-settings-screen-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--ga-line); }
 .ga-settings-screen-actions > div { display: flex; gap: 10px; }
+.ga-manual-link{width:min(600px,100%)}
+.ga-command-help-toggle{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-surface);color:var(--ga-muted);cursor:pointer}
+.ga-command-help-toggle:hover,.ga-command-help-toggle[aria-expanded=true]{border-color:var(--ga-orange-line);color:var(--ga-orange-ink)}
+.ga-command-help-toggle:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}

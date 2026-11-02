@@ -52,7 +52,9 @@ def rank_executable(exe_path: Path, game_name: str) -> float:
 
 
 def find_candidates(folder: Path, name: str, command: str = "", patterns=(), logger=None) -> list[tuple[Path, list[str]]]:
-    """Executables worth trying, best first: explicit command, remembered one, play.bat, then heuristics + profile patterns."""
+    """Executables worth trying, best first: explicit command, remembered one, play.bat, then every executable of the
+    folder by heuristics + profile patterns. The remembered ones go first but never alone: when a folder inside the game
+    was renamed (a stale play.bat or marker), the game is still found by searching again, as the first time."""
     folder = Path(folder)
     if command.strip():
         if re.search(r"[&|<>\r\n]|steam:", command, re.I):
@@ -61,19 +63,22 @@ def find_candidates(folder: Path, name: str, command: str = "", patterns=(), log
         executable = (folder / parts[0].strip('"')).resolve()
         if executable.is_relative_to(folder) and executable.is_file():
             return [(executable, [p.strip('"') for p in parts[1:]])]
+    remembered: list[Path] = []
     marker = folder / ".gameaccess_exe"
     if marker.is_file():
         try:
             target = (folder / marker.read_text(encoding="utf-8").strip()).resolve()
             if target.is_file() and target.is_relative_to(folder.resolve()):
-                return [(target, [])]
+                remembered.append(target)
         except Exception:
             pass
     play_bat = folder / "play.bat"
     if play_bat.is_file():
-        return [(play_bat, [])]
+        remembered.append(play_bat.resolve())
     candidates = [p for p in folder.rglob("*.exe") if not NOT_A_GAME.search(str(p.relative_to(folder)))]
     if not candidates:
+        if remembered:
+            return [(item, []) for item in remembered]
         raise ValueError("No se encontraron ejecutables validos en la carpeta.")
     candidates.sort(key=lambda p: rank_executable(p, name), reverse=True)
     if patterns:
@@ -85,4 +90,5 @@ def find_candidates(folder: Path, name: str, command: str = "", patterns=(), log
         candidates = preferred + [c for c in candidates if c not in preferred]
     if logger:
         logger.info("Se probaran %s ejecutables en orden: %s", len(candidates), [p.name for p in candidates])
-    return [(c.resolve(), []) for c in candidates]
+    found = [c.resolve() for c in candidates]
+    return [(item, []) for item in [*remembered, *(c for c in found if c not in remembered)]]
