@@ -301,6 +301,10 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 | `ga-actions` (`ga-actions-end`) | fila de botones | `gap` 10 px, misma altura, se parte si no entra |
 | `ga-disclosure` | `details`/`summary` plegable | flecha naranja propia (nunca el triángulo del navegador), cuerpo = un `ga-stack` |
 
+**Acordeones: uno abierto a la vez, en toda la app** (Seba, 2026-11-02). Abrir un `details` cierra los otros abiertos del mismo contenedor (`singleAccordion.ts`, se activa una vez en `main.tsx`; ningún componente tiene que hacer nada). Un grupo que necesite varios abiertos lleva `data-accordion="multi"` en el contenedor, y es una excepción.
+- Una ayuda que se muestra siempre no lleva además un botón para mostrarla.
+- Un bloque de ayuda o explicación usa `ga-stack` (16 px entre párrafos y secciones) con 20 × 24 px de margen interior: nunca párrafos pegados al borde ni a la sección siguiente.
+
 - Una pantalla no escribe reglas para `p` ni para títulos (`h1`–`h6`): ni margen, ni fuente, ni tamaño, ni alineación. Lo que necesite distinto va con su clase y es una excepción (color, peso, recuadro, o `--ga-p-size` / `--ga-p-align`).
 - Colores: solo tokens de `:root`. Un color suelto en un `.css` que no sea del tema no pasa el control.
 - **Control:** `npm run check:css` (y `npm test`, con `src/dialogCss.test.ts`) falla si un `.css` agrega reglas de párrafo o colores sueltos. La deuda vieja está contada por archivo en `apps/desktop/scripts/dialog-css-baseline.json`: puede bajar (`node scripts/check-dialog-css.mjs --update` al limpiar), nunca subir.
@@ -342,7 +346,7 @@ resúmenes, explicaciones con varias partes. Referencia: el diálogo final del a
 
 **Ítems como tarjetas.** Cada aclaración, aviso o paso con título propio va en una tarjeta (`--ga-surface`, borde `--ga-line`, radio 12 px), con ícono, título y texto. No se apilan párrafos de colores sueltos.
 
-**Ancho.** Un diálogo grande es tan ancho como la columna central del contenido: hasta 1200 px dentro del marco, con los márgenes de `.ga-screen` (`min(1200px, 100vw − marco − 2 × clamp(24px, 4vw, 64px))`).
+**Ancho.** Los diálogos no son angostos: casi todos los monitores de PC son anchos y el diálogo crece a lo ancho cuando el contenido lo pide (comandos, rutas, ayudas en varias partes), en vez de crecer hacia abajo. Un diálogo de opciones con ayuda (Ejecución de un juego) va hasta 960 px (Seba, 2026-11-02). Un diálogo grande es tan ancho como la columna central del contenido: hasta 1200 px dentro del marco, con los márgenes de `.ga-screen` (`min(1200px, 100vw − marco − 2 × clamp(24px, 4vw, 64px))`).
 - Con ese ancho, el texto corrido se corta a unos **80 caracteres** por línea (`max-width: 80ch`): nunca renglones de punta a punta.
 - Las tarjetas van **lado a lado** cuando entran (columnas de 380 px como mínimo) y **todas del mismo alto** (el de la más alta, también cuando una se despliega).
 

@@ -20,6 +20,7 @@ import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
+import { startSingleAccordion } from "./singleAccordion";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
 import { RefreshCw } from "lucide-react";
@@ -130,6 +131,7 @@ function CatalogShell() {
 startClientErrorReporting();
 startDownloadNotifications();
 startModalStack();
+startSingleAccordion();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");

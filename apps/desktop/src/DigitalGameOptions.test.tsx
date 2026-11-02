@@ -35,10 +35,8 @@ describe("un juego vinculado (de Steam o de una carpeta)", () => {
     const input = host.querySelector<HTMLTextAreaElement>("#game-command")!;
     expect(input.placeholder).toBe("steam://rungameid/1145360");
     expect(host.querySelector("select")).toBeNull();
-    expect(host.querySelector("#game-command-help")).toBeNull();
-    const help = host.querySelector<HTMLButtonElement>('[aria-controls="game-command-help"]')!;
-    act(() => help.click());
-    expect(help.getAttribute("aria-expanded")).toBe("true");
+    expect(host.querySelector('[aria-controls="game-command-help"]')).toBeNull();
+    expect(input.getAttribute("aria-describedby")).toBe("game-command-help");
     expect(host.querySelector("#game-command-help")?.textContent).toContain("-applaunch");
     expect(host.querySelectorAll("#game-command-help details")).toHaveLength(3);
     expect([...host.querySelectorAll<HTMLDetailsElement>("#game-command-help details")].some(item => item.open)).toBe(false);

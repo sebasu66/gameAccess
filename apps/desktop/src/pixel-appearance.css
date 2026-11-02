@@ -100,20 +100,21 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-danger-option,.ga-game-options .ga-danger-option{color:#f4d2d2;border:1px solid #dd8c8c99;background:#6b313155}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-danger-option:hover,.ga-game-options .ga-danger-option:hover{background:#80343488;border-color:#ebb6b6}
 :is(.ga-settings-panel,.ga-settings-screen) .ga-settings-error{color:#f0c3c3;white-space:pre-wrap}
-.ga-game-config{width:min(600px,100%)}
+.ga-game-config{width:min(960px,100%)}
 /* Language and launch: each tab is one stack (16 px between fields); a field keeps its label 8 px above the control. */
 .ga-game-config .ga-tabs-panel{padding-top:var(--ga-space-1)}
 .ga-game-config .ga-stack>.ga-path-control{margin:0;font-size:14px}
-/* A linked game's launch command: its label with the help button beside it; the help lists the ways to run a game. */
-.ga-game-config .ga-command-label{display:flex;align-items:center;justify-content:space-between;gap:var(--ga-space-1)}
+/* A linked game's launch command and, always under it, the help with the ways to run a game (three steps that fold). */
 .ga-game-config .ga-path-control #game-command{box-sizing:border-box;width:100%;min-width:0;min-height:96px;padding:10px 12px;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-field-bg);color:var(--ga-white);font:13px/1.5 ui-monospace,Consolas,monospace;resize:vertical;white-space:pre;overflow-x:auto}
 .ga-game-config .ga-path-control #game-command:focus-visible{outline:2px solid var(--ga-orange);outline-offset:3px}
-.ga-command-help{display:grid;gap:var(--ga-space-1);padding:12px 14px;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-surface)}
-.ga-command-step{border-top:1px solid var(--ga-line);padding-top:8px}
-.ga-command-step>summary{cursor:pointer;font-weight:700;color:var(--ga-white)}
-.ga-command-step>summary:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}
-.ga-command-step>dl{margin-top:10px}
-.ga-command-help dl{display:grid;gap:10px;margin:0}
+.ga-command-help{padding:20px 24px;border:1px solid var(--ga-line);border-radius:12px;background:var(--ga-surface)}
+.ga-command-help>.ga-hint{max-width:80ch}
+.ga-command-steps{display:grid;border-block:1px solid var(--ga-line)}
+.ga-command-step{padding:12px 0}
+.ga-command-step+.ga-command-step{border-top:1px solid var(--ga-line)}
+.ga-command-step>summary{font-weight:700;color:var(--ga-white)}
+.ga-command-step>dl{margin-top:12px}
+.ga-command-help dl{display:grid;gap:10px;margin-bottom:0}
 .ga-command-help dt code{color:var(--ga-orange-ink);overflow-wrap:anywhere}
 .ga-command-help dd{margin:2px 0 0;color:var(--ga-muted);font-size:13px}
 .ga-game-config .ga-stack .ga-style-toggle{font-size:14px;font-weight:650}
@@ -160,6 +161,3 @@ body:has(.surface-display,.surface-tablet) .ga-grid-zoom{display:none}
 .ga-settings-screen-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--ga-line); }
 .ga-settings-screen-actions > div { display: flex; gap: 10px; }
 .ga-manual-link{width:min(600px,100%)}
-.ga-command-help-toggle{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--ga-line);border-radius:8px;background:var(--ga-surface);color:var(--ga-muted);cursor:pointer}
-.ga-command-help-toggle:hover,.ga-command-help-toggle[aria-expanded=true]{border-color:var(--ga-orange-line);color:var(--ga-orange-ink)}
-.ga-command-help-toggle:focus-visible{outline:2px solid var(--ga-orange);outline-offset:2px}

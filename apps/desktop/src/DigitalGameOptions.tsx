@@ -1,5 +1,4 @@
 import { GaButton, GaClose } from "./components/ga/Buttons";
-import { CircleHelp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getSteamStoreLanguage, useI18n } from "./i18n";
 import { useDialogFocus } from "./dialogFocus";
@@ -9,7 +8,7 @@ import { digitalProcessManager, type DigitalLaunchOptions } from "./catalog/Digi
 import type { CatalogGame } from "./types";
 const copy = {
  es: {title:"Idioma y ejecución",language:"Idioma del juego",repair:"Buscar y reparar idioma",hint:"Busca ajustes de idioma en archivos INI y conserva una copia original. El juego necesita incluir ese idioma.",tabLanguage:"Idioma",tabLaunch:"Ejecución",keep:"No cambiar el idioma del juego",keepHint:"El juego queda con el idioma que trae. Si GameAccess lo había cambiado, al jugar vuelve al original.",exe:"Archivo ejecutable",automatic:"Detectar automáticamente",args:"Argumentos de lanzamiento",admin:"Ejecutar como administrador",adminHint:"Windows pedirá autorización al jugar.",decompress:"Descomprimir el fix en cada ejecución",decompressHint:"Antes de jugar, el fix o crack se vuelve a descomprimir sobre el juego, por si el antivirus borró archivos.",save:"Guardar opciones",close:"Cerrar",saved:"Opciones guardadas.",repaired:"Archivos corregidos",none:"No se encontraron ajustes de idioma que cambiar.",backup:"La restauración de respaldos y los ajustes automáticos siguen activos.",loading:"Leyendo archivos del juego…",spanish:"Español",english:"Inglés",portuguese:"Portugués",french:"Francés",german:"Alemán",appLanguage:"Idioma de la aplicación",
-  linkedTitle:"Ejecución",command:"Comando de ejecución",commandHint:"Un paso por línea, en orden. Vacío: el de siempre.",commandReset:"Usar el de siempre",commandHelp:"Cómo escribir el comando",
+  linkedTitle:"Ejecución",command:"Comando de ejecución",commandHint:"Si queda vacío se usa el de siempre:",commandReset:"Usar el de siempre",
   helpIntro:"Cada línea es un paso y se ejecutan en orden. Con «wait 5» se esperan 5 segundos entre un paso y el siguiente. Las líneas que empiezan con # son notas. ID es el número del juego en Steam.",
   help:[
    {title:"1. Cerrar la sesión de Steam",lines:[[String.raw`"C:\Program Files (x86)\Steam\steam.exe" -shutdown`,"Cierra Steam con la cuenta que tenga abierta. Antes del paso siguiente se espera a que Steam termine de cerrarse."]]},
@@ -18,7 +17,7 @@ const copy = {
   ],
   helpNote:"Después de cambiar el comando, usá «Verificar que corre» para probarlo."},
  en: {title:"Language and launch",language:"Game language",repair:"Find and repair language",hint:"Finds language settings in INI files and keeps an original backup. The game must include that language.",tabLanguage:"Language",tabLaunch:"Launch",keep:"Don't change the game's language",keepHint:"The game keeps the language it ships with. If GameAccess had changed it, it goes back to the original when you play.",exe:"Executable file",automatic:"Detect automatically",args:"Launch arguments",admin:"Run as administrator",adminHint:"Windows will ask for permission when you play.",decompress:"Extract the fix on every launch",decompressHint:"Before playing, the fix or crack is extracted over the game again, in case antivirus deleted files.",save:"Save options",close:"Close",saved:"Options saved.",repaired:"Files repaired",none:"No language settings needed changing.",backup:"Archive restoration and automatic fixes remain active.",loading:"Reading game files…",spanish:"Spanish",english:"English",portuguese:"Portuguese",french:"French",german:"German",appLanguage:"App language",
-  linkedTitle:"Launch",command:"Launch command",commandHint:"One step per line, in order. Empty: the usual one.",commandReset:"Use the usual one",commandHelp:"How to write the command",
+  linkedTitle:"Launch",command:"Launch command",commandHint:"When empty, the usual one is used:",commandReset:"Use the usual one",
   helpIntro:"Each line is a step and they run in order. “wait 5” waits 5 seconds between one step and the next. Lines starting with # are notes. ID is the game's number on Steam.",
   help:[
    {title:"1. Sign out of Steam",lines:[[String.raw`"C:\Program Files (x86)\Steam\steam.exe" -shutdown`,"Closes Steam with whatever account is open. The next step waits until Steam has really closed."]]},
@@ -36,7 +35,7 @@ export default function DigitalGameOptions({game,onClose,disabled=false}:{game:C
  const [loading,setLoading]=useState(true); const [busy,setBusy]=useState(false);
  const [message,setMessage]=useState(""); const [error,setError]=useState("");
  // A linked game (from Steam or from a folder) is only launched: its one option is the command that starts it.
- const [linked,setLinked]=useState<{command:string;usual:string}|null>(null); const [help,setHelp]=useState(false);
+ const [linked,setLinked]=useState<{command:string;usual:string}|null>(null);
  useEffect(()=>{let live=true; void digitalProcessManager.gameOptions(game).then(result=>{
    if(live&&result.linked){setLinked({command:result.command??"",usual:result.default_command??""});return;}
    if(live){if(result.options) setOptions(result.options);setExecutables(result.executables??[]);}
@@ -71,14 +70,13 @@ export default function DigitalGameOptions({game,onClose,disabled=false}:{game:C
    <div className="ga-settings-content">
     {loading?<p className="ga-status" role="status">{c.loading}</p>:null}
     {linked?<div className="ga-stack">
-     <div className="ga-path-control"><span className="ga-command-label"><label htmlFor="game-command">{c.command}</label>
-      <button type="button" className="ga-command-help-toggle" aria-label={c.commandHelp} title={c.commandHelp} aria-expanded={help} aria-controls="game-command-help" onClick={()=>setHelp(!help)}><CircleHelp size={18} aria-hidden="true"/></button></span>
-      <textarea id="game-command" rows={4} value={linked.command} disabled={locked} spellCheck={false} placeholder={linked.usual} onChange={event=>setLinked({...linked,command:event.target.value})}/></div>
-     {/* The help folds in three steps (sign out, sign in, run), each closed: the dialog does not grow until one is opened. */}
-     {help?<div id="game-command-help" className="ga-command-help"><p className="ga-hint">{c.helpIntro}</p>
-      {c.help.map(section=><details key={section.title} className="ga-command-step"><summary>{section.title}</summary>
-       <dl>{section.lines.map(([form,why])=><div key={form}><dt><code>{form}</code></dt><dd>{why}</dd></div>)}</dl></details>)}
-      <p className="ga-hint">{c.helpNote}</p></div>:null}
+     <div className="ga-path-control"><label htmlFor="game-command">{c.command}</label>
+      <textarea id="game-command" rows={4} value={linked.command} disabled={locked} spellCheck={false} placeholder={linked.usual} aria-describedby="game-command-help" onChange={event=>setLinked({...linked,command:event.target.value})}/></div>
+     {/* The help is always there, folded in three steps (sign out, sign in, run): one opens at a time, so the dialog grows by one. */}
+     <div id="game-command-help" className="ga-command-help ga-stack"><p className="ga-hint">{c.helpIntro}</p>
+      <div className="ga-command-steps">{c.help.map(section=><details key={section.title} className="ga-command-step ga-disclosure"><summary>{section.title}</summary>
+       <dl>{section.lines.map(([form,why])=><div key={form}><dt><code>{form}</code></dt><dd>{why}</dd></div>)}</dl></details>)}</div>
+      <p className="ga-hint">{c.helpNote}</p></div>
      {linked.usual?<p className="ga-hint">{c.commandHint} <code>{linked.usual}</code></p>:null}
      {linked.command?<GaButton disabled={locked} onClick={()=>setLinked({...linked,command:""})}>{c.commandReset}</GaButton>:null}
     </div>:<GaTabs label={c.title} tabs={[{id:"language",label:c.tabLanguage,content:<div className="ga-stack">
