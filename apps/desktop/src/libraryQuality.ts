@@ -181,8 +181,9 @@ function passesSliderBounds(game: CatalogGame, filters: LibrarySearchFilters, no
     const score = game.steam_review_score;
     // Only a game with no score at all is spared: a known score under the bar is out, even with few
     // reviews or a recent release (Seba, 2026-11-02: "rating >= 8" showed a game at 33 % with 6 reviews).
-    if (filters.spareUnprovenGames && typeof score !== "number") return true;
-    if (typeof score !== "number" || score < filters.minReviewScore) return false;
+    // Spared only from the score bar: the date bounds below still apply to it.
+    const spared = filters.spareUnprovenGames && typeof score !== "number";
+    if (!spared && (typeof score !== "number" || score < filters.minReviewScore)) return false;
   }
   if (filters.maxAgeDays !== undefined) {
     const released = parseReleaseDate(game.release_date);
