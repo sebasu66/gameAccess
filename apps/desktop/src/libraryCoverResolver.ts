@@ -46,11 +46,20 @@ async function runWithSlot<T>(task: () => Promise<T>, signal?: AbortSignal): Pro
   }
 }
 
-// The 2x key keeps the original format so covers cached before size tiers existed stay valid.
-const cacheKey = (appId: number, tier: CoverTier) => tier === "2x" ? `gameaccess:portrait:${appId}` : `gameaccess:portrait1x:${appId}`;
-const slot = (appId: number, tier: CoverTier) => `${tier}:${appId}`;
+/** A portrait size, or "wide" for the hashed header (asked only when every unhashed wide path failed). */
+export type ArtworkSize = CoverTier | "wide";
 
-export function cachedLibraryCover(appId?: number | null, tier: CoverTier = "2x"): string | null {
+// The 2x key keeps the original format so covers cached before size tiers existed stay valid.
+const cacheKey = (appId: number, tier: ArtworkSize) => tier === "2x" ? `gameaccess:portrait:${appId}` : tier === "wide" ? `gameaccess:wide:${appId}` : `gameaccess:portrait1x:${appId}`;
+const slot = (appId: number, tier: ArtworkSize) => `${tier}:${appId}`;
+
+/** Drops a cached path that stopped loading (Steam moved the art to a new hash), so the next card asks again. */
+export function forgetLibraryCover(appId: number, tier: ArtworkSize = "2x"): void {
+  memoryCache.delete(slot(appId, tier));
+  try { localStorage.removeItem(cacheKey(appId, tier)); } catch { /* nothing stored */ }
+}
+
+export function cachedLibraryCover(appId?: number | null, tier: ArtworkSize = "2x"): string | null {
   if (!appId) return null;
   const mem = memoryCache.get(slot(appId, tier));
   if (mem) return mem;
@@ -65,7 +74,7 @@ export function cachedLibraryCover(appId?: number | null, tier: CoverTier = "2x"
 
 // Resolves the portrait capsule at the size the grid needs. Visible cards only; no catalog detail prefetch.
 // `signal` drops the request while it still waits for a slot (a card that left the window before its turn).
-export function resolveLibraryCover(appId: number, tier: CoverTier = "2x", signal?: AbortSignal): Promise<string | null> {
+export function resolveLibraryCover(appId: number, tier: ArtworkSize = "2x", signal?: AbortSignal): Promise<string | null> {
   const cached = cachedLibraryCover(appId, tier);
   if (cached) return Promise.resolve(cached);
   const key = slot(appId, tier);

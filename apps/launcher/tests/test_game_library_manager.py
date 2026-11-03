@@ -80,6 +80,21 @@ def test_unfinished_download_is_never_offered_a_fix(tmp_path):
     assert {g["app_id"]: g for g in lib.list_games()}[2]["transfer_kind"] == "other"
 
 
+def test_a_folder_in_error_whose_download_stopped_can_still_be_processed_as_it_is(tmp_path):
+    # Surgeon Simulator: the game is in the folder, but the last download got a 403 and left a "go on" point.
+    storage, lib = library(tmp_path)
+    folder = storage.set_status(1, "Alpha", "ERROR")
+    storage.set_resume(1, "download", source="https://example.invalid/alpha", error="403 Client Error: Forbidden")
+    game = {g["app_id"]: g for g in lib.list_games()}[1]
+    assert game["unfinished"] and game["stalled"] and game["resume_step"] == "download"
+    assert any(issue["code"] == "error" for issue in game["issues"])
+    result = lib.batch("adopt", [1])[0]
+    assert result["ok"], result
+    game = {g["app_id"]: g for g in lib.list_games()}[1]
+    assert game["state"] == "ready" and not game["unfinished"] and not game.get("stalled") and storage.resume_point(1) == {}
+    assert not folder.exists()
+
+
 def test_the_install_keeps_the_name_its_download_source_gave_it(tmp_path):
     storage, lib = library(tmp_path)
     storage.set_source(1, "Alpha v1.2 - Repack", "SteamRIP")
@@ -119,3 +134,147 @@ def test_the_player_can_rename_a_game_in_their_library_only(tmp_path):
     assert {g["app_id"]: g for g in lib.list_games()}[1]["label"] == ""
     with pytest.raises(ValueError):
         storage.set_label(99, "Nope", "x")
+
+
+def test_space_check_counts_what_an_unfinished_download_already_has(tmp_path):
+    storage, lib = library(tmp_path)
+    transfer = storage.transfer_folder(7, "Big")
+    transfer.mkdir(parents=True)
+    (transfer / "part.bin").write_bytes(b"z" * (4 * 1024 * 1024))
+    class Usage:  # 10 GB free
+        total, used, free = 100 * GIB, 90 * GIB, 10 * GIB
+    with patch("disk_space.shutil.disk_usage", return_value=Usage), \
+         patch("game_library_manager.manager.allocated_size", return_value=4 * GIB):
+        assert not lib.check_space(6 * GIB)["ok"]                   # a new download: 6*2 + 1 = 13 GB > 10
+        resumed = lib.check_space(6 * GIB, 7, "Big")                # (6-4) + 6 + 1 = 9 GB <= 10
+    assert resumed["ok"] and resumed["needed_bytes"] == 9 * GIB
+
+
+def test_clean_empty_keeps_the_record_of_an_unfinished_download(tmp_path):
+    storage, lib = library(tmp_path)
+    failed = storage.set_status(7, "Big", "ERROR") if storage.register(7, "Big") else None
+    transfer = storage.transfer_folder(7, "Big")
+    transfer.mkdir(parents=True)
+    (transfer / "part.bin").write_bytes(b"z" * 10)
+    lib.clean_empty()
+    assert failed.is_dir() and (storage.registry / "7.json").is_file()
+
+
+def test_a_linked_folder_game_can_be_deleted_from_disk_but_never_a_steam_one_or_a_shared_folder(tmp_path):
+    storage, lib = library(tmp_path)
+    delta = tmp_path / "outside" / "Delta"
+    delta.mkdir(parents=True)
+    (delta / "Delta.exe").write_bytes(b"x" * 100)
+    storage.linked.link(4, "Delta", str(delta))
+    result = lib.batch("linked_delete", [4])[0]
+    assert result["ok"] and not delta.exists() and storage.linked.get(4) is None
+    steam = tmp_path / "steamapps" / "common" / "Epsilon"
+    steam.mkdir(parents=True)
+    storage.linked.link(5, "Epsilon", str(steam), "steam")
+    assert not lib.batch("linked_delete", [5])[0]["ok"] and steam.is_dir()
+    # A folder that holds another linked game (a whole collection) is never deleted as one game.
+    collection = tmp_path / "Juegos"
+    (collection / "Zeta").mkdir(parents=True)
+    storage.linked.link(6, "Coleccion", str(collection))
+    storage.linked.link(7, "Zeta", str(collection / "Zeta"))
+    assert not lib.batch("linked_delete", [6])[0]["ok"] and (collection / "Zeta").is_dir()
+
+
+def test_a_linked_folder_game_moves_into_the_games_folder_with_the_standard_name(tmp_path):
+    storage, lib = library(tmp_path)
+    name = "Eta\u2122 Edici\u00f3n Especial"
+    source = tmp_path / "outside" / name
+    source.mkdir(parents=True)
+    (source / "Eta.exe").write_bytes(b"x" * 100)
+    storage.linked.link(8, name, str(source))
+    result = lib.batch("linked_move", [8])[0]
+    assert result["ok"], result
+    assert not source.exists() and storage.linked.get(8) is None
+    moved = [p.name for p in storage.root.iterdir() if p.name.startswith("8-")]
+    assert moved == ["8-Eta_Edicion_Especial-ready"]
+
+
+def test_a_move_that_would_not_fit_the_path_limit_leaves_the_game_linked(tmp_path, monkeypatch):
+    storage, lib = library(tmp_path)
+    source = tmp_path / "outside" / "Theta"
+    source.mkdir(parents=True)
+    (source / "Theta.exe").write_bytes(b"x")
+    storage.linked.link(9, "Theta", str(source))
+    monkeypatch.setattr("game_importer.importer.fits", lambda target, longest: False)
+    result = lib.batch("linked_move", [9])[0]
+    assert not result["ok"] and "importTooLong" in result["error"]
+    assert source.is_dir() and storage.linked.get(9)["path"] == str(source.resolve())
+
+
+def test_the_games_folder_warning_flags_long_paths_and_special_characters():
+    from game_paths import root_warning
+    assert root_warning(r"C:\GA_Juegos") == ""
+    assert "gamesRootLong" in root_warning(r"C:\Program Files\Game Access\juegos que instalo aca")
+    assert "gamesRootSpecial" in root_warning("C:\\Juegos de Sebasti\u00e1n")
+
+
+def test_the_game_log_brings_the_end_of_its_installer_log(tmp_path):
+    storage, lib = library(tmp_path)
+    folder = storage.folder(1, "Alpha")
+    (folder / "setup-install-log.txt").write_text("line 1\nError creating file (code 3).\n", encoding="utf-8")
+    result = DigitalProcessRunner(storage).run("game-log", 1, "Alpha", "")
+    assert "lanzado: Alpha.exe" in result["log"] and result["installer_log"].endswith("Error creating file (code 3).")
+
+
+def test_a_folder_without_its_appid_is_identified_by_its_emulator_file_and_fixed(tmp_path):
+    storage, lib = library(tmp_path)
+    manual = storage.root / "Delta Rally 2 0 Game of the Year Edition"     # installed by hand, outside Game Access
+    manual.mkdir(parents=True)
+    (manual / "delta.exe").write_bytes(b"x" * 1000)
+    (manual / "steam_emu.ini").write_text("[Settings]\nAppId=690790\n", encoding="utf-8")
+    row = next(g for g in lib.list_games(with_sizes=False) if g["folder"] == str(manual))
+    assert row["app_id"] == 690790 and row["misnamed"] and row["identified_by"] == "steam_emu.ini"
+    plan = lib.plan([690790])[0]
+    assert [a["code"] for a in plan["actions"]] == ["identify", "rename", "adopt"]
+    assert lib.batch("adopt", [690790])[0]["ok"]
+    assert [p.name for p in storage.root.iterdir() if p.name.startswith("690790-")] == ["690790-Delta_Rally_2_0_Game_of_the_Year_Edition-ready"]
+
+
+def test_fixing_a_folder_open_in_another_program_says_so_and_notes_it_in_the_game_log(tmp_path):
+    storage, lib = library(tmp_path)
+    manual = storage.root / "Delta Rally 2 0"
+    manual.mkdir(parents=True)
+    (manual / "delta.exe").write_bytes(b"x" * 1000)
+    (manual / "steam_emu.ini").write_text("[Settings]\nAppId=690790\n", encoding="utf-8")
+    lib.list_games(with_sizes=False)
+    # What Windows raises when the folder is open in an Explorer window.
+    in_use = PermissionError(13, "in use", str(manual))
+    in_use.winerror = 32
+    with patch.object(Path, "rename", side_effect=in_use):
+        result = lib.batch("adopt", [690790])[0]
+    assert not result["ok"] and "libFolderInUse" in result["error"] and "Delta Rally 2 0" in result["error"]
+    assert result["in_use_folder"] == str(manual)
+    log = journal.read(manual)
+    assert "renombrando la carpeta a 690790-" in log and "error renombrando la carpeta: está en uso" in log
+    assert log.count("está en uso") == 1                       # noted once, by the step that failed
+    assert manual.is_dir()
+    # The library manager shows that log although the folder does not carry the AppID yet.
+    shown = DigitalProcessRunner(storage).run("game-log", 690790, "DiRT Rally 2.0", "")
+    assert shown["folder"] == str(manual) and "está en uso" in shown["log"]
+
+
+def test_a_folder_whose_appid_another_game_already_has_is_not_renamed(tmp_path):
+    storage, lib = library(tmp_path)
+    copy = storage.root / "Alpha copy"
+    copy.mkdir(parents=True)
+    (copy / "alpha.exe").write_bytes(b"x" * 1000)
+    (copy / "steam_appid.txt").write_text("1", encoding="utf-8")         # AppID 1 is Alpha, already in the library
+    row = next(g for g in lib.list_games(with_sizes=False) if g["folder"] == str(copy))
+    assert row["app_id"] is None and not row.get("misnamed")
+
+
+def test_discarding_a_download_also_removes_the_unfinished_folder_it_left_but_never_a_finished_game(tmp_path):
+    storage, lib = library(tmp_path)
+    broken = storage.set_status(5, "Epsilon", "ERROR") if storage.register(5, "Epsilon") else None
+    (broken / "setup.exe").write_bytes(b"s" * 100)
+    storage.discard_transfer(5)                                    # the automatic clean-up: the folder stays
+    assert broken.is_dir()
+    assert lib.batch("discard_transfer", [5])[0]["ok"]             # the player's "Discard": all of it goes
+    assert not broken.exists() and not (storage.registry / "5.json").exists()
+    assert storage.folder(1, "Alpha").is_dir()                     # a finished game is never touched
+    assert 5 not in {g["app_id"] for g in lib.list_games(with_sizes=False)}

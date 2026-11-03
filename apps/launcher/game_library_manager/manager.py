@@ -11,17 +11,29 @@ whether a download (and its extraction) fits, batch actions, and connectors to t
 
 Pure Python, no UI: the desktop screen and any future module (play-time limiter, importer) call it."""
 from __future__ import annotations
+import json
+import shutil
+import time
 from pathlib import Path
 import game_journal as journal
+from atomic_json import write_json
+from .freeze_control import FreezeBusy, FreezeCancelled, holder as freeze_holder
 import app_log
 from game_execution_manager import GameExecutionManager
-from disk_space import check_space, disk_info, folder_size
+from disk_space import allocated_size, check_download, check_space, disk_info, folder_size
 from game_importer import GameImporter
 from game_scanner import GameScanner
 from .storage import split_folder_name
-from .freezer import GameFreezer
+from .freezer import GameFreezer, deep_archive
+from .linked import deletable_reason
+from game_download_manager.ui_text import ui
 
-BATCH_ACTIONS = ("uninstall", "repair", "analyze", "adopt", "discard_transfer")
+# linked_delete / linked_move: a game linked from a folder of the player's (never a Steam one) deleted from disk, or
+# moved into the games folder and adopted (renamed to <AppID>-<name>-ready, like any game Game Access installs).
+# linked_move_resume / linked_move_discard: a move cut short goes on from its half-made copy, or that copy is deleted.
+BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer", "linked_delete", "linked_move",
+                 "linked_move_resume", "linked_move_discard")
+MOVE_ACTIONS = ("linked_move", "linked_move_resume", "linked_move_discard")
 
 
 def play_dates(folder: Path) -> list[str]:
@@ -35,14 +47,23 @@ def play_dates(folder: Path) -> list[str]:
 
 
 def play_history(folder: Path) -> dict:
-    """Play count and last launch, read from the game's own log (the future play-time limiter links here)."""
-    plays, last = 0, ""
+    """Play count, last launch and when the game came into the library (`added_at`: the first line of its log, or the
+    folder's creation when it has none), read from the game's own log. The library counts the days without playing
+    from the last launch, or from `added_at` for a game never played (what freezing goes by)."""
+    plays, last, added = 0, "", ""
     for line in journal.read(folder).splitlines():
         parts = line.split(" | ", 2)
+        if not added and len(parts) >= 2:
+            added = parts[0]
         if len(parts) == 3 and parts[1] == "play" and parts[2].startswith("lanzado"):
             plays += 1
             last = parts[0]
-    return {"plays": plays, "last_played": last}
+    if not added:
+        try:
+            added = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(Path(folder).stat().st_ctime))
+        except OSError:
+            pass
+    return {"plays": plays, "last_played": last, "added_at": added}
 
 
 UNFINISHED_MESSAGE = "La descarga no terminó: primero hay que completarla (o descartarla) antes de corregir la carpeta."
@@ -58,6 +79,23 @@ def on_disk_bytes(game: dict) -> int:
     return stored if stored is not None else game["size_bytes"] or 0
 
 
+
+# Windows' "in use" errors: 32 a sharing violation, 5 access denied (a folder open in Explorer gives either on rename).
+IN_USE_ERRORS = {5, 32}
+
+
+def in_use(error: BaseException) -> bool:
+    """Windows refused because another program has the file or folder open."""
+    return isinstance(error, OSError) and getattr(error, "winerror", None) in IN_USE_ERRORS
+
+
+def _in_use(error: BaseException) -> Path | None:
+    """The folder an action could not rename or move because another program has it open, or None."""
+    if not in_use(error) or not error.filename:
+        return None
+    folder = Path(error.filename)
+    return folder if folder.is_dir() else None
+
 class GameLibraryManager:
     def __init__(self, storage, manager=None, importer=None, freezer=None, steam=None):
         self.storage = storage
@@ -68,34 +106,77 @@ class GameLibraryManager:
         self.freezer = freezer or GameFreezer(storage, self.log)
 
     # -- inventory -------------------------------------------------------------------------
+    def _moving_into(self) -> set[Path]:
+        """The half-made copies of moves cut short: not games of their own (the game is still the linked one)."""
+        pending = (self.pending_move(r["app_id"]) for r in self.storage.linked.all() if r.get("kind") == "folder")
+        return {Path(p["target"]).resolve() for p in pending if p}
+
     def game_folders(self) -> list[Path]:
+        linked_paths = {Path(r["path"]).resolve() for r in self.storage.linked.all()} | self._moving_into()
         found = []
         for root in self.storage.roots:
             if root.is_dir():
-                found += [p for p in sorted(root.iterdir()) if p.is_dir() and split_folder_name(p.name)[0] is not None]
+                found += [p for p in sorted(root.iterdir()) if p.is_dir() and split_folder_name(p.name)[0] is not None and p.resolve() not in linked_paths]
         return found
 
     def list_games(self, with_sizes: bool = True) -> list[dict]:
         """The scan: every folder in the games roots with its state, size and what keeps it from the standard."""
         self.clean_empty()
         games = []
+        records = self.storage.linked.all()
+        # A folder linked where it is (a game left in an old games folder) is listed once, as the linked game.
+        linked_paths = {Path(r["path"]).resolve() for r in records} | self._moving_into()
         for root in self.storage.roots:
             if not root.is_dir():
                 continue
             for folder in sorted(root.iterdir()):
-                if folder.is_dir() and not folder.is_symlink():
+                if folder.is_dir() and not folder.is_symlink() and folder.resolve() not in linked_paths:
                     games.append(self._entry(folder, with_sizes))
-        records = self.storage.linked.all()
         owners, owned_rows = self._steam_rows({r["app_id"] for r in records})
         games += [self._linked_entry(record, with_sizes, owners.get(record["app_id"])) for record in records]
         # A game Game Access downloaded keeps its own row; the Steam copy of the same AppID is not listed twice.
         present = {g["app_id"] for g in games}
         games += [row for row in owned_rows if row["app_id"] not in present]
         self._merge_transfers(games, with_sizes)
+        from .run_checks import RunChecks
+        checks = RunChecks(self.storage.launcher)
+        for game in games:
+            game["run_check"] = checks.get(game.get("app_id"))
         flagged = [g for g in games if not g["standard"]]
         self.log.info("Scan: %s folders, %s outside the standard %s", len(games), len(flagged),
                       [(g["name"], [i["code"] for i in g["issues"]]) for g in flagged][:50])
         return games
+
+    def heal(self) -> list[str]:
+        """"Refresh" (Seba, 2026-10-30): a game folder of the library that does not count as installed, or asks for a
+        repair, is looked at again; when it holds a runnable game now (unpacked by hand, say) it becomes ready. Only the
+        library's own folders; nothing that is downloading or being installed, frozen or linked. Returns the names healed."""
+        healed = []
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in sorted(root.iterdir()):
+                app_id, title, state = split_folder_name(folder.name)
+                if app_id is None or not folder.is_dir() or folder.is_symlink() or state in ("preparing", "downloading", "installing"):
+                    continue
+                if self.storage.linked.get(app_id) or deep_archive(folder) is not None:
+                    continue
+                try:
+                    status = self.storage.status(app_id, title)
+                    if status.get("installed") and not status.get("needs_repair") and state == "ready":
+                        continue
+                    analysis = self.manager.analyze(app_id, title)
+                    if not analysis.get("ready"):
+                        continue
+                    self.storage.set_status(app_id, title, "ready")
+                    self.storage.clear_resume(app_id)
+                    journal.note(self.storage.folder(app_id, title), "revisado", f"listo al actualizar la biblioteca; ejecutable {analysis.get('executable', '')}")
+                    healed.append(title)
+                except Exception as error:  # one folder in use or odd must not stop the rest
+                    self.log.info("Refresh: %s could not be looked at again: %s", folder.name, error)
+        if healed:
+            self.log.info("Refresh: ready again %s", healed)
+        return healed
 
     def _entry(self, folder: Path, with_sizes: bool) -> dict:
         app_id, title, state = split_folder_name(folder.name)
@@ -104,6 +185,12 @@ class GameLibraryManager:
                  "size_bytes": folder_size(folder) if with_sizes else None, "plays": 0, "last_played": ""}
         if app_id is None:
             entry["issues"] = self.importer.issues(None, folder, None, None)
+            identified = self._identify(folder)
+            if identified:
+                # Found by the file a Steam emulator or fix leaves (as the importer does): the row is that game, and
+                # "Fix" renames the folder to <AppID>-<game> before adopting it.
+                entry.update(app_id=identified[0], misnamed=True, identified_by=identified[1])
+                entry["issues"] = [{"code": "misnamed", "message": ui("libMisnamed", app_id=identified[0], file=identified[1])}]
         else:
             try:
                 status = self.storage.status(app_id, title)
@@ -133,6 +220,55 @@ class GameLibraryManager:
         entry["reclaimable_bytes"] = sum(issue.get("bytes", 0) for issue in entry["issues"])
         entry["warning"] = entry["issues"][0]["message"] if entry["issues"] else ""
         return entry
+
+    def _identify(self, folder: Path) -> tuple[int, str] | None:
+        """The AppID a folder without it in its name declares (steam_emu.ini, OnlineFix.ini, steam_appid.txt...), when
+        no other game of the library has it already."""
+        from game_scanner import GameScanner
+        try:
+            declared = GameScanner()._measure(folder)[3]
+        except OSError:
+            return None
+        if not declared:
+            return None
+        app_id = int(declared[0])
+        taken = self.storage.linked.get(app_id) or any(
+            p.resolve() != folder.resolve()
+            for root in self.storage.roots if root.is_dir() for p in root.glob(f"{app_id}-*") if p.is_dir())
+        return None if taken else (app_id, declared[1])
+
+    def _rename_identified(self, app_id: int, folder: Path, name: str) -> None:
+        """Give an identified folder its AppID in the name (<AppID>-<game>); adopting it then sets its status."""
+        target = folder.parent / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        # Every step goes to the folder's own log, which the library manager shows, so the player sees what happened.
+        journal.note(folder, "corregir", f"identificado como AppID {app_id} ({name}); renombrando la carpeta a {target.name}")
+        if target.exists():
+            journal.note(folder, "error", f"error renombrando la carpeta: ya existe {target.name}")
+            raise ValueError(ui("relocTaken", folder=str(folder.parent)))
+        try:
+            folder.rename(target)
+        except OSError as error:
+            if in_use(error):
+                journal.note(folder, "error", "error renombrando la carpeta: está en uso. Cerrá cualquier ventana abierta en esa "
+                             "ubicación (Explorador, consola) y volvé a intentar.")
+            else:
+                journal.note(folder, "error", f"error renombrando la carpeta: {error}")
+            error.journaled = True
+            raise
+        journal.note(target, "importado", f"identificado como AppID {app_id}; carpeta renombrada desde {folder.name}")
+        self.log.info("AppID %s: misnamed folder %s renamed to %s", app_id, folder.name, target.name)
+
+    def identified_folder(self, app_id: int) -> Path | None:
+        """The folder, still without its AppID in the name, that declares `app_id` (a misnamed one), or None."""
+        for root in self.storage.roots:
+            if not root.is_dir():
+                continue
+            for folder in root.iterdir():
+                if folder.is_dir() and split_folder_name(folder.name)[0] is None:
+                    found = self._identify(folder)
+                    if found and found[0] == int(app_id):
+                        return folder
+        return None
 
     def _steam_rows(self, linked_ids: set[int]) -> tuple[dict[int, dict], list[dict]]:
         """The owner of every Steam game, and a row for each owned Steam game that is not installed: Steam installs it."""
@@ -168,6 +304,10 @@ class GameLibraryManager:
                  "size_bytes": self._linked_size(record, folder, with_sizes, steam_owner), "issues": [], "standard": True,
                  "reclaimable_bytes": 0, "warning": status.get("error", ""), "label": str(record.get("label") or ""),
                  **play_history(self.storage.linked.log_dir(record["app_id"]))}
+        if record["kind"] == "folder":
+            pending = self.pending_move(record["app_id"])
+            if pending:
+                entry["move_pending"] = pending
         if record["kind"] == "steam" and steam_owner is not None:
             entry["steam_owner"] = _owner(steam_owner)
             if not status["installed"]:
@@ -180,13 +320,17 @@ class GameLibraryManager:
         return entry
 
     def clean_empty(self) -> None:
-        """Empty game folders and empty temporary downloads are deleted without asking: they hold nothing."""
+        """Empty game folders and empty temporary downloads are deleted without asking: they hold nothing. A game folder
+        whose download is unfinished stays: its record is where the download goes on from (source, step)."""
+        unfinished = {item["app_id"] for item in self.storage.transfers()}
         for root in self.storage.roots:
             if not root.is_dir():
                 continue
             for folder in sorted(root.iterdir()):
                 app_id, _, state = split_folder_name(folder.name)
                 if app_id is None or state not in (None, "ready", "ERROR") or not folder.is_dir() or folder.is_symlink():
+                    continue
+                if app_id in unfinished:
                     continue
                 try:
                     if not any(self.storage.has_content(folder)):
@@ -207,8 +351,13 @@ class GameLibraryManager:
         by_id = {g["app_id"]: g for g in games if g["app_id"] is not None}
         queued = self.storage.queued_downloads()
         for item in self.storage.transfers():
-            size = folder_size(Path(item["folder"])) if with_sizes else None
+            # What really arrived: a torrent's files have their full length from the start (sparse).
+            size = allocated_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
+            # The folder's status is the state: "ready" is written only once the install ended, so whatever is left in
+            # the temporary root (an empty folder, a fresh "completed" progress file) is not a download of that game.
+            if row is not None and row.get("state") == "ready":
+                continue
             if row is not None:
                 row["transfer_bytes"], row["transfer_active"], row["transfer_kind"] = size, item["active"], item["kind"]
                 row["unfinished"] = True
@@ -228,10 +377,13 @@ class GameLibraryManager:
             game["queued"] = game.get("app_id") in queued
             game["unfinished"] = game["unfinished"] or game["queued"]
             # Where a stopped download goes on (download, extract): the same point the Download Manager retries from.
-            point = self.storage.resume_point(game["app_id"]) if game.get("app_id") is not None and not game.get("linked") else {}
+            point = self.storage.resume_point(game["app_id"]) if game.get("app_id") is not None and not game.get("linked") and game.get("state") != "ready" else {}
             game["resume_step"] = point.get("step", "") if point.get("source") else ""
             if game["resume_step"] and not game.get("transfer_active"):
                 game["unfinished"] = True
+                # A folder in ERROR with nothing left in the temporary root: its download stopped (a 403, say), but
+                # what the folder has (a copy put there by hand, an install that failed) can still be processed as is.
+                game["stalled"] = game.get("state") == "ERROR" and not game.get("transfer_kind") and not game["queued"]
 
     def usage(self) -> dict:
         """Launches per day and per month across the whole library: feeds the usage charts and, later, the play-time limiter."""
@@ -248,10 +400,18 @@ class GameLibraryManager:
         """What fixing each game would do, for the user to review before anything runs."""
         listed = [g for g in self.list_games(with_sizes=False) if g["app_id"] is not None and not g.get("linked")]
         names = {g["app_id"]: g["name"] for g in listed}
-        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished") and not g.get("stalled")}
+        misnamed = {g["app_id"]: g for g in listed if g.get("misnamed")}
         plans = []
         for app_id in dict.fromkeys(int(i) for i in app_ids):
-            if app_id in unfinished:
+            if app_id in misnamed:
+                game = misnamed[app_id]
+                standard = f"{app_id}-{self.storage.folder_name(game['name'])}"
+                plans.append({"app_id": app_id, "name": game["name"], "freed_bytes": 0, "actions": [
+                    {"code": "identify", "label": ui("libPlanIdentified", app_id=app_id, file=game["identified_by"])},
+                    {"code": "rename", "label": ui("libPlanRename", folder=standard)},
+                    {"code": "adopt", "label": ui("libPlanAdopt")}]})
+            elif app_id in unfinished:
                 plans.append({"app_id": app_id, "name": names[app_id], "actions": [], "error": UNFINISHED_MESSAGE})
             elif app_id in names:
                 try:
@@ -288,9 +448,18 @@ class GameLibraryManager:
                 "reclaimable_bytes": sum(g["reclaimable_bytes"] for g in games), **disk}
 
     # -- space check -------------------------------------------------------------------------
-    def check_space(self, download_bytes: int) -> dict:
-        """Can this download and its unpacking fit? Called before any download starts."""
-        room = check_space(download_bytes, self.storage.root, Path(self.storage.preferences.load()["temporary_root"]))
+    def check_space(self, download_bytes: int, app_id: int = 0, name: str = "") -> dict:
+        """Can this download and its unpacking fit? Called before any download starts. With the game's AppID, what an
+        unfinished download of it already has on disk counts: resuming 94 of 104 GB needs room for the rest only."""
+        temporary = Path(self.storage.preferences.load()["temporary_root"])
+        transfer = self.storage.transfer_folder(int(app_id), name) if app_id else None
+        if transfer is not None and transfer.is_dir():
+            on_disk = allocated_size(transfer)
+            room = check_download(download_bytes, on_disk, self.storage.root, temporary)
+            self.log.info("Space for AppID %s: %s bytes, %s already on disk; %s", app_id, download_bytes, on_disk,
+                          "fits" if room["ok"] else "does not fit")
+        else:
+            room = check_space(download_bytes, self.storage.root, temporary)
         if not room["ok"]:
             self.log.warning("Download refused (%s bytes): %s", download_bytes, room["message"])
         return room
@@ -303,11 +472,27 @@ class GameLibraryManager:
     def import_drives(self) -> list[dict]:
         return GameScanner.drives()
 
-    def import_scan(self, drives: list[str], progress=lambda text: None) -> list[dict]:
-        """Games found on the chosen disks that are not in the library yet."""
+    def import_scan(self, drives: list[str], progress=lambda text: None, folders: list[str] = (), report=None) -> list[dict]:
+        """Games found on the chosen disks and in the folders the player added that are not in the library yet."""
         known = [g["app_id"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
         exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
-        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress).scan(drives)
+        return GameScanner(exclude=exclude, known_app_ids=known, progress=progress, report=report).scan(drives, list(folders))
+
+    def relocate_plan(self, target: str) -> dict:
+        from .relocate import LibraryRelocation
+        return LibraryRelocation(self).plan(target)
+
+    def relocate(self, app_id: int, target: str, mode: str) -> dict:
+        from .relocate import LibraryRelocation
+        try:
+            return {"app_id": int(app_id), **LibraryRelocation(self).relocate(app_id, target, mode)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Relocate AppID %s failed: %s", app_id, error)
+            return {"app_id": int(app_id), "ok": False, "error": str(error)}
+
+    def relocate_finish(self) -> dict:
+        from .relocate import LibraryRelocation
+        return LibraryRelocation(self).finish()
 
     def import_games(self, items: list[dict]) -> list[dict]:
         """Import each item {app_id, name, path, mode: link|move, kind, executable}; one failure never stops the rest."""
@@ -336,6 +521,121 @@ class GameLibraryManager:
     def thaw(self, app_id: int, name: str):
         return self.freezer.thaw(app_id, name)
 
+    def _steam_uninstall(self, app_id: int) -> dict:
+        """A Steam game deleted from disk (its folder, manifest and leftovers); no Steam account is needed."""
+        record = self.storage.linked.get(app_id)
+        if self.steam is None or not record or record.get("kind") != "steam":
+            return {"ok": False, "error": "No es un juego de Steam instalado."}
+        try:
+            return {"ok": True, **self.steam.uninstall(app_id, self.storage.linked)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Steam uninstall AppID %s failed: %s", app_id, error)
+            return {"ok": False, "error": str(error)}
+
+    def _linked_folder_action(self, action: str, app_id: int) -> dict:
+        """Delete or move a game linked from one of the player's folders. A Steam game is Steam's: neither."""
+        record = self.storage.linked.get(app_id)
+        if not record:
+            return {"ok": False, "error": ui("linkedNotLinked")}
+        if record.get("kind") != "folder":
+            return {"ok": False, "error": ui("linkedIsSteam")}
+        folder = Path(record["path"])
+        try:
+            if action in ("linked_move", "linked_move_resume"):
+                return self._linked_move(app_id, record, folder, resume=action == "linked_move_resume")
+            if action == "linked_move_discard":
+                return self._discard_move(app_id)
+            keep = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"]), self.storage.launcher,
+                    *(Path(r["path"]) for r in self.storage.linked.all() if int(r["app_id"]) != int(app_id))]
+            reason = deletable_reason(folder, keep)
+            if reason:
+                return {"ok": False, "error": reason}
+            shutil.rmtree(folder)
+            self.storage.linked.unlink(app_id, hide=False)
+            self.log.info("AppID %s: linked folder deleted from disk: %s", app_id, folder)
+            return {"ok": True, "deleted": str(folder)}
+        except (OSError, ValueError, RuntimeError) as error:
+            self.log.error("Linked %s AppID %s failed: %s", action, app_id, error)
+            return {"ok": False, "error": str(error)}
+
+    def pending_move(self, app_id: int) -> dict | None:
+        """A move into the library cut short whose half-made copy is still there: {"percent", "target", "bytes"}."""
+        try:
+            state = json.loads((self.freezer.records / f"{int(app_id)}.progress.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        target = Path(state.get("target") or "")
+        if state.get("action") != "move" or not state.get("resumable") or not state.get("target") or not target.is_dir():
+            return None
+        return {"percent": float(state.get("percent") or 0), "target": str(target), "bytes": int(state.get("done_bytes") or 0)}
+
+    def _discard_move(self, app_id: int) -> dict:
+        """The half-made copy of a move cut short goes (only a folder of this game inside the games folder)."""
+        pending = self.pending_move(app_id)
+        if not pending:
+            return {"ok": True, "discarded": False}
+        target = Path(pending["target"])
+        inside = any(target.resolve().parent == root.resolve() for root in self.storage.roots)
+        if not inside or not target.name.startswith(f"{int(app_id)}-"):
+            return {"ok": False, "error": "La copia a medias no está en la carpeta de juegos."}
+        shutil.rmtree(target)
+        path = self.freezer.records / f"{int(app_id)}.progress.json"
+        state = json.loads(path.read_text(encoding="utf-8"))
+        state.update(resumable=False, discarded=True)
+        write_json(path, state)
+        journal.note(self.storage.linked.log_dir(app_id), "move", f"copia a medias descartada: {target}")
+        return {"ok": True, "discarded": True}
+
+    def _linked_move(self, app_id: int, record: dict, folder: Path, resume: bool = False) -> dict:
+        """A linked game moved into the games folder, shown like a freeze: one heavy disk job at a time (the freeze
+        lock), its progress in `<appid>.progress.json` (the game's row in the desktop), cancel and pause from the app,
+        and every step in the game's log with how long it took. Cancelled or failed, the game stays linked where it was.
+        A copy cut short by an error keeps what it copied (`resumable`): `resume` goes on from there."""
+        name, executable = record["name"], record.get("executable", "")
+        control = self.freezer._control(app_id)
+        try:
+            control.acquire("move")
+        except FreezeBusy as error:
+            return {"ok": False, "error": str(error)}
+        progress = self.freezer._progress(app_id, "move", folder)
+        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        # What a later start needs to put a move cut short right (GameFreezer.recover).
+        progress.state.update(source=str(folder), target=str(target), name=name, executable=executable)
+        started = time.time()
+        relink = lambda: folder.is_dir() and self.storage.linked.link(app_id, name, str(folder), "folder", executable)
+        # Until it is in the library its log is the linked game's (never a file written into the player's folder).
+        log = self.storage.linked.log_dir(app_id)
+        log.mkdir(parents=True, exist_ok=True)
+        journal.note(log, "move", f"{'retomando la mudanza' if resume else 'moviendo a la biblioteca'}: {target}")
+        # The link goes first (the importer refuses a game that is still linked) and comes back on failure.
+        self.storage.linked.unlink(app_id, hide=False)
+        try:
+            outcome = self.importer.import_game(app_id, name, str(folder), "move", "folder", progress=progress, checkpoint=control.checkpoint, resume=resume)
+        except FreezeCancelled:
+            relink()
+            progress.finish(False, cancelled=True)
+            journal.note(log, "move", "cancelado: el juego sigue vinculado donde estaba")
+            return {"ok": False, "cancelled": True}
+        except (OSError, ValueError, RuntimeError) as error:
+            relink()
+            # What was copied stays for a later "Continue" (pending_move), unless nothing was.
+            progress.state["resumable"] = target.is_dir() and folder.is_dir()
+            progress.finish(False, error=str(error))
+            journal.note(log, "move", f"no se pudo mover: {error}")
+            raise
+        finally:
+            control.release()
+        seconds = round(time.time() - started, 1)
+        if not outcome.get("ok", True):
+            relink()
+            progress.finish(False, error=outcome.get("error", ""))
+            return {"ok": False, **outcome}
+        progress.finish(True, moved=outcome.get("moved_bytes", 0), seconds=seconds)
+        moved_to = self.storage.folder(app_id, name)
+        if moved_to.is_dir():
+            journal.note(moved_to, "move", f"movido a la biblioteca en {seconds:.0f} s ({outcome.get('moved_bytes', 0)} bytes)")
+        return {"ok": True, **outcome, "seconds": seconds}
+
     # -- batch ---------------------------------------------------------------------------------
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
         """Run one action on many games; one failure never stops the rest."""
@@ -346,10 +646,24 @@ class GameLibraryManager:
         names = {g["app_id"]: g["name"] for g in listed}
         linked = {g["app_id"] for g in listed if g.get("linked")}
         steam_only = {g["app_id"] for g in listed if g.get("state") == "steam_owned" and not self.storage.linked.get(g["app_id"])}
-        unfinished = {g["app_id"] for g in listed if g.get("unfinished")}
+        stalled = {g["app_id"] for g in listed if g.get("stalled")}
+        unfinished = {g["app_id"] for g in listed if g.get("unfinished")} - stalled
+        misnamed = {g["app_id"]: Path(g["folder"]) for g in listed if g.get("misnamed")}
         results = []
+        # A game being frozen or thawed is left alone until that ends.
+        owner = freeze_holder(self.freezer.records)
+        busy = int(owner["app_id"]) if owner else None
         for app_id in dict.fromkeys(int(i) for i in app_ids):
             name = names.get(app_id)
+            if app_id == busy:
+                results.append({"app_id": app_id, "ok": False, "error": "Se está congelando o descongelando: esperá a que termine o cancelalo."})
+                continue
+            if action == "steam_uninstall":
+                results.append({"app_id": app_id, **self._steam_uninstall(app_id)})
+                continue
+            if action == "linked_delete" or action in MOVE_ACTIONS:
+                results.append({"app_id": app_id, **self._linked_folder_action(action, app_id)})
+                continue
             if app_id in steam_only:
                 if action == "uninstall":
                     self.storage.linked.hide(app_id)      # out of the library; Steam keeps the game
@@ -375,10 +689,15 @@ class GameLibraryManager:
                     self.freezer.forget(app_id)
                     results.append({"app_id": app_id, "ok": True})
                 elif action == "discard_transfer":
-                    self.storage.discard_transfer(app_id)
+                    self.storage.discard_transfer(app_id, game_folder=True)   # the player's "Discard": all of it
                     results.append({"app_id": app_id, "ok": True})
                 elif action == "adopt":
-                    results.append({"app_id": app_id, **self.importer.adopt(app_id, name)})
+                    if app_id in misnamed:
+                        self._rename_identified(app_id, misnamed[app_id], name)
+                    outcome = self.importer.adopt(app_id, name)
+                    if outcome.get("ok") and app_id in stalled:
+                        self.storage.clear_resume(app_id)   # processed as it is: no download left to go on with
+                    results.append({"app_id": app_id, **outcome})
                 elif action == "repair":
                     outcome = self.manager.repair(app_id, name)
                     results.append({"app_id": app_id, **outcome})
@@ -386,6 +705,15 @@ class GameLibraryManager:
                     results.append({"app_id": app_id, "ok": True, "analysis": self.manager.analyze(app_id, name)})
             except (OSError, ValueError, RuntimeError) as error:
                 self.log.error("Batch %s AppID %s failed: %s", action, app_id, error)
-                results.append({"app_id": app_id, "ok": False, "error": str(error)})
+                folder = _in_use(error)
+                if folder:
+                    # Windows will not rename or move a folder open in Explorer (or a console standing in it): say so
+                    # plainly, and in the game's own log too, where the player looks first.
+                    if not getattr(error, "journaled", False):
+                        journal.note(folder, "error", f"{action}: la carpeta está en uso. Cerrá cualquier ventana abierta en esa ubicación (Explorador, consola) y volvé a intentar.")
+                    # The folder too: the app asks Windows who holds it and names them (process_control.rs).
+                    results.append({"app_id": app_id, "ok": False, "error": ui("libFolderInUse", folder=str(folder)), "in_use_folder": str(folder)})
+                else:
+                    results.append({"app_id": app_id, "ok": False, "error": str(error)})
         self.log.info("Batch %s done: %s ok, %s failed", action, sum(1 for r in results if r.get("ok")), sum(1 for r in results if not r.get("ok")))
         return results

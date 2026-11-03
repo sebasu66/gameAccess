@@ -4,7 +4,8 @@ import { GaBack, GaClose } from "../components/ga/Buttons";
 import CircularScrollbar from "../CircularScrollbar";
 import { useI18n } from "../i18n";
 import { gsap, motionOk } from "../motion/gsap";
-import { closeAllPanels, closePanel, useDesk, useWideDesk, type DeskPanelId } from "./desk";
+import { queueTransition } from "../motion/transitions";
+import { closeAllPanels, closePanel, isSidePanel, useDesk, useWideDesk, type DeskPanelId } from "./desk";
 import "./desk.css";
 
 const SubtitleContext = createContext<((text: string) => void) | null>(null);
@@ -15,9 +16,9 @@ export function useDeskSubtitle(text: string) {
 }
 
 /**
- * A secondary panel (T10). Beside the catalog in a wide window: it slides in from its edge; while the pointer and
- * the focus are elsewhere it turns grey and leans 9° toward the centre, and straightens when used. In a small window
- * it covers the screen with a 3D turn and a Back button; Esc goes back. Its content mounts only while it is open.
+ * A secondary panel (T10). Beside the catalog in a wide window (downloads always): it slides in from its edge and
+ * stands flat in its own colours. Otherwise, in a small window, it covers the screen with a
+ * 3D turn and a Back button; Esc goes back. Its content mounts only while it is open.
  */
 export default function DeskPanel({ id, eyebrow, title, children }: { id: DeskPanelId; eyebrow: string; title: string; children: ReactNode }) {
   const { t } = useI18n();
@@ -30,42 +31,55 @@ export default function DeskPanel({ id, eyebrow, title, children }: { id: DeskPa
   const host = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const side = id === "manager" ? "left" : "right";
+  const beside = isSidePanel(id, wide);
   if (open && !present) setPresent(true);
 
+  // Coming and going are steps of the transition queue (motion/transitions.ts). Opening, the panel waits its turn
+  // already at its starting place (out of sight), so it never shows before it slides in.
   useLayoutEffect(() => {
     const el = host.current;
     if (!el || !open || !motionOk()) return;
-    const tween = wide
-      ? gsap.fromTo(el, { xPercent: side === "left" ? -100 : 100 }, { xPercent: 0, duration: .6, ease: "expo.out" })
-      : gsap.fromTo(el, { rotationY: -24, x: 90, opacity: 0, transformPerspective: 1400, transformOrigin: "left center" }, { rotationY: 0, x: 0, opacity: 1, duration: .7, ease: "expo.out", clearProps: "transform" });
-    return () => { tween.kill(); };
-  }, [open, wide]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (beside) gsap.set(el, { xPercent: side === "left" ? -100 : 100 });
+    else gsap.set(el, { rotationY: -24, x: 90, opacity: 0, transformPerspective: 1400, transformOrigin: "left center" });
+    let timeline: gsap.core.Timeline | null = null;
+    void queueTransition(() => {
+      timeline = beside
+        ? gsap.timeline().to(el, { xPercent: 0, duration: .6, ease: "expo.out" })
+        : gsap.timeline().to(el, { rotationY: 0, x: 0, opacity: 1, duration: .7, ease: "expo.out", clearProps: "transform" });
+      return timeline;
+    }, `panel:${id}:open`);
+    return () => { timeline?.kill(); };
+  }, [open, beside]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open || !present) return;
     const el = host.current;
     if (!el || !motionOk()) { setPresent(false); return; }
-    const tween = wide
-      ? gsap.to(el, { xPercent: side === "left" ? -100 : 100, duration: .35, ease: "power2.in", onComplete: () => setPresent(false) })
-      : gsap.to(el, { rotationY: 24, x: 90, opacity: 0, transformPerspective: 1400, duration: .4, ease: "power2.in", onComplete: () => setPresent(false) });
-    return () => { tween.kill(); };
-  }, [open, present, wide, side]);
+    let timeline: gsap.core.Timeline | null = null;
+    void queueTransition(() => {
+      timeline = beside
+        ? gsap.timeline().to(el, { xPercent: side === "left" ? -100 : 100, duration: .35, ease: "power2.in" })
+        : gsap.timeline().to(el, { rotationY: 24, x: 90, opacity: 0, transformPerspective: 1400, duration: .4, ease: "power2.in" });
+      return timeline.call(() => setPresent(false));
+    }, `panel:${id}:close`);
+    return () => { timeline?.kill(); };
+  }, [open, present, beside, side]);
 
   useEffect(() => {
-    if (!open || wide) return;
+    if (!open || beside) return;
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); closeAllPanels(); } };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [open, wide]);
+  }, [open, beside]);
 
   if (!present) return null;
   const slot = id === "news" ? (panels.includes("downloads") ? "below" : "full") : id === "downloads" && panels.includes("news") ? "above" : "full";
   return createPortal(
-    <aside ref={host} className="ga-desk-panel" data-mode={wide ? "panel" : "page"} data-side={side} data-slot={slot} aria-label={title}>
+    <aside ref={host} className="ga-desk-panel" data-mode={beside ? "panel" : "page"} data-side={side} data-slot={slot} aria-label={title}>
       <div className="ga-desk-card">
         <header className="ga-desk-head">
           <div><span className="ga-desk-eyebrow">{eyebrow}</span><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div>
-          {wide ? <GaClose label={t("close")} onClick={() => closePanel(id)} /> : <GaBack label={t("back")} onClick={closeAllPanels} />}
+          {beside ? <GaClose label={t("close")} onClick={() => closePanel(id)} /> : <GaBack label={t("back")} onClick={closeAllPanels} />}
         </header>
         <div className="ga-scroll-frame ga-desk-frame">
           <div ref={body} className="ga-desk-body"><SubtitleContext.Provider value={setSubtitle}>{children}</SubtitleContext.Provider></div>

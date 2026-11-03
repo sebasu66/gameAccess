@@ -8,11 +8,11 @@
   --lm-card: 24 27 31;
   --lm-muted: 36 38 44;
   --lm-muted-foreground: 146 155 162; /* --ga-muted */
-  --lm-primary: 255 106 0;          /* --ga-orange */
+  --lm-primary: 204 131 51;          /* --ga-orange */
   --lm-primary-foreground: 17 17 17;
-  --lm-destructive: 229 32 46;      /* the app's close-button red */
-  --lm-success: 52 199 120;
-  --lm-warning: 255 176 0;
-  --lm-info: 86 156 255;
-  --lm-frost: 143 211 255; /* --ga-frost: frozen games */
+  --lm-destructive: 190 71 80;      /* the app's close-button red */
+  --lm-success: 81 170 122;
+  --lm-warning: 204 143 51;
+  --lm-info: 120 162 221;
+  --lm-frost: 165 206 233; /* --ga-frost: frozen games */
 }

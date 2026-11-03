@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getApiBaseUrl } from "./settings";
 import { boundedFetch } from "./settings";
 import { translate, translateServerDetail } from "./i18n";
+import { narrate } from "./narrationLog";
 
 export const ACTIVATION_INVALID_EVENT = "gameaccess:activation-invalid";
 
@@ -52,7 +53,16 @@ export async function saveActivationSession(token: string, persistent = false, k
   sessionToken = token;
 }
 
-export async function clearActivationSession(): Promise<void> {
+/** The server that last verified the saved activation: a rejection from another one (the hosted server when the
+ *  activation came from the local test server, or the other way round) does not erase it. */
+const ACTIVATION_SERVER = "gameaccess:activation-server";
+const activationServer = () => { try { return localStorage.getItem(ACTIVATION_SERVER) || ""; } catch { return ""; } };
+const rememberActivationServer = (url: string) => { try { localStorage.setItem(ACTIVATION_SERVER, url.replace(/\/+$/, "")); } catch { /* only a safeguard */ } };
+const sameServer = (url: string) => { const known = activationServer(); return !known || known === url.replace(/\/+$/, ""); };
+
+/** Erases the saved activation; `why` goes to the log (Seba, 2026-10-30: PLUS went away and nothing said why). */
+export async function clearActivationSession(why = "unspecified"): Promise<void> {
+  void narrate(`Activation: the saved activation is removed (${why}).`, { area: "ACCESS", level: "WARN" });
   sessionToken = "";
   activationTier = null;
   if (native()) await invoke("activation_clear_session");
@@ -131,7 +141,13 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
       response = new Response(JSON.stringify(status), { status: 200 });
     } catch (error) {
       const message = String(error);
-      if (!message.includes("GAMEACCESS_ACCESS_DENIED")) throw new ActivationConnectionError();
+      // Only the server's own 401 carries its reason ("DENIED:{...}"); a bare denial is this app's own check (a grant
+      // that arrived empty, two checks crossing): not the server's word, so it is tried again. So is a 401 from a
+      // server other than the one that verified this activation.
+      if (!message.includes("GAMEACCESS_ACCESS_DENIED:") || !sameServer(endpoint)) {
+        void narrate(`Activation: not confirmed by ${endpoint} (${message.slice(0, 160)}); the saved activation is kept and checked again.`, { area: "ACCESS", level: "WARN" });
+        throw new ActivationConnectionError();
+      }
       let detail: ActivationEnd = {reason:"unavailable"};
       try { detail = JSON.parse(message.slice(message.indexOf("GAMEACCESS_ACCESS_DENIED:") + "GAMEACCESS_ACCESS_DENIED:".length)); } catch { /* No private details required. */ }
       response = new Response(JSON.stringify({detail}), {status:401});
@@ -142,6 +158,7 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
     }, signal);
   }
   if (!response.ok) {
+    if (response.status === 401 && !sameServer(endpoint)) throw new ActivationConnectionError();
     if (response.status === 401) {
       const body = await response.json().catch(() => ({})) as { detail?: Partial<ActivationEnd> };
       const detail = body.detail;
@@ -150,13 +167,14 @@ export async function checkActivation(token: string, signal?: AbortSignal, baseU
         ? { reason: detail.reason === "expired" || detail.reason === "revoked" ? detail.reason : fallback.reason,
             expires_at: detail.expires_at || fallback.expires_at, revoked_at: detail.revoked_at } as ActivationEnd
         : fallback;
-      await clearActivationSession();
+      await clearActivationSession(`the server ${endpoint} rejected it: ${end.reason}`);
       throw new ActivationRejectedError(end);
     }
     throw new ActivationConnectionError();
   }
   const status = await response.json() as ActivationStatus;
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  if (status.active) rememberActivationServer(endpoint);
   activationTier = status.access_tier === "plus" ? "plus" : "base";
   if (status.cacheable !== true) {
     await saveActivationSession(token, false);

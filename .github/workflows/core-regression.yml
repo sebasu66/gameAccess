@@ -24,7 +24,7 @@ jobs:
             apps/api/requirements.txt
             apps/launcher/requirements.txt
       - name: Install API test dependencies
-        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest
+        run: pip install -r apps/api/requirements.txt -r apps/launcher/requirements.txt pytest==9.1.1
       - name: Run complete API regression suite
         env:
           PYTHONPATH: apps/api
@@ -60,7 +60,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install launcher dependencies
-        run: pip install -r apps/launcher/requirements.txt pytest
+        run: pip install -r apps/launcher/requirements.txt pytest==9.1.1
       - name: Run launcher regression suite
         env:
           PYTHONPATH: apps/launcher

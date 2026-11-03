@@ -1,3 +1,4 @@
+import { rememberTasteGame } from "./tasteProfile";
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
 import { overviewCoverSizing } from "./overviewSizing";
@@ -9,12 +10,13 @@ import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog from "./LibraryFilterDialog";
 import CatalogFilterToolbar from "./CatalogFilterToolbar";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { gsap, motionOk, useGSAP } from "./motion/gsap";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, RefObject } from "react";
-import { ArrowUpDown, ArrowUpToLine, HardDrive, Loader2, Play, Snowflake, Star, X } from "lucide-react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { dur, gsap, motionOk, useGSAP } from "./motion/gsap";
+import { queueTransition, transitionsBusy } from "./motion/transitions";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
+import { ArrowUpDown, ArrowUpToLine, Download, FolderInput, LayoutGrid, Loader2, Play, Snowflake, Star, X } from "lucide-react";
 
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
@@ -36,8 +38,11 @@ import SteamGlobalSearch from "./SteamGlobalSearch";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
-import { GaClose, GaIconButton } from "./components/ga/Buttons";
+import { GaButton, GaIconButton } from "./components/ga/Buttons";
+import { CLOSE_LIBRARY_MANAGER_EVENT, OPEN_LIBRARY_MANAGER_EVENT, setLibraryManagerShown } from "./libraryManagerNav";
+import { setAppScreen } from "./appScreen";
 import CatalogSpotlight from "./CatalogSpotlight";
+import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
 import LibraryBento, { type LibraryPill } from "./LibraryBento";
 
@@ -141,7 +146,9 @@ const DownloadGameCard = memo(function DownloadGameCard({ game, index, selected,
       {entry && (entry.label || entry.source_title) ? <div className="ga-card-source" title={entry.label ? t("cardLabelHint", { name: game.name }) : t("cardSourceHint", { provider: entry.source_provider || t("cardSourceUnknown"), title: entry.source_title ?? "" })}>
         {entry.label || [entry.source_provider, entry.source_title].filter(Boolean).join(" · ")}</div> : null}
       {entry?.frozen ? <FrozenSize entry={entry} /> : null}
-      {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div> : null}
+      {flag ? <div className="ga-card-flag" title={flag.warning}>⚠ {flag.issues.some(issue => issue.code === "error") ? (locale === "en" ? "Has an error: needs processing" : "Con error: hay que procesarlo") : (locale === "en" ? "Outside the standard: needs processing" : "Fuera de estándar: hay que procesarlo")}</div>
+        // A game that was tried here and did not open: the same warning, with the reason in its tooltip.
+        : entry?.run_check?.state === "cantRun" ? <div className="ga-card-flag" title={t("bentoCantRun", { why: entry.run_check.detail })}>⚠ {t("cardCantRun")}</div> : null}
     </div>
   );
 });
@@ -197,6 +204,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const catalogSort = props.catalogSort ?? "steam-popularity";
   const onCatalogSortChange = props.onCatalogSortChange ?? (() => undefined);
   const searchQuery = props.searchQuery ?? "";
+  // The library has no game at all (not one hidden by a search or a filter): say so and offer the two ways to add games.
+  const libraryEmpty = view === "library" && getCatalogMode() === "digital" && !props.hasInstalled && !displaySection.games.length && !searchQuery.trim();
   const onSearchQueryChange = props.onSearchQueryChange ?? (() => undefined);
   const allGames = props.allGames ?? props.games;
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
@@ -206,28 +215,56 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerFocus, setManagerFocus] = useState<number | null>(null);
+  // "Import" in the empty library: the manager opens with its import already started.
+  const [importOnOpen, setImportOnOpen] = useState(false);
+  // With the manager shown, the round scrollbar moves its games' rows; the rest of the manager stays put.
+  const managerScrollRef = useRef<HTMLDivElement>(null);
   const showManager = managerOpen && view === "library" && getCatalogMode() === "digital";
-  // Grid and manager swap with a short slide: what is shown leaves (up toward the manager, down back to the grid),
-  // then the other one comes in from the opposite side. Without motion they swap at once.
-  const swapping = useRef(false);
+  // Grid and manager swap with a short slide, as one step of the transition queue (motion/transitions.ts): what is
+  // shown leaves (up toward the manager, down back to the grid), then the other one comes in from the opposite side.
+  // Without motion they swap at once.
+  const managerShown = useRef(showManager);
+  managerShown.current = showManager;
+  // What was last asked for: a second press while the first is still waiting its turn undoes it, not repeats it.
+  const managerWanted = useRef(showManager);
+  useEffect(() => { if (!transitionsBusy()) managerWanted.current = showManager; }, [showManager]);
   const toggleManager = (open: boolean) => {
-    const grid = props.gridRef.current;
-    const swap = () => { swapping.current = false; setManagerOpen(open); grid?.scrollTo({ top: 0, behavior: "auto" }); };
-    const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
-    if (open === showManager || swapping.current) { if (!swapping.current) swap(); return; }
-    if (!leaving.length || !motionOk()) { swap(); return; }
-    swapping.current = true;
-    gsap.to(leaving, { opacity: 0, y: open ? -16 : 16, duration: .2, ease: "power2.in", overwrite: true, onComplete: swap });
+    managerWanted.current = open;
+    void queueTransition(async () => {
+      if (open === managerShown.current) { setManagerOpen(open); return; }
+      const grid = props.gridRef.current;
+      const leaving = [grid?.firstElementChild, open ? document.querySelector(".ga-grid-toolbar") : null].filter((el): el is Element => Boolean(el));
+      if (leaving.length) await gsap.timeline().to(leaving, { opacity: 0, y: open ? -16 : 16, duration: dur(.2), ease: "power2.in" });
+      flushSync(() => setManagerOpen(open));
+      grid?.scrollTo({ top: 0, behavior: "auto" });
+      gsap.set(leaving, { clearProps: "opacity,transform" });
+      const entering = [grid?.firstElementChild, open ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
+      if (!entering.length) return;
+      await gsap.timeline().fromTo(entering, { opacity: 0, y: open ? 24 : -24 }, { opacity: 1, y: 0, duration: dur(.5), ease: "expo.out", clearProps: "opacity,transform" });
+    }, open ? "manager:open" : "manager:close");
   };
-  const swapped = useRef(false);
-  useGSAP(() => {
-    // Not on the first render: only when the grid and the manager trade places.
-    if (!swapped.current) { swapped.current = true; return; }
-    const entering = [props.gridRef.current?.firstElementChild, showManager ? null : document.querySelector(".ga-grid-toolbar")].filter((el): el is Element => Boolean(el));
-    if (!entering.length || !motionOk()) { gsap.set(entering, { clearProps: "opacity,transform" }); return; }
-    gsap.fromTo(entering, { opacity: 0, y: showManager ? 24 : -24 }, { opacity: 1, y: 0, duration: .5, ease: "expo.out", overwrite: true, clearProps: "opacity,transform" });
-  }, { dependencies: [showManager] });
   useEffect(() => { if (view !== "library") setManagerOpen(false); }, [view]);
+  // A task of the processes panel takes to its game's row in the manager, from any view of the games.
+  const pendingManager = useRef(false);
+  useEffect(() => {
+    const show = (event: Event) => {
+      const appId = (event as CustomEvent<{ appId?: number }>).detail?.appId;
+      setAppScreen("games");
+      if (appId != null) setManagerFocus(appId);
+      if (view === "library") toggleManager(true);
+      else { pendingManager.current = true; onViewChange("library"); }
+    };
+    const hide = () => { if (managerWanted.current) toggleManager(false); };
+    window.addEventListener(OPEN_LIBRARY_MANAGER_EVENT, show);
+    window.addEventListener(CLOSE_LIBRARY_MANAGER_EVENT, hide);
+    return () => { window.removeEventListener(OPEN_LIBRARY_MANAGER_EVENT, show); window.removeEventListener(CLOSE_LIBRARY_MANAGER_EVENT, hide); };
+  });
+  useEffect(() => { setLibraryManagerShown(showManager); }, [showManager]);
+  useEffect(() => () => setLibraryManagerShown(false), []);
+  useEffect(() => { if (view === "library" && pendingManager.current) { pendingManager.current = false; toggleManager(true); } }, [view]);
+  // Big picture mode is the grid of ready games only: the library manager closes.
+  const bigPicture = useBigPicture();
+  useEffect(() => { if (bigPicture) setManagerOpen(false); }, [bigPicture]);
   useEffect(() => {
     if (!showManager) return;
     // Esc goes back to the grid, unless one of the manager's own dialogs is open.
@@ -236,6 +273,28 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.removeEventListener("keydown", key);
   }, [showManager]);
   useCardHover(props.gridRef);
+  // The search dock is part of the central panel: the search field is centred on the panel's content (the grid's
+  // column, whatever the view: catalog, library or library manager), not on the window. Measured on the panel, which
+  // stays the same element across views, and again whenever the view changes.
+  useLayoutEffect(() => {
+    const panel = props.gridRef.current?.closest<HTMLElement>(".library-room-catalog") ?? props.gridRef.current;
+    if (!panel) return;
+    // Layout position (offsets), not the on-screen box: the view change turns the panel in 3D for a moment and a
+    // transformed box would put the dock off centre until the next resize.
+    const place = () => {
+      let left = 0;
+      for (let node: HTMLElement | null = panel; node; node = node.offsetParent as HTMLElement | null) left += node.offsetLeft - (node === panel ? 0 : node.scrollLeft);
+      const css = getComputedStyle(panel), padLeft = parseFloat(css.paddingLeft) || 0, width = panel.offsetWidth - padLeft - (parseFloat(css.paddingRight) || 0);
+      if (width > 0) document.documentElement.style.setProperty("--ga-dock-center", `${Math.round(left + padLeft + width / 2)}px`);
+    };
+    place();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(panel);
+    const room = panel.closest<HTMLElement>(".library-room");
+    if (room) observer?.observe(room);
+    window.addEventListener("resize", place);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", place); };
+  }, [props.gridRef, view, showManager]);
   // The wordmark and the top-right buttons line up with the catalog's edges (the row of filters above the grid).
   useEffect(() => {
     const row = document.querySelector<HTMLElement>(".ga-grid-toolbar");
@@ -270,6 +329,12 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     return () => window.clearTimeout(timer);
   }, [selectedGameId, props.gridRef]);
   const [libraryPill, setLibraryPill] = useState<LibraryPill>("all");
+  // The library's groups, as three cubes on the filter strip: one pressed shows only that group.
+  const libraryGroups: Array<{ kind: Exclude<LibraryPill, "all">; label: string; icon: ReactNode }> = [
+    { kind: "ready", label: t("bentoSectionReady"), icon: <Play size={19} aria-hidden="true" /> },
+    { kind: "deep", label: t("bentoSectionDeep"), icon: <Snowflake size={19} aria-hidden="true" /> },
+    { kind: "pending", label: t("bentoSectionPending"), icon: <Download size={19} aria-hidden="true" /> },
+  ];
   const [sectionReset, setSectionReset] = useState(0);
   // Keyed on the list itself: the catalog query is capped at 1000 rows, so a new search often has the same
   // count and first game, and a stale map gave clicked cards no index (the grid jumped, no detail opened).
@@ -433,18 +498,20 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
-        {view !== "catalog" ? (
-          <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
-            <button type="button" aria-pressed={libraryPill === "installed"} onClick={() => setLibraryPill(current => (current === "installed" ? "all" : "installed"))}>{t("pillInstalled")}</button>
-            <button type="button" aria-pressed={libraryPill === "favorites"} onClick={() => setLibraryPill(current => (current === "favorites" ? "all" : "favorites"))}>{t("pillFavorites")}</button>
-          </div>
-        ) : null}
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
         </div>
-        <div className="library-catalog-tabs" role="tablist" aria-label={t("uiColeccionesDeJuegos")}>
-          {views.map(item => <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={view === item.id || (item.id === "installed" && view === "favorites")} className={`tab-${item.id}${view === item.id || (item.id === "installed" && view === "favorites") ? " is-active" : ""}`} onClick={() => { onViewChange(item.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>{item.id === "catalog" ? <FilledIcon name="catalog" /> : <FilledIcon name="library" />}<span>{item.label}</span></button>)}
-          </div>
+        {/* One button for the two views: it shows where it goes (the other view's icon and name, in its big word's
+            colour) and switches to it. */}
+        <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
+          {(() => {
+            const next = view === "catalog" ? views[1] : views[0];
+            return <button type="button" className={`ga-view-toggle is-${next.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { next: next.label })} title={t("viewToggleAria", { next: next.label })}
+              onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
+              <span key={next.id} className="ga-view-toggle-face"><FilledIcon name={next.id === "catalog" ? "catalog" : "library"} /><span>{next.label}</span></span>
+            </button>;
+          })()}
+        </div>
 
 
       </div>
@@ -461,10 +528,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
   />;
-  // The manager opens from the footer dock on the right, with the other footer buttons and in their style.
-  const dockTarget = props.actionsTarget?.closest(".catalog-bottom-actions")?.querySelector<HTMLElement>(".ga-dock") ?? null;
-  const managerButton = view === "library" && getCatalogMode() === "digital"
-    ? <GaIconButton className="ga-library-manager-button" icon={<HardDrive size={20} aria-hidden="true" />} label={t("libraryManagerButton")} pressed={showManager} onClick={() => toggleManager(!showManager)} /> : null;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -473,24 +536,33 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
       {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{filters}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
+      {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+        {libraryGroups.map(group =>
+          <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
+      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
-            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div><GaClose label={t("close")} onClick={() => toggleManager(false)} /></header>
-            <GameLibraryManager embedded focusAppId={managerFocus} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div></header>
+            <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
           </div>
-        ) : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
+        ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">
+          <h2 id="ga-library-empty-title" className="ga-heading">{t("libraryEmptyTitle")}</h2>
+          <p>{t("libraryEmptyText")}</p>
+          <div className="ga-actions">
+            <GaButton variant="primary" icon={<FolderInput size={16} aria-hidden="true" />} onClick={() => { setImportOnOpen(true); toggleManager(true); }}>{t("libraryEmptyImport")}</GaButton>
+            <GaButton icon={<LayoutGrid size={16} aria-hidden="true" />} onClick={() => onViewChange("catalog")}>{t("tabCatalog")}</GaButton>
+          </div>
+        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
       </div>
-      {typeof window !== "undefined" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") || "") ? <CircularScrollbar targetRef={props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
+      {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>
       {props.actionsTarget && backToTop ? createPortal(backToTop, props.actionsTarget) : null}
-      {managerButton ? (dockTarget ? createPortal(managerButton, dockTarget) : managerButton) : null}
       {/* A catalog card: the same glass side menu as the library, with only the catalog's actions. */}
       {contextMenu && view === "catalog" && contextMenu.anchor ? (
-        <CatalogGameMenu game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}
-          onInstall={props.onInstall} onFavorite={props.onPreference ? game => props.onPreference!(game.id, 1) : undefined} onClose={() => setContextMenu(null)} />
+        <CatalogGameMenu key={contextMenu.game.id} game={contextMenu.game} anchor={contextMenu.anchor} status={contextMenu.status} favorite={props.preferences?.[contextMenu.game.id] === 1}
+          onInstall={props.onInstall} onFavorite={props.onPreference ? game => { rememberTasteGame(game); props.onPreference!(game.id, 1); } : undefined} onClose={() => setContextMenu(null)} />
       ) : contextMenu ? (
         !((contextMenu.game as any).use_game_access === true || (contextMenu.game as any).is_game_access === true) ? (
           <DigitalGameContextMenu request={contextMenu} onClose={() => setContextMenu(null)} onInstall={props.onInstall} onPlay={props.onPlay} />

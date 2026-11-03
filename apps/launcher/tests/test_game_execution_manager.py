@@ -81,11 +81,40 @@ def test_repair_action_marks_ready_or_error_and_writes_the_log(tmp_path):
     assert not failed["ok"] and storage.status(1, "My Game")["state"] == "ERROR"
     folder = storage.folder(1, "My Game")
     (folder / "MyGame.exe").write_bytes(b"g")
+    # A download that stopped earlier (a 403) left a point to go on from; the game unpacked by hand makes it moot.
+    storage.set_resume(1, "download", source="https://example.invalid/my-game")
     fixed = runner.run("game-repair", 1, "My Game")
-    assert fixed["ok"] and storage.status(1, "My Game")["state"] == "ready"
+    assert fixed["ok"] and storage.status(1, "My Game")["state"] == "ready" and storage.resume_point(1) == {}
     folder = storage.folder(1, "My Game")
     assert "| ERROR |" in journal.read(folder) and "reparación | listo" in journal.read(folder)
     assert runner.run("game-analyze", 1, "My Game")["analysis"]["ready"]
+
+
+def test_kid_entry_names_the_executable_a_child_account_starts(tmp_path):
+    storage, folder = make(tmp_path, {"MyGame.exe": b"g"})
+    runner = DigitalProcessRunner(storage)
+    entry = runner.run("kid-entry", 1, "My Game")["entry"]
+    assert entry["steam"] is False and entry["folder"] == str(storage.folder(1, "My Game"))
+    assert entry["executable"].lower().endswith("mygame.exe") and entry["arguments"] == []
+
+
+def test_kid_entry_uses_the_ready_folder_the_library_showed(tmp_path):
+    # The game lives in a "-ready" folder outside this launcher's games roots (another install, another games
+    # folder): the folder the adult chose rules, not the new name storage.folder would make up.
+    storage = DigitalGameStorage(tmp_path / "launcher")
+    elsewhere = tmp_path / "other" / "311690-Enter the Gungeon-ready"
+    (elsewhere / "Enter The Gungeon").mkdir(parents=True)
+    (elsewhere / "Enter The Gungeon" / "EtG.exe").write_bytes(b"g")
+    runner = DigitalProcessRunner(storage)
+    result = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": "%s"}' % str(elsewhere).replace("\\", "\\\\"))
+    assert result["ok"], result
+    assert result["entry"]["folder"] == str(elsewhere) and result["entry"]["executable"].endswith("EtG.exe")
+    assert result["entry"]["administrator"] is False
+    # A game that asks to run as administrator says so: the child's account is then made one.
+    save_profile(storage.launcher, 311690, {"runAsAdmin": True})
+    assert runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": "%s"}' % str(elsewhere).replace("\\", "\\\\"))["entry"]["administrator"] is True
+    missing = runner.run("kid-entry", 311690, "Enter the Gungeon", '{"folder": ""}')
+    assert not missing["ok"] and "carpeta" in missing["error"]
 
 
 def test_a_download_with_nothing_runnable_is_not_a_game(tmp_path):

@@ -2,11 +2,13 @@
 
 mod automation;
 mod access_activation;
+mod admin_key;
 mod parental_lock;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
 mod source_index;
+mod game_lessons;
 mod download_lifecycle;
 mod game_uninstall;
 mod steam_artwork;
@@ -24,35 +26,72 @@ mod plugin_registry;
 mod plugin_install;
 mod app_update;
 mod download_queue;
+mod game_controllers;
+mod game_focus;
+mod webview_rest;
+mod window_fit;
+mod process_control;
+mod kid_mode;
+mod windows_account;
+mod app_shortcuts;
+mod antivirus;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    // The child's desktop (kid_mode.rs): this process only watches the real app.
+    if kid_mode::run_shell_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
     app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
     let visual_debug_dir = visual_debug::visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+    // A test instance (tools/gameaccess-mcp, debug builds only) runs beside the installed app with its own data,
+    // so it must not take over what belongs to the installed one: the single instance, gameaccess:// and updates.
+    let test_instance = cfg!(debug_assertions) && env::var_os("GAMEACCESS_TEST_INSTANCE").is_some();
+    let builder = tauri::Builder::default();
+    let builder = if test_instance { builder } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
             plugin_install::receive(&args);
             if let Some(window) = app.get_webview_window("main") { let _=window.unminimize(); let _=window.show(); let _=window.set_focus(); }
+            // The page may be suspended while a game runs: wake it before asking it to launch.
+            webview_rest::wake(app);
             let _=app.emit("gameaccess:launch-request",());
         }))
+    };
+    builder
         // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .setup(|app| {
+        .plugin(tauri_plugin_dialog::init())
+        // Rests while minimized, or while a game runs and Game Access does not have the focus (webview_rest.rs).
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Focused(focused) => {
+                webview_rest::reconcile(window, Some(*focused));
+                // Back from a game that changed the resolution: a maximized window fills its screen again (window_fit.rs).
+                if *focused { window_fit::refit(window); }
+            }
+            tauri::WindowEvent::Resized(_) => webview_rest::reconcile(window, None),
+            // In a child's account closing Game Access (Alt+F4 too) signs the child out (kid_mode.rs).
+            tauri::WindowEvent::CloseRequested { .. } if kid_mode::kid_account().is_some() => kid_mode::sign_out(),
+            _ => {}
+        })
+        .setup(move |app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
             plugin_install::attach(app.handle().clone());
-            plugin_install::register_protocol();
+            if !test_instance { plugin_install::register_protocol(); }
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
-            plugin_registry::start_registered_plugins();
-            app_update::start_watchdog(app.handle().clone());
+            // A child's account: what Steam starts outside the child's games is closed (kid_mode.rs).
+            kid_mode::start_guard(app.handle().clone());
+            // A child's account cannot install updates or plugins: the adult's Game Access does.
+            if kid_mode::kid_account().is_none() {
+                plugin_registry::start_registered_plugins();
+                if !test_instance { app_update::start_watchdog(app.handle().clone()); }
+            }
             Ok(())
         })
         .manage(automation_state)
@@ -61,9 +100,21 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
+            plugin_registry::uninstall_plugin,
             app_update::app_frontend_alive,
+            game_controllers::game_controllers_connected,
+            game_focus::game_focus_watch,
+            window_fit::window_toggle_maximize,
+            window_fit::window_set_big_screen,
+            process_control::folder_lockers,
+            process_control::close_explorer_windows,
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
+            admin_key::admin_key_state,
+            admin_key::admin_key_check,
+            admin_key::admin_key_set,
+            admin_key::admin_key_clear,
+            admin_key::admin_key_word,
             parental_lock::parental_state,
             parental_lock::parental_save,
             parental_lock::parental_check,
@@ -86,6 +137,10 @@ fn main() {
             catalog_cache::catalog_cache_get_facets,
             source_index::catalog_sources_apply,
             source_index::catalog_sources_remove_plugin,
+            game_lessons::game_lessons_revision,
+            game_lessons::game_lessons_apply,
+            game_lessons::game_lessons_add_mine,
+            game_lessons::game_lessons_query,
             automation::automation_config,
             automation::capture_automation_screenshot,
             automation::finish_automation,
@@ -114,6 +169,7 @@ fn main() {
             steam_commands::steam_metadata_worker_poll,
             steam_commands::steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
+            steam_artwork::steam_featured_app_ids,
             steam_commands::machine_profile,
             download_events::register_download_job,
             download_events::record_download_completion,
@@ -125,7 +181,31 @@ fn main() {
             visual_debug::finish_visual_debug,
             visual_debug::set_visual_debug_viewport,
             digital_commands::run_digital_process,
-            digital_commands::query_digital_options
+            digital_commands::freeze_progress,
+            digital_commands::launch_progress,
+            digital_commands::freeze_signal,
+            digital_commands::import_scan_progress,
+            digital_commands::import_scan_stop,
+            digital_commands::query_digital_options,
+            kid_mode::kid_session,
+            kid_mode::kid_play,
+            kid_mode::kid_sign_out,
+            kid_mode::kid_family,
+            kid_mode::kid_live,
+            kid_mode::kid_control,
+            kid_mode::kid_plus_set,
+            kid_mode::kid_apply,
+            kid_mode::kid_remove,
+            kid_mode::kid_stop_playing,
+            kid_mode::kid_game_open,
+            windows_account::windows_account_protected,
+            app_shortcuts::shortcuts_list,
+            app_shortcuts::shortcut_add,
+            app_shortcuts::shortcut_remove,
+            app_shortcuts::shortcut_open,
+            antivirus::antivirus_probe,
+            antivirus::antivirus_add_exclusions,
+            antivirus::antivirus_open_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");

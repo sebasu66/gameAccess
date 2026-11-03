@@ -1,0 +1,155 @@
+/* The kids dialog (KidModePanel.tsx, ParentalControlSection.tsx, AdminKeySection.tsx). Text, spacing, labels, button rows
+   and disclosures come from the content layer (components/ga/content.css); only this dialog's own layout lives here.
+   The child's screen is kid-screen.css. */
+
+/* Controls of the time settings. */
+.ga-kid-hours { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+.ga-kid-hours > span { min-width: 150px; font-weight: 700; }
+.ga-kid-hours label { display: inline-flex; align-items: center; gap: 6px; color: var(--ga-muted); }
+.ga-kid-panel select { height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-field-bg); color: var(--ga-white); font: 600 13px var(--ga-text-family); }
+.ga-kid-limit { justify-self: start; min-width: 180px; }
+
+/* The chosen games: pills with their own daily limit. */
+.ga-kid-chosen { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-chosen li { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid var(--ga-line); background: var(--ga-surface); font-size: 12px; font-weight: 700; }
+.ga-kid-chosen li select { font-size: 12px; }
+
+/* The page that explains kid mode. */
+.ga-kid-benefits { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-benefits li { display: flex; gap: 14px; align-items: flex-start; }
+.ga-kid-benefits strong { font-size: 14px; }
+.ga-kid-benefit-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--ga-orange-line); background: var(--ga-orange-tint); color: var(--ga-orange); }
+.ga-kid-panel .ga-actions [aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+
+/* The child's panel: summary line, the week's bars, the phone note. */
+.ga-kid-panel .ga-kid-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ga-kid-summary strong { color: var(--ga-white); font-size: 15px; }
+.ga-kid-week { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-week li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 88px; align-items: center; gap: 10px; font-size: 13px; }
+.ga-kid-week li > span:first-child { text-transform: capitalize; color: var(--ga-muted); font-weight: 700; }
+.ga-kid-week b { text-align: right; font-weight: 800; }
+.ga-kid-bar { height: 10px; border-radius: 5px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-kid-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ga-orange); }
+.ga-kid-panel .ga-kid-phone { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--ga-line); }
+
+/* The wizard's and panel's foot: status or Back on the left, the main action on the right. */
+.ga-kid-tab-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
+
+/* PLUS notes: a warm box (PLUS missing, PLUS ended, days without connection). */
+.ga-kid-panel .ga-kid-plus { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--ga-orange-line); background: var(--ga-orange-tint); color: var(--ga-orange-ink); }
+.ga-kid-lapsed { flex-wrap: wrap; }
+.ga-kid-lapsed > div { flex: 1; min-width: 220px; }
+
+/* The first question and the way back to "no children". */
+.ga-family-ask { justify-items: start; padding: 8px 0; }
+.ga-family-ask > svg { color: var(--ga-orange); }
+.ga-kid-nomore { justify-items: start; }
+
+/* Parent's key tab: the word hidden like a wallet's balance, seen only while its eye is held. */
+.ga-adminkey-word { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px 12px; padding: 16px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
+.ga-adminkey-secret { min-width: 0; overflow: hidden; color: var(--ga-white); font-size: 20px; font-weight: 800; letter-spacing: .2em; text-overflow: ellipsis; white-space: nowrap; user-select: none; }
+.ga-adminkey-secret.is-shown { color: var(--ga-orange); letter-spacing: .08em; }
+.ga-adminkey-word .ga-btn-secondary { touch-action: none; user-select: none; }
+.ga-adminkey-word .ga-hint { grid-column: 1 / -1; }
+
+/* The wizard (KidWizard.tsx): one step at a time on a stage of fixed height, so the dialog never grows. The stage scrolls
+   inside itself when a step is longer; the step chips above and Back / Next below stay put. */
+.ga-kid-panel .ga-kid-wizard { display: flex; flex-direction: column; gap: 16px; height: min(560px, calc(100dvh - 300px)); min-height: 360px; }
+/* On its screen the wizard takes all the height down to the footer: the steps scroll inside, the buttons stay at the bottom. */
+.ga-screen.ga-kid-panel .ga-kid-content { display: flex; flex-direction: column; }
+.ga-screen.ga-kid-panel .ga-kid-wizard { flex: 1 1 auto; height: auto; }
+.ga-kid-panel .ga-kid-stage { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; padding-right: 8px; }
+.ga-kid-panel .ga-kid-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
+
+/* Step chips (the filter-chip template, 32 px): the current one orange, the finished ones are buttons that go back. */
+.ga-kid-panel .ga-kid-progress { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-panel .ga-kid-progress li { display: flex; align-items: center; flex: 1 1 0; gap: 8px; }
+.ga-kid-panel .ga-kid-progress li:last-child { flex: 0 0 auto; }
+.ga-kid-panel .ga-kid-progress li:not(:last-child)::after { content: ""; flex: 1 1 auto; height: 2px; border-radius: 1px; background: var(--ga-line); }
+.ga-kid-panel .ga-kid-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--ga-line); background: transparent; color: var(--ga-muted); font: 700 12px var(--ga-text-family); }
+.ga-kid-panel .ga-kid-chip.is-current { border-color: var(--ga-orange); background: var(--ga-orange); color: var(--ga-btn-ink); }
+.ga-kid-panel .ga-kid-chip.is-done { border-color: var(--ga-orange-line); background: transparent; color: var(--ga-orange-ink); cursor: pointer; }
+.ga-kid-panel .ga-kid-chip.is-done:hover { border-color: var(--ga-orange); background: var(--ga-surface-2); }
+.ga-kid-how { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ga-kid-how li { display: flex; gap: 10px; align-items: flex-start; color: var(--ga-orange); }
+
+/* The child's games: the library manager's table, four columns, fitting the dialog. */
+.ga-kid-games .lm-grid { min-width: 0; }
+.ga-kid-games .lm-cell-name { max-width: none; }
+.ga-kid-panel .ga-kid-switch { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 32px; padding: 0 12px; border-radius: 16px;
+  border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-muted); font: 800 12px var(--ga-text-family); cursor: pointer; }
+.ga-kid-panel .ga-kid-switch[aria-pressed="true"] { border-color: var(--ga-orange); background: var(--ga-orange); color: var(--ga-btn-ink); }
+.ga-kid-panel .ga-kid-switch:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 3px; }
+.ga-kid-panel .ga-kid-switch:hover { border-color: var(--ga-orange); background: var(--ga-surface-2); }
+.ga-kid-panel .ga-kid-switch[aria-pressed="true"]:hover { background: var(--ga-orange-hover); }
+.ga-kid-limit-cell { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ga-kid-spinner { display: inline-flex; align-items: center; gap: 4px; }
+.ga-kid-panel .ga-kid-spinner button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); cursor: pointer; }
+.ga-kid-panel .ga-kid-spinner button:disabled { opacity: .4; cursor: default; }
+.ga-kid-spinner output { min-width: 56px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Four tabs whose names differ in length: each as wide as its name, filling the row. */
+.ga-kid-panel .ga-tabs .ga-tab { flex: 1 1 auto; }
+
+/* Wizard step 2 (prototype): the filter levels as selectable cards, readable sizes. Scoped to the wizard so the other dialogs that share ParentalControlSection stay as they are. */
+.ga-kid-wizard .ga-parental-levels { gap: 12px; margin-top: 0; }
+.ga-kid-wizard .ga-parental-levels label { align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; background: var(--ga-surface); box-shadow: inset 0 0 0 1px var(--ga-line); transition: box-shadow .16s ease, background .16s ease; }
+.ga-kid-wizard .ga-parental-levels label:hover { background: var(--ga-surface-2); }
+.ga-kid-wizard .ga-parental-levels label:has(input:checked) { background: var(--ga-orange-tint); box-shadow: inset 0 0 0 2px var(--ga-orange); }
+.ga-kid-wizard .ga-parental-levels small, .ga-kid-wizard .ga-parental-violence small { font-size: 13px; font-weight: 500; line-height: 1.45; color: var(--ga-muted); margin-top: 4px; }
+.ga-kid-wizard .ga-parental-levels input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--ga-orange); flex: none; }
+.ga-kid-wizard .ga-parental-violence { align-items: center; gap: 14px; font-size: 14px; font-weight: 700; }
+.ga-kid-wizard .ga-parental-violence input { width: 20px; height: 20px; margin: 0; accent-color: var(--ga-orange); flex: none; }
+.ga-kid-wizard .ga-parental summary { font-size: 14px; }
+
+/* Look of the kid panel (prototype): warm, nearly solid dark panel; the explaining page as cards; footer actions on the right with the main one last; primary button with cut corners. */
+.ga-kid-panel .ga-kid-benefits { gap: 12px; }
+.ga-kid-panel .ga-kid-benefits li { gap: 16px; padding: 16px; border-radius: 12px; background: var(--ga-surface); box-shadow: inset 0 0 0 1px var(--ga-line); }
+.ga-kid-panel .ga-kid-benefits strong { font-size: 18px; line-height: 1.35; color: var(--ga-white); }
+.ga-kid-panel .ga-kid-benefit-icon { width: 48px; height: 48px; }
+.ga-kid-panel .ga-kid-foot .ga-actions { width: 100%; justify-content: flex-end; flex-direction: row-reverse; }
+
+/* On its screen (GaScreen) the kids' controls follow the screen's scale (docs/GUI_DESIGN.md §4.25): fields and chips
+   as tall as buttons, their text from the screen's tokens. */
+.ga-screen.ga-kid-panel select { height: 44px; padding: 0 12px; font: var(--ga-status-font); }
+.ga-screen.ga-kid-panel .ga-kid-chip { height: 40px; min-width: 52px; font: var(--ga-status-font); }
+.ga-screen.ga-kid-panel .ga-kid-benefits strong { font: 700 20px/1.35 var(--ga-text-family); }
+.ga-screen .ga-kid-wizard .ga-parental-levels label,
+.ga-screen .ga-kid-wizard .ga-parental-violence,
+.ga-screen .ga-kid-wizard .ga-parental summary { font: var(--ga-status-font); }
+.ga-screen .ga-kid-wizard .ga-parental-levels small,
+.ga-screen .ga-kid-wizard .ga-parental-violence small { font: var(--ga-hint-font); }
+
+/* Each day of the week on its row (KidTime.tsx DaySchedule): day, most time, from, to. */
+.ga-kid-schedule { width: 100%; max-width: 760px; border-collapse: separate; border-spacing: 0 var(--ga-space-1); }
+.ga-kid-schedule th { padding: 0 var(--ga-space-2) 0 0; text-align: start; color: var(--ga-label-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-kid-schedule tbody th { color: var(--ga-white); font: var(--ga-status-font); letter-spacing: 0; text-transform: capitalize; }
+.ga-kid-schedule td { padding: 0 var(--ga-space-2) 0 0; }
+.ga-kid-schedule select { width: 100%; min-width: 120px; }
+
+/* The wizard's last dialog (KidReadyDialog.tsx, MN.27). A clear scale (Seba, 2026-10-31): title 52 px, lead 18 px,
+   each note's title 20 px bold in its colour over its 16 px text; 44 px inside the sides, a line under the header and
+   fixed room between blocks (24 / 32 px), 16 px between notes. !important where the dialog's base (components/ui,
+   Tailwind, whose utilities all are) sets the same property. */
+/* As wide as the screens' content column (ga-design.css .ga-screen: up to 1200 px, the same side margins inside the
+   frame; Seba, 2026-10-31). */
+.ga-overlay-dialog.ga-kid-ready { width: min(1200px, calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * clamp(24px, 4vw, 64px))) !important; padding: 40px 44px 36px !important; gap: 0 !important; overflow: hidden !important; }
+/* On a short screen the header and the button stay; only the text between them scrolls. */
+.ga-kid-ready-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-right: -12px; padding-right: 12px; }
+.ga-kid-ready-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--ga-line); }
+.ga-kid-ready-titles { display: grid; gap: 10px; }
+.ga-kid-ready .ga-kid-ready-title { margin: 0 !important; color: var(--ga-orange) !important; font: 400 52px/1 "Bebas Neue", sans-serif !important; letter-spacing: .02em !important; }
+.ga-kid-ready-intro { padding-top: 24px; }
+/* Lines of a comfortable length (about 80 characters) however wide the dialog is. */
+.ga-kid-ready .ga-kid-ready-lead { --ga-p-size: 18px; max-width: 80ch; color: var(--ga-text-ink) !important; }
+/* The notes side by side when there is room, both as tall as the taller one (Seba, 2026-10-31). */
+.ga-kid-ready-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: stretch; gap: 16px; margin-top: 32px; }
+.ga-kid-ready-notes > .ga-label { grid-column: 1 / -1; margin-bottom: 4px; }
+.ga-kid-ready-note { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 22px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
+.ga-kid-ready-note-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; }
+.ga-kid-ready-note.is-warn :is(.ga-kid-ready-note-icon, .ga-kid-ready-note-title) { color: var(--ga-warn); }
+.ga-kid-ready-note.is-ok :is(.ga-kid-ready-note-icon, .ga-kid-ready-note-title) { color: var(--ga-ok); }
+.ga-kid-ready-note-body { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.ga-kid-ready-note-title { margin: 0; font: 700 20px/1.25 var(--ga-text-family); }
+.ga-kid-ready-note .ga-disclosure { margin-top: 4px; }
+.ga-kid-ready-note ol { display: grid; gap: 10px; margin: 14px 0 0; padding-left: 22px; color: var(--ga-text-ink); font: 400 16px/1.5 var(--ga-text-family); }
+.ga-kid-ready-foot { display: flex; justify-content: flex-end; margin-top: 32px; }

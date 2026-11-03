@@ -8,7 +8,7 @@ export type FrameEdge = "top" | "right" | "bottom";
 export interface FrameTab { edge: FrameEdge; from: number; to: number; depth: number }
 export interface FrameMetrics { width: number; height: number; inset: number; corner: number; cut: number }
 
-export const FRAME: Omit<FrameMetrics, "width" | "height"> = { inset: 13, corner: 22, cut: 12 };
+export const FRAME: Omit<FrameMetrics, "width" | "height"> = { inset: 16, corner: 22, cut: 12 };
 
 const n = (value: number) => Math.round(value * 10) / 10;
 

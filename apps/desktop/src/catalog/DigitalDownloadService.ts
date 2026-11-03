@@ -3,6 +3,7 @@ import { translate } from "../i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
+import { gameIsAbandoned } from "./gameLessons";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
@@ -174,6 +175,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       progress: number("progressPercent") ?? 0,
       downloadPercent: number("downloadPercent"),
       installPercent: number("installPercent"),
+      checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
       statusText: text,
       bytesDownloaded: number("bytesDownloaded") ?? 0,
       bytesTotal: number("totalBytes") ?? 0,
@@ -223,7 +225,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     const size = game.download_size_bytes ?? parseDownloadSize(game.download_size);
     if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
       // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
-      const room = await digitalProcessManager.librarySpace(size).then(result => result.space, () => undefined);
+      const room = await digitalProcessManager.librarySpace(size, id, game.name).then(result => result.space, () => undefined);
       if (room && !room.ok) throw new Error(room.message);
     }
     const previous = this.activeJobs.get(id);
@@ -246,7 +248,10 @@ export class DigitalDownloadService implements IDownloadProvider {
     }
     // PLUS can have a source accelerated by the server: the Download Manager needs the session to ask for it.
     let accelerated = false;
-    if (this.plan() === "plus" && canAccelerate(source)) {
+    // A game marked abandoned can still be downloaded, only not through the server (gameLessons.ts).
+    const abandoned = this.plan() === "plus" && canAccelerate(source) && await gameIsAbandoned(appId);
+    if (abandoned) void narrate(`${name} está marcado como abandonado: se descarga sin la aceleración del servidor.`, { area: "DOWNLOAD" });
+    if (this.plan() === "plus" && canAccelerate(source) && !abandoned) {
       const session = await buildChunkSession();
       if (session) {
         accelerated = true;
@@ -316,6 +321,26 @@ export class DigitalDownloadService implements IDownloadProvider {
     const phase = this.activeJobs.get(gameId)?.phase;
     if (!phase || isDownloadHistory(phase) || phase === "paused" || phase === "cancelling") return;
     this.apply(await this.queue.pause(this.appIdOf(gameId)));
+  }
+
+  /** A download that stopped (no room, error) waits paused, with what it downloaded, until the player resumes it. */
+  async holdPaused(gameId: number): Promise<void> {
+    const phase = this.activeJobs.get(gameId)?.phase;
+    if (phase !== "error" && phase !== "interrupted") return;
+    this.apply(await this.queue.pause(this.appIdOf(gameId)));
+  }
+
+  /** Cancels a stopped download and deletes what it downloaded (the temporary folder); its row leaves the list. */
+  async discardStopped(gameId: number): Promise<void> {
+    const results = (await digitalProcessManager.libraryBatch("discard_transfer", [this.appIdOf(gameId)])).results;
+    const failed = results?.find(result => !result.ok);
+    if (failed) throw new Error(failed.error || "No se pudo borrar la descarga.");
+    await this.remove(gameId);
+  }
+
+  /** Downloads that are not finished: running, queued, paused or stopped with what they downloaded still on disk. */
+  unfinishedCount(): number {
+    return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase)).length;
   }
 
   async resume(gameId: number): Promise<void> {

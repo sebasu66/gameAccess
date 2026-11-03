@@ -4,7 +4,7 @@ html body .ga-circle-scrollbar { width: 28px; }
 html body .ga-circle-scrollbar-range { width: 2px; border-radius: 1px; background: #ffffff14; transition: background .25s; }
 html body .ga-circle-scrollbar-range i { width: 20px; height: 20px; background: #c9ced2; box-shadow: 0 0 0 2px #111416, 0 0 0 3.5px #ffffff4d; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), background .2s, box-shadow .2s; }
 html body .ga-circle-scrollbar:hover i, html body .ga-circle-scrollbar:focus-visible i, html body .ga-circle-scrollbar[data-active] i {
-  transform: translate(-50%, -50%) scale(1.35); background: var(--ga-orange, #ff6a00); box-shadow: 0 0 0 2px #111416, 0 0 0 3.5px #ff6a0099, 0 0 16px #ff6a0055;
+  transform: translate(-50%, -50%) scale(1.35); background: var(--ga-orange, #cc8333); box-shadow: 0 0 0 2px #111416, 0 0 0 3.5px #cc833399, 0 0 16px #cc833355;
 }
 html body .ga-circle-scrollbar:hover .ga-circle-scrollbar-range, html body .ga-circle-scrollbar[data-active] .ga-circle-scrollbar-range { background: #ffffff26; }
 /* Next to the catalog grid it sits a little outside the grid, in the free space on the right. */

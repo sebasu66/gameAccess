@@ -49,6 +49,9 @@ export interface DownloadProgressSnapshot {
   /** Download progress from 0 to 100, separate from the installation (extraction) progress */
   downloadPercent?: number;
 
+  /** How far the check of what is already on disk went (a resumed download), 0 to 100; absent when not checking */
+  checkPercent?: number;
+
   /** Installation (extraction) progress from 0 to 100; 0 until the download finishes */
   installPercent?: number;
 

@@ -6,7 +6,7 @@
   <title>Game Access — Jugá más y mejor</title>
   <meta name="description" content="Game Access: tu catálogo de juegos de PC. Buscá, filtrá, descargá, instalá y jugá desde un solo lugar. Beta gratuita para Windows.">
   <link rel="icon" href="assets/brand/logo-header-poster.png">
-  <link rel="stylesheet" href="assets/site.css?v=6">
+  <link rel="stylesheet" href="assets/site.css?v=7">
 </head>
 <body>
   <header class="site-header">
@@ -18,8 +18,9 @@
       <span class="wordmark"><span>Game</span><span>Access</span></span>
     </a>
     <nav class="site-nav" data-i18n-attr="aria-label:navSections">
+      <a href="#funciones" data-i18n="navFeatures">Funciones</a>
       <a href="#como-funciona" data-i18n="navHow">Cómo funciona</a>
-      <a href="#plugins" data-i18n="navPlugins">Plugins</a>
+      <a href="#preguntas" data-i18n="navFaq">Preguntas</a>
       <a class="btn btn-glass btn-small" href="#descargar" data-i18n="navDownload">Descargar</a>
       <div class="lang-switch" role="group" aria-label="Idioma / Language">
         <button type="button" data-lang="es" aria-pressed="true">ES</button>
@@ -57,11 +58,75 @@
       </div>
     </section>
 
+    <section class="section" id="funciones" aria-labelledby="funciones-title">
+      <h2 class="section-title" id="funciones-title" data-i18n="featuresTitle">Todo lo que hace Game Access</h2>
+      <div class="feature-grid">
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f1Title">Un catálogo enorme</h3>
+          <p data-i18n="f1Text">Más de 40.000 juegos de PC con búsqueda por título, género, etiquetas y modo de juego. Lo nuevo y lo más jugado, siempre al día.</p>
+        </div></article>
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f2Title">Fichas completas</h3>
+          <p data-i18n="f2Text">Tráiler, capturas, descripción y valoraciones de cada juego, para decidir antes de jugar.</p>
+        </div></article>
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f3Title">Tus juegos de Steam, de todas tus cuentas</h3>
+          <p data-i18n="f3Text">Game Access trae los juegos de cada cuenta que Steam recuerda en tu PC y, al jugar, cambia a la cuenta dueña sola. Nunca te pide contraseñas.</p>
+        </div></article>
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f4Title">Importá lo que ya tenés</h3>
+          <p data-i18n="f4Text">Revisa tus discos, reconoce los juegos que encuentra y los suma a tu biblioteca, sin moverlos si no querés.</p>
+        </div></article>
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f5Title">Biblioteca ordenada</h3>
+          <p data-i18n="f5Text">Una sola carpeta de juegos, nombres prolijos y avisos claros cuando algo falla. Mové, arreglá o quitá juegos con un clic.</p>
+        </div></article>
+        <article class="feature-card glass"><div class="feature-body">
+          <h3 data-i18n="f6Title">Pantalla grande y mando</h3>
+          <p data-i18n="f6Text">Un modo pensado para la tele: navegá todo con el joystick desde el sillón.</p>
+        </div></article>
+      </div>
+    </section>
+
+    <section class="section" id="como-funciona" aria-labelledby="como-title">
+      <h2 class="section-title" id="como-title" data-i18n="howTitle">Cómo funciona</h2>
+      <ol class="steps">
+        <li class="glass"><span class="step-n">1</span><h3 data-i18n="s1Title">Instalá Game Access</h3><p data-i18n="s1Text">Bajá el instalador para Windows. Si usás Steam, instalalo antes.</p></li>
+        <li class="glass"><span class="step-n">2</span><h3 data-i18n="s2Title">Juntá tu biblioteca</h3><p data-i18n="s2Text">Tus juegos de Steam aparecen solos; los de tus discos los sumás con el importador.</p></li>
+        <li class="glass"><span class="step-n">3</span><h3 data-i18n="s3Title">Jugá</h3><p data-i18n="s3Text">Un botón, el juego arranca. Game Access se actualiza solo, sin que tengas que hacer nada.</p></li>
+      </ol>
+    </section>
+
+    <section class="section" id="descargar" aria-labelledby="descargar-title">
+      <div class="download glass">
+        <h2 class="section-title" id="descargar-title" data-i18n="dlTitle">Descargá la beta</h2>
+        <p class="lead" data-i18n="dlText">Gratis para Windows 10 y 11 de 64 bits.</p>
+        <div class="actions">
+          <a class="btn led" id="installer-link" href="https://github.com/sebasu66/gameAccess/releases/latest"><span data-i18n="dlButton">Descargar para Windows</span></a>
+        </div>
+        <p class="note" id="release-note" data-i18n="dlNote">Estamos en beta: algunas funciones todavía están en desarrollo.</p>
+      </div>
+    </section>
+
+    <section class="section" id="preguntas" aria-labelledby="preguntas-title">
+      <h2 class="section-title" id="preguntas-title" data-i18n="faqTitle">Preguntas frecuentes</h2>
+      <div class="faq">
+        <details class="glass"><summary data-i18n="q1">¿Cuánto cuesta?</summary><p data-i18n="a1">Nada. La beta es gratuita.</p></details>
+        <details class="glass"><summary data-i18n="q2">Windows dice «Windows protegió tu PC». ¿Es seguro?</summary><p data-i18n="a2">Es el aviso que Windows muestra con los programas nuevos que todavía tienen pocas descargas. Tocá «Más información» y después «Ejecutar de todas formas».</p></details>
+        <details class="glass"><summary data-i18n="q3">¿Necesito Steam?</summary><p data-i18n="a3">Para instalar Game Access, sí: instalá Steam primero. Game Access usa las sesiones que Steam ya recuerda y nunca lee ni guarda tus contraseñas.</p></details>
+        <details class="glass"><summary data-i18n="q4">¿Cómo se actualiza?</summary><p data-i18n="a4">Solo. Cada vez que lo abrís busca una versión nueva y, si hay, la instala y se reinicia. Tus juegos y tus ajustes se conservan.</p></details>
+        <details class="glass"><summary data-i18n="q5">¿Dónde guarda mis datos?</summary><p data-i18n="a5">En tu PC, en la carpeta %LOCALAPPDATA%\gameAccess. Los juegos van a la carpeta de juegos que elijas (por defecto C:\GA_Juegos).</p></details>
+        <details class="glass"><summary data-i18n="q6">Encontré un error. ¿Qué hago?</summary><p data-i18n="a6">Contanos qué hiciste y qué pasó por el mismo grupo donde te llegó la invitación. Si podés, sumá una captura.</p></details>
+      </div>
+    </section>
   </main>
 
-  <script src="assets/i18n.js?v=6"></script>
+  <footer class="site-footer"><p>© 2026 Game Access · <span data-i18n="footer">Jugá más y mejor.</span></p></footer>
+
+  <script src="assets/i18n.js?v=7"></script>
   <script src="assets/pixel.js?v=6"></script>
   <script src="assets/covers.js?v=6"></script>
-  <script src="assets/site.js?v=6"></script>
+  <script src="assets/site.js?v=7"></script>
+  <script src="assets/release.js?v=7"></script>
 </body>
 </html>

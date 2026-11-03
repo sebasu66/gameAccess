@@ -3,6 +3,7 @@ import type { ExecutionProfile } from "./ExecutionProfiles";
 import { getPluginStatuses, pluginGeneration, providerAvailable } from "./PluginRuntime";
 import { FlowDiagnostics } from "../FlowDiagnostics";
 import { rankSources } from "./sourceRanking";
+import { applySourceLessons, type GameLesson } from "./gameLessons";
 import { getAppLocale, translate, type TranslationKey } from "../i18n";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
@@ -20,6 +21,10 @@ export interface PluginSource {
   executionProfile?: ExecutionProfile;
   resolverUrl?: string;
   delivery?: "browser" | "download";
+  /** Same SHA-256 as the server's (sourceFingerprint.ts); what is reported and looked up instead of the address. */
+  fingerprint?: string;
+  /** Set when players learned to avoid this source (gameLessons.ts); such sources are listed last. */
+  lesson?: GameLesson;
 }
 export interface SourceAvailability { count: number; names: string[]; }
 export const SOURCES_CHANGED_EVENT = "gameaccess:sources-changed";
@@ -191,10 +196,13 @@ export async function getPluginSources(game: CatalogGame): Promise<PluginSource[
   }));
   if (epoch !== pluginGeneration()) return [];
   const seen = new Set<string>();
-  const sources = rankSources(results.flat().filter(source => {
+  // What other players learned comes last: a source marked as "not a game" never becomes the default choice.
+  const sources = await applySourceLessons(rankSources(results.flat().filter(source => {
     if (seen.has(source.url)) return false;
     seen.add(source.url); return true;
-  }));
+  })), keyOf(game));
+  const marked = sources.filter(source => source.lesson).length;
+  if (marked) void narrate(`AppID ${keyOf(game)} · ${marked} source(s) moved last by what players learned (${sources.filter(source => source.lesson).map(source => source.lesson?.reason).join(", ")}).`, { area: "DOWNLOAD_SOURCES" });
   void narrate(`AppID ${keyOf(game)} · source discovery complete: ${sources.length} distinct option(s); download button ${sources.length ? "available" : "unavailable"}.`, { area: "DOWNLOAD_SOURCES" });
   if (sources.length > 0) {
     detailSources.set(keyOf(game), sources);
@@ -349,7 +357,7 @@ async function syncPluginIndex(plugin: PluginManifest, report: SourcesProgress =
     syncedSessionRevisions.set(plugin.id, currentHealthRev || revision);
     void narrate(pluginSyncLine(plugin.name, { since: lastRev, revision, full, added: added.length, removed: removed.length, fetchedMs, totalMs: Date.now() - started, save: applied }),
       { area: "DOWNLOAD_SOURCES" });
-    if (applied?.new_downloads?.length) recordNewDownloads(applied.new_downloads, "plugin");
+    if (applied?.new_downloads?.length) recordNewDownloads(applied.new_downloads, "plugin", plugin.name);
     if (full || added.length > 0 || removed.length > 0) {
       publish();
     }

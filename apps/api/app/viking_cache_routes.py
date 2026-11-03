@@ -21,6 +21,7 @@ from .access_overrides import CourtesySession, courtesy_access_tier
 from .access_service import _activation_for_request, _admin_activation_access
 from .admin_security import _admin_browser_access
 from .api_dependencies import get_session
+from .game_lessons import game_is_abandoned
 from .local_database import get_local_session
 from .models import VikingDownloadRequest, VikingSourceCache
 from .request_diagnostics import detail
@@ -237,6 +238,9 @@ async def resolve_viking_download(
         identity = normalize_source_url(req.source_url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    # An abandoned game can still be downloaded, only not through the server (game_lessons.py).
+    if game_is_abandoned(session, req.app_id):
+        raise HTTPException(403, "game_abandoned")
 
     started = time.monotonic()
     request_id = uuid4().hex

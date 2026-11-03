@@ -13,15 +13,25 @@ export interface SideMenuItem {
   title?: string;
 }
 
-// The menu stays while the pointer is within this many pixels of the card or the menu, and closes a moment after it leaves.
-const LEAVE_MS = 450;
-const LEAVE_MARGIN = 70;
+// The menu closes this long after the pointer leaves its area (Seba, 2026-11-02: a second and a half).
+const LEAVE_MS = 1500;
+// The area reaches this share of the card's height above and below it (a 100 px card: 10 px each way, 120 px in all).
+const LEAVE_MARGIN = 0.1;
+
+type Box = { left: number; top: number; right: number; bottom: number };
+/** Where the pointer keeps the menu open: the card and the menu beside it as one box, a little taller than the card
+ *  (and the menu, if it is taller). Nothing is added sideways: leaving the card or the menu's outer edge counts. */
+export function menuHoldArea(card: Box, menu: Box | null): Box {
+  const margin = (card.bottom - card.top) * LEAVE_MARGIN;
+  const top = Math.min(card.top, menu?.top ?? card.top), bottom = Math.max(card.bottom, menu?.bottom ?? card.bottom);
+  return { left: Math.min(card.left, menu?.left ?? card.left), right: Math.max(card.right, menu?.right ?? card.right), top: top - margin, bottom: bottom + margin };
+}
 
 /**
  * The short menu of a game card, in the library and in the catalog (docs/TAREA-interfaz-nueva.md T8): a glass panel
  * that opens beside the card, like an augmented-reality label. Its edge against the card is solid and the glass fades
- * away toward the other sides. It closes when the pointer moves away, with Escape or on scroll. Only the actions that
- * can run are listed: nothing greyed out.
+ * away toward the other sides. It closes when the pointer leaves the card and the menu (menuHoldArea), with Escape or on
+ * scroll; a right click on another card replaces it at once. Only the actions that can run are listed: nothing greyed out.
  */
 export default function GameSideMenu({ anchor, label, items, note, onClose }: { anchor: HTMLElement; label: string; items: SideMenuItem[]; /** One short line under the actions (the Steam account a game belongs to). */ note?: string; onClose: () => void }) {
   const menu = useRef<HTMLDivElement>(null);
@@ -60,10 +70,11 @@ export default function GameSideMenu({ anchor, label, items, note, onClose }: { 
   useEffect(() => {
     // Closing depends on where the pointer is, not on which element it crosses: moving between the card, the menu and
     // its buttons never counts as leaving.
-    const inside = (event: PointerEvent) => [anchor, menu.current].some(el => {
-      const r = el?.getBoundingClientRect();
-      return r ? event.clientX >= r.left - LEAVE_MARGIN && event.clientX <= r.right + LEAVE_MARGIN && event.clientY >= r.top - LEAVE_MARGIN && event.clientY <= r.bottom + LEAVE_MARGIN : false;
-    });
+    const inside = (event: PointerEvent) => {
+      // The menu counts by its buttons, not by its glass, which is much bigger and fades away over the next cards.
+      const area = menuHoldArea(anchor.getBoundingClientRect(), menu.current?.querySelector(".ga-side-menu-items")?.getBoundingClientRect() ?? null);
+      return event.clientX >= area.left && event.clientX <= area.right && event.clientY >= area.top && event.clientY <= area.bottom;
+    };
     const move = (event: PointerEvent) => {
       if (inside(event)) { window.clearTimeout(timer.current); timer.current = 0; }
       else if (!timer.current) timer.current = window.setTimeout(() => { timer.current = 0; close(); }, LEAVE_MS);
@@ -77,7 +88,13 @@ export default function GameSideMenu({ anchor, label, items, note, onClose }: { 
   }, [anchor, close]);
 
   return createPortal(
-    <div ref={menu} className="ga-side-menu" data-side={side} role="menu" aria-label={label}>
+    <div ref={menu} className="ga-side-menu" data-side={side} role="menu" aria-label={label} onContextMenu={event => {
+      // The menu lies over the next card: a right click on it is meant for the card under it, which opens its own menu.
+      event.preventDefault();
+      const card = document.elementsFromPoint(event.clientX, event.clientY).find(element => !menu.current?.contains(element) && !anchor.contains(element) && element.closest("[data-library-game-id]"));
+      if (card) card.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: event.clientX, clientY: event.clientY }));
+      else close();
+    }}>
       <span className="ga-side-menu-glass" aria-hidden="true" />
       <div className="ga-side-menu-items">
         {items.map(item => <button key={item.key} type="button" role="menuitem" className={item.primary ? "primary" : undefined} disabled={item.disabled} title={item.title} onClick={() => { close(); item.run(); }}>{item.icon}{item.label}</button>)}

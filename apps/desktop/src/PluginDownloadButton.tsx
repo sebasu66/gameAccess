@@ -1,7 +1,7 @@
 import ManualDownloadForm from "./ManualDownloadForm";
 import { useEffect, useState, type Ref } from "react";
 import { Download, Loader2, MoreHorizontal } from "lucide-react";
-import { useI18n } from "./i18n";
+import { useI18n, type TranslationKey, type TranslationParams } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
@@ -15,6 +15,14 @@ export function pluginDownloadLabel(game: CatalogGame, sources: PluginSource[], 
   const size = sources[0]?.size || "";
   const label = downloadButtonLabel({ ...game, download_size: size, download_size_bytes: null }, locale);
   return label + " [" + sources.length + (locale === "es" ? (sources.length === 1 ? " fuente]" : " fuentes]") : (sources.length === 1 ? " source]" : " sources]")) + (sources[0]?.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : "");
+}
+/** Why players learned to avoid a source, in the player's words ("Other players: it was not a game"). */
+export function sourceLessonText(source: PluginSource, t: (key: TranslationKey, params?: TranslationParams) => string): string {
+  const reason = source.lesson?.reason ?? "";
+  const known: Record<string, TranslationKey> = { not_a_game: "lessonNotAGame", wrong_password: "lessonWrongPassword", corrupt_archive: "lessonCorrupt",
+    malware_flagged: "lessonMalware", incomplete: "lessonIncomplete" };
+  const what = t(known[reason] ?? "lessonOther");
+  return source.lesson?.confidence === "mine" ? t("lessonMine", { what }) : t("lessonOthers", { what });
 }
 export default function PluginDownloadButton({ game, disabled = false, buttonRef, onFocus, className }: { game: CatalogGame; disabled?: boolean; buttonRef?: Ref<HTMLButtonElement>; onFocus?: () => void; className?: string }) {
   const { t, locale } = useI18n();
@@ -54,9 +62,9 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
   return <div className="plugin-download-action">
     <button ref={buttonRef} onFocus={onFocus} type="button" className={className ?? "glass-action download"} data-action="download"
       disabled={disabled || starting || current.loading || !current.sources.length}
-      onClick={() => { const source = current.sources[0]; if (source) void start(source); }}>
+      onClick={() => { const source = current.sources[0]; if (source?.lesson) setOpen(true); else if (source) void start(source); }}>
       <span className="glass-action-icon">{current.loading || starting ? <Loader2 size={23} className="spin" /> : <Download size={23} />}</span>
-      <span className="glass-action-label">{current.loading ? t("sourcesChecking") : current.sources.length ? pluginDownloadLabel(game, current.sources, locale) : t("sourcesUnavailable")}</span>
+      <span className="glass-action-label">{current.loading ? t("sourcesChecking") : current.sources[0]?.lesson ? t("sourcesAllMarkedShort") : current.sources.length ? pluginDownloadLabel(game, current.sources, locale) : t("sourcesUnavailable")}</span>
     </button>
     <button type="button" className="source-options-toggle" disabled={disabled || starting}
       onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={t("sourcesOptions")}><MoreHorizontal size={20} /></button>
@@ -67,6 +75,7 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
       <div className="source-selector-list">{current.sources.map(source => <button type="button" key={source.url}
         disabled={disabled || starting} onClick={() => void start(source)}>
         <strong>{source.title}</strong><small>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}{source.delivery === "browser" ? (locale === "es" ? " · Navegador" : " · Browser") : ""}</small>
+        {source.lesson && <em className="source-lesson">{sourceLessonText(source, t)}</em>}
         <span>{downloadButtonLabel({ ...game, download_size: source.size, download_size_bytes: null }, locale)}</span>
       </button>)}</div>
     </section>}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap, motionOk, SplitText, useGSAP } from "./motion/gsap";
-import { cachedSpotlight, prefetchSpotlight, type Slide } from "./spotlightSlides";
+import { cachedSpotlight, onSpotlightChanged, prefetchSpotlight, type Slide } from "./spotlightSlides";
 import { useI18n } from "./i18n";
 import { GaButton } from "./components/ga/Buttons";
 import type { CatalogGame } from "./types";
@@ -15,9 +15,9 @@ export function daysSinceRelease(date: string | null | undefined, now = Date.now
 }
 
 /**
- * Banner at the top of the catalog: the latest games that came out on Steam, one at a time. The slides (game and a
- * wide image that really loads) are fetched early (spotlightSlides.ts), so the banner is complete when the catalog
- * appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
+ * Banner at the top of the catalog: the games the Steam store features now (or, without them, the ones that came out
+ * these days), one at a time. The slides (game and a wide image that really loads) are fetched early
+ * (spotlightSlides.ts), so the banner is complete when the catalog appears. The visible layer is never replaced (no flicker); the title enters letter by letter.
  */
 export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: CatalogGame) => boolean; onOpen: (game: CatalogGame) => void }) {
   const { t } = useI18n();
@@ -31,15 +31,18 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
   excludeRef.current = exclude;
 
   useEffect(() => {
-    if (slides.length) return;
     let alive = true;
-    void prefetchSpotlight().then(all => {
+    const choose = (all: Slide[]) => {
       if (!alive) return;
       const chosen = all.filter(slide => !excludeRef.current(slide.game)).slice(0, 5);
       setSlides(chosen);
+      setIndex(0);
       if (chosen[0]) { setLayers([chosen[0].url, ""]); setFront(0); }
-    });
-    return () => { alive = false; };
+    };
+    if (!slides.length) void prefetchSpotlight().then(choose);
+    // New games in the catalog (its daily update): the banner shows them without reopening the app.
+    const stop = onSpotlightChanged(() => choose(cachedSpotlight() ?? []));
+    return () => { alive = false; stop(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const slide = slides[index % Math.max(1, slides.length)];
@@ -62,7 +65,8 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
     if (!root.current || !motionOk() || !game) return;
     const title = root.current.querySelector(".ga-spotlight-title");
     if (!title) return;
-    const split = new SplitText(title, { type: "chars", mask: "chars" });
+    // Words keep their letters together: split in letters alone, a long title could break inside a word.
+    const split = new SplitText(title, { type: "words,chars", mask: "chars" });
     gsap.from(split.chars, { yPercent: 110, duration: .8, ease: "expo.out", stagger: .025 });
     gsap.fromTo(root.current.querySelectorAll(".ga-spotlight-eyebrow, .ga-spotlight-actions"), { y: 14, opacity: 0 }, { y: 0, opacity: 1, duration: .6, stagger: .08, delay: .12, ease: "power3.out" });
     return () => split.revert();
@@ -70,7 +74,7 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
 
   if (!game) return null;
   const days = daysSinceRelease(game.release_date);
-  const eyebrow = days === null ? t("spotlightNew") : days === 0 ? t("spotlightToday") : days === 1 ? t("spotlightOneDay") : t("spotlightDays", { days });
+  const eyebrow = slide.featured ? t("spotlightFeatured") : days === null ? t("spotlightNew") : days === 0 ? t("spotlightToday") : days === 1 ? t("spotlightOneDay") : t("spotlightDays", { days });
   return (
     <section ref={root} className="ga-spotlight" aria-label={t("spotlightLabel")}>
       {layers.map((url, layer) => url ? <img key={layer} className="ga-spotlight-image" data-front={layer === front || undefined} src={url} alt="" /> : null)}

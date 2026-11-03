@@ -5,6 +5,7 @@ import { hasTauriRuntime } from "../native";
 import { prepareCatalogCache } from "../catalogCache";
 import { digitalCatalogService } from "../catalog/DigitalCatalog";
 import { recordCatalogSyncTime } from "../catalogUpdates";
+import { syncGameLessons } from "../catalog/gameLessons";
 import { centralDialog, type StepRunner } from "./centralDialog";
 
 type CatalogProgress = { stage: "seed" | "download" | "apply"; done: number; total: number };
@@ -42,7 +43,10 @@ export const catalogUpdatesStep = (outcome: { error?: unknown } = {}): StepRunne
   label: translate("prepCatalogUpdates"),
   run: report => withCatalogProgress(report, async () => {
     try {
+      // What players learned about each game travels in the same step (snapshot, then only the changes).
+      const lessons = syncGameLessons();
       const summary = await digitalCatalogService.loadCatalog({ requireRemote: true });
+      await lessons;
       recordCatalogSyncTime();
       return summary.updated ? undefined : "skipped";
     } catch (error) {
@@ -61,10 +65,10 @@ export async function runStartupPreparation(options: { checkUpdates: boolean; ex
   await centralDialog.runTask(translate("prepTitle"), steps);
 }
 
-/** A later check (every 24 h or the refresh button): the dialog appears only if there is something to download.
+/** A later check (every 24 h or the refresh button), a task of the Activity panel: the app stays usable.
  * Rejects when the catalog could not be reached, so a manual refresh can tell the player. */
 export async function runCatalogUpdateTask(): Promise<void> {
   const outcome: { error?: unknown } = {};
-  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)]);
+  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)], { background: true });
   if (outcome.error) throw outcome.error;
 }

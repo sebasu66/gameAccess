@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bentoCells, bentoInWindow, bentoLayout, bentoRowHeight, bentoRowTops, bentoSections, type BentoItem } from "./bentoLayout";
+import { bentoCells, bentoInWindow, bentoLayout, bentoRowHeight, bentoRowTops, bentoSections, bigPictureBento, type BentoItem } from "./bentoLayout";
 
 const items = (ready: number, pending: number, deep = 0): BentoItem<string>[] => [
   ...Array.from({ length: ready }, (_, i) => ({ kind: "ready" as const, value: `r${i}` })),
@@ -65,6 +65,17 @@ describe("library bento sections", () => {
     expect(new Set(slots).size).toBe(slots.length);
   });
 
+  it("lays games to install out in their own wide slots, one wide row per line", () => {
+    const { placements, tracks } = bentoSections(items(0, 7, 0), 6, new Set(), 4);
+    const pending = placements.filter(p => p.kind === "pending");
+    expect(Math.max(...pending.map(p => p.column))).toBe(4);
+    expect(new Set(pending.map(p => p.row)).size).toBe(2);
+    expect(tracks.filter(t => t === "wide")).toHaveLength(2);
+    const tops = bentoRowTops(tracks, 100, 44, 70);
+    expect(tops[2] - tops[1]).toBe(70 + 44);
+    expect(bentoInWindow(pending, tops, 100, tops[2] + 60, tops[2] + 65, 70).map(p => p.row)).toEqual(Array(3).fill(pending[4].row));
+  });
+
   it("keeps a collapsed group's divider and count but places none of its games", () => {
     const { placements, sections, tracks } = bentoSections(items(5, 4, 2), 4, new Set(["deep", "pending"] as const));
     expect(sections.map(s => [s.kind, s.count, s.collapsed])).toEqual([["ready", 5, false], ["deep", 2, true], ["pending", 4, true]]);
@@ -91,3 +102,50 @@ describe("library sliding window", () => {
     expect(bentoInWindow(placements, tops, 100, 0, 900).map(p => p.value)).toContain("r0");
   });
 });
+
+describe("big picture bento", () => {
+  const cells = (placements: Array<{ column: number; row: number; span?: number }>) => placements.flatMap(item => Array.from({ length: item.span ?? 1 }, (_, i) => `${item.row}:${item.column + i}`));
+
+  it("puts one wide card per line, left then right, and portraits around it", () => {
+    const { placements, tracks } = bigPictureBento(["F1", "F2"], ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], 8);
+    const f1 = placements.find(item => item.value === "F1")!, f2 = placements.find(item => item.value === "F2")!;
+    expect([f1.column, f1.row, f1.span]).toEqual([1, 2, 3]);
+    expect([f2.column, f2.row, f2.span]).toEqual([6, 5, 3]);
+    expect(placements.filter(item => item.row === 2 && !item.span).map(item => item.column)).toEqual([4, 5, 6, 7, 8]);
+    expect(tracks).toEqual(["label", "row", "row", "row", "row", "row", "row"]);
+  });
+
+  it("never puts two games in the same place", () => {
+    const { placements } = bigPictureBento(["F1", "F2", "F3", "F4"], ["a", "b", "c"], 7);
+    const taken = cells(placements);
+    expect(new Set(taken).size).toBe(taken.length);
+    expect(placements).toHaveLength(7);
+    expect(taken.every(cell => Number(cell.split(":")[1]) <= 7)).toBe(true);
+  });
+
+  it("keeps the count of wide cards that fills the line when there are few portraits", () => {
+    const { placements } = bigPictureBento(["F1", "F2", "F3"], ["a"], 7);
+    expect(placements.filter(item => item.row === 2).map(item => [item.value, item.column])).toEqual([["F1", 1], ["F3", 4], ["F2", 5]]);
+  });
+
+  it("leaves no holes: every line is full for any mix of wide and portrait games", () => {
+    for (const cols of [5, 6, 7, 8, 9, 10]) for (let games = 3; games < 40; games++) for (let wide = 0; wide <= Math.min(games, 10); wide++) {
+      const featured = Array.from({ length: wide }, (_, i) => `F${i}`), regular = Array.from({ length: games - wide }, (_, i) => `r${i}`);
+      const { placements } = bigPictureBento(featured, regular, cols);
+      expect(placements).toHaveLength(games);
+      const taken = cells(placements);
+      expect(new Set(taken).size).toBe(taken.length);
+      const lines = new Map<number, number>();
+      for (const item of placements) lines.set(item.row, (lines.get(item.row) ?? 0) + (item.span ?? 1));
+      const rows = [...lines.keys()].sort((a, b) => a - b);
+      rows.slice(0, -1).forEach(row => expect(lines.get(row)).toBe(cols));
+    }
+  });
+
+  it("shows every game as a portrait when the window is too narrow for a wide card", () => {
+    const { placements } = bigPictureBento(["F1"], ["a"], 2);
+    expect(placements.every(item => !item.span)).toBe(true);
+    expect(placements.map(item => item.value)).toEqual(["F1", "a"]);
+  });
+});
+

@@ -51,10 +51,10 @@ export const pluginSourcesStep = (options: { waitForPlugin?: boolean } = {}): St
 };
 
 /**
- * The download plugin's sources, in the central dialog (it appears only when the sync takes a while, as with a
- * plugin's first full index, or when it fails, with the option to try again). After an install the plugin is
- * started and synced right away: no restart needed.
+ * The download plugin's sources, a task of the Activity panel (it runs while the app is used; a failure stays in the
+ * history and the next sync tries again). After an install the plugin is started and synced right away: no restart
+ * needed.
  */
 export async function runPluginSourcesTask(options: { waitForPlugin?: boolean } = {}): Promise<void> {
-  await centralDialog.runTask(translate(options.waitForPlugin ? "pluginInstalledTitle" : "pluginTaskTitle"), [pluginSourcesStep(options)], { canRetry: true });
+  await centralDialog.runTask(translate(options.waitForPlugin ? "pluginInstalledTitle" : "pluginTaskTitle"), [pluginSourcesStep(options)], { background: true });
 }

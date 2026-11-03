@@ -14,25 +14,32 @@ import RuntimeGate from "./RuntimeGate";
 import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
-import { togglePanel, useDesk } from "./desk/desk";
+import { setAppScreen } from "./appScreen";
+import { opensOn, startScreenUsed } from "./startupPreferences";
+import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
 import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
+import { startModalStack } from "./modalStack";
+import { startSingleAccordion } from "./singleAccordion";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
-import { Bell, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
 import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
 import { libraryDemo } from "./libraryScan";
 import WindowChrome from "./WindowChrome";
+import KidScreen from "./KidScreen";
+import { readKidSession, type KidSession } from "./kidMode";
+import ParentKeyDialog from "./ParentKeyDialog";
 import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
-import { translate, useI18n } from "./i18n";
+import { setAppLocale, translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./styles.css";
 
@@ -62,6 +69,7 @@ import "./pixel-appearance.css";
 import "./utility-controls.css";
 import "./library-manager/library-manager.css";
 import "./ga-design.css";
+import "./components/ga/content.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.
@@ -73,8 +81,7 @@ if (isTauri()) {
 
 // The desktop library currently exposes only Digital. Migrate saved source
 // selections so a hidden legacy tab cannot leave the catalog in another mode.
-const currentSurface = new URLSearchParams(window.location.search).get("surface");
-if (currentSurface !== "display" && currentSurface !== "tablet") setCatalogMode("digital");
+setCatalogMode("digital");
 
 class AppCrashBoundary extends React.Component<React.PropsWithChildren, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -99,49 +106,72 @@ function CatalogShell() {
   // dialog shows the progress when it takes a while.
   const [prepared, setPrepared] = React.useState(false);
   React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
-  const news = useAnnouncements(prepared);
-  const newsOpen = useDesk().includes("news");
+  useAnnouncements(prepared);
+  // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
+  // opening has ended: a change of mode under the logo animation would run behind it.
+  const openingSettled = useOpeningSettled();
+  React.useEffect(() => {
+    if (!prepared || !openingSettled || !opensOn("home")) return;
+    startScreenUsed("home");
+    setAppScreen("home");
+  }, [prepared, openingSettled]);
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);
     return () => window.removeEventListener(CATALOG_REFRESH_STATUS, status);
   }, []);
-  const surface = new URLSearchParams(window.location.search).get("surface");
-  const auxiliarySurface = surface === "tablet" || surface === "display";
   const changeMode = React.useCallback((next: CatalogMode) => {
     if (next === mode) return;
-    if (!auxiliarySurface) captureLibraryUiState(mode);
+    captureLibraryUiState(mode);
     void narrate(`Switching catalog view from ${mode} to ${next}. This changes which availability rules are used.`, { area: "CATALOG" });
     setCatalogMode(next);
     setMode(next);
-  }, [auxiliarySurface, mode]);
+  }, [mode]);
   const refreshCatalog = React.useCallback(() => {
-    if (!auxiliarySurface) captureLibraryUiState(mode);
+    captureLibraryUiState(mode);
     void narrate(`Manual catalog refresh requested while viewing ${mode}.`, { area: "CATALOG" });
     window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST));
-  }, [auxiliarySurface, mode]);
+  }, [mode]);
   return <>
-    {!auxiliarySurface ? <LibraryInputController mode={mode} onModeChange={changeMode} /> : null}
-    {!auxiliarySurface ? <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /><GaIconButton className="ga-news-button" icon={<Bell size={20} aria-hidden="true" />} label={t("newsButton")} title={t("newsButtonTitle")} badge={news.unread} pressed={newsOpen} onClick={() => togglePanel("news")} /></div></div> : null}
-    {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={!auxiliarySurface ? <CatalogTabs mode={mode} onChange={changeMode} /> : null} /></RenderProbe> : null}
+    <LibraryInputController mode={mode} onModeChange={changeMode} />
+    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
+    {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }
 
 startClientErrorReporting();
 startDownloadNotifications();
+startModalStack();
+startSingleAccordion();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");
 if (!root) throw new Error("gameAccess root element is missing");
 
-if (libraryDemo()) {
-  ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
-} else ReactDOM.createRoot(root).render(
-  <React.StrictMode>
-    <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><CentralDialogView /><NativeAccessBoundary />
-    <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
-  </React.StrictMode>,
-);
+// A sample child for design work in the browser (`?kidDemo=1`, dev builds only).
+const demoKid = (): KidSession | null => import.meta.env.DEV && new URLSearchParams(window.location.search).has("kidDemo") ? {
+  kid: { name: "Juan", sid: "", enabled: true, dailyMinutes: 60, weekdays: "16-20", weekend: "10-21", language: "es",
+    games: ([[620, "Portal 2"], [413150, "Stardew Valley"], [881100, "Noita"], [1145360, "Hades"], [1942280, "Brotato"], [367520, "Hollow Knight"], [504230, "Celeste"],
+      [105600, "Terraria"], [250900, "The Binding of Isaac: Rebirth"], [1794680, "Vampire Survivors"], [-1, "Roblox"], [646570, "Slay the Spire"]] as const)
+      .map(([appId, name], index) => ({ appId, name, folder: "", executable: "", arguments: [], steam: appId > 0, featured: index === 3 || index === 7, steamAccount: appId > 0 ? "cuenta_demo" : "" })) },
+  playedSeconds: 1500, remainingSeconds: 2100, playing: null, timeUp: new URLSearchParams(window.location.search).has("timeUp"), recent: [413150],
+} : null;
+
+// A child's Windows account (kidMode.ts) gets only its games, in big picture mode, and nothing else of the app.
+void (libraryDemo() ? Promise.resolve(null) : readKidSession()).then(session => session ?? demoKid()).then(kid => {
+  if (kid) {
+    // The adult's Game Access language (Seba, 2026-10-31), not the child's Windows one.
+    if (kid.kid.language === "es" || kid.kid.language === "en") setAppLocale(kid.kid.language);
+    ReactDOM.createRoot(root).render(<><KidScreen initial={kid} demo={!kid.kid.sid} /><GaNotice /></>);
+  } else if (libraryDemo()) {
+    ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
+  } else ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><ParentKeyDialog /><CentralDialogView /><NativeAccessBoundary />
+      <AppCrashBoundary><UpdateGate><ActivationGate><RuntimeGate><CatalogShell /></RuntimeGate></ActivationGate></UpdateGate></AppCrashBoundary>
+    </React.StrictMode>,
+  );
+});
 
 void startLocalAutomation();
 // The native watchdog installs a pending update by itself if the interface never gets this far.

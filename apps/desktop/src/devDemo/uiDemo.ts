@@ -41,8 +41,13 @@ export const demoCatalog: CatalogGame[] = /* @__PURE__ */ Array.from({ length: M
   return copy ? { ...base, id: base.id * 1000 + copy, name: `${base.name} ${copy + 1}`, slug: `${base.slug}-${copy + 1}` } : base;
 });
 
+/** What the sample Steam store features (catalog banner); 999999 is a featured game the catalog does not have. */
+export const demoFeaturedAppIds = [553850, 999999, 1245620, 1086940, 2215430, 1091500, 1174180];
+
 /** Games the sample player keeps in the library without having them installed yet. */
-export const demoLibraryMembers = (): CatalogGame[] => demoCatalog.filter(item => [1086940, 1174180, 870780, 632470, 1850570, 2420110, 1903340, 1245620, 553850].includes(item.app_id ?? 0));
+export const demoLibraryMembers = (): CatalogGame[] => demoCatalogSize()
+  ? demoCatalog.slice(0, 80)  // a long library too, like a real one (80+ games)
+  : demoCatalog.filter(item => [1086940, 1174180, 870780, 632470, 1850570, 2420110, 1903340, 1245620, 553850].includes(item.app_id ?? 0));
 
 /** Folder snapshot: the sample library's installed games are on disk. */
 export function demoInstalledStatuses(): Record<string, { folder: string; installed: boolean }> {
@@ -60,7 +65,8 @@ export function queryDemoCatalog(params: CatalogQueryParams): CatalogQueryResult
     (!query || item.name.toLowerCase().includes(query) || (item.genres ?? []).some(genre => genre.toLowerCase().includes(query)))
     && (!params.app_ids?.length || params.app_ids.includes(item.app_id ?? -1))
     && (!params.game_ids?.length || params.game_ids.includes(item.id))
-    && (!params.genres?.length || params.genres.some(genre => item.genres?.includes(genre))));
+    && (!params.genres?.length || params.genres.some(genre => item.genres?.includes(genre)))
+    && (!params.max_age_days || (Date.now() - Date.parse(String(item.release_date))) / 86400000 <= params.max_age_days));
   const direction = params.sort_direction === "asc" ? 1 : -1;
   const key = params.sort_by;
   if (key === "name") items = [...items].sort((a, b) => a.name.localeCompare(b.name) * (direction === 1 ? 1 : -1));

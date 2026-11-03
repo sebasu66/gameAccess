@@ -175,6 +175,53 @@ pub(crate) fn get_registered_plugins() -> Vec<PluginManifest> {
         .collect()
 }
 
+/// Settings, the plugin's tab, "Uninstall": stops it and deletes its folder. Only a plugin installed in the data folder
+/// (APPDATA\GameAccess\plugins\<its folder>), never one next to the app or a development checkout.
+#[tauri::command]
+pub(crate) fn uninstall_plugin(id: String) -> Result<(), String> {
+    let root = std::env::var_os("APPDATA")
+        .map(|appdata| PathBuf::from(appdata).join("GameAccess").join("plugins"))
+        .and_then(|root| root.canonicalize().ok())
+        .ok_or("No hay plugins instalados en esta PC.")?;
+    let (_, folder) = get_registered_plugins_with_paths()
+        .into_iter()
+        .find(|(manifest, _)| manifest.id == id)
+        .ok_or("El plugin no está instalado.")?;
+    let target = folder.canonicalize().map_err(|error| error.to_string())?;
+    if target.parent() != Some(root.as_path()) {
+        return Err("Este plugin no se instaló desde Game Access: hay que borrarlo a mano.".into());
+    }
+    stop_all_plugins();
+    stop_processes_in(&target);
+    let mut failure = None;
+    for _ in 0..10 {
+        match std::fs::remove_dir_all(&target) {
+            Ok(()) => { failure = None; break; }
+            Err(error) => { failure = Some(error); std::thread::sleep(Duration::from_millis(500)); }
+        }
+    }
+    start_registered_plugins();
+    match failure {
+        Some(error) => Err(format!("No se pudo borrar la carpeta del plugin: {error}")),
+        None => Ok(()),
+    }
+}
+
+/// Ends every process whose program is inside `folder` (a plugin may have started its own helpers).
+fn stop_processes_in(folder: &Path) {
+    let plain = folder.to_string_lossy().trim_start_matches(r"\\?\").replace('\'', "''");
+    let script = format!("Get-Process | Where-Object {{ $_.Path -and $_.Path.StartsWith('{plain}\\', [StringComparison]::OrdinalIgnoreCase) }} | Stop-Process -Force");
+    let mut command = Command::new("powershell");
+    command.args(["-NoProfile", "-NonInteractive", "-Command", &script]).stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let _ = command.status();
+    std::thread::sleep(Duration::from_millis(800));
+}
+
 pub fn is_endpoint_alive(endpoint: &str) -> bool {
     let health_url = format!("{}/api/health", endpoint.trim_end_matches('/'));
     reqwest::blocking::Client::builder()

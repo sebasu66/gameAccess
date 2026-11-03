@@ -64,9 +64,10 @@ def snapshot_db(revision: str, expected_sha256: str = ""):
     """The central package as a SQLite file on disk: it is unzipped to a temp file and read row by row.
 
     Never `deserialize` it into memory: that holds the whole database (~75 MB) plus a copy while loading, which
-    is what used to push the 512 MB server over its limit together with the parsed games."""
+    is what used to push the 512 MB server over its limit together with the parsed games. One reader at a time, but
+    /catalog streams through the thread pool, so the next rows may be read from another thread."""
     with unpacked_package(revision, expected_sha256) as target:
-        db = sqlite3.connect(target)
+        db = sqlite3.connect(target, check_same_thread=False)
         try:
             yield db
         finally:

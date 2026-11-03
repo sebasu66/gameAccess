@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r apps/api/requirements.txt pytest
+      - run: pip install -r apps/api/requirements.txt pytest==9.1.1
       - name: Validate discovery boundary and package contract
         env:
           PYTHONPATH: apps/api

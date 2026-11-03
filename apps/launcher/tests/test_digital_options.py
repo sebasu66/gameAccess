@@ -97,6 +97,15 @@ class DigitalOptionsTests(unittest.TestCase):
             self.assertTrue(runner.run("play",12,"Game")["ok"])
             discover.assert_called_once()
 
+    def test_redistributable_folders_are_not_offered_as_executables(self):
+        for folder in ("_CommonRedist/DirectX/Jun2010", "redist"):
+            (self.folder / folder).mkdir(parents=True)
+            (self.folder / folder / "DXSETUP.exe").write_bytes(b"redist")
+        (self.folder / "bin").mkdir()
+        (self.folder / "bin" / "launcher.exe").write_bytes(b"launcher")
+        listed = DigitalGameOptions(self.storage).inspect(12, "Game")["executables"]
+        self.assertEqual(listed, [str(Path("bin", "launcher.exe")), "game.exe"])
+
     def test_selected_executable_outside_game_is_rejected(self):
         outside = self.launcher / "outside.exe"
         outside.write_bytes(b"fixture")

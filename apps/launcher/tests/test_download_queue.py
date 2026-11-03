@@ -246,3 +246,27 @@ def test_after_plus_ends_a_torrent_resumes_in_base_but_a_direct_link_waits_for_p
     q.configure("plus", "session")
     q.resume(2)
     assert states()[2] == "active"
+
+
+def test_a_stopped_download_keeps_its_row_after_a_restart(tmp_path):
+    state = tmp_path / "queue.json"
+    q, w = queue("base", state)
+    for app_id in (1, 2, 3):
+        q.enqueue(app_id, f"G{app_id}", MAGNET)
+    w.report(1, "error", error="sin espacio", errorCode="no_space", resumeStep="download", bytesDownloaded=5)
+    q.tick()
+    w.report(2, "completed")
+    q.tick()
+    q.shutdown()
+    workers = FakeWorkers()
+    again = DownloadQueue(workers, state)
+    again.restore()
+    again.configure("base", None)
+    jobs = {job["appId"]: job for job in again.snapshot()["jobs"]}
+    # The failed one is still there, stopped, with what it needs to go on; the finished one is not.
+    assert jobs[1]["phase"] == "error" and jobs[1]["error"] == "sin espacio" and jobs[1]["position"] == -1
+    assert jobs[1]["status"] == {"errorCode": "no_space", "resumeStep": "download"}
+    assert 2 not in jobs and jobs[3]["phase"] in ("queued", "preparing")
+    assert 1 not in workers.started
+    again.retry(1)
+    assert {job["appId"]: job for job in again.snapshot()["jobs"]}[1]["phase"] in ("queued", "preparing")

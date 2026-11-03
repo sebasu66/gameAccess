@@ -66,7 +66,7 @@ class DownloadPipeline:
             # it stays with the player when it is small, well seeded or already fast.
             self.step("start", "route", ui("dlRouteLooking"))
             context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlRouteFastest"))
-            where = self.chunked(chunk_session).peek(download_source)
+            where = self.chunked(chunk_session).peek(download_source, app_id)
             if where:
                 # The player is never told which service holds it (no provider names in the app).
                 self.step("finish", ui("dlRouteServerHas"))
@@ -145,7 +145,7 @@ class DownloadPipeline:
         storage = DigitalGameStorage()
         game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
         # Explicit destinations keep the established test/CLI contract.
-        dest_dir = game_dir if args.destination_dir else str(Path(storage.preferences.load()["temporary_root"]) / f"{int(app_id)}-{storage.folder_name(game_name)}")
+        dest_dir = game_dir if args.destination_dir else str(storage.transfer_folder(int(app_id), game_name))
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
         if not args.destination_dir and (getattr(args, "source_title", "") or getattr(args, "source_provider", "")):
             storage.set_source(int(app_id), args.source_title, args.source_provider)
@@ -170,7 +170,10 @@ class DownloadPipeline:
 
         def room_check(total_bytes, on_disk_bytes):
             # The games root is the folder's parent (a status rename keeps it there).
-            from disk_space import check_download
+            from disk_space import allocated_size, check_download
+            # The transport may not know yet what is already here (a torrent reports nothing until it has re-checked
+            # its files): what the temporary folder really takes on disk counts as well.
+            on_disk_bytes = max(int(on_disk_bytes or 0), min(allocated_size(Path(dest_dir)), int(total_bytes)))
             room = check_download(total_bytes, on_disk_bytes, Path(game_dir).parent, Path(dest_dir))
             journal.note(game_dir, "espacio", f"descarga de {total_bytes} bytes ({on_disk_bytes} ya en disco); libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
             if not room["ok"]:
@@ -354,6 +357,8 @@ class DownloadPipeline:
             downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
             # The archive is all here: unpacking needs about as much again in the games folder.
             room = check_download(downloaded_bytes, downloaded_bytes, Path(game_dir).parent, Path(dest_dir))
+            # The download ends here; unpacking it is the install, a process of its own (the game's log says where one ends).
+            journal.note(game_dir, "descarga", f"terminada; {downloaded_bytes} bytes")
             journal.note(game_dir, "espacio", f"descargado {downloaded_bytes} bytes; libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
             if not room["ok"]:
                 raise NoSpaceError(room)
@@ -384,8 +389,13 @@ class DownloadPipeline:
                     if target.exists():
                         raise RuntimeError(f"Ya existe el archivo de destino: {target.name}")
                     shutil.move(str(item), str(target))
-            if dest_dir != game_dir and Path(dest_dir).is_dir() and not any(Path(dest_dir).iterdir()):
-                Path(dest_dir).rmdir()
+            if dest_dir != game_dir and Path(dest_dir).is_dir():
+                # Only empty folders go: a download by pieces leaves its content folder empty inside the temporary one.
+                for folder, _, _ in os.walk(dest_dir, topdown=False):
+                    try:
+                        os.rmdir(folder)
+                    except OSError:
+                        pass
             journal.note(game_dir, "descompresión", "terminada" if extracted else "sin comprimidos; archivos movidos")
             context.logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
             # Digital is portable: extraction is the installation. Never execute installProcess.

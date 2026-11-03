@@ -1,6 +1,11 @@
+import { personalOrderState } from "./personalOrder";
+import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
-import AppHelp from "./AppHelp";
-import ParentalSetupDialog from "./ParentalSetupDialog";
+import HomeScreen from "./HomeScreen";
+import ActivityPanel from "./activity/ActivityPanel";
+import { useActivity } from "./activity/activity";
+import KidModePanel from "./KidModePanel";
+import GamesScreenButton, { LibraryManagerButton } from "./GamesScreenButton";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
@@ -8,14 +13,13 @@ import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
-import VoxelLogo from "./VoxelLogo";
 import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, Gamepad2, Info, Loader2, Pause, Play, Search, Sparkles, Volume2, VolumeX } from "lucide-react";
 
 import { loadHome } from "./api";
 import { useCoverDiagnostics } from "./SteamCover";
@@ -27,7 +31,7 @@ import LibraryRoom from "./LibraryRoom";
 import { downloadManager } from "./downloadManager";
 import { gameStateManager } from "./GameStateManager";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
-import { getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
+import { hasTauriRuntime, getMachineProfile, getVisualDebugConfig, captureVisualDebug, finishVisualDebug, openSteamRun, steamDownloadStatus, steamInstalledAppIds, setVisualDebugViewport, type MachineProfile } from "./native";
 import type { CatalogGame, GameDetails, UserSummary } from "./types";
 
 import { queryCatalogCache } from "./catalogCache";
@@ -35,29 +39,30 @@ import { wait, inspectVisualChecks, VisualCheck, Preference, DownloadMap, Sessio
 import { Shelf } from "./AppCards";
 import { LibrarySphere } from "./AppLibrarySphere";
 import { SessionOverlay } from "./AppSessionOverlay";
-import { hideNotice, runSteps } from "./notice/notice";
+import LaunchDialog from "./LaunchDialog";
+import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
+import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
+import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
+import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
+import { cancelFreezeJob, freezeJob, guardAppClose, pauseFreezesWhilePlaying, recoverFreezes, resumeFreezes } from "./freezeJobs";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
-import DigitalDownloadsScreen from "./DigitalDownloadsScreen";
 import DeskPanel from "./desk/DeskPanel";
-import NewsPanel from "./NewsPanel";
 import { uiDemo } from "./devDemo/uiDemo";
-import { demoDownloadService } from "./devDemo/demoDownloads";
 import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
-import DigitalDownloadToast from "./DigitalDownloadToast";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
-import GameRecoveryDialog, { isBrokenInstall } from "./GameRecoveryDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
-import { installThroughSteam, isSteamOwned, steamOwnerLabel, syncSteamOnStartup } from "./steamLibrary";
+import { installThroughSteam, isSteamOwned, syncSteamOnStartup } from "./steamLibrary";
 import { GaIconButton } from "./components/ga/Buttons";
+import AntivirusGate from "./AntivirusDialog";
 let visualDebugStarted = false;
 
 const isPendingSteamMetadata = (game: CatalogGame) =>
@@ -69,10 +74,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
   const downloadsOpen = useDesk().includes("downloads");
-  // Dev-only browser preview: a download that walks through its steps (`?uiDemo=1`).
-  const demoService = useRef<ReturnType<typeof demoDownloadService>>();
-  if (import.meta.env.DEV && uiDemo() && !demoService.current) demoService.current = demoDownloadService();
+  const [unfinishedDownloads, setUnfinishedDownloads] = useState(0);
+  // The frame's Activity button: how many entries are unseen, and a light while something runs.
+  const activity = useActivity();
+  const unseenActivity = activity.filter(entry => !entry.seen && entry.state !== "running").length;
+  const activityRunning = unfinishedDownloads > 0 || activity.some(entry => entry.state === "running");
+  const pendingNoticeShown = useRef(false);
   useDeskLayout();
+  // The grid has the focus when the app is activated and when a game ends (gameFocus.ts).
+  useGridFocus();
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -101,12 +111,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [searchFilters, setSearchFilters] = useState<LibrarySearchFilters>(() => ({ ...INITIAL_CATALOG_FILTERS }));
   const [selected, setSelected] = useState<CatalogGame | null>(null);
   const [launchBusy, setLaunchBusy] = useState(false);
+  const launchSession = useLaunch();
+  const gameEndedStop = useRef<(() => void) | null>(null);
   // Every message goes through the single notice (see src/notice).
   const setToast = useCallback((message: string | null) => { if (message) notify(message); }, []);
   const catalogUpdates = useCatalogUpdates(games, !loading && !offlineDemo,
-    getCatalogMode() === "digital" && !["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? ""), setGames, setToast);
+    getCatalogMode() === "digital", setGames, setToast);
   const [session, setSession] = useState<SessionView | null>(null);
-  const [brokenGame, setBrokenGame] = useState<{ game: CatalogGame; message: string } | null>(null);
   const [detailsById, setDetailsById] = useState<Partial<Record<number, GameDetails>>>({});
   const [machine, setMachine] = useState<MachineProfile | null>(null);
   const [downloads, setDownloads] = useState<DownloadMap>({});
@@ -229,11 +240,19 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       pendingIds.add(snapshot.gameId);
       const phaseChanged = lastPhase.get(snapshot.gameId) !== snapshot.phase;
       lastPhase.set(snapshot.gameId, snapshot.phase);
+      setUnfinishedDownloads(digitalDownloadService.unfinishedCount());
       if (phaseChanged) flush();
       else if (timer === null) timer = window.setTimeout(flush, 1000);
     });
     return () => { unsub(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
+
+  // Once per launch, tell the player when downloads were left unfinished (paused, stopped for lack of room...).
+  useEffect(() => {
+    if (!unfinishedDownloads || pendingNoticeShown.current) return;
+    pendingNoticeShown.current = true;
+    showNotice({ tone: "info", title: t("pendingDownloadsNotice", { count: unfinishedDownloads }), actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openPanel("downloads"); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
+  }, [unfinishedDownloads, t]);
 
   // Source/metadata updates do not change the folders we need to check.
   const digitalFolderKey = useMemo(() => JSON.stringify(games.map(game => [game.app_id ?? game.id, game.name])), [games]);
@@ -253,10 +272,12 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
           ...digitalDownloadService.getDownloads().map(entry => entry.game),
         ]);
-        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows.
+        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows,
+        // including a folder it identified that still lacks its AppID in the name (shown with an alert until fixed).
+        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder).map(entry => entry.app_id));
         if (!cancelled) for (const game of games) {
           const id = game.app_id ?? game.id;
-          if (result.statuses?.[id] && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+          if ((result.statuses?.[id] || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
         }
         if (!cancelled) setDownloads(current => {
           // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
@@ -314,6 +335,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [suggestedGames, setSuggestedGames] = useState<CatalogGame[]>([]);
 
   useEffect(() => startAutoFreeze(), []);
+  // A freeze cut short by a closed app is put right and told; closing the app with one going on asks first.
+  useEffect(() => { if (getCatalogMode() === "digital") void recoverFreezes(); guardAppClose(); }, []);
 
   // The shelves are asked again when the parental policy changes (queryCatalogCache applies it).
   const parentalPolicy = useParentalState().policy;
@@ -480,7 +503,11 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
         .then(found => { if (found.length) setGames(current => current.some(game => game.id === gameId) ? current : [...current, ...found]); })
         .catch(() => undefined);
     }
-    setToast(value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : t("toastFewerLikeThis"));
+    rememberTasteGame(games.find(game => game.id === gameId));
+    const done = value === 1 ? (next[gameId] === 1 ? t("toastFavoriteAdded") : t("toastFavoriteRemoved")) : (next[gameId] === -1 ? t("toastFewerLikeThis") : t("toastDislikeRemoved"));
+    // The profile keeps learning from every thumb: its one history entry shows how far it is now (activity.ts).
+    const progress = tasteProgressText(buildTasteProfile(preferences, games), buildTasteProfile(next, games), personalOrderState().on, t);
+    notify(`${done} ${progress}`, { activity: { kind: "taste", merge: "replace", title: t("activityTasteTitle"), text: progress } });
   };
 
   const startDownload = async (game: CatalogGame) => {
@@ -499,32 +526,47 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     }
   };
 
-  const launchGame = async (game: CatalogGame, managedShortcut = false) => {
+  const launchGame = async (game: CatalogGame, managedShortcut = false, autoFixed = false) => {
+    // A game being frozen or thawed (or waiting for that) is not started: wait, or cancel that work and play.
+    const freezing = freezeJob(game.app_id ?? game.id);
+    if (freezing) {
+      showNotice({ game: noticeGame(game), title: translate("freezeBlocksPlayTitle", { name: game.name }), text: translate("freezeBlocksPlayText"), tone: "frost", timer: false, actions: [
+        { label: translate("freezeWait"), kind: "secondary", run: () => hideNotice() },
+        { label: translate("freezeCancelAndPlay"), kind: "frost", run: () => { hideNotice(); cancelFreezeJob(freezing.appId); void freezing.done.then(() => launchGame(game, managedShortcut)); } },
+      ] });
+      return;
+    }
+    // One launch at a time: while the launch dialog is up nothing else starts (a double click, the pad, a shortcut).
+    if (launchLocked()) return;
     document.querySelectorAll("video").forEach(video => video.pause());
     setHeroPaused(true); setSelected(null); rememberRecent(game); setLaunchBusy(true);
+    const launch = beginLaunch(game, autoFixed);
     // A deep-frozen game is thawed by the launcher before it starts: say so, it can take minutes.
     const deepFrozen = libraryScanState().games.some(entry => entry.app_id === game.app_id && entry.frozen === "deep");
-    // A Steam game runs signed in to the account that owns it: Steam may restart to switch accounts.
-    const steamOwner = steamOwnerLabel(libraryScanState().games.find(entry => entry.app_id === game.app_id && entry.link_kind === "steam")?.steam_owner);
-    // Starting a game can take several steps that can fail (thaw, fix, language, executable): the notice shows them.
-    const steps = [...(deepFrozen ? [translate("launchStepThaw")] : []), ...(steamOwner ? [translate("launchStepSteamAccount", { account: steamOwner })] : [translate("launchStepPrepare")]), translate("launchStepStart")];
-    const run = runSteps({ game: noticeGame(game), title: translate("launchTitle"), text: steamOwner ? translate("launchSteamDetail") : translate(deepFrozen ? "launchThawing" : "launchDetail"), steps });
-    run.set(0, "running");
+    // Another game's freeze waits while this one is thawed (if deep frozen) and played: it takes every core and the
+    // disk. It goes on when the game ends (or if it does not start). Only for a game whose end can be told (its folder).
+    const playedFolder = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id))?.folder;
+    if (playedFolder && hasTauriRuntime()) {
+      pauseFreezesWhilePlaying();
+      void listen(GAME_ENDED_EVENT, () => resumeFreezes()).then(stop => { gameEndedStop.current?.(); gameEndedStop.current = stop; });
+    }
     try {
       if (!managedShortcut && getCatalogMode() === "local" && game.app_id) await openSteamRun(game.app_id);
       else await digitalCatalogService.play(game);
       if (deepFrozen) void scanLibrary();  // it is no longer frozen
       if (game.app_id) recordPlayed(game.app_id);
-      steps.forEach((_, index) => run.set(index, "done"));
-      run.succeed({ title: translate("launchPlayingTitle"), text: translate("launchPlayingText", { name: game.name }) });
+      // The game gets the focus; when it ends, Game Access comes back with the grid focused.
+      watchGameFocus(playedFolder, game.app_id);
+      launchOpened(launch.id);
+      // The automatic fix made it start: keep what worked in the profile and share it (only a real fix, never a plain launch).
+      const learnedFix = autoFixed ? takeLearnedFix(game.app_id ?? game.id) : null;
+      if (learnedFix) void shareRunFix(game, learnedFix);
     } catch (err) {
+      resumeFreezes();
+      if (autoFixed) takeLearnedFix(game.app_id ?? game.id);  // the fix did not make it start: nothing to share
       const message = err instanceof Error ? err.message : String(err);
-      // Missing files/executable: the install is broken, so offer to fix, delete or reinstall it.
-      if (isBrokenInstall(message)) { hideNotice(run.id); setBrokenGame({ game, message }); }
-      else run.fail({ title: translate("launchError"), text: message, actions: [
-        { label: translate("close"), run: () => hideNotice() },
-        { label: translate("retry"), kind: "primary", run: () => void launchGame(game, managedShortcut) },
-      ] });
+      // Every failure, a broken install too, goes to the launch dialog's error mode: its checks and automatic fix.
+      launchFailed(launch.id, message);
     } finally { setLaunchBusy(false); }
   };
 
@@ -615,20 +657,19 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
 
   return (
     <div className="app-shell">
-      {/* The app as the screen of a device: a bezel with tabs, the animated logo in the corner and GAME / ACCESS
+      {/* The app as the screen of a device: a bezel with tabs and GAME / ACCESS
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
-        <button type="button" className="brand" aria-label="GameAccess" onClick={() => { setQuery(""); setSelected(null); }}><VoxelLogo /></button>
         {catalogNavigation}
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <AppSettings dockTarget={dockTarget} /><AppHelp dockTarget={dockTarget} /><ParentalSetupDialog />
+          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><LibraryManagerButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
         </div>
       </header>
 
       {(() => {
-        const downloadsButton = <GaIconButton className="digital-download-nav" icon={<FilledIcon name="download" />} label={t("downloadsTitle")} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
+        const downloadsButton = <GaIconButton className={activityRunning ? "digital-download-nav is-active" : "digital-download-nav"} icon={<Bell size={20} aria-hidden="true" />} label={t("processesTitle")} badge={unseenActivity || undefined} pressed={downloadsOpen} onClick={() => { setSelected(null); togglePanel("downloads"); }} />;
         return dockTarget ? createPortal(downloadsButton, dockTarget) : downloadsButton;
       })()}
 
@@ -649,15 +690,14 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           </>}
         </div>
       </main>
-      <DeskPanel id="news" eyebrow="GAME ACCESS" title={t("newsButton")}><NewsPanel games={games} onOpenGame={game => { if (!isWideDesk()) closePanel("news"); openGame(game); }} /></DeskPanel>
-      <DeskPanel id="downloads" eyebrow="DIGITAL" title={t("downloadsTitle")}><DigitalDownloadsScreen embedded service={uiDemo() ? demoService.current : undefined} catalogGames={games} onOpenGame={game => { if (!isWideDesk()) closePanel("downloads"); openGame(game); }} onClose={() => closePanel("downloads")} onPlay={async game => { if (!isWideDesk()) closePanel("downloads"); await launchGame(game); }} /></DeskPanel>
+      <DeskPanel id="downloads" eyebrow="GAME ACCESS" title={t("processesTitle")}><ActivityPanel onOpen={() => { if (!isWideDesk()) closePanel("downloads"); }} /></DeskPanel>
 
       {libraryOpen ? <LibrarySphere games={orderedLibrary} query={libraryQuery} setQuery={setLibraryQuery} searchFilters={searchFilters} onSearchFiltersChange={setSearchFilters} onOpen={openGame} onClose={() => setLibraryOpen(false)} detailOpen={Boolean(selected)} /> : null}
+      {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
-      {brokenGame ? <GameRecoveryDialog game={brokenGame.game} mode="broken" message={brokenGame.message} onClose={() => setBrokenGame(null)} /> : null}
+      <AntivirusGate />
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
-      {!downloadsOpen && !selected ? <DigitalDownloadToast onOpen={() => { setSelected(null); openPanel("downloads"); }} /> : null}
     </div>
   );
 }

@@ -115,6 +115,37 @@ def test_a_declared_fix_archive_is_never_treated_as_a_duplicate(messy):
     assert "obsolete_backup" not in [i["code"] for i in games["Gamma"]["issues"]]
 
 
+def test_a_finished_download_is_not_downloading_and_its_empty_leftover_goes(messy):
+    """Slay the Spire, 2026-11-03: the worker said "completed" seconds ago and left an empty folder in the temporary root."""
+    storage, lib = messy
+    leftover = storage.launcher / ".cache" / "digital_transfers" / "12-Theta"
+    (leftover / "Theta").mkdir(parents=True)
+    live = storage.data / ".cache" / "digital_downloads"
+    live.mkdir(parents=True, exist_ok=True)
+    (live / "12.json").write_text('{"phase": "completed"}', encoding="utf-8")
+    assert [t["active"] for t in lib.transfers() if t["app_id"] == 12] == [False]
+    lib.list_games()
+    assert not leftover.exists()
+    (live / "9.json").write_text('{"phase": "downloading"}', encoding="utf-8")
+    assert [t["active"] for t in lib.transfers() if t["app_id"] == 9] == [True]
+
+
+def test_a_ready_folder_is_installed_whatever_the_temporary_root_holds(messy):
+    """The folder's status is the state: a leftover download of a ready game does not make it downloading or unfinished."""
+    storage, lib = messy
+    ready = storage.root / "13-Iota-ready"
+    ready.mkdir()
+    (ready / "Iota.exe").write_bytes(b"x" * 10)
+    leftover = storage.launcher / ".cache" / "digital_transfers" / "13-Iota"
+    leftover.mkdir(parents=True)
+    (leftover / "part.bin").write_bytes(b"i" * 10)
+    live = storage.data / ".cache" / "digital_downloads"
+    live.mkdir(parents=True, exist_ok=True)
+    (live / "13.json").write_text('{"phase": "downloading"}', encoding="utf-8")
+    iota = next(g for g in lib.list_games() if g["app_id"] == 13)
+    assert iota["state"] == "ready" and not iota["unfinished"] and not iota["transfer_active"] and not iota["transfer_bytes"]
+
+
 def test_discarding_a_leftover_download_frees_the_temporary_folder(messy):
     storage, lib = messy
     assert lib.batch("discard_transfer", [9])[0]["ok"] and lib.transfers() == []

@@ -1,10 +1,9 @@
-import VoxelLogo from "./VoxelLogo";
+import { reportPlus, reportPlusUnreachable } from "./kidMode";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import SplashScreen from "./SplashScreen";
 import { openingStage } from "./openingFlow";
 import { ACTIVATION_INVALID_EVENT, checkActivation, clearActivationSession, readActivationSession, redeemActivation, ActivationRejectedError, ActivationConnectionError, lastActivationEnd } from "./activation";
 import type { ActivationStatus, ActivationEnd } from "./activation";
-import GameCoverBackdrop from "./GameCoverBackdrop";
 import { useI18n } from "./i18n";
 import { activationRetryDelay, waitForActivationConnection } from "./activationConnection";
 import { devAutoLoginKey } from "./devAutoLogin";
@@ -24,7 +23,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ActivationStatus | null>(null);
   const [busy, setBusy] = useState(true);
   const [connecting, setConnecting] = useState(true);
-  const [, setEnded] = useState<ActivationEnd | null>(null);
+  const [ended, setEnded] = useState<ActivationEnd | null>(null);
   const verification = useRef<AbortController | null>(null);
   const redeeming = useRef(false);
   const [notice, setNotice] = useState("");
@@ -32,7 +31,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const [verificationReady, setVerificationReady] = useState(false);
   const [docked, setDocked] = useState(false);
   const [dockStarted, setDockStarted] = useState(false);
-  const [applicationStarted, setApplicationStarted] = useState(false);
   const [logoLanded, setLogoLanded] = useState(false);
 
   // A saved key that cannot be checked yet (slow or unreachable server) must not hold the splash:
@@ -47,9 +45,6 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
   const completeIntro = useCallback(() => setIntroReady(true), []);
   const startDock = useCallback(() => setDockStarted(true), []);
   const completeDock = useCallback(() => { setLogoLanded(true); setDocked(true); }, []);
-  useEffect(() => {
-    if (introReady) setApplicationStarted(true);
-  }, [introReady]);
   useEffect(() => {
     const replay = () => { setIntroReady(false); setDocked(false); setDockStarted(false); setLogoLanded(false); };
     window.addEventListener("gameaccess:replay-logo", replay);
@@ -87,7 +82,7 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
             setEnded(reason.end);
             setNotice(endNotice(reason.end, t));
             setConnecting(false);
-            await clearActivationSession();
+            await clearActivationSession("the activation was rejected");
             break;
           }
           setConnecting(true);
@@ -106,20 +101,15 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
     return () => verification.current?.abort();
   }, [verify]);
   useEffect(() => {
+    // Access ended without the server saying so (its grant ran out, a request was refused): it is checked again, and the
+    // saved activation goes only if the server that issued it rejects it (Seba, 2026-10-30).
     const invalid = () => {
       verification.current?.abort();
-      setConnecting(false);
-      setStatus(null);
-      const end = lastActivationEnd();
-      setEnded(end);
-      setNotice(endNotice(end, t));
-      setBusy(false);
-      setVerificationReady(true);
-      void clearActivationSession();
+      void verify();
     };
     window.addEventListener(ACTIVATION_INVALID_EVENT, invalid);
     return () => window.removeEventListener(ACTIVATION_INVALID_EVENT, invalid);
-  }, [t]);
+  }, [verify]);
   // The premium dialog redeemed a key: adopt the new session.
   useEffect(() => {
     const activated = () => { setNotice(""); void verify(); };
@@ -156,11 +146,13 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       setConnecting(false);
       setStatus(null);
       const end: ActivationEnd = { reason: keyRemaining <= initialRemaining ? "expired" : "unavailable", expires_at: status.expires_at };
+      // Only the key's own end erases it; a grant that ran out without a renewal is checked again.
+      if (end.reason !== "expired") { void verify(); return; }
       setEnded(end);
       setNotice(endNotice(end, t));
       setBusy(false);
       setVerificationReady(true);
-      void clearActivationSession();
+      void clearActivationSession("the key's time ended");
     };
 
     const tick = () => {
@@ -181,6 +173,14 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
       if (timer != null) window.clearTimeout(timer);
     };
   }, [status, t]);
+
+  // PLUS on or off, as far as the server said. An unreachable server ("unavailable") gets a grace period; no activation at all says nothing.
+  useEffect(() => {
+    if (!verificationReady) return;
+    if (status?.active) reportPlus(status.access_tier === "plus");
+    else if (ended && (ended.reason === "expired" || ended.reason === "revoked")) reportPlus(false);
+    else if (ended?.reason === "unavailable") reportPlusUnreachable();
+  }, [verificationReady, status, ended]);
 
   /**
    * Development convenience: sign in with the key in the local `.env`.
@@ -211,11 +211,10 @@ export default function ActivationGate({ children }: { children: ReactNode }) {
 
   return <>
     {(verificationReady || waited) ? <div className={`ga-application-reveal${dockStarted ? " is-revealing" : ""}${stage === "ready" ? " is-ready" : ""}`} aria-hidden={stage !== "ready"} ref={node => { if (node) node.inert = stage !== "ready"; }}>
-      {(introReady || applicationStarted) ? <div className="ga-access-brand"><VoxelLogo /></div> : null}
       {children}
       {notice ? <div className="toast" role="status" aria-live="assertive">{notice}</div> : null}
     </div> : null}
-    {!logoLanded ? <div className={`ga-opening-background${dockStarted ? " is-docking" : ""}`}><GameCoverBackdrop /></div> : null}
+    {!logoLanded ? <div className={`ga-opening-background${dockStarted ? " is-docking" : ""}`} /> : null}
     {!logoLanded ? <SplashScreen stage={stage} onIntroReady={completeIntro} onDockStart={startDock} onDocked={completeDock} /> : null}
   </>;
 }

@@ -8,6 +8,7 @@ import { computeShelfWindow, type ShelfWindow, type ShelfWindowMetrics } from ".
 import type { LibrarySection } from "./librarySections";
 import type { CatalogGame } from "./types";
 import { useI18n } from "./i18n";
+import { useBatchReveal } from "./motion/batchReveal";
 
 interface Props {
   section: LibrarySection;
@@ -221,6 +222,9 @@ export default function LibrarySectionShelf({ section, selectedId, renderGame, r
       void narrate(`Infinite scroll loaded ${visibleGames.length - previous} more ${section.id} game card(s); ${visibleGames.length}/${section.games.length} are visible.`, { area: "CATALOG" });
     }
   }, [section.games.length, section.id, visibleGames.length]);
+
+  // Cards reveal themselves in batches as they scroll into view, like the library (the approved demo's catalog).
+  useBatchReveal(rootRef, "[data-library-game-id]", visibleGames, windowRange.paddingTop);
 
   return <section ref={rootRef} className="library-section" aria-label={section.title}>
     <header className="library-section-heading">

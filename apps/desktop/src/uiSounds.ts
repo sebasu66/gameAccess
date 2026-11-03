@@ -43,6 +43,28 @@ export function playCatalogBell() {
   } catch { /* Notifications remain visible if audio is unavailable. */ }
 }
 
+/** Three rising notes ("tin tin tin"), synthesized locally: a feature has just become available. */
+export function playUnlockChime() {
+  try {
+    const context = new AudioContext();
+    void context.resume().then(() => {
+      const now = context.currentTime;
+      [1046.5, 1318.5, 1568].forEach((frequency, index) => {
+        const oscillator = context.createOscillator(), gain = context.createGain();
+        const start = now + index * .11;
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(.0001, start);
+        gain.gain.exponentialRampToValueAtTime(.04, start + .012);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + .55);
+        oscillator.connect(gain); gain.connect(context.destination);
+        oscillator.start(start); oscillator.stop(start + .6);
+      });
+      window.setTimeout(() => void context.close(), 1200);
+    }).catch(() => void context.close());
+  } catch { /* The switch still lights up without audio. */ }
+}
+
 let lastAlertToneTime = 0;
 /** Two-tone warning chirp synthesized locally for profiler/resource alerts.
  *  This limiter is the only one: it keeps a burst of alerts audible without

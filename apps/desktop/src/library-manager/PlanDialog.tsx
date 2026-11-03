@@ -22,7 +22,7 @@ export function PlanDialog({ plans, c, busy, onConfirm, onCancel }: { plans: Lib
   const toggle = (id: number) => setOpen(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return (
     <AlertDialog open onOpenChange={value => { if (!value && !busy) onCancel(); }}>
-      <AlertDialogContent className="w-[min(960px,94vw)] max-h-[min(78vh,620px)]">
+      <AlertDialogContent className="ga-overlay-dialog w-[min(960px,94vw)] max-h-[min(78vh,620px)]">
         <AlertDialogHeader>
           <AlertDialogTitle>{c.planTitle}</AlertDialogTitle>
           <AlertDialogDescription>{c.planIntro}</AlertDialogDescription>
@@ -41,7 +41,7 @@ export function PlanDialog({ plans, c, busy, onConfirm, onCancel }: { plans: Lib
                       {plan.freed_bytes ? <b className="text-xs tabular-nums text-success">{formatBytes(plan.freed_bytes)}</b> : null}
                     </button>
                     {expanded ? <div className="grid gap-2 px-3 pb-3 pl-9">
-                      {plan.error ? <p className="m-0 text-xs text-[#ff6b75]">{plan.error}</p> : null}
+                      {plan.error ? <p className="m-0 text-xs text-[#e1898f]">{plan.error}</p> : null}
                       <ul className="m-0 grid list-none gap-1.5 p-0">
                         {plan.actions.map((action, index) => (
                           <li key={`${action.code}-${index}`} className="flex items-start gap-2 text-sm">

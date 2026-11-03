@@ -4,7 +4,7 @@ import "./brand-wall.css";
 
 /** Width / height of the word (a 60 x 64 cell, six rows: ACCESS). */
 const ASPECT = 60 / (64 * 6);
-/** Clear of the animated logo in the top-right corner (top 24 px, 56 px tall) and of the bottom tabs. */
+/** Clear of the top of the screen and of the bottom tabs. */
 const TOP = 98, GAP = 12;
 /** From the bezel to the word's box: none, so the letters (a few pixels inside their cell) almost touch the bezel. */
 const RIGHT_MARGIN = 0;
@@ -13,13 +13,13 @@ const MIN_HEIGHT = .4;
 
 /**
  * GAME / ACCESS sketched huge in the empty column right of the content (with the device frame):
- * the drawing the tab's LCD had, letter by letter with the animated logo's turn, but on the screen, against the
+ * the drawing the tab's LCD had, letter by letter on the brand turn's timing, but on the screen, against the
  * column's right side, each word centred on the window's height (ACCESS fills its six rows, GAME sits one row lower;
  * brand-wall.css), about the size of the view word on the left, and barely there: thin, semi-transparent lines.
  * Measured, because the column's width depends on the window and on the side panels; it shrinks to fit and hides
  * when there is no room.
  */
-export default function BrandWall({ video }: { video: string }) {
+export default function BrandWall() {
   const host = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     let frame = 0;
@@ -40,7 +40,7 @@ export default function BrandWall({ video }: { video: string }) {
       // wide as --ga-desk-right plus the bezel's reach).
       const right = window.innerWidth - frameRight - deskRight;
       const space = right - contentRight;
-      // Centred on the window: as tall as fits between the corner logo and the bottom tabs on both halves.
+      // Centred on the window: as tall as fits between the top of the screen and the bottom tabs on both halves.
       const half = (window.innerHeight - offset) / 2;
       const tall = 2 * Math.min(half - TOP, half - frameBottom - GAP);
       const height = Math.min(tall, space * .8 / ASPECT);
@@ -67,5 +67,5 @@ export default function BrandWall({ video }: { video: string }) {
     watch();
     return () => { window.removeEventListener("resize", schedule); resize?.disconnect(); mutations.disconnect(); window.cancelAnimationFrame(frame); };
   }, []);
-  return <div ref={host} className="ga-brand-wall" data-fits="false" aria-hidden="true"><BrandWord video={video} /></div>;
+  return <div ref={host} className="ga-brand-wall" data-fits="false" aria-hidden="true"><BrandWord /></div>;
 }

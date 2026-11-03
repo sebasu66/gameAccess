@@ -16,6 +16,8 @@ from game_execution_manager.execution_profile import declared_fix_archive, load_
 from game_execution_manager.setup_installer import find_setup
 from disk_space import GIB, check_space, disk_info, folder_size
 from game_scanner import is_steam_path
+from game_paths import fits, longest_inside
+from game_download_manager.ui_text import ui
 
 # A real fix archive is small; one this big is the downloaded game kept next to its own unpacked copy.
 OBSOLETE_BACKUP_BYTES = 1 * GIB
@@ -108,11 +110,14 @@ class GameImporter:
         return app_id, f"{app_id}-{title}", state
 
     # -- doing it ------------------------------------------------------------------------------
-    def import_game(self, app_id: int, name: str, path: str, mode: str = "link", kind: str = "folder", executable: str = "") -> dict:
+    def import_game(self, app_id: int, name: str, path: str, mode: str = "link", kind: str = "folder", executable: str = "",
+                    progress=None, checkpoint=lambda: None, resume: bool = False) -> dict:
         """Bring a game that lives elsewhere into the library.
 
         link: it stays where it is; Game Access only launches it and counts its plays (always the case for Steam games).
-        move: its files move into the games folder and are adopted like any other game (never for Steam libraries)."""
+        move: its files move into the games folder and are adopted like any other game (never for Steam libraries).
+        `progress` / `checkpoint`: the move's progress file and the app's cancel or pause (game_library_manager.mover).
+        `resume`: a move cut short goes on with the half-made copy already in the games folder."""
         source = Path(path)
         if not source.is_dir() or source.is_symlink():
             raise ValueError("La carpeta del juego no existe.")
@@ -125,8 +130,10 @@ class GameImporter:
                 self.log.info("AppID %s (%s): already linked at %s", app_id, name, source)
                 return {"ok": True, "mode": "link", "already": True}
             raise ValueError(f"Este juego ya está vinculado desde otra carpeta: {linked['path']}")
+        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
         in_library = next((folder for root in self.storage.roots if root.is_dir() for folder in root.glob(f"{int(app_id)}-*")), None)
-        if in_library is not None:
+        resuming = resume and mode == "move" and in_library is not None and in_library.resolve() == target.resolve()
+        if in_library is not None and not resuming:
             raise ValueError(f"Este juego ya está en la biblioteca: {in_library}")
         steam = kind == "steam" or is_steam_path(source)
         if mode not in ("link", "move"):
@@ -137,22 +144,31 @@ class GameImporter:
             self.storage.linked.link(app_id, name, str(source), "steam" if steam else "folder", executable)
             self.log.info("AppID %s (%s): linked in place at %s", app_id, name, source)
             return {"ok": True, "mode": "link"}
-        size = folder_size(source)
+        size = folder_size(source) - (folder_size(target) if resuming else 0)
         same_disk = source.resolve().drive.lower() == self.storage.root.drive.lower() and (os.name == "nt" or source.stat().st_dev == self.storage.root.stat().st_dev)
         if not same_disk and disk_info(self.storage.root)["disk_free_bytes"] < size + GIB:
             message = "No hay espacio suficiente en el disco de juegos para mover este juego."
             self.log.error("AppID %s: move refused, %s", app_id, message)
             return {"ok": False, "error": message}
-        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
-        if target.exists():
+        if target.exists() and not resuming:
             raise ValueError("Ya existe una carpeta con ese nombre en la biblioteca.")
+        # Its deepest file must still fit under Windows' path limit at the new place (with the "-ready" the folder
+        # gets once adopted), or the game would not run (or not even move) from there.
+        longest = longest_inside(source)
+        if not fits(Path(f"{target}-ready"), longest):
+            message = ui("importTooLong", longest=longest, folder=str(self.storage.root))
+            self.log.error("AppID %s: move refused, %s", app_id, message)
+            return {"ok": False, "error": message}
         self.storage.root.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source), str(target))
+        from game_library_manager.mover import move_folder   # here: the package imports this module at load time
+        moved = move_folder(source, target, progress, checkpoint, resume=resuming)
         self.storage.register(app_id, name)
         journal.note(target, "importado", f"movido desde {source}; el historial de antes no está disponible")
         self.log.info("AppID %s (%s): moved from %s into %s", app_id, name, source, target.name)
+        if progress is not None:
+            progress.step("adopt")
         outcome = self.adopt(app_id, name)
-        return {"mode": "move", **outcome}
+        return {"mode": "move", "moved_bytes": moved["bytes"], "resumed_bytes": moved["resumed_bytes"], "renamed": moved["renamed"], **outcome}
 
     def adopt(self, app_id: int, name: str, progress=lambda text: None) -> dict:
         folder = self.storage.folder(app_id, name)

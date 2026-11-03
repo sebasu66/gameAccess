@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
 
 import { CATALOG_TABS } from "./CatalogTabs";
+import { installKeyboardRules } from "./keyboardRules";
 import type { CatalogMode } from "./catalogMode";
 
 type ModeUiState = {
@@ -151,6 +152,8 @@ function refocusOperationalSurface(): void {
 export const TOGGLE_COLLECTION_EVENT = "gameaccess:toggle-collection";
 
 export default function LibraryInputController({ mode, onModeChange }: { mode: CatalogMode; onModeChange: (mode: CatalogMode) => void }) {
+  // Fields take the focus when they show, Enter moves on, the frame's buttons answer to 1–9 (keyboardRules.ts).
+  useEffect(() => installKeyboardRules(), []);
   const modeRef = useRef(mode);
 
   useEffect(() => {
@@ -160,7 +163,8 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!libraryRoot() || modal()) return;
+      // A screen (kids, home, settings) hides the grid: its keys are not the grid's (appScreen.ts).
+      if (!libraryRoot() || modal() || document.documentElement.classList.contains("ga-screen-on")) return;
       if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
 

@@ -1,14 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { getSteamStoreLanguage } from "../i18n";
+import { localizeLauncherText } from "../launcherText";
 import { ensureExecutionProfile } from "./ExecutionProfiles";
 import type { CatalogGame } from "../types";
 import type { DigitalGameRecord } from "./DigitalCatalog";
 import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo";
 
+/** The library manager's verdict on whether a game runs on this PC (launcher: game_library_manager/run_checks.py). */
+export interface RunCheck { state: "checked" | "cantRun"; at: string; detail: string; seconds?: number }
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix" | "open-launcher" | "verify-run";
   app_id: number;
   name?: string;
   pid?: number;
@@ -21,21 +24,43 @@ export interface ProcessExecutionResult {
   installed?: boolean;
   backup_requires_password?: boolean;
   settings?: DigitalStorageSettings;
+  /** Why the games folder may keep games from running (long, accents or symbols); empty when it is fine. */
+  games_root_warning?: string;
   options?: DigitalLaunchOptions;
   executables?: string[];
   archives?: string[];
   changed?: string[];
+  /** The launch checks (action "launch-diagnose"). */
+  /** What the automatic fix really changed (action "auto-fix"): the fix to share if the game then opens. */
+  fix?: { steam: boolean; launchers: string[]; language: "keep" | null; runtimes: string[]; fixBackup: boolean; runAsAdmin: boolean } | null;
+  check?: RunCheck;
+  skipped?: "running" | "frozen" | "freezing";
+  /** A linked game's options. A Steam game: `command` is the one the user set ("" = `default_command`). A folder's game
+   *  (`kind: "folder"`): `options` and `executables` as any game of the library (executable, arguments, administrator). */
+  linked?: boolean;
+  kind?: "steam" | "folder";
+  default_command?: string;
+  steps?: Array<{ id: string; ok: boolean; detail: string }>;
+  checks?: Array<{ id: string; ok: boolean | null; [value: string]: unknown }>;
   log?: string;
+  /** The end of the game installer's own log (setup*.exe), when it ran. */
+  installer_log?: string;
+  plan?: RelocationPlan;
+  relocated?: { app_id: number; ok: boolean; mode?: "move" | "link"; already?: boolean; error?: string };
+  left?: string[];
   analysis?: GameAnalysis;
   library?: LibraryGame[];
   drives?: ImportDrive[];
   candidates?: ImportCandidate[];
+  /** The player stopped the import scan: `candidates` are the games found until then. */
+  cancelled?: boolean;
   transfers?: LibraryTransfer[];
   usage?: LibraryUsage;
   plans?: LibraryPlan[];
   summary?: LibrarySummary;
   space?: LibrarySpace;
-  results?: Array<{ app_id: number; ok: boolean; error?: string }>;
+  /** in_use_folder: the folder Windows would not rename or move because programs hold it (library-batch). */
+  results?: Array<{ app_id: number; ok: boolean; error?: string; in_use_folder?: string }>;
   file?: string;
   needs_repair?: boolean;
   errors?: Array<{file: string; error: string}>;
@@ -51,16 +76,31 @@ export interface LibraryPlanAction { code: string; label: string; bytes?: number
 export interface LibraryPlan { app_id: number; name: string; actions: LibraryPlanAction[]; freed_bytes?: number; delete_sources?: boolean; error?: string }
 export interface LibraryIssue { code: string; message: string; bytes?: number }
 export interface LibraryTransfer { app_id: number; name: string; folder: string; active: boolean; size_bytes: number | null }
-export interface LibraryGame { app_id: number | null; issues: LibraryIssue[]; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; linked?: boolean; link_kind?: "steam" | "folder"; /** The Steam account that owns a Steam game (state "steam_owned": owned, not installed). */ steam_owner?: SteamOwner; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null }
+export interface LibraryGame { app_id: number | null; /** Whether it was tried to run here, and how it went. */ run_check?: RunCheck | null; issues: LibraryIssue[]; /** A folder identified by its emulator/fix file that lacks its AppID in the name. */ misnamed?: boolean; standard: boolean; reclaimable_bytes: number; transfer_bytes: number | null; transfer_active: boolean; partial?: boolean; unfinished?: boolean; transfer_kind?: "pieces" | "other" | ""; /** Where a stopped download goes on (the Download Manager's retry). */ resume_step?: "download" | "extract" | ""; /** In ERROR with its download stopped and nothing left in the temporary root: processed as it is by Retry. */ stalled?: boolean; name: string; state: string; folder: string; installed: boolean; needs_repair: boolean; error: string; warning: string; size_bytes: number | null; plays?: number; last_played?: string; /** When the game came into the library (its log's first line). */ added_at?: string; linked?: boolean; link_kind?: "steam" | "folder"; /** The Steam account that owns a Steam game (state "steam_owned": owned, not installed). */ steam_owner?: SteamOwner; queued?: boolean; source_title?: string; source_provider?: string; label?: string; frozen?: FreezeLevel; frozen_bytes?: number | null; original_bytes?: number | null; /** A move into the library cut short (the app or the PC went off): its half-made copy waits to go on. */ move_pending?: { percent: number; target: string; bytes: number } }
 export interface SteamOwner { id64: string; account: string; persona: string; remembered: boolean }
 /** "freeze": Windows compression, playable as it is; "deep": one 7-Zip archive, thawed before it runs. */
 export type FreezeLevel = "freeze" | "deep";
 export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; frozen_saved_bytes?: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
-export type LibraryBatchAction = "uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer";
+export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer" | "linked_delete" | "linked_move" | "linked_move_resume" | "linked_move_discard";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
+export interface RelocationGame { app_id: number; name: string; folder: string; size_bytes: number; same_disk: boolean; fits: boolean; taken: boolean; must_move: boolean }
+export interface RelocationPlan { target: string; games: RelocationGame[]; copy_bytes: number; free_bytes: number; room: boolean }
 export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[]; delete_download_sources?: boolean; auto_freeze?: boolean }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }
+
+/** The launcher sends errors and warnings as keys of the app's translations (ui_text.py): said in the app's language. */
+const localizeGame = (game: LibraryGame): LibraryGame => ({
+  ...game, error: localizeLauncherText(game.error), warning: localizeLauncherText(game.warning),
+  issues: game.issues?.map(issue => ({ ...issue, message: localizeLauncherText(issue.message) })),
+});
+const localizeResult = (result: ProcessExecutionResult): ProcessExecutionResult => ({
+  ...result,
+  ...(result.library ? { library: result.library.map(localizeGame) } : {}),
+  ...(result.results ? { results: result.results.map(row => ({ ...row, error: localizeLauncherText(row.error) ?? undefined })) } : {}),
+  ...(result.relocated ? { relocated: { ...result.relocated, error: localizeLauncherText(result.relocated.error) ?? undefined } } : {}),
+  ...(result.plans ? { plans: result.plans.map(plan => ({ ...plan, error: localizeLauncherText(plan.error) ?? undefined, actions: plan.actions.map(action => ({ ...action, label: localizeLauncherText(action.label) })) })) } : {}),
+});
 
 const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -76,30 +116,38 @@ export class DigitalProcessManager {
     return this.execute("play", game, record, workingDir);
   }
 
-  executeUninstall(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
+  async executeUninstall(game: CatalogGame, record?: DigitalGameRecord, workingDir?: string): Promise<ProcessExecutionResult> {
     return this.execute("uninstall", game, record, workingDir);
   }
 
   status(game: CatalogGame): Promise<ProcessExecutionResult> { return this.execute("status", game); }
 
   /** The game's folder; `download`: the temporary download folder while the download is there (the game's otherwise). */
-  openFolder(game: CatalogGame, which?: "download"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
+  openFolder(game: CatalogGame, which?: "download" | "exe"): Promise<ProcessExecutionResult> { return this.execute("open-folder", game, undefined, undefined, which); }
 
   settings() { return this.execute("settings", {id:0,name:""} as CatalogGame); }
-  saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
+  async saveSettings(values: DigitalStorageSettings) { return this.execute("save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
   localGames() { return this.execute("local-games", {id:0,name:""} as CatalogGame); }
   gameOptions(game: CatalogGame) { return this.execute("game-options", game); }
   saveGameOptions(game: CatalogGame, options: DigitalLaunchOptions) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify(options)); }
   analyzeGame(game: CatalogGame) { return this.execute("game-analyze", game); }
   repairGame(game: CatalogGame) { return this.execute("game-repair", game); }
   gameLog(game: CatalogGame) { return this.execute("game-log", game); }
-  libraryList() { return this.execute("library-list", {id:0,name:""} as CatalogGame); }
-  libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })); }
-  librarySpace(bytes: number) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes })); }
-  libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })); }
+  /** `heal`: "Refresh" first looks again at the library's broken folders (a game unpacked by hand becomes ready). */
+  libraryList(heal = false) { return this.execute("library-list", {id:0,name:""} as CatalogGame, undefined, undefined, heal ? JSON.stringify({ heal: true }) : undefined).then(localizeResult); }
+  libraryPlan(appIds: number[]) { return this.execute("library-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_ids: appIds })).then(localizeResult); }
+  /** With the game, what an unfinished download of it already has on disk counts. */
+  librarySpace(bytes: number, appId?: number, name?: string) { return this.execute("library-space", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ bytes, app_id: appId ?? 0, name: name ?? "" })); }
+  /** Moving the library to `target`: the games outside it, their sizes and whether they fit there. */
+  relocatePlan(target: string) { return this.execute("library-relocate-plan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ target })); }
+  /** One game into `target` ("move"), or linked where it is ("link"; an unfinished or deep-frozen game always moves). */
+  async relocate(appId: number, target: string, mode: "move" | "link") { return this.execute("library-relocate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target, mode })).then(localizeResult); }
+  /** After the moves: the old games folders with nothing of ours left leave the list. */
+  async relocateFinish() { return this.execute("library-relocate-finish", {id:0,name:""} as CatalogGame); }
+  async libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult); }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
-  importScan(drives: string[]) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives })); }
-  importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
+  importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
+  async importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
   /** Steam Account Manager: the local Steam client, its accounts and who owns each game. */
   steamStatus() { return this.execute("steam-status", {id:0,name:""} as CatalogGame); }
   steamSaveSettings(values: Record<string, unknown>) { return this.execute("steam-save-settings", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(values)); }
@@ -107,10 +155,26 @@ export class DigitalProcessManager {
   steamSync(refresh = false, auto = false, api = "") { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto, api })); }
   /** Steam installs the game itself: it asks the library folder and checks the space. */
   steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
+  /** Why a game may not open (the launch dialog's error mode): the launcher's checks, each `{ id, ok, ... }`. */
+  diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
+  /** The launch dialog's "fix it for me": starts Steam if the game uses it, thaws, re-applies the fix backup and puts the language files back. */
+  autoFix(game: CatalogGame, serverFix?: object | null) { return this.execute("auto-fix", game, undefined, undefined, JSON.stringify(serverFix ?? {})); }
+  /** Library manager: starts the game, sees whether it stays open, closes it and keeps the verdict (`check`). `skipped`: it was already running, or frozen; `force`: one already running is closed and tried again. */
+  verifyRun(game: CatalogGame, force = false) { return this.execute("verify-run", game, undefined, undefined, force ? JSON.stringify({ force: true }) : undefined); }
+  /** A linked game's launch command ("" goes back to the default one). */
+  saveLaunchCommand(game: CatalogGame, command: string) { return this.execute("save-game-options", game, undefined, undefined, JSON.stringify({ command })); }
+  /** Opens a store launcher (epic, ubisoft, ea, rockstar, paradox, battlenet) so the player can sign in there. */
+  openLauncher(game: CatalogGame, launcher: string) { return this.execute("open-launcher", game, undefined, undefined, launcher); }
+  /** Keeps what made the game run in its execution profile (`learnedFix`). */
+  saveLearnedFix(game: CatalogGame, fix: object) { return this.execute("save-learned-fix", game, undefined, undefined, JSON.stringify(fix)); }
+  /** Puts back the language files a repair changed and stops Game Access from changing this game's language. */
+  keepLanguage(game: CatalogGame) { return this.execute("restore-language", game); }
   repairLanguage(game: CatalogGame) { return this.execute("repair-language", game); }
   /** Free disk space from a game nobody plays (only games Game Access owns, never linked ones). */
-  freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
-  thaw(game: CatalogGame) { return this.execute("thaw", game); }
+  async freeze(game: CatalogGame, level: FreezeLevel) { return this.execute(level === "deep" ? "deep-freeze" : "freeze", game); }
+  async thaw(game: CatalogGame) { return this.execute("thaw", game); }
+  /** After a closed app: every freeze cut short, put back in a safe state by the launcher (or still running). */
+  freezeRecover() { return this.execute("freeze-recover", {id:0,name:""} as CatalogGame); }
   /** Freeze at most one game unused for a month (Windows compression) or three (deep freeze). */
   autoFreeze() { return this.execute("library-autofreeze", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ freeze_days: 30, deep_days: 90 })); }
   /** The player's own name for the game in their library; "" goes back to the download source's name. */

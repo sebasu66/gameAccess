@@ -9,6 +9,7 @@ import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 import {translate, useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { useMagneticButtons } from "./motion/magnetic";
+import { Flip, motionOk } from "./motion/gsap";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
@@ -16,7 +17,7 @@ import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Globe, Image as ImageIcon, Loader2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
+import { Globe, Image as ImageIcon, Loader2, Maximize2, Minimize2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
 import { hasTauriRuntime } from "./native";
 import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
@@ -33,7 +34,7 @@ import { downloadManager } from "./downloadManager";
 import { GenericDownloadProgressView } from "./GenericDownloadProgress";
 import { steamDownloadMetrics } from "./nativeDownloadMetrics";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import type { ArtworkState, FocusZone, LibraryAction } from "./LibraryRoomParts";
+import type { FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 import { useSelectedGameDetails } from "./useSelectedGameDetails";
 
@@ -173,26 +174,9 @@ function useCrossfadeArtwork(source?: string) {
   return { layers, activeLayer };
 }
 
-interface LegacyMediaProps {
-  artwork: ArtworkState;
-  movie?: SteamMovie;
-  videoSrc?: string;
-  readyVideoSrc: string | null;
-  videoMuted: boolean;
-  videoVolume: number;
-  videoRef: RefObject<HTMLVideoElement>;
-  onVideoMetadata: (video: HTMLVideoElement) => void;
-  onVideoReady: (video: HTMLVideoElement) => void;
-  onToggleSound: () => void;
-  onVolumeChange: (value: number) => void;
-}
-
-export interface FeaturePanelProps extends LegacyMediaProps {
+export interface FeaturePanelProps {
   game: CatalogGame;
   showcaseMode: boolean;
-  summary: string;
-  loadingDetails: boolean;
-  details: GameDetails | null;
   download?: ManagedDownloadStatus;
   preference?: 1 | -1;
   onPreference: (value: 1 | -1) => void;
@@ -241,51 +225,6 @@ function ActionButtons(props: FeaturePanelProps) {
       </button>)}
   {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
   </div>;
-}
-
-function PreferenceButtons(props: Pick<FeaturePanelProps, "game" | "preference" | "onPreference">) {
-  const { t } = useI18n();
-  return (
-    <div className="library-room-preferences">
-      <span>¿Te gusta?</span>
-      <button type="button" className={props.preference === 1 ? "selected" : ""} onClick={() => props.onPreference(1)} aria-label={t("uiMeGusta")}><ThumbsUp size={18} /></button>
-      <button type="button" className={props.preference === -1 ? "selected negative" : ""} onClick={() => props.onPreference(-1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={18} /></button>
-    </div>
-  );
-}
-
-function LegacyDisplayMedia(props: LegacyMediaProps) {
-  const { t } = useI18n();
-  const muted = props.videoMuted || props.videoVolume === 0;
-  return (
-    <>
-      <div className="library-room-feature-ambient" aria-hidden="true">
-        {props.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === props.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}
-      </div>
-      <div className="library-room-feature-media">
-        {props.artwork.layers.map((source, index) => source ? <img key={`hero-${index}-${source}`} className={`library-room-hero-layer ${index === props.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} /> : null)}
-        {props.videoSrc ? <video key={props.videoSrc} ref={props.videoRef} className={`library-room-video ${props.readyVideoSrc === props.videoSrc ? "is-ready" : ""}`} src={props.videoSrc} poster={props.movie?.thumbnail} autoPlay muted={props.videoMuted} playsInline preload="auto" onLoadedMetadata={(event) => props.onVideoMetadata(event.currentTarget)} onCanPlay={(event) => props.onVideoReady(event.currentTarget)} onEnded={(event) => props.onVideoMetadata(event.currentTarget)} /> : null}
-        <div className="library-room-feature-shade" />
-        {props.videoSrc ? <div className="library-room-media-controls" onPointerDown={(event) => event.stopPropagation()}><button type="button" onClick={props.onToggleSound} aria-label={muted ? "Activar sonido" : "Silenciar video"}>{muted ? <VolumeX size={17} /> : <Volume2 size={17} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={props.videoMuted ? 0 : props.videoVolume} onChange={(event) => props.onVolumeChange(Number(event.currentTarget.value))} /></div> : null}
-      </div>
-    </>
-  );
-}
-
-function LegacyDisplayFeature(props: FeaturePanelProps) {
-  return (
-    <aside className="library-room-feature">
-      <LegacyDisplayMedia {...props} />
-      <div className="library-room-feature-copy">
-        <header className="library-room-overview">
-          <h1>{props.game.name}</h1>
-          <p className="library-room-lead">{props.summary}</p>
-          <ActionButtons {...props} />
-          <PreferenceButtons {...props} />
-        </header>
-      </div>
-    </aside>
-  );
 }
 
 interface MediaController {
@@ -369,7 +308,7 @@ function useDesktopMedia(game: CatalogGame, details: GameDetails | null): MediaC
   return { state, setState, videoRef, videoSrc, fallback, artwork, muted, setMuted, volume, setVolume, paused, setPaused, readyVideo, setReadyVideo, reducedMotion };
 }
 
-function MediaControls({ model }: { model: MediaController }) {
+function MediaControls({ model, expanded, onExpand }: { model: MediaController; expanded?: boolean; onExpand?: () => void }) {
   const { t } = useI18n();
   const toggle = () => {
     if (model.paused && model.reducedMotion && model.videoSrc) model.setState((current) => ({ ...current, phase: "video", videoAvailable: true }));
@@ -379,24 +318,55 @@ function MediaControls({ model }: { model: MediaController }) {
     <div className="library-room-media-controls">
       <button type="button" onClick={toggle} aria-label={model.paused ? "Reanudar medios" : "Pausar medios"}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
       {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
+      {onExpand ? <button type="button" className="ga-media-expand" onClick={onExpand} aria-pressed={expanded} aria-label={expanded ? t("mediaRestore") : t("mediaMaximize")} title={expanded ? t("mediaRestore") : t("mediaMaximize")}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
     </div>
   );
+}
+
+/**
+ * The trailer and screenshots can fill the whole detail window: the media box grows from its place to the window's
+ * size (Flip) and back. Escape, the same button or a double click returns it; Escape then does not close the detail.
+ */
+function useExpandedMedia() {
+  const [expanded, setExpanded] = useState(false);
+  const flipState = useRef<Flip.FlipState | null>(null);
+  const toggle = () => {
+    const media = document.querySelector<HTMLElement>(".ga-detail-gallery .library-room-feature-media");
+    flipState.current = media && motionOk() ? Flip.getState(media) : null;
+    setExpanded(current => !current);
+  };
+  useEffect(() => {
+    const state = flipState.current;
+    flipState.current = null;
+    if (state) Flip.from(state, { duration: .5, ease: "expo.inOut", absolute: false, zIndex: 40 });
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toggle();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [expanded]);
+  return { expanded, toggle };
 }
 
 function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
   const { t } = useI18n();
   const model = useDesktopMedia(game, details);
+  const { expanded, toggle } = useExpandedMedia();
   return (
-    <div className="library-detail-media">
+    <div className={`library-detail-media${expanded ? " is-expanded" : ""}`}>
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
-      <div className="library-room-feature-media">
+      <div className="library-room-feature-media" onDoubleClick={toggle}>
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
         {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
         {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label={t("uiReproducirTrailer")} onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
         <span className="ga-media-badge">{t("uiTrailerYCapturas")}</span>
         <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? "Tráiler del juego" : "Capturas del juego"}</span>
-        <MediaControls model={model} />
+        <MediaControls model={model} expanded={expanded} onExpand={toggle} />
       </div>
       <div className="ga-media-thumbnails">{model.state.images.slice(0, 4).map((source, index) => <button type="button" key={source} aria-label={`Ver captura ${index + 1}`} aria-pressed={model.state.phase === "image" && model.state.imageIndex === index} onClick={() => { model.setPaused(true); model.setState(current => ({ ...current, phase: "image", imageIndex: index })); }}><img src={source} alt="" /></button>)}</div>
       <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{model.state.images.length} capturas</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>
@@ -541,16 +511,13 @@ function DesktopFeature(props: FeaturePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   useMagneticButtons(actionsRef);
-  const detailState = useSelectedGameDetails({ surface: "desktop", selectedGameId: props.game.id, detailRequestedGameId: props.game.id, tabletDetailsOpen: true, localSteamAppId: props.game.app_id, knownGame: props.game });
+  const detailState = useSelectedGameDetails({ selectedGameId: props.game.id, localSteamAppId: props.game.app_id, knownGame: props.game });
   const details = detailState.details;
   const ratingGame = details ?? props.game;
   const description = plainText(details?.steam?.short_description);
   const summary = description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"));
   const installSize = useInstallSize(props.game.app_id);
   const steam = details?.steam;
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "tablet") {
-    return <aside className="library-room-feature"><SteamHeaderArtwork game={props.game} details={details} /><section className="library-detail-essential" aria-label={t("uiResumenEsencialDelJuego")}><DesktopDetailMedia game={props.game} details={details} /><section className="library-room-first-row"><header className="library-room-overview"><h1>{props.game.name}</h1><p className="library-room-lead">{summary}</p></header><div className="library-room-control-row"><ActionButtons {...props} /><PreferenceButtons {...props} /></div></section><section className="library-room-second-row"><SteamFacts details={details} game={props.game} /><ActiveDownloadFacts download={props.download} /></section></section><ExtendedDetails details={details} /></aside>;
-  }
   return (
     <article className="ga-game-detail">
       <SteamHeaderArtwork game={props.game} details={details} />
@@ -579,10 +546,6 @@ function DesktopFeature(props: FeaturePanelProps) {
   );
 }
 
-function isDisplaySurface(): boolean {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("surface") === "display";
-}
-
 export function FeaturePanel(props: FeaturePanelProps) {
-  return isDisplaySurface() ? <LegacyDisplayFeature {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
+  return <DesktopFeature key={props.game.id} {...props} />;
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
+import { GameWideArt } from "./GameArt";
 import type { CatalogGame } from "./types";
 
 export function downloadArtworkCandidates(game: CatalogGame): string[] {
@@ -21,6 +22,14 @@ function ArtworkImage({ sources }: { sources: string[] }) {
   return <img key={source} src={source} alt="" draggable={false}
     style={{ objectFit: "contain" }}
     onError={() => setIndex(current => current + 1)} />;
+}
+
+/** The wide picture of an active download: the game's hero, the same wide art as the catalog banner (spotlightSlides.ts),
+ *  shown whole; the usual candidates follow if a game has none. */
+export function DigitalDownloadThumb({ game }: { game: CatalogGame }) {
+  const hero = game.app_id ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.app_id}/library_hero.jpg` : null;
+  // The same repair chain as the grids: a recent game has only hashed paths, found through the store API at the end.
+  return <GameWideArt game={game} prefer={[game.hero_image, hero]} lazy={false} />;
 }
 
 export default function DigitalDownloadArtwork({ game }: { game: CatalogGame }) {

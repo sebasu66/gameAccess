@@ -1,36 +1,214 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
-// The opening sound ends with silence; the logo never waits for it longer than this.
-export const HOLD_MAX_MS = 900;
+import { loadStartup } from "./startupPreferences";
+import { SKETCH_GLYPHS } from "./brandGlyphs";
+import "./admin-gate.css";
+// The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
+// (splash.mp3) and the quarter turn start together, and the gate opens as the turn ends. Never the sound alone.
+const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
+
+// The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
+// The A's leg is a straight band of constant width (32, the ring's own thickness) from the top of the circle to its
+// bottom right, cut by the outer circle at both ends. The G is the ring up to the leg's left edge: both of its ends are
+// cut along that same line, so G and A meet exactly. The A's bar, also the G's bar, ends on that line too. Unlocked,
+// the A lights up in orange.
+const EMBLEM_G = "M 97.0 98.2 A 138 138 0 1 1 0.0 -138.0 L 13.5 -105.1 A 106 106 0 1 0 83.5 65.3 Z";
+const EMBLEM_A = "M 0.0 -138.0 A 138 138 0 0 1 36.6 -133.1 L 119.6 68.9 A 138 138 0 0 1 97.0 98.2 Z M -34 8 L 60.0 8 L 70.6 34 L -34 34 Z";
+const BRAND = "GAME ACCESS";
+
+/** The lock: a round plate fixed to the right leaf and lying over the seam, as a real cover would have it. Its rim is
+ *  knurled; the maker's emblem and the brand are engraved in it. It turns a quarter to unlock (the padlock beside it
+ *  goes out) and its A lights up; then it leaves with its leaf. */
+function Lock() {
+ return <svg className="gs-lock" viewBox="-230 -230 460 460" aria-hidden="true">
+  <defs>
+   {/* The texture's light half as white and its dark half as black, each as transparent as the texture is mid grey. */}
+   <filter id="gs-brush-light" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .43 1.43 .14 0 -1" /></filter>
+   <filter id="gs-brush-dark" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.43 -1.43 -.14 0 1" /></filter>
+   <radialGradient id="gs-plate" cx="38%" cy="32%" r="80%"><stop offset="0" stopColor="#4a535a" /><stop offset=".55" stopColor="#262c31" /><stop offset="1" stopColor="#14181b" /></radialGradient>
+   <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6d777e" /><stop offset=".5" stopColor="#2a3136" /><stop offset="1" stopColor="#0f1214" /></linearGradient>
+   <path id="gs-brand-top" d="M -170 0 A 170 170 0 0 1 170 0" />
+   {/* The plate is turned metal: fine concentric rings (a radial gradient repeated every 2.6 units), the frame's
+       brushed steel faintly over it, and the two crossed sheens a lathe-turned disc throws. */}
+   {/* The textures are paint (patterns), not clipped or blended layers: inside the turning lock WebView2 dropped
+       clipped groups and blend modes once the turn started (Seba's recording), and the plate went flat. */}
+   <pattern id="gs-brush-light-fill" patternUnits="userSpaceOnUse" x="-200" y="-200" width="400" height="400"><image filter="url(#gs-brush-light)" href="/textures/brushed-steel.jpg" width="400" height="400" preserveAspectRatio="xMidYMid slice" /></pattern>
+   <pattern id="gs-brush-dark-fill" patternUnits="userSpaceOnUse" x="-200" y="-200" width="400" height="400"><image filter="url(#gs-brush-dark)" href="/textures/brushed-steel.jpg" width="400" height="400" preserveAspectRatio="xMidYMid slice" /></pattern>
+   {/* Seba's scratches (light on black) as white, as opaque as each scratch is light: what the screen blend gave. */}
+   <filter id="gs-scratch-light" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .46 1.54 .16 0 -.1" /></filter>
+   <pattern id="gs-scratch-fill" patternUnits="userSpaceOnUse" x="-150" y="-150" width="300" height="300"><image filter="url(#gs-scratch-light)" href="/textures/glass-scratches.jpg" width="300" height="300" preserveAspectRatio="xMidYMid slice" /></pattern>
+   {/* The seat: the hole cut in the leaf that the lock fits in, closely (a thin gap round the knurled rim). Its wall is
+       in shade on the top left and catches a little light on the bottom right: a shallow, precise recess. */}
+   <linearGradient id="gs-seat" gradientUnits="userSpaceOnUse" x1="-160" y1="-160" x2="160" y2="160"><stop offset="0" stopColor="#030405" /><stop offset=".6" stopColor="#101316" /><stop offset="1" stopColor="#2c3338" /></linearGradient>
+   <linearGradient id="gs-seat-edge" gradientUnits="userSpaceOnUse" x1="-160" y1="-160" x2="160" y2="160"><stop offset="0" stopColor="#000" stopOpacity=".7" /><stop offset="1" stopColor="#fff" stopOpacity=".12" /></linearGradient>
+   <radialGradient id="gs-spun" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="2.6" spreadMethod="repeat"><stop offset="0" stopColor="#fff" stopOpacity=".05" /><stop offset=".5" stopColor="#000" stopOpacity=".09" /><stop offset="1" stopColor="#fff" stopOpacity=".05" /></radialGradient>
+   <linearGradient id="gs-spun-sheen" gradientUnits="userSpaceOnUse" x1="-200" y1="-200" x2="200" y2="200"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".3" stopColor="#fff" stopOpacity=".1" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset=".72" stopColor="#fff" stopOpacity=".07" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+   {/* The letters are coloured glass set into the engraving: the G in the library's green, the A in the catalogue's
+       orange (the colours of the big side words, view-rail.css), with a sheen and fine scratches on the glass only. */}
+   <linearGradient id="gs-glass-g" gradientUnits="userSpaceOnUse" x1="-120" y1="-120" x2="110" y2="120"><stop offset="0" stopColor="#e8f9f0" /><stop offset=".42" stopColor="#a0d2b4" /><stop offset="1" stopColor="#3f7a5d" /></linearGradient>
+   <linearGradient id="gs-glass-a" gradientUnits="userSpaceOnUse" x1="-20" y1="-140" x2="120" y2="100"><stop offset="0" stopColor="#ffcf9a" /><stop offset=".4" stopColor="#f57a1a" /><stop offset="1" stopColor="#a8490a" /></linearGradient>
+   <linearGradient id="gs-glass-sheen" gradientUnits="userSpaceOnUse" x1="-140" y1="-140" x2="60" y2="60"><stop offset="0" stopColor="#fff" stopOpacity=".5" /><stop offset=".38" stopColor="#fff" stopOpacity=".1" /><stop offset=".52" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity=".06" /></linearGradient>
+   {/* The cavity: the glass sits below the plate, so it is shaded all round its edge (smaller inside than at the
+       rim), more on the top left where the wall hides the light, and catches a faint light on the bottom right. */}
+   <filter id="gs-inset" x="-20%" y="-20%" width="140%" height="140%">
+    <feMorphology in="SourceAlpha" operator="erode" radius="2.5" result="inner" />
+    <feGaussianBlur in="inner" stdDeviation="3" result="innerSoft" />
+    <feComposite in="SourceAlpha" in2="innerSoft" operator="out" result="ring" />
+    <feFlood floodColor="#000" floodOpacity=".5" /><feComposite in2="ring" operator="in" result="ringShade" />
+    <feOffset in="SourceAlpha" dx="3" dy="3" result="moved" />
+    <feGaussianBlur in="moved" stdDeviation="2.4" result="movedSoft" />
+    <feComposite in="SourceAlpha" in2="movedSoft" operator="out" result="topLeft" />
+    <feFlood floodColor="#000" floodOpacity=".6" /><feComposite in2="topLeft" operator="in" result="topLeftShade" />
+    <feOffset in="SourceAlpha" dx="-2" dy="-2" result="back" />
+    <feGaussianBlur in="back" stdDeviation="1.6" result="backSoft" />
+    <feComposite in="SourceAlpha" in2="backSoft" operator="out" result="bottomRight" />
+    <feFlood floodColor="#fff" floodOpacity=".28" /><feComposite in2="bottomRight" operator="in" result="bottomRightLight" />
+    <feMerge><feMergeNode in="ringShade" /><feMergeNode in="topLeftShade" /><feMergeNode in="bottomRightLight" /></feMerge>
+   </filter>
+   {/* The rim: a thin raised edge round the letters, lit on the top left and in shade on the bottom right. */}
+   <linearGradient id="gs-raise" gradientUnits="userSpaceOnUse" x1="-110" y1="-110" x2="110" y2="110"><stop offset="0" stopColor="#9aa4ab" /><stop offset=".5" stopColor="#4a5359" /><stop offset="1" stopColor="#0c0f11" /></linearGradient>
+  </defs>
+  {/* Fixed to the leaf: it does not turn with the lock. */}
+  <circle className="gs-seat" r="217" />
+  <g className="gs-lock-turn">
+   <circle className="gs-rim" r="214" />
+   <g className="gs-knurl">{Array.from({ length: 120 }, (_, index) => <line key={index} x1="0" y1="-214" x2="0" y2="-203" transform={`rotate(${index * 3})`} />)}</g>
+   <circle className="gs-plate" r="200" />
+   <g className="gs-plate-metal">
+    {/* The brushed steel's grain as an overlay would give it: lighter where the texture is light, darker where dark. */}
+    <circle className="gs-plate-brush is-light" r="200" fill="url(#gs-brush-light-fill)" />
+    <circle className="gs-plate-brush" r="200" fill="url(#gs-brush-dark-fill)" />
+    <circle r="200" fill="url(#gs-spun)" />
+    <circle r="200" fill="url(#gs-spun-sheen)" />
+    <circle r="200" fill="url(#gs-spun-sheen)" transform="rotate(90)" />
+   </g>
+   <circle className="gs-groove" r="158" />
+   <circle className="gs-groove" r="190" />
+   {/* Engraved in the plate, lit from the top left: each cut is dark, with a light lip on its lower right edge. */}
+   <text className="gs-brand is-lip" transform="translate(1 1)"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
+   <text className="gs-brand"><textPath href="#gs-brand-top" startOffset="50%">{BRAND}</textPath></text>
+   <g className="gs-emblem">
+    <g className="gs-raise"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <g className="gs-lip" transform="translate(1.8 1.8)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <path className="gs-cut" d={EMBLEM_G} />
+    <path className="gs-cut is-a" d={EMBLEM_A} />
+    {/* The glass in the cuts; the A's lights up when the lock is open. */}
+    <path className="gs-glass" d={EMBLEM_G} fill="url(#gs-glass-g)" />
+    <path className="gs-glass is-a" d={EMBLEM_A} fill="url(#gs-glass-a)" />
+    {/* The cavity's shading, worked out on G and A together so their meeting line shows no edge. */}
+    <g className="gs-cavity" filter="url(#gs-inset)"><path d={EMBLEM_G} /><path d={EMBLEM_A} /></g>
+    <g className="gs-glass-top">
+     {/* Seba's scratch texture and the glass's sheen, painted in the letters. */}
+     <path className="gs-scratch" d={EMBLEM_G} fill="url(#gs-scratch-fill)" /><path className="gs-scratch" d={EMBLEM_A} fill="url(#gs-scratch-fill)" />
+     <path d={EMBLEM_G} fill="url(#gs-glass-sheen)" /><path d={EMBLEM_A} fill="url(#gs-glass-sheen)" />
+    </g>
+   </g>
+  </g>
+ </svg>;
+}
+
+/** The state of the cover, set into the left leaf beside the lock like a backlit logo: a small padlock lit from
+ *  inside while the cover is locked. When the emblem has turned, its shackle springs open and its light goes out. */
+function Padlock() {
+ return <svg className="gs-padlock" viewBox="-20 -24 40 46" aria-hidden="true">
+  <path className="gs-padlock-shackle" d="M -8 -2 V -9 A 8 8 0 0 1 8 -9 V -2" />
+  <rect className="gs-padlock-body" x="-12" y="-3" width="24" height="20" rx="3" />
+  <circle className="gs-padlock-hole" cy="5" r="2.4" />
+ </svg>;
+}
+
+// The brand across the cover: GAME on the left leaf, ACCESS on the right, so the word parts with the gate. The letters
+// are the side column's (brandGlyphs.ts, cells of 60 x 64), laid in a row on two guide lines, as sketched on the wall.
+const WORD_ADVANCE = 58;
+const WORD_CELLS = 6;
+
+/** One word of the brand, sketched on its leaf: a pencil line drawn with the lock, a faint fill as it closes. */
+function GateWord({ word }: { word: "GAME" | "ACCESS" }) {
+ const id = useId().replace(/:/g, "");
+ const letters = [...word];
+ // Both words take the box of the longer one, centred in it, so a narrow leaf scales them alike.
+ const width = (WORD_CELLS - 1) * WORD_ADVANCE + 60;
+ const start = (WORD_CELLS - letters.length) * WORD_ADVANCE / 2;
+ return <svg className="gs-word" viewBox={`0 0 ${width} 64`} style={{ "--n": letters.length } as React.CSSProperties} aria-hidden="true">
+  <defs>
+   <linearGradient id={`${id}-guide`} gradientUnits="userSpaceOnUse" x1="-40" y1="0" x2={width + 40} y2="0">
+    <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".25" stopColor="#fff" stopOpacity="1" />
+    <stop offset=".75" stopColor="#fff" stopOpacity="1" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+   </linearGradient>
+  </defs>
+  <g className="gs-word-guides">{[10, 54].map(y => <line key={y} x1="-40" y1={y} x2={width + 40} y2={y} stroke={`url(#${id}-guide)`} />)}</g>
+  {letters.map((letter, index) => <g key={index} className="gs-word-cell" style={{ "--i": index } as React.CSSProperties} transform={`translate(${start + index * WORD_ADVANCE} 0)`}>
+   <path className="gs-word-ghost" d={SKETCH_GLYPHS[letter]} pathLength={1} transform="translate(1.2 1)" />
+   <path className="gs-word-letter" d={SKETCH_GLYPHS[letter]} pathLength={1} />
+  </g>)}
+ </svg>;
+}
+
+/** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
+ *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
+export function Leaf({ side, children }: { side: "left" | "right"; children?: React.ReactNode }) {
+ return <div className={`gs-leaf is-${side}`}>
+  {/* Its frame: an engraved border all round, and a heavy bevelled edge where it meets the other leaf. */}
+  <i className="gs-frame" /><i className="gs-edge" />
+  {/* The pattern: two recessed panels with cut corners (faintly hatched), vent slots, engraved guide lines. */}
+  <i className="gs-panel is-top" /><i className="gs-panel is-bottom" />
+  <i className="gs-vents" />
+  <i className="gs-leaf-engrave" />
+  <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
+  <i className="gs-hazard" />
+  <div className="gs-word-slot"><GateWord word={side === "left" ? "GAME" : "ACCESS"} /></div>
+  {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : <Padlock />}
+  {children}
+ </div>;
+}
+
+/**
+ * The opening: a metal cover, made like the device frame around it, closes the screen. On its seam lies a round lock
+ * fixed to the right leaf, the maker's emblem (G·A) engraved in it; it turns a quarter to unlock and the backlit
+ * padlock beside it goes out. Once access is settled, the cover opens on both sides like a gate, the lock leaving with its leaf, and the
+ * app is there. The phases and callbacks are the opening flow's (ActivationGate): intro (the lock drawn, shut), hold
+ * (shut while access is settled), dock (sound and turn together, then the gate). The parent's key is not asked here:
+ * only parental control asks for it (ParentKeyDialog.tsx).
+ */
 export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocked }: Props) {
  const { t } = useI18n();
  const [formed, setFormed] = useState(stage !== "intro");
  const [audioState, setAudioState] = useState("idle");
- const [dockShown, setDockShown] = useState(false);
+ const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
- const video = useRef<HTMLVideoElement>(null);
+ const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const [lock, setLock] = useState<"sealed" | "turning">(reduced ? "turning" : "sealed");
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);
  const finished = useRef(false);
- // Right after the big logo has held, it rains up to the header whatever the key status is; the access panel comes afterwards.
  const phase = !formed ? "intro" : stage === "intro" ? "hold" : "dock";
- const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
  const reducedRef = useRef(reduced);
+ // The mechanism's steps are not undone by a re-render: only leaving the opening stops them.
+ const timers = useRef<number[]>([]);
+ const later = (step: () => void, ms: number) => { timers.current.push(window.setTimeout(step, ms)); };
+ useEffect(() => () => timers.current.forEach(timer => window.clearTimeout(timer)), []);
  const finishDock = useCallback(() => {
   if (finished.current) return;
   finished.current = true;
-  // The header logo appears right away while the film fades out over it: no pop.
   document.body.classList.remove("ga-splash-active");
   window.dispatchEvent(new Event(LOGO_SETTLED_EVENT));
   if (reducedRef.current) { onDocked(); return; }
   setLanding(true);
   window.setTimeout(onDocked, 260);
  }, [onDocked]);
+ const play = () => {
+  const audio = sound.current;
+  // Settings › Appearance can mute it (startupPreferences.ts).
+  if (!audio || reducedRef.current || loadStartup().muteOpening) return;
+  audio.currentTime = 0;
+  void audio.play().catch(() => setAudioState("blocked"));
+ };
+ const turn = () => { setLock("turning"); play(); };
  useEffect(() => {
   document.body.classList.add("ga-splash-active");
   return () => {
@@ -43,62 +221,41 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  }, []);
  useEffect(() => {
   const src = openingAudio.src as string | null;
-  // The supplied opening sound follows formation playback, including replay.
   if (!src) return;
   const audio = new Audio(src); audio.preload = "auto"; sound.current = audio;
   audio.onplaying = () => setAudioState("playing");
   audio.onended = () => setAudioState("ended");
   audio.onerror = () => setAudioState("error");
+  // Loaded now, played only with the mechanism (the turn).
   return () => { sound.current = null; };
- }, []);
+ }, []); // eslint-disable-line react-hooks/exhaustive-deps
  useEffect(() => {
   if (phase === "intro") {
-   if (reduced) { setFormed(true); return; }
-   const timer = window.setTimeout(() => setFormed(true), 12000);
+   // Drawn: the lock is there, shut.
+   const timer = window.setTimeout(() => setFormed(true), reduced ? 0 : DRAW_MS + 150);
    return () => clearTimeout(timer);
   }
   if (phase === "hold") {
-   // Keep the formed logo large until the complete opening sound finishes.
-   const audio = sound.current;
-   const remaining = audioState === "playing" && audio && Number.isFinite(audio.duration) ? Math.max(0, audio.duration - audio.currentTime) * 1000 : 0;
-   const timer = window.setTimeout(onIntroReady, reduced ? 80 : Math.min(HOLD_MAX_MS, Math.max(400, remaining)));
-   return () => clearTimeout(timer);
+   onIntroReady();
+   return;
   }
-  if (reduced) { onDockStart(); finishDock(); return; }
-  // Decoder fallback advances the animation only; the gate still requires approval.
-  const timer = window.setTimeout(finishDock, 8000);
-  return () => clearTimeout(timer);
- }, [phase, reduced, audioState, onIntroReady, onDockStart, finishDock]);
- const play = () => {
-  if (phase === "intro") { if (!reduced && sound.current) { sound.current.currentTime = 0; void sound.current.play().catch(() => setAudioState("blocked")); } return; }
-  if (phase !== "dock" || started.current) return;
+  if (started.current) return;
   started.current = true;
-  const v = video.current;
-  if (!v) return;
-  setDockShown(true);
-  const scale = innerWidth / 1920;
-  const frame = Math.min(96,Math.max(60,innerWidth * .0421875));
-  const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-chrome-height")) || 34;
-  // The header logo sits centred at the top, flush under the window bar (see filter-wizard.css).
-  const cx = innerWidth / 2;
-  const cy = chrome - 8 + frame / 2;
-  const initialY = (innerHeight - innerWidth * 1080 / 1920) / 2;
-  const ratio = frame / (81 * scale);
-  // The transparent film's individual voxels travel independently; its final
-  // frame is aligned to the visible header logo at every window size.
-  v.animate([
-   { transform: `translate(0px,${initialY}px) scale(1)` },
-   { transform: `translate(${cx - 64 * scale * ratio}px,${cy - 54 * scale * ratio}px) scale(${ratio})` },
-  ], { duration: 3000, easing: "cubic-bezier(.22,.68,.18,1)", fill: "forwards" });
-  onDockStart();
- };
- const cls = `gameaccess-splash phase-${phase}${landing ? " is-landing" : ""}`;
- // Every layer stays mounted in turn so the picture never goes blank between films.
- return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}>
-  <img className={`gameaccess-splash-film splash-hold${phase !== "intro" && !dockShown ? " is-on" : ""}`} src="/brand/logo-intro-hold.png" alt="" />
-  {phase === "intro" ? <video key="intro" ref={video} className="gameaccess-splash-film splash-intro" src="/brand/logo-intro.webm"
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={() => setFormed(true)} onEnded={() => setFormed(true)} aria-hidden="true" /> : null}
-  {phase === "dock" ? <video key="dock" ref={video} className={`gameaccess-splash-film splash-dock${dockShown ? " is-on" : ""}`} src="/brand/logo-to-header.webm"
-    muted playsInline autoPlay preload="auto" onPlaying={play} onError={finishDock} onEnded={finishDock} aria-hidden="true" /> : null}
+  // The gate opens; the app (fading in under it) is there when it is gone.
+  const open = () => {
+   onDockStart();
+   if (reducedRef.current) { finishDock(); return; }
+   setOpening(true);
+   later(finishDock, OPEN_MS + 100);
+  };
+  if (reduced || lock === "turning") { open(); return; }
+  turn();
+  later(open, TURN_MS + 100);
+ }, [phase, reduced, lock, onIntroReady, onDockStart, finishDock]); // eslint-disable-line react-hooks/exhaustive-deps
+ const cls = `gameaccess-splash gs-gate phase-${phase}${lock === "sealed" ? " is-sealed" : ""}${opening ? " is-opening" : ""}${landing ? " is-landing" : ""}${reduced ? " is-still" : ""}`;
+ return <div className={cls} data-phase={phase} data-opening-audio={audioState} role="status" aria-label={t("splashStarting")}
+  style={{ "--gs-draw": lock === "turning" ? "0ms" : `${DRAW_MS}ms`, "--gs-turn": `${TURN_MS}ms`, "--gs-open": `${OPEN_MS}ms` } as React.CSSProperties}>
+  <Leaf side="left" />
+  <Leaf side="right" />
  </div>;
 }

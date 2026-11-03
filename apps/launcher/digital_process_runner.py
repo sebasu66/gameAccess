@@ -1,6 +1,6 @@
 from __future__ import annotations
 from game_execution_manager.fix_backup import DigitalArchiveBackup
-from game_execution_manager.execution_profile import load_profile, apply_before_play
+from game_execution_manager.execution_profile import load_profile, apply_before_play, save_profile, clean_learned_fix
 import argparse
 import json
 import os
@@ -10,16 +10,20 @@ import subprocess
 import sys
 from pathlib import Path
 from game_library_manager.storage import DigitalGameStorage
+from game_library_manager.freeze_control import FreezeCancelled, holder as freeze_holder
 import game_journal as journal
 import game_execution_manager as gem
 from game_library_manager import GameLibraryManager
 from game_library_manager.linked import run_linked
 from game_library_manager.freezer import GameFreezer
 from game_library_manager.preferences import DigitalPreferences
+from game_paths import root_warning
 from steam_account_manager import SteamAccountManager
-from game_execution_manager.game_options import DigitalGameOptions, effective_language, repair_language
+from game_execution_manager.game_options import DigitalGameOptions, KEEP_LANGUAGE, effective_language, repair_language, restore_language, supports_language
+from game_execution_manager.launch_trace import LaunchTrace, diagnose, progress_path
+from game_execution_manager import requirements as needs
 from game_execution_manager.onlinefix_flag import OnlineFixFlag
-from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog
+from game_execution_manager.launch import checked_executable, parse_arguments, launch_as_administrator, check_error_dialog, short_path
 from game_download_manager.unpack import extractor_for, restorer_for
 import logging
 from flow_diagnostics import FlowDiagnostics
@@ -39,16 +43,325 @@ class DigitalProcessRunner:
         logger.info(f"Resolviendo ejecutable para carpeta: '{folder}', nombre: '{name}'")
         return gem.find_candidates(folder, name, command, patterns, logger)
 
+    def auto_fix(self, app_id, name, folder, linked_record, freezer, game_options, server_fix=None):
+        """The alternatives the launch dialog's "fix it for me" tries before launching again, each reported as
+        {id, ok, detail}: start Steam (in the background) for a game that uses it and is not running; thaw it when it is
+        frozen; put the fix's backup back (the archive saved when it was installed); put the language files back and
+        stop changing them. A step that fails does not stop the next ones. `server_fix`: what the server knows works for
+        this game; it is applied too (and kept in the profile). Returns (steps, learned): `learned` is what the steps
+        that really changed something did, the candidate to be shared if the game opens afterwards."""
+        server_fix = clean_learned_fix(server_fix) or {}
+        learned = {"steam": False, "launchers": [], "language": None, "runtimes": [], "fixBackup": False, "runAsAdmin": False}
+        from game_execution_manager.launch_trace import steam_running
+        steps: list[dict] = []
+
+        def step(id_, action):
+            try:
+                ok, detail = action()
+            except Exception as error:  # noqa: BLE001 - every failure is a result for the dialog
+                ok, detail = False, str(error)
+            logger.info("Auto fix %s: %s (%s)", id_, "ok" if ok else "failed", detail)
+            steps.append({"id": id_, "ok": ok, "detail": detail})
+            return ok
+
+        game_folder = Path(linked_record["path"]) if linked_record else folder
+        steam_game = bool(linked_record and linked_record.get("kind") == "steam")
+        requires = self.game_requires(game_folder, app_id) if game_folder.is_dir() else needs.merge(None)
+        uses_steam = steam_game or requires["steam"]
+
+        def start_steam():
+            if not uses_steam:
+                return True, "not needed"
+            if steam_running():
+                return True, "already running"
+            from steam_account_manager.client import find_steam
+            import time
+            root = find_steam()
+            if not root or not (root / "steam.exe").is_file():
+                return False, "Steam is not installed"
+            subprocess.Popen([str(root / "steam.exe"), "-silent"], close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            deadline = time.monotonic() + 45
+            while time.monotonic() < deadline:
+                if steam_running():
+                    time.sleep(6)  # it needs a few seconds to be ready for the game
+                    learned["steam"] = True
+                    return True, "started in the background"
+                time.sleep(1)
+            return False, "Steam did not start"
+        def close_hung():
+            from game_execution_manager.game_processes import close_all, game_folders, running_in
+            steam = SteamAccountManager(self.storage.launcher) if steam_game else None
+            found = running_in(game_folders(game_folder, linked_record, app_id, steam))
+            if not found:
+                return True, "no game process open"
+            closed, failed = close_all(found)
+            if failed:
+                return False, "could not close: " + ", ".join(failed)
+            return True, "closed: " + ", ".join(closed)
+        # First: a hung game left open holds what the new launch needs.
+        step("processes", close_hung)
+        step("steam", start_steam)
+
+        def start_launchers():
+            from game_execution_manager import store_launchers
+            needed = requires["launchers"]
+            if not needed:
+                return True, "none needed"
+            problems, begun = [], []
+            for launcher in needed:
+                ok, why = store_launchers.start(launcher, logger=logger)
+                (begun if ok and why != "already running" else problems if not ok else []).append(launcher)
+            learned["launchers"] = sorted(begun)
+            return not problems, ("not available: " + ", ".join(problems)) if problems else "launchers ready"
+        step("launchers", start_launchers)
+
+        def anticheat_service():
+            from game_execution_manager import anticheat
+            shipped = requires["anticheat"]
+            if not shipped:
+                return True, "no anti-cheat"
+            notes, missing = [], []
+            for key in shipped:
+                now = anticheat.state(key)
+                if now == "stopped":
+                    ok, why = anticheat.start_service(key)
+                    notes.append(f"{anticheat.ANTICHEATS[key]['name']}: {'started' if ok else 'could not start'}")
+                elif now == "missing":
+                    missing.append(anticheat.ANTICHEATS[key]["name"])
+            if missing:
+                # The game installs its anti-cheat's service the first time it runs as administrator.
+                options = game_options.load(app_id)
+                if not options["administrator"]:
+                    game_options.save(app_id, name, {**options, "administrator": True})
+                    learned["runAsAdmin"] = True
+                notes.append("service missing (" + ", ".join(missing) + "): the game will run as administrator to install it")
+            return True, "; ".join(notes) or "anti-cheat service running"
+        step("anticheat", anticheat_service)
+        if linked_record:
+            return steps, clean_learned_fix(learned)
+
+        def install_runtimes():
+            from game_execution_manager.runtimes import install, missing_runtimes
+            lacking = missing_runtimes(game_folder)
+            if not lacking:
+                return True, "nothing missing"
+            results = [(item, *install(Path(item["installer"]), logger)) for item in lacking]
+            learned["runtimes"] = sorted(f"{item['id']} {item['arch']}" for item, ok, _ in results if ok)
+            failed = [f"{item['id']} {item['arch']}" for item, ok, _ in results if not ok]
+            return not failed, ("failed: " + ", ".join(failed)) if failed else f"installed {len(results)}"
+        def thaw():
+            if freezer.ensure_thawed(app_id, name):
+                return True, "thawed"
+            return True, "not frozen"
+        step("thaw", thaw)
+
+        def restore_fix():
+            info = DigitalArchiveBackup.info(folder, name)
+            if not info:
+                return True, "no fix backup"
+            options = game_options.load(app_id)
+            profile = load_profile(self.storage.launcher, app_id)
+            declared = profile.get("decompressFile", "")
+            archive = options["backupArchive"] or (declared if (declared and (folder / declared).is_file()) else "")
+            DigitalArchiveBackup.restore(folder, name, app_id, self.storage.launcher, archive, restorer_for(self.storage.launcher, app_id))
+            # Play already re-applies it every time unless that was switched off: only then did this step change anything.
+            if not (options["backupEnabled"] and (profile["decompressEachRun"] if declared else True)):
+                learned["fixBackup"] = True
+            return True, "fix backup applied"
+        step("runtimes", install_runtimes)
+        step("fix", restore_fix)
+
+        def keep_language():
+            restored = restore_language(folder, logger)
+            options = game_options.load(app_id)
+            game_options.save(app_id, name, {**options, "language": KEEP_LANGUAGE})
+            if restored:
+                learned["language"] = "keep"
+            return True, f"{len(restored)} file(s) restored"
+        step("language", keep_language)
+
+        def server_switches():
+            if server_fix.get("runAsAdmin"):
+                options = game_options.load(app_id)
+                game_options.save(app_id, name, {**options, "administrator": True})
+                learned["runAsAdmin"] = True
+            if server_fix:
+                save_profile(self.storage.launcher, app_id, {**load_profile(self.storage.launcher, app_id), "learnedFix": server_fix})
+            return True, "server fix applied" if server_fix else "no server fix"
+        step("server", server_switches)
+        return steps, clean_learned_fix(learned)
+
+    def game_requires(self, folder, app_id) -> dict:
+        """What the game needs around it (Steam, store launchers, anti-cheat): what its profile says plus what its files
+        show. Anything new is written back to the profile, so it is known from then on and a plugin or the player can add
+        to it."""
+        profile = load_profile(self.storage.launcher, app_id)
+        declared = needs.merge(profile.get("requires"))
+        found = needs.merge(declared, needs.detect(folder))
+        if found != declared:
+            try:
+                save_profile(self.storage.launcher, app_id, {**profile, "requires": found})
+            except (OSError, ValueError):
+                logger.warning("AppID %s: could not keep what the game requires in its profile", app_id)
+        return found
+
+    @staticmethod
+    def start_store_launchers(folder, launchers=None) -> list[str]:
+        """The games that open through a store's launcher (Epic, Ubisoft Connect, EA...) get it running first. A launcher
+        that is not installed or does not start is only written to the log: the game may not need it after all."""
+        from game_execution_manager import store_launchers
+        started = []
+        for launcher in (store_launchers.needed_by(folder) if launchers is None else launchers):
+            ok, why = store_launchers.start(launcher, logger=logger)
+            logger.info("Launcher %s: %s (%s)", store_launchers.LAUNCHERS[launcher]["name"], "ok" if ok else "not available", why)
+            if ok and why != "already running":
+                started.append(launcher)
+        return started
+
+    def kid_entry(self, app_id, name, linked, chosen="") -> dict:
+        """What the family file keeps of a game for a child's account (kid mode, vault/Modo niño.md). The child's Game
+        Access plays it with this same library (the same play: fix, language, before-play steps), so this is only the
+        folder, which the account may write and whose processes count as playing; whether the game asks to run as
+        administrator (the account is then made one); and the executable found now, for the log.
+        `chosen`: the folder the adult's library showed (a "<appid>-<name>-ready" one, or a linked game's); it rules
+        when the games roots here do not hold the game, instead of the new folder name `storage.folder` would make up."""
+        if linked:
+            folder = Path(linked["path"])
+            if linked["kind"] == "steam":
+                return {"folder": str(folder), "executable": "", "arguments": [], "steam": True, "administrator": False}
+        else:
+            try:
+                folder = self.storage.folder(app_id, name)
+            except ValueError:
+                folder = None
+            if (folder is None or not folder.is_dir()) and chosen and Path(chosen).is_dir():
+                folder = Path(chosen)
+            if folder is None or not folder.is_dir():
+                raise ValueError(f"No está la carpeta del juego ({chosen or folder}).")
+        options = DigitalGameOptions(self.storage).load(app_id)
+        profile = load_profile(self.storage.launcher, app_id)
+        try:
+            found = self.get_candidates(folder, name, "", profile.get("executablePatterns", []))
+            executable = str(checked_executable(folder, options["executable"])) if options["executable"] and not linked else str(found[0][0]) if found else ""
+        except Exception as error:  # frozen, or still to prepare: the play does that on the child's account
+            logger.info("AppID %s: no executable for the family file yet (%s)", app_id, error)
+            executable = ""
+        return {"folder": str(folder), "executable": executable, "arguments": [], "steam": False,
+                "administrator": bool(options["administrator"] or profile.get("runAsAdmin", False))}
+
     def patch_crack_language(self, folder: Path, language="spanish"):
         # Keep the established automatic preparation, honoring the user's choice.
         return repair_language(folder, language, logger, known_only=True)
 
+    def verify_run(self, app_id, name, appear=30.0, stable=10.0, probe=None, sleep=None, clock=None, force=False):
+        """Library manager: does this game run here? Plays it, waits for its process to show up and stay open, closes it
+        and keeps the verdict (`checked` or `cantRun` with why). A game that is already running, being frozen or deep
+        frozen is not touched (nothing is saved); `force` (the user agreed): a running game is closed first and tried
+        again, as one left open by a test that stopped on a dialog. `probe`, `sleep` and `clock` are injectable for the tests."""
+        import time
+        from game_execution_manager.game_processes import close_all, game_folders, running_in
+        from game_library_manager.run_checks import CANT_RUN, CHECKED, RunChecks
+        probe, sleep, clock = probe or running_in, sleep or time.sleep, clock or time.monotonic
+        checks = RunChecks(self.storage.launcher)
+        record = self.storage.linked.get(app_id)
+        steam = SteamAccountManager(self.storage.launcher) if record and record.get("kind") == "steam" else None
+        folder = Path(record["path"]) if record else self.storage.folder(app_id, name)
+        holder = freeze_holder(GameFreezer(self.storage, logger).records)
+        if holder and int(holder.get("app_id", -1)) == int(app_id):
+            return {"ok": True, "app_id": app_id, "skipped": "freezing"}
+        if GameFreezer(self.storage, logger).describe(app_id, folder, False).get("frozen") == "deep":
+            return {"ok": True, "app_id": app_id, "skipped": "frozen"}
+        folders = game_folders(folder, record, app_id, steam)
+        open_now = probe(folders)
+        if open_now and force:
+            close_all(open_now)
+            for _ in range(10):
+                sleep(1.0)
+                open_now = probe(folders)
+                if not open_now:
+                    break
+        if open_now:
+            return {"ok": True, "app_id": app_id, "skipped": "running"}
+        started = clock()
+        seen: dict[int, dict] = {}
+
+        def verdict(state, detail, problems=None):
+            return {"ok": True, "app_id": app_id, "check": checks.save(app_id, state, detail, clock() - started, problems)}
+
+        played = self.run("play", app_id, name, "", False)
+        if not played.get("ok"):
+            return verdict(CANT_RUN, played.get("error") or "did not start")
+        try:
+            first = None
+            last_alive = None
+            while clock() - started < appear + stable + 10:
+                now = probe(folders)
+                for item in now:
+                    seen[int(item["pid"])] = item
+                if now:
+                    first = first if first is not None else clock()
+                    last_alive = clock()
+                    if clock() - first >= stable:
+                        return verdict(CHECKED, "stayed open " + str(int(clock() - first)) + " s")
+                elif first is not None:
+                    return verdict(CANT_RUN, "it closed by itself after " + str(int(clock() - first)) + " s")
+                elif clock() - started > appear:
+                    return verdict(CANT_RUN, "no game process appeared in " + str(int(appear)) + " s")
+                sleep(1.0)
+            return verdict(CANT_RUN, "it did not stay open")
+        finally:
+            # The test run leaves nothing behind: everything seen (and what is still running from the folders) is closed.
+            for item in probe(folders):
+                seen[int(item["pid"])] = item
+            if seen:
+                close_all(list(seen.values()))
+
+    def journal_dir(self, app_id, name):
+        """The folder of the game's log (its Library Manager history): a linked game's own folder of logs (its files are
+        never written), otherwise the game's folder. None when the game has no folder yet."""
+        try:
+            if self.storage.linked.get(app_id):
+                folder = self.storage.linked.log_dir(app_id)
+                folder.mkdir(parents=True, exist_ok=True)
+                return folder
+            folder = self.storage.folder(app_id, name)
+            return folder if folder.is_dir() else GameLibraryManager(self.storage).identified_folder(app_id)
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def note(self, app_id, name, step, detail=""):
+        folder = self.journal_dir(app_id, name) if app_id else None
+        if folder is not None:
+            journal.note(folder, step, detail)
+
     def run(self, action, app_id, name, command="", auto_installed=False):
+        if action == "verify-run":
+            force = bool(json.loads(command or "{}").get("force"))
+            # Every verification and its verdict go to the game's log, with why it failed (Seba, 2026-11-02).
+            self.note(app_id, name, "verificación", "empieza" + ("; se cierra antes el juego que quedó abierto" if force else ""))
+            try:
+                outcome = self.verify_run(app_id, name, force=force)
+            except Exception as error:
+                self.note(app_id, name, "verificación", f"error: {error}")
+                raise
+            self.note(app_id, name, "verificación", verify_line(outcome))
+            return outcome
         diagnostics = FlowDiagnostics(logger, action, app_id)
         diagnostics.debug("Operation entered; auto_installed=%s", auto_installed)
         # Per invocation, not shared instance state: concurrent calls remain separate.
         try:
-            result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+            if action == "play":
+                # The launch dialog reads this trace live (launch_trace.py).
+                with LaunchTrace(progress_path(self.storage.launcher, app_id), logger) as trace:
+                    try:
+                        result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+                    except Exception as error:
+                        trace.finish(False, str(error))
+                        raise
+                    trace.finish(bool(result.get("ok")), str(result.get("error") or ""))
+            else:
+                result = self._run(action, app_id, name, command, auto_installed, diagnostics)
+            self.journal_result(action, app_id, name, command, result)
             if result.get("ok"):
                 diagnostics.succeed()
             else:
@@ -60,14 +373,49 @@ class DigitalProcessRunner:
         finally:
             diagnostics.discard()
 
+    def journal_result(self, action, app_id, name, command, result):
+        """What a game's action did, in its log: each change of its options and every error, so the history says why
+        something failed. A play of a game of the library writes its own steps (and its error) as it goes."""
+        step = JOURNALED.get(action)
+        if not step or not app_id:
+            return
+        linked = bool(self.storage.linked.get(app_id))
+        if not result.get("ok"):
+            if action != "play" or linked:
+                self.note(app_id, name, step, f"error: {result.get('error') or 'falló'}")
+            return
+        detail = ""
+        if action == "save-game-options" and not linked:  # a linked game's command is noted where it is saved
+            options = result.get("options") or {}
+            language = options.get("language")
+            detail = "; ".join([f"ejecutable: {options.get('executable') or 'automático'}",
+                                f"argumentos: {options.get('arguments') or 'ninguno'}",
+                                f"idioma: {'sin adaptar' if language == KEEP_LANGUAGE else language or 'automático'}",
+                                f"administrador: {'sí' if options.get('administrator') else 'no'}",
+                                f"descomprimir el fix en cada inicio: {'sí' if options.get('backupEnabled') else 'no'}"])
+        elif action == "repair-language":
+            changed = result.get("changed")
+            detail = "idioma adaptado" + (f": {', '.join(map(str, changed))}" if isinstance(changed, list) and changed else "")
+        elif action == "restore-language":
+            detail = "idioma original devuelto; queda sin adaptar"
+        elif action == "auto-fix":
+            detail = "; ".join(f"{s.get('id')}: {'bien' if s.get('ok') else 'falló'}" + (f" ({s.get('detail')})" if s.get("detail") else "")
+                               for s in result.get("steps") or []) or "nada que arreglar"
+        elif action == "save-learned-fix":
+            detail = "se guardó lo que lo hizo correr" if result.get("fix") else ""
+        elif action == "set-label":
+            detail = f"etiqueta: {command or 'ninguna'}"
+        if detail:
+            self.note(app_id, name, step, detail)
+
     def _run(self, action, app_id, name, command, auto_installed, diagnostics):
         result = {"ok": False, "action": action, "app_id": app_id, "name": name, "command": command}
         try:
-            if action == "settings":
-                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).load()}
-            if action == "save-settings":
-                values = json.loads(command)
-                return {**result, "ok": True, "settings": DigitalPreferences(self.storage.launcher).save(values)}
+            if action in ("settings", "save-settings"):
+                preferences = DigitalPreferences(self.storage.launcher)
+                settings = preferences.save(json.loads(command)) if action == "save-settings" else preferences.load()
+                # A long games folder, or one with accents or symbols, can keep games from running: the app says so.
+                return {**result, "ok": True, "settings": settings, "games_root_warning": root_warning(settings["games_root"])}
             if action == "local-games":
                 return {**result, "ok": True, "games": self.storage.local_games()}
             if action == "snapshot":
@@ -93,19 +441,36 @@ class DigitalProcessRunner:
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger),
                                              steam=SteamAccountManager(self.storage.launcher))
                 if action == "library-list":
+                    # "Refresh" asks to look at broken folders again before listing (`heal`).
+                    healed = library.heal() if json.loads(command or "{}").get("heal") else []
                     games, transfers = library.list_games(), library.transfers()
-                    return {**result, "ok": True, "library": games, "transfers": transfers, "usage": library.usage(), "summary": library.summary(games, transfers)}
+                    return {**result, "ok": True, "library": games, "transfers": transfers, "usage": library.usage(), "summary": library.summary(games, transfers), "healed": healed}
                 if action == "library-plan":
                     return {**result, "ok": True, "plans": library.plan(json.loads(command)["app_ids"])}
                 if action == "library-space":
-                    return {**result, "ok": True, "space": library.check_space(int(json.loads(command or "{}").get("bytes", 0)))}
+                    request = json.loads(command or "{}")
+                    return {**result, "ok": True, "space": library.check_space(int(request.get("bytes", 0)), int(request.get("app_id") or 0),
+                                                                                  str(request.get("name") or ""))}
+                if action == "library-relocate-plan":
+                    return {**result, "ok": True, "plan": library.relocate_plan(json.loads(command)["target"])}
+                if action == "library-relocate":
+                    request = json.loads(command)
+                    return {**result, "ok": True, "relocated": library.relocate(int(request["app_id"]), request["target"], request.get("mode", "move"))}
+                if action == "library-relocate-finish":
+                    return {**result, **library.relocate_finish()}
                 if action == "library-batch":
                     request = json.loads(command)
                     return {**result, "ok": True, "results": library.batch(request["action"], request["app_ids"])}
                 if action == "import-drives":
                     return {**result, "ok": True, "drives": library.import_drives()}
                 if action == "import-scan":
-                    return {**result, "ok": True, "candidates": library.import_scan(json.loads(command or "{}").get("drives", []))}
+                    # Live: the app reads .cache/import_scan/progress.json while it runs and writes "cancel" to stop it.
+                    from game_scanner.live import ScanReport
+                    from launcher_data import data_dir
+                    request = json.loads(command or "{}")
+                    report = ScanReport(data_dir(self.storage.launcher) / ".cache" / "import_scan")
+                    candidates = library.import_scan(request.get("drives", []), folders=request.get("folders", []), report=report)
+                    return {**result, "ok": True, "candidates": candidates, "cancelled": report.state["cancelled"]}
                 if action == "import-run":
                     return {**result, "ok": True, "results": library.import_games(json.loads(command)["items"])}
                 if action == "library-autofreeze":
@@ -118,16 +483,28 @@ class DigitalProcessRunner:
             if action == "set-label":
                 return {**result, "ok": True, "label": self.storage.set_label(app_id, name, command)}
             freezer = GameFreezer(self.storage, logger)
-            if action in ("freeze", "deep-freeze"):
-                return {**result, "ok": True, "frozen": (freezer.deep_freeze if action == "deep-freeze" else freezer.freeze)(app_id, name)}
-            if action == "thaw":
-                return {**result, "ok": True, **freezer.thaw(app_id, name)}
+            if action == "freeze-recover":
+                return {**result, "ok": True, "recovered": freezer.recover()}
+            if action in ("freeze", "deep-freeze", "thaw"):
+                try:
+                    if action == "thaw":
+                        return {**result, "ok": True, **freezer.thaw(app_id, name)}
+                    return {**result, "ok": True, "frozen": (freezer.deep_freeze if action == "deep-freeze" else freezer.freeze)(app_id, name)}
+                except FreezeCancelled as cancelled:
+                    return {**result, "ok": True, "cancelled": True, "message": str(cancelled)}
+            # While a game is being frozen or thawed, nothing else touches it (play, uninstall, repair...).
+            owner = freeze_holder(freezer.records)
+            if owner and int(owner.get("app_id", -1)) == int(app_id) and action not in ("status", "snapshot", "game-log", "open-folder", "game-options", "launch-diagnose"):
+                raise ValueError("Se está congelando o descongelando este juego: esperá a que termine o cancelalo.")
             linked_record = self.storage.linked.get(app_id)
+            if action == "kid-entry":
+                chosen = str(json.loads(command or "{}").get("folder") or "")
+                return {**result, "ok": True, "entry": self.kid_entry(app_id, name, linked_record, chosen)}
             if linked_record:
                 # A linked game stays where it is: only launched/tracked, never modified (no fix re-apply, no journal inside it).
                 outcome = run_linked(action, linked_record, self.storage.linked, logger,
                                      lambda game_folder, game_name: gem.find_candidates(game_folder, game_name, "", [], logger),
-                                     SteamAccountManager(self.storage.launcher) if linked_record["kind"] == "steam" else None)
+                                     SteamAccountManager(self.storage.launcher) if linked_record["kind"] == "steam" else None, command)
                 return {**result, "ok": True, "folder": linked_record["path"], **outcome}
             folder = self.storage.folder(app_id, name)
             result["folder"] = str(folder)
@@ -155,13 +532,60 @@ class DigitalProcessRunner:
                 freezer.forget(app_id)
                 logger.info("AppID %s: uninstall finished; folder and local registry/download records removed", app_id)
                 return {**result, "ok": True, "exit_code": 0}
+            if action == "launch-diagnose":
+                steam_game = bool(linked_record and linked_record.get("kind") == "steam")
+                checked = Path(linked_record["path"]) if linked_record else folder
+                level = next((g.get("frozen") for g in GameLibraryManager(self.storage).list_games(with_sizes=False) if g.get("app_id") == app_id and g.get("frozen")), "") or ""
+                backups = checked.is_dir() and any(checked.rglob("*.gameaccess-language.bak"))
+                requires = self.game_requires(checked, app_id) if checked.is_dir() else needs.merge(None)
+                needs_steam = steam_game or requires["steam"]
+                return {**result, "ok": True, "folder": str(checked), "requires": requires,
+                        "checks": diagnose(checked, needs_steam, steam_game, bool(backups), str(level), requires)}
+            if action == "open-launcher":
+                # The player signs in there (Game Access never types a password): the launcher is started or brought up.
+                from game_execution_manager import store_launchers
+                if command not in store_launchers.KNOWN:
+                    raise ValueError("Unknown launcher")
+                exe = store_launchers.program(command)
+                if exe is None:
+                    raise ValueError(f"{store_launchers.LAUNCHERS[command]['name']} is not installed")
+                os.startfile(str(exe))
+                return {**result, "ok": True, "launcher": command}
+            if action == "auto-fix":
+                # `command`: the fix the server had for this game (or empty).
+                steps, learned = self.auto_fix(app_id, name, folder, linked_record, freezer, game_options, json.loads(command or "{}"))
+                return {**result, "ok": True, "steps": steps, "fix": learned}
+            if action == "save-learned-fix":
+                # What made the game run (this PC's fix or the server's): kept in the game's execution profile.
+                fix = clean_learned_fix(json.loads(command or "{}"))
+                if fix:
+                    save_profile(self.storage.launcher, app_id, {**load_profile(self.storage.launcher, app_id), "learnedFix": fix})
+                return {**result, "ok": True, "fix": fix}
+            if action == "restore-language":
+                restored = restore_language(folder, logger)
+                options = game_options.load(app_id)
+                game_options.save(app_id, name, {**options, "language": KEEP_LANGUAGE})
+                return {**result, "ok": True, "restored": restored}
             if action == "game-log":
-                return {**result, "ok": True, "log": journal.read(folder)}
+                # The game's own steps and, when its installer ran, the end of that installer's log (why it stopped).
+                from game_execution_manager.setup_installer import LOG_FILE
+                if not folder.is_dir():
+                    # A folder installed by hand, not yet named with its AppID ("Fix" renames it): its own log.
+                    folder = GameLibraryManager(self.storage).identified_folder(app_id) or folder
+                    result["folder"] = str(folder)
+                installer = folder / LOG_FILE
+                tail = installer.read_text(encoding="utf-8", errors="replace").splitlines()[-40:] if installer.is_file() else []
+                return {**result, "ok": True, "log": journal.read(folder), "installer_log": "\n".join(tail)}
             if action in ("game-analyze", "game-repair"):
                 manager = gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger)
                 if action == "game-analyze":
                     return {**result, "ok": True, "analysis": manager.analyze(app_id, name)}
-                return {**result, **manager.repair(app_id, name)}
+                repaired = manager.repair(app_id, name)
+                if repaired.get("ok"):
+                    # Ready as it is (a copy unpacked by hand, say): a download that stopped earlier has nothing left
+                    # to go on with, or the game would still show as an unfinished download.
+                    self.storage.clear_resume(app_id)
+                return {**result, **repaired}
             if action == "install-setup":
                 from game_execution_manager.setup_installer import install_if_needed
                 ran = install_if_needed(folder, load_profile(self.storage.launcher, app_id), logger)
@@ -174,6 +598,14 @@ class DigitalProcessRunner:
                         folder = transfer
                 if not folder.is_dir():
                     raise ValueError("No existe la carpeta descargada.")
+                if command == "exe":
+                    # The folder of the executable the game runs (the one Play remembered), else the game's folder.
+                    marker = folder / ".gameaccess_exe"
+                    try:
+                        found = (folder / marker.read_text(encoding="utf-8").strip()).parent if marker.is_file() else folder
+                        folder = found if found.is_dir() else folder
+                    except OSError:
+                        pass
                 os.startfile(str(folder))
                 return {**result, "ok": True}
             if action != "play":
@@ -207,12 +639,32 @@ class DigitalProcessRunner:
             apply_before_play(folder, profile)
             diagnostics.debug("Before-play preparation finished")
             options = game_options.load(app_id)
-            self.patch_crack_language(folder, effective_language(options))
+            language = effective_language(options)
+            if language == KEEP_LANGUAGE:
+                restore_language(folder, logger)
+                logger.info("AppID %s: language settings left as they are (the player chose not to change them)", app_id)
+            elif options["language"] or supports_language(folder, language):
+                self.patch_crack_language(folder, language)
+            else:
+                # The app's own language is only forced into games that ship it: one set to a language it lacks does not open.
+                restore_language(folder, logger)
+                logger.info("AppID %s: no %s files found in the game; its language settings stay as its fix has them", app_id, language)
             onlinefix.restore(folder)
+            self.start_store_launchers(folder, self.game_requires(folder, app_id)["launchers"])
                 
             logger.info("AppID %s: folder payload validated; existing launch preparation finished", app_id)
+            chosen = None
             if options["executable"]:
-                candidates = [(checked_executable(folder, options["executable"]), parse_arguments(options["arguments"]))]
+                try:
+                    chosen = checked_executable(folder, options["executable"])
+                except ValueError as missing:
+                    if (folder / options["executable"]).is_file():
+                        raise  # there but refused (a link, not an .exe): never worked around
+                    # The chosen executable is gone (a folder inside the game renamed by hand): search again, as the first time.
+                    logger.warning("AppID %s: chosen executable %s not usable (%s); searching the folder again", app_id, options["executable"], missing)
+                    journal.note(folder, "play", f"el ejecutable elegido ya no está ({options['executable']}); se busca de nuevo")
+            if chosen is not None:
+                candidates = [(chosen, parse_arguments(options["arguments"]))]
             else:
                 candidates = self.get_candidates(folder, name, command, profile.get("executablePatterns", []))
                 extra = parse_arguments(options["arguments"])
@@ -230,14 +682,18 @@ class DigitalProcessRunner:
             flags = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008 if sys.platform == "win32" else 0
             
             last_error = None
+            attempted: list[Path] = []
             for executable, arguments in candidates:
+                attempted.append(executable)
                 logger.info(f"Intentando ejecutar: {executable} {arguments}")
                 try:
                     diagnostics.debug("Starting candidate=%s cwd=%s", executable, executable.parent)
+                    # A long path is started through its short form (Windows refuses a working folder past 260 characters).
+                    run_file, run_dir = short_path(executable), short_path(executable.parent)
                     if executable.suffix.lower() == ".bat":
-                        process = subprocess.Popen(["cmd.exe", "/c", str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                        process = subprocess.Popen(["cmd.exe", "/c", run_file, *arguments], cwd=run_dir, creationflags=flags, close_fds=True)
                     else:
-                        process = subprocess.Popen([str(executable), *arguments], cwd=str(executable.parent), creationflags=flags, close_fds=True)
+                        process = subprocess.Popen([run_file, *arguments], cwd=run_dir, creationflags=flags, close_fds=True)
                     
                     try:
                         # Wait a bit longer to allow dialogs to pop up
@@ -269,9 +725,19 @@ class DigitalProcessRunner:
                         
                         try:
                             rel_path = executable.relative_to(folder)
-                            if not exe_marker.exists():
+                            # What was remembered and failed this time (a folder renamed inside the game) is replaced
+                            # by what just worked: the marker, our play.bat and the executable chosen in the options.
+                            stale_bat = play_bat.is_file() and play_bat.resolve() in [item.resolve() for item in attempted[:-1]]
+                            remembered = exe_marker.read_text(encoding="utf-8").strip() if exe_marker.is_file() else ""
+                            if remembered != str(rel_path):
                                 exe_marker.write_text(str(rel_path), encoding="utf-8")
-                                
+                            if options["executable"] and chosen is None:
+                                game_options.save(app_id, name, {**options, "executable": str(rel_path)})
+                                journal.note(folder, "play", f"ejecutable actualizado en las opciones: {rel_path}")
+                            if stale_bat:
+                                play_bat.unlink()
+                                journal.note(folder, "play", f"play.bat ya no servía; se rehízo para {rel_path}")
+
                             if not play_bat.exists():
                                 rel_dir = executable.parent.relative_to(folder)
                                 exe_name = executable.name
@@ -297,12 +763,33 @@ class DigitalProcessRunner:
                 journal.note(folder, "play", f"error: {error}")
             return {**result, "error": str(error)}
 
+# The game's actions whose result goes to its log, and the step they are written under.
+JOURNALED = {"play": "play", "save-game-options": "opciones", "repair-language": "idioma", "restore-language": "idioma",
+             "auto-fix": "arreglo", "save-learned-fix": "arreglo", "set-label": "opciones", "install-setup": "instalador",
+             "game-repair": "reparación", "game-analyze": "analisis", "freeze": "freeze", "deep-freeze": "freeze", "thaw": "freeze",
+             "kid-entry": "modo niño"}
+
+SKIPPED = {"freezing": "no se probó: se está congelando o descongelando", "frozen": "no se probó: está congelado profundo",
+           "running": "no se probó: el juego ya está abierto"}
+
+def verify_line(outcome: dict) -> str:
+    """A verification's verdict for the game's log: runs or not, and why."""
+    if outcome.get("skipped"):
+        return SKIPPED.get(outcome["skipped"], f"no se probó: {outcome['skipped']}")
+    check = outcome.get("check") or {}
+    verdict = "corre" if check.get("state") == "checked" else "no corre"
+    return f"{verdict}: {check.get('detail') or 'sin detalle'}" + (f" ({check['seconds']} s)" if check.get("seconds") else "")
+
+def onlinefix_hint(folder: Path) -> bool:
+    """A game with an emulator/fix that still asks Steam to be running."""
+    return any((folder / name).is_file() for name in ("OnlineFix.ini", "OnlineFix64.dll"))
+
 def run_process(action, app_id, name, command="", working_dir=None, auto_installed=False):
     return DigitalProcessRunner().run(action, app_id, name, command, auto_installed)
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

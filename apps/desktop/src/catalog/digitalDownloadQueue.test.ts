@@ -117,6 +117,18 @@ describe("Digital downloads through the Download Manager", () => {
     expect(base.queue.orders.some(order => order.action === "configure")).toBe(false);
   });
 
+  it("downloads an abandoned game without the server's acceleration", async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => (cmd === "game_lessons_query"
+      ? [{ kind: "abandoned", scope: "game", subject: "1", reason: "developer_dropped", action: "discard", app_id: 1 }] : {}) as never);
+    const { queue, service } = setup("plus");
+    await service.start(game(1));
+    expect(queue.orders.some(order => order.action === "configure" && (order.body as { tier?: string })?.tier === "plus")).toBe(false);
+    expect(queue.orders.find(order => order.action === "enqueue")?.body).toMatchObject({ appId: 1, delivery: "download" });
+    expect(service.getDownloadMethod(1)).not.toBe("measuring");
+    vi.mocked(invoke).mockResolvedValue({});
+  });
+
   it("retries the selected plugin source without falling back to catalog metadata", async () => {
     const { queue, service } = setup("base");
     const record = { id: 1, name: "Game 1", downloadSource: "magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", installProcess: "", playProcess: "", uninstallProcess: "", auto_installed: false };

@@ -43,6 +43,8 @@ class AccessKey(SQLModel, table=True):
     last_seen_at: Optional[datetime] = None
     last_ip: Optional[str] = None
     last_client: Optional[str] = None
+    # The Game Access user this PLUS key belongs to (accounts.py): its end date then follows the user's membership.
+    account_id: Optional[int] = SQLField(default=None, index=True)
 
 
 def utc(value: datetime) -> datetime:
@@ -179,10 +181,12 @@ def issue_keys(
 def ensure_access_key_schema(engine) -> None:
     """Add pending-key expiry to existing databases without resetting them."""
     columns = {column["name"] for column in inspect(engine).get_columns("accesskey")}
-    for name, kind in (("key_enc", "VARCHAR"), ("last_seen_at", "TIMESTAMP"), ("last_ip", "VARCHAR"), ("last_client", "VARCHAR")):
+    for name, kind in (("key_enc", "VARCHAR"), ("last_seen_at", "TIMESTAMP"), ("last_ip", "VARCHAR"), ("last_client", "VARCHAR"), ("account_id", "INTEGER")):
         if name not in columns:
             with engine.begin() as connection:
                 connection.execute(text(f"ALTER TABLE accesskey ADD COLUMN {name} {kind}"))
+    with engine.begin() as connection:
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_accesskey_account_id ON accesskey (account_id)"))
     if "label" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE accesskey ADD COLUMN label VARCHAR"))

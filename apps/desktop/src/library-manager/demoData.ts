@@ -4,7 +4,7 @@ import type { LibraryGame, LibraryPlan, LibrarySummary, LibraryTransfer, Library
 const GB = 1024 ** 3;
 const row = (app_id: number, name: string, size: number, extra: Partial<LibraryGame> = {}): LibraryGame => ({
   app_id, name, state: "ready", folder: `C:\\games\\${app_id}-${name}-ready`, installed: true, needs_repair: false, error: "", warning: "",
-  size_bytes: size * GB, plays: 0, last_played: "", issues: [], standard: true, reclaimable_bytes: 0, transfer_bytes: 0, transfer_active: false, ...extra,
+  size_bytes: size * GB, plays: 0, last_played: "", added_at: new Date(Date.now() - (app_id % 97) * 86_400_000).toISOString(), issues: [], standard: true, reclaimable_bytes: 0, transfer_bytes: 0, transfer_active: false, ...extra,
 });
 const legacy = (extra: Partial<LibraryGame> = {}) => ({ state: "legacy", standard: false, warning: "Carpeta con formato anterior: no tiene estado en el nombre.", issues: [
   { code: "no_status", message: "Carpeta con formato anterior: no tiene estado en el nombre." }, { code: "no_log", message: "No tiene registro de historial." }], ...extra });
@@ -15,6 +15,8 @@ export const demoGames: LibraryGame[] = [
   row(2421750, "Gunman Contracts - Stand Alone", 27.8, legacy({ reclaimable_bytes: 8.7 * GB, issues: [{ code: "no_status", message: "Carpeta con formato anterior." }, { code: "obsolete_backup", message: "Guarda una copia comprimida que duplica el juego entero.", bytes: 8.7 * GB }] })),
   row(3844750, "FlatOut 4: Total Insanity VR", 54.8, legacy({ reclaimable_bytes: 19.5 * GB, plays: 3, issues: [{ code: "no_status", message: "Carpeta con formato anterior." }, { code: "obsolete_backup", message: "Guarda una copia comprimida que duplica el juego entero.", bytes: 19.5 * GB }] })),
   row(1145360, "Hades", 15, { state: "linked", linked: true, link_kind: "steam", folder: "D:\\SteamLibrary\\steamapps\\common\\Hades", plays: 4, last_played: "2026-10-16 20:00:00" }),
+  row(105600, "Terraria", 0.4, { state: "linked", linked: true, link_kind: "folder", folder: "E:\\Juegos\\Terraria", plays: 9, last_played: "2026-10-27 19:30:00" }),
+  row(367520, "Hollow Knight", 9.1, { state: "linked", linked: true, link_kind: "folder", folder: "F:\\Juegos\\Hollow Knight", plays: 3, move_pending: { percent: 42, target: "C:\\games\\367520-Hollow Knight", bytes: 3.8 * GB } }),
   row(620, "Portal 2", 14.6, { plays: 12, last_played: "2026-10-15 21:10:00", source_title: "Portal 2 v2.0.0.1 + All DLCs - Repack", source_provider: "SteamRIP" }),
   row(284160, "BeamNG.drive", 50, { frozen: "freeze", frozen_bytes: 20.9 * GB, original_bytes: 50 * GB, plays: 6, last_played: "2026-10-22 05:36:44" }),
   row(413150, "Stardew Valley", 0.7, { plays: 31, last_played: "2026-10-16 18:02:00" }),
@@ -28,6 +30,10 @@ export const demoGames: LibraryGame[] = [
   row(1035510, "Ultimate Zombie Defense", 0, { state: "partial", installed: false, partial: true, transfer_bytes: 17.7 * GB, resume_step: "download" }),
   // Downloaded, but the unpacking ran out of disk: it goes on from the unpacking.
   row(1174180, "Red Dead Redemption 2", 0, { state: "ERROR", installed: false, transfer_bytes: 119.4 * GB, unfinished: true, resume_step: "extract" }),
+  // Unpacked, but its installer failed: "Retry" processes the folder again (after any change in "Language and launch").
+  row(690790, "DiRT Rally 2.0", 61.2, { state: "ERROR", standard: false, installed: false, needs_repair: true, error: "error intentando instalar setup.exe: el instalador terminó con código 4", issues: [{ code: "error", message: "error intentando instalar setup.exe: el instalador terminó con código 4" }] }),
+  // The game is in the folder, but its last download got a 403: "Retry" processes the folder as it is.
+  row(233720, "Surgeon_Simulator", 1.3, { state: "ERROR", standard: false, installed: false, unfinished: true, stalled: true, resume_step: "download", error: "403 Client Error: Forbidden", issues: [{ code: "error", message: "403 Client Error: Forbidden" }] }),
   row(1942280, "Brotato", 0.4, { state: "downloading", installed: false, transfer_bytes: 0.2 * GB, transfer_active: true }),
 ];
 

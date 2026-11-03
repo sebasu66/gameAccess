@@ -12,7 +12,7 @@ class DigitalPreferences:
         self.path = data_dir(self.launcher) / ".cache" / "digital-settings.json"
 
     def defaults(self):
-        """An installed app uses the installer's folders (or `C:/juegos_GameAccess` and `Downloads/GameAccessDownloads`);
+        """An installed app uses the installer's folders (or `C:/GA_Juegos` and `Downloads/GameAccessDownloads`);
         a development checkout keeps its built-in folders inside the launcher."""
         if installed():
             return {"games_root": str(default_games_root()), "temporary_root": str(default_temporary_root())}
@@ -54,5 +54,9 @@ class DigitalPreferences:
         if old != current["games_root"]:
             roots = list(dict.fromkeys([*roots, old]))
         current["previous_roots"] = [root for root in roots if root != current["games_root"]]
+        if values.get("relocated"):
+            # The games of the old folders were moved or linked (relocate.py, which says which old folders still hold
+            # a game of ours that is not linked): the rest leave the list, so there is one games folder again.
+            current["previous_roots"] = [str(root) for root in values.get("previous_roots", []) if str(root) != current["games_root"]]
         write_json(self.path, current)
         return current

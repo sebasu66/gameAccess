@@ -22,6 +22,9 @@ services:
         sync: false
       - key: STEAM_WEB_API_KEY
         sync: false
+      # Contact messages from the app are mailed through Resend (apps/api/app/support.py); without it they wait in /admin.
+      - key: GAMEACCESS_RESEND_API_KEY
+        sync: false
       - key: VIKING_COOKIE
         sync: false
       - key: VIKING_REMEMBERME

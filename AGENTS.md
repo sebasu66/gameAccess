@@ -31,4 +31,5 @@ For both workflows:
 - Preserve pre-existing user changes and private configuration. Never discard or overwrite them while synchronizing.
 - Inspect branch divergence before pulling or pushing; reconcile safely without force pushes.
 - Stage only files belonging to the task, not unrelated dirty or untracked files.
+- Every library has an exact version (Seba, 2026-10-27): npm without `^`/`~` (`.npmrc` has `save-exact=true`), Cargo with `=x.y.z`, Python with `==` (indirect ones in `apps/launcher/requirements.txt` and `apps/api/constraints.txt`), CI installs with `npm ci` and pinned tools. Updating a library is its own tested commit.
 - Report the exact tested commit and any subsequent untested changes. A build alone is not runtime or visual acceptance.

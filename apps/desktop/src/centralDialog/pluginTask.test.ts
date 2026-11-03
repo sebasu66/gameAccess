@@ -7,10 +7,11 @@ const check = vi.fn();
 vi.mock("../narrationLog", () => ({ narrate: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../catalog/PluginSources", () => ({ checkPluginSources: (games: unknown, report: unknown) => check(games, report) }));
 
+import { activitySnapshot, clearActivity } from "../activity/activity";
 import { centralDialog } from "./centralDialog";
 import { runPluginSourcesTask } from "./pluginTask";
 
-describe("plugin sources in the central dialog", () => {
+describe("plugin sources, a task of the Activity panel", () => {
   beforeEach(() => { statuses = []; check.mockReset(); polls.mockClear(); });
 
   it("without a running sources plugin there is nothing to sync", async () => {
@@ -42,25 +43,29 @@ describe("plugin sources in the central dialog", () => {
     expect(check).toHaveBeenCalledOnce();
   });
 
-  it("a failed sync is shown with retry; the same failure in a later automatic sync only goes to the log", async () => {
+  it("runs in the Activity panel, never as the central dialog", async () => {
+    statuses = [{ type: "source_provider", alive: true }];
+    const states: Array<{ visible: boolean; background?: boolean }> = [];
+    const unsubscribe = centralDialog.subscribe(state => { if (state.task) states.push({ visible: state.taskVisible, background: state.task.background }); });
+    check.mockImplementation(async () => { await new Promise(resolve => setTimeout(resolve, 700)); });
+    await runPluginSourcesTask();
+    unsubscribe();
+    expect(states.length).toBeGreaterThan(0);
+    expect(states.every(state => state.background && !state.visible)).toBe(true);
+    expect(activitySnapshot()[0]).toMatchObject({ kind: "task", state: "done" });
+  });
+
+  it("a failed sync goes to the history without stopping the app; the same failure again only goes to the log", async () => {
+    clearActivity();
     statuses = [{ type: "source_provider", alive: true }];
     check.mockRejectedValue(new Error("Esta versión es vieja"));
-    const first = runPluginSourcesTask();
-    await vi.waitFor(() => expect(centralDialog.snapshot().task?.failure).toContain("Esta versión es vieja"));
-    expect(centralDialog.snapshot().task?.canRetry).toBe(true);
+    await runPluginSourcesTask();
+    expect(centralDialog.snapshot()).toMatchObject({ task: null, taskVisible: false });
+    expect(activitySnapshot()[0]).toMatchObject({ kind: "task", state: "failed" });
+    expect(activitySnapshot()[0].text).toContain("Esta versión es vieja");
 
-    check.mockResolvedValueOnce({}); // the player updated the plugin and retries
-    centralDialog.answerFailure("retry");
-    await first;
+    await runPluginSourcesTask(); // same failure again: not listed twice
+    expect(activitySnapshot().filter(entry => entry.state === "failed")).toHaveLength(1);
     expect(check).toHaveBeenCalledTimes(2);
-
-    check.mockRejectedValue(new Error("Otra falla"));
-    const second = runPluginSourcesTask();
-    await vi.waitFor(() => expect(centralDialog.snapshot().task?.failure).toContain("Otra falla"));
-    centralDialog.answerFailure("continue");
-    await second;
-    await runPluginSourcesTask(); // same failure again: not shown twice
-    expect(centralDialog.snapshot().task).toBeNull();
-    expect(check).toHaveBeenCalledTimes(4);
   });
 });

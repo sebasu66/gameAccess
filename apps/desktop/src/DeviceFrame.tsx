@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { BrandLogoVideo } from "./BrandSketch";
 import BrandWall from "./BrandWall";
 import { FRAME, frameFillPath, frameInnerPath, frameOuterPath, tabAround, tabMerge, type FrameMetrics, type FrameTab } from "./frameGeometry";
 import "./device-frame.css";
@@ -8,18 +7,19 @@ import "./device-frame.css";
 /**
  * The app as the screen of a device: a thin bezel around the window (below the app's own title bar, when there is
  * one) with a double line and cut corners, and tabs that come out of it where controls live on the edge: the status
- * and the footer buttons at the bottom. Everything else is the screen under the bezel: the new-games banner, the big
- * view word on the left, the animated logo in the top-right corner and, in the empty column on the right, the word
+ * and the footer buttons at the bottom, and a thin one at the middle of the top edge with GAME ACCESS lit in it.
+ * Everything else is the screen under the bezel: the new-games banner, the big
+ * view word on the left and, in the empty column on the right, the word
  * GAME / ACCESS sketched huge (BrandWall).
  *
  * Two layers over the screen: the metal body (with its shadow on the screen) and the engraved lines; the controls
  * mounted on it sit above both, and neither layer takes the pointer. Geometry in frameGeometry.ts.
  */
-/** On everywhere except the tablet and TV surfaces (their own full-screen layouts); `?deviceFrame=0` turns it off. */
+/** Always on; `?deviceFrame=0` turns it off (development). */
 export function deviceFrameEnabled(): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
-  return params.get("deviceFrame") !== "0" && !["tablet", "display"].includes(params.get("surface") || "");
+  return params.get("deviceFrame") !== "0";
 }
 
 /** Height of the app's own title bar (the desktop window has no system one); 0 when it is not shown (browser). */
@@ -28,7 +28,7 @@ const titleBarHeight = () => rectOf(".window-chrome")?.bottom ?? 0;
 type Rect = { left: number; top: number; right: number; bottom: number } | null;
 const rectOf = (selector: string): Rect => {
   const element = document.querySelector<HTMLElement>(selector);
-  // Not offsetParent: it is always null for fixed elements (the logo), shown or not.
+  // Not offsetParent: it is always null for fixed elements, shown or not.
   if (!element || getComputedStyle(element).display === "none") return null;
   const r = element.getBoundingClientRect();
   return r.width > 0 && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null;
@@ -81,8 +81,9 @@ function ticksPath(m: FrameMetrics): string {
 
 export default function DeviceFrame() {
   const fill = useRef<SVGPathElement>(null);
+  const shadow = useRef<SVGPathElement>(null);
   const sheen = useRef<SVGPathElement>(null);
-  const brush = useRef<SVGPathElement>(null);
+  const steel = useRef<SVGPathElement>(null);
   const lipDark = useRef<SVGPathElement>(null);
   const lipLight = useRef<SVGPathElement>(null);
   const outer = useRef<SVGPathElement>(null);
@@ -107,7 +108,7 @@ export default function DeviceFrame() {
       const m = metrics();
       for (const svg of layers.current) svg.setAttribute("viewBox", `0 0 ${m.width} ${m.height}`);
       const body = frameFillPath(m, tabs.current), edge = frameInnerPath(m, tabs.current);
-      for (const path of [fill, sheen, brush]) path.current?.setAttribute("d", body);
+      for (const path of [fill, steel, sheen, shadow]) path.current?.setAttribute("d", body);
       for (const path of [lipDark, lipLight]) path.current?.setAttribute("d", edge);
       outer.current?.setAttribute("d", frameOuterPath(m));
       inner.current?.setAttribute("d", edge);
@@ -119,6 +120,7 @@ export default function DeviceFrame() {
       offset = Math.round(titleBarHeight());
       const m = metrics();
       tabs.current = [
+        tabAround("top", below(rectOf(".ga-frame-name")), m, 5),
         tabAround("bottom", below(rectOf(".ga-footer-left")), m, 10),
         tabAround("bottom", below(rectOf(".ga-dock")), m, 10),
       ].filter((tab): tab is FrameTab => Boolean(tab));
@@ -166,11 +168,19 @@ export default function DeviceFrame() {
   const keep = (svg: SVGSVGElement | null) => { if (svg && !layers.current.includes(svg)) layers.current.push(svg); };
   return (
     <>
+      {/* The frame's shadow on the screen, on its own layer just under the gate's leaves (z-index 510): the leaves are
+          part of the frame, at its level, so the shadow falls on the screen but never on them. */}
+      {createPortal(
+        <svg ref={keep} className="ga-frame-layer ga-frame-shadow" aria-hidden="true">
+          <path ref={shadow} fillRule="evenodd" fill="#1b2024" />
+        </svg>,
+        document.body,
+      )}
       {createPortal(
         <svg ref={keep} className="ga-frame-layer ga-frame-back" aria-hidden="true">
           <defs>
             {/* Gunmetal: lighter toward the top and bottom of the device, darker at its middle, with a diagonal sheen and a
-                fine brushed grain. */}
+                real brushed-steel texture (ambientCG Metal009, CC0) blended into it. */}
             <linearGradient id="ga-frame-metal" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="#353c42" /><stop offset=".08" stopColor="#23292e" /><stop offset=".5" stopColor="#1b2024" />
               <stop offset=".92" stopColor="#22282d" /><stop offset="1" stopColor="#30373d" />
@@ -179,13 +189,13 @@ export default function DeviceFrame() {
               <stop offset="0" stopColor="#fff" stopOpacity=".07" /><stop offset=".35" stopColor="#fff" stopOpacity="0" />
               <stop offset=".62" stopColor="#fff" stopOpacity=".045" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
             </linearGradient>
-            <pattern id="ga-frame-brush" width="240" height="3" patternUnits="userSpaceOnUse">
-              <path d="M0 .5H240" stroke="#fff" strokeOpacity=".05" strokeWidth=".6" /><path d="M0 2H120" stroke="#000" strokeOpacity=".18" strokeWidth=".5" />
+            <pattern id="ga-frame-steel" width="512" height="512" patternUnits="userSpaceOnUse">
+              <image href="/textures/brushed-steel.jpg" width="512" height="512" preserveAspectRatio="none" />
             </pattern>
           </defs>
           <path ref={fill} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-metal)" />
+          <path ref={steel} className="ga-frame-fill ga-frame-steel" fillRule="evenodd" fill="url(#ga-frame-steel)" />
           <path ref={sheen} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-sheen)" />
-          <path ref={brush} className="ga-frame-fill" fillRule="evenodd" fill="url(#ga-frame-brush)" />
           {/* The lip where the metal meets the screen: a dark groove and a thin bright bevel on the metal side. */}
           <path ref={lipDark} className="ga-frame-lip-dark" />
           <path ref={lipLight} className="ga-frame-lip-light" />
@@ -201,9 +211,9 @@ export default function DeviceFrame() {
         </svg>,
         document.body,
       )}
-      {/* The animated logo in the screen's top-right corner; its turn drives the word sketched in the right column. */}
-      <BrandLogoVideo className="ga-corner-logo" />
-      <BrandWall video=".ga-corner-logo video" />
+      {/* The device's name, lit in a thin tab at the middle of the top edge. */}
+      {createPortal(<span className="ga-frame-name" aria-hidden="true">GAME ACCESS</span>, document.body)}
+      <BrandWall />
     </>
   );
 }

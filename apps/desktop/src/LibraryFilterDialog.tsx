@@ -16,6 +16,7 @@ import { queryCatalogCache } from "./catalogCache";
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { genreLabel } from "./libraryGenres";
 import { getAllAvailableSourceNames } from "./catalog/PluginSources";
+import { usePluginReady } from "./usePluginReady";
 import { useI18n, translate } from "./i18n";
 import { GaClose } from "./components/ga/Buttons";
 
@@ -76,7 +77,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   countFromCatalog?: boolean;
   onApply: (filters: LibrarySearchFilters) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const parentalLocked = useParentalLocked();
   const sourceNames = [...new Set([...games.flatMap(game => game.download_source_names ?? []), ...getAllAvailableSourceNames()])].sort();
   const [draft, setDraft] = useState<LibrarySearchFilters>({ ...filters });
@@ -119,7 +120,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
   });
   const set = (group: GroupKey, value: string, state: TriState) => setDraft(current => setCriterionState(current, group, value, state));
   const patch = (change: Partial<LibrarySearchFilters>) => setDraft(current => ({ ...current, ...change }));
-  const sentence = buildFilterSentence(draft);
+  const sentence = buildFilterSentence(draft, undefined, locale);
   const pickTerm = (slot: SentenceSlot) => {
     setOpen(current => current === slot ? null : slot);
   };
@@ -166,6 +167,8 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
     };
   }, [open]);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  // The download sources filter exists only with a source plugin installed and connected.
+  const pluginReady = usePluginReady() === true;
   const sourcesChosen = (draft.sources?.length ?? 0) + (draft.excludeSources?.length ?? 0) > 0;
   const clearPlayers = () => setDraft(current => ({ ...current,
     features: current.features.filter(item => item !== "single_player" && item !== "multiplayer" && !MULTIPLAYER_OPTION_KEYS.includes(item)) }));
@@ -184,7 +187,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
       <header>
         <h2 id="ga-filter-title">{t("uiFiltros")}</h2>
         <div className="ga-sx-corner">
-          <div className="ga-sx-chipwrap">
+          {pluginReady ? <div className="ga-sx-chipwrap">
             <span className={"ga-sx-cat" + (draft.features.includes("has_downloads") || sourcesChosen ? " is-on" : "") + (sourcesOpen ? " is-open" : "")}>
               <button type="button" className="ga-sx-cat-main" aria-pressed={draft.features.includes("has_downloads")}
                 title={t("uiPedirQueElJuego")} onClick={() => toggleFeature("has_downloads")}><Download size={14} aria-hidden="true" />{t("uiFuentesDeDescarga")}</button>
@@ -195,7 +198,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
               {sourceNames.length === 0 ? <p className="ga-sx-tip">{t("uiTodaviaNoImportasteFuentes")}</p>
                 : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
             </div> : null}
-          </div>
+          </div> : null}
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>
@@ -220,7 +223,7 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
         </div>
         <p className={"ga-sx-tip" + (open === null ? " is-shown" : "")}>{t("uiTocaLoSubrayadoPara")}</p>
       </div>
-      <footer><div role="status" aria-live="polite"><strong>{t(matchCount === 1 ? "gamesCountOne" : "gamesCountMany", { count: matchCount })}</strong></div><button type="button" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>{t(matchCount === 1 ? "filterShowOne" : "filterShowMany", { count: matchCount })}</button></footer>
+      <footer><div role="status" aria-live="polite"><strong>{t(matchCount === 1 ? "gamesCountOne" : "gamesCountMany", { count: matchCount })}</strong></div><button type="button" className="ga-filter-clear" onClick={() => setDraft({ ...DEFAULT_LIBRARY_FILTERS })}>{t("uiLimpiarTodo")}</button><button type="button" className="ga-filter-apply" onClick={close}>{t(matchCount === 1 ? "filterShowOne" : "filterShowMany", { count: matchCount })}</button></footer>
     </section>
   </div>, document.body);
 }

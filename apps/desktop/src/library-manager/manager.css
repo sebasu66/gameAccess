@@ -1,9 +1,27 @@
 /* Library Manager, compact (docs/TAREA-interfaz-nueva.md T11): sober colours, orange only on the main button. */
 .lm-root { color: #f4f4f2; font-family: Manrope, sans-serif; color-scheme: dark; }
 .lm-root:not(.is-embedded) .lm-content { width: min(1100px, 100%); margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
-.lm-summary { margin-bottom: 24px; }
-.lm-donut-wrap { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; align-items: center; }
-.lm-donut { width: 150px; height: 150px; overflow: visible; }
+/* Summary on the left, the main buttons stacked in a column on the right. */
+.lm-top { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+/* The activity board: faint lines and letters on the background, like the side word; a little clearer while busy. */
+.lm-activity { align-self: center; justify-self: center; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; min-width: 0; opacity: .38; transition: opacity .4s; }
+.lm-activity.is-busy { opacity: .7; }
+.lm-activity-title { flex-basis: 100%; font-size: 10px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #f4f4f2; }
+.lm-activity-task { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lm-activity-ring { width: 44px; height: 44px; flex: none; transform: rotate(-90deg); }
+.lm-activity-ring circle { fill: none; stroke-width: 1.5; }
+.lm-activity-ring .track { stroke: #ffffff2e; }
+.lm-activity-ring .arc { stroke: var(--ga-frost, #a5cee9); transition: stroke-dasharray .4s linear; }
+.lm-activity-ring .turn { stroke: #f4f4f2; transform-origin: 22px 22px; animation: lm-activity-turn 2.4s linear infinite; }
+.lm-activity-task > b { position: absolute; left: 0; width: 44px; text-align: center; font: 400 15px/1 "Bebas Neue", sans-serif; color: #f4f4f2; }
+.lm-activity-task > span { display: flex; flex-direction: column; min-width: 0; max-width: 200px; }
+.lm-activity-task em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #f4f4f2; }
+.lm-activity-task small { font-size: 12px; color: #c9ced2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes lm-activity-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lm-activity-ring .turn { animation: none; } }
+.lm-summary { min-width: 0; }
+.lm-donut-wrap { display: grid; grid-template-columns: 190px minmax(0, 340px); gap: 24px; align-items: center; }
+.lm-donut { width: 190px; height: 190px; overflow: visible; }
 .lm-donut circle { transition: stroke-width .35s, opacity .35s; }
 .lm-c1 { font: 400 28px "Bebas Neue", sans-serif; fill: #f4f4f2; }
 .lm-c2 { font: 700 10px Manrope, sans-serif; letter-spacing: .04em; fill: #929ba2; }
@@ -14,79 +32,289 @@
 .lm-legend li i b { display: block; height: 100%; background: var(--c); transform-origin: left; transition: transform .8s cubic-bezier(.2,.8,.2,1); }
 .lm-legend li span { color: #c9ced2; }
 .lm-legend li strong { font-weight: 700; }
-.lm-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #ffffff14; }
-.lm-stats strong { display: block; font: 400 28px/1 "Bebas Neue", sans-serif; color: #f4f4f2; }
-.lm-stats span { font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
-.lm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
-.lm-actions > button { flex: none; }
+.lm-actions { display: flex; flex-direction: column; gap: 10px; }
+.lm-actions > button { width: 100%; justify-content: flex-start; }
+.lm-filters .lm-scan { margin-left: auto; padding: 0; }
 .lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 18px; }
-.lm-search { flex: 1 1 100%; max-width: none; margin-bottom: 6px; }
 .lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
 .lm-chip span { opacity: .6; font-variant-numeric: tabular-nums; }
 .lm-chip:hover { background: #ffffff14; }
 .lm-chip[aria-pressed="true"] { background: #f4f4f2; border-color: transparent; color: #111416; }
-.lm-chip:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
-.lm-selection { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #ff6a0066; background: #ff6a0012; font-size: 12px; }
+.lm-chip:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
+.lm-selection { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #cc833366; background: #cc833312; font-size: 12px; }
 .lm-selection b { margin-right: auto; }
 .lm-message { margin: 0 0 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #ffffff1c; background: #ffffff08; font-size: 13px; }
-.lm-message.is-error { border-color: #e5202e80; background: #e5202e1a; color: #ff8a92; }
-.lm-list { display: flex; flex-direction: column; gap: 4px; }
-.lm-root:not(.is-embedded) .lm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 6px; }
-.lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
-.lm-section { display: flex; align-items: center; gap: 8px; margin: 32px 0 12px; padding-top: 20px; border-top: 1px solid #ffffff14; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #929ba2; }
-.lm-section b { color: #f4f4f2; }
-/* Row: picture | name, line, size | state icon; actions below on hover or focus. */
-.lm-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; grid-template-areas: "thumb main state" "thumb acts acts" "detail detail detail"; column-gap: 12px; row-gap: 6px; align-items: start; padding: 10px; border-radius: 8px; border: 1px solid transparent; }
-.lm-row:hover, .lm-row:focus-within, .lm-row.is-focus { background: #ffffff08; border-color: #ffffff14; }
-.lm-row.is-focus { border-color: #ff6a0088; box-shadow: 0 0 0 1px #ff6a0033; }
-.lm-row.is-selected { background: #ff6a000d; }
-.lm-thumb { grid-area: thumb; position: relative; aspect-ratio: 460 / 215; border-radius: 5px; overflow: hidden; background: #1b2024; }
+.lm-message.is-error { border-color: #be475080; background: #be47501a; color: #e8a1a6; }
+/* Grid (table): sortable headers, one line per game, the row's actions at the right. */
+.lm-grid-wrap { container-type: inline-size; overflow-x: auto; border-radius: 12px; border: 1px solid #ffffff14; background: #ffffff04; }
+.lm-grid { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.lm-grid th { padding: 0 8px; height: 40px; text-align: left; background: #15191d; border-bottom: 1px solid #ffffff20; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #929ba2; }
+.lm-grid td { padding: 8px; vertical-align: middle; border-bottom: 1px solid #ffffff0d; }
+.lm-sort { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; text-align: left; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.lm-sort svg { width: 13px; height: 13px; opacity: .35; }
+.lm-sort:hover { color: #f4f4f2; background: #ffffff0d; }
+.lm-sort.is-active { color: #f4f4f2; }
+.lm-sort.is-active svg { opacity: 1; color: #cc8333; }
+.lm-sort:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
+.lm-row:hover > td, .lm-row:focus-within > td { background: #ffffff08; }
+.lm-row.is-selected > td { background: #cc83330d; }
+.lm-row.is-focus > td { background: #cc833312; box-shadow: inset 0 1px 0 #cc833388, inset 0 -1px 0 #cc833388; }
+.lm-cell-check { width: 28px; }
+.lm-cell-cover { width: 76px; }
+.lm-thumb { position: relative; display: block; width: 76px; aspect-ratio: 460 / 215; border-radius: 5px; overflow: hidden; background: #1b2024; }
 .lm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #8fd3ff66, #8fd3ff1a); pointer-events: none; }
-.lm-check { position: absolute; left: 4px; top: 4px; z-index: 1; width: 15px; height: 15px; margin: 0; accent-color: #ff6a00; opacity: 0; transition: opacity .2s; cursor: pointer; }
-.lm-row:hover .lm-check, .lm-row:focus-within .lm-check, .lm-check:checked { opacity: 1; }
-.lm-main { grid-area: main; min-width: 0; }
-.lm-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-line { font-size: 11px; color: #929ba2; }
-.lm-line.warn { color: #f0a874; }
+.lm-check { width: 15px; height: 15px; margin: 0; accent-color: #cc8333; cursor: pointer; vertical-align: middle; }
+.lm-cell-name { min-width: 160px; max-width: 240px; }
+.lm-name { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.lm-cell-path { min-width: 140px; max-width: 200px; overflow-wrap: anywhere; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.lm-cell-size { min-width: 110px; }
+.lm-kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #c9ced2; }
+.lm-cell-num { white-space: nowrap; color: #c9ced2; }
+.lm-status { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
+.lm-status svg { width: 12px; height: 12px; }
+.lm-status.busy { color: #d79e60; background: #cc833314; }
+.lm-status.warn { color: #d7b48d; background: #cc833314; box-shadow: inset 0 0 0 1px #cc833340; }
+.lm-status.frost { color: var(--ga-frost, #a5cee9); background: #0d1a24b8; box-shadow: inset 0 0 0 1px #a5cee955; }
+.lm-acts { width: 1%; white-space: nowrap; text-align: right; }
+.lm-acts > * { margin: 2px 0 2px 4px; }
+/* The actions stay in view while a narrow window scrolls the grid sideways. */
+.lm-grid th.lm-cell-acts, .lm-row > td.lm-acts { position: sticky; right: 0; z-index: 1; background: #171b1f; box-shadow: -10px 0 12px -10px #000c; }
+.lm-grid th.lm-cell-acts { background: #15191d; }
+.lm-row:hover > td.lm-acts, .lm-row:focus-within > td.lm-acts { background: #1d2124; }
+.lm-row.is-selected > td.lm-acts { background: #22201d; }
+.lm-detail-row > td { padding: 0 8px 16px 120px; background: var(--ga-surface); }
+.lm-detail { display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
+/* A grid wider than its window scrolls sideways: the open row's detail stays in the visible part, as wide as it,
+   from the name column to where the actions column starts (the same margin on both sides of its content). */
+.lm-detail { position: sticky; left: 120px; max-width: calc(100cqw - 120px - 72px); }
+.lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
+.lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #a5cee966, #a5cee91a); pointer-events: none; }
 .lm-size { margin-top: 4px; }
 .lm-size-figures { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.lm-frozen-size { display: inline-flex; align-items: center; gap: 4px; color: var(--ga-frost, #8fd3ff); }
+.lm-frozen-size { display: inline-flex; align-items: center; gap: 4px; color: var(--ga-frost, #a5cee9); }
 .lm-frozen-size svg { width: 12px; height: 12px; }
-.lm-unfrozen-size { color: #ff6a00; opacity: .55; }
+.lm-unfrozen-size { color: #cc8333; opacity: .55; }
 .lm-sbar { position: relative; display: block; height: 3px; margin-top: 5px; border-radius: 2px; background: #ffffff12; overflow: hidden; }
 .lm-sbar i { position: absolute; left: 0; top: 0; bottom: 0; background: #aeb4b9; }
-.lm-sbar i.frozen { background: #9cbfd4; }
+.lm-sbar i.frozen { background: #a7bcc9; }
 .lm-sbar i.partial { background: #737c83; }
-/* State: only when it adds something. Snowflake / warning with its name on hover or focus (to the left, so the row
-   never clips it). */
-.lm-row > :nth-child(3) { grid-area: state; }
-.lm-state { position: relative; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; cursor: default; }
-.lm-state svg { width: 14px; height: 14px; }
-.lm-state.frost { color: var(--ga-frost, #8fd3ff); background: #0d1a24b8; box-shadow: 0 0 0 1px #8fd3ff55, 0 0 12px #8fd3ff33; }
-.lm-state.warn { color: #f0a874; background: #ff6a0014; box-shadow: inset 0 0 0 1px #ff6a0040; }
-.lm-state i { position: absolute; right: calc(100% + 8px); top: 50%; margin-top: -12px; padding: 4px 8px; border-radius: 5px; white-space: nowrap; font-style: normal; font-size: 11px; font-weight: 700; background: #1e2428; box-shadow: 0 6px 16px #0008, inset 0 0 0 1px #ffffff1f; color: inherit; opacity: 0; transform: translateX(4px); pointer-events: none; transition: opacity .2s, transform .2s; }
-.lm-state:hover i, .lm-state:focus-visible i { opacity: 1; transform: none; }
-.lm-state:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
 .lm-badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 10px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #b9bfc4; }
 .lm-badge svg { width: 11px; height: 11px; }
-.lm-acts { grid-area: acts; display: flex; flex-wrap: wrap; gap: 4px; max-height: 0; overflow: hidden; opacity: 0; transition: max-height .3s, opacity .25s; }
-.lm-row:hover .lm-acts, .lm-row:focus-within .lm-acts, .lm-row.is-focus .lm-acts { max-height: 80px; opacity: 1; }
-.lm-act { position: relative; width: 32px; height: 32px; padding: 0; border-radius: 5px; display: grid; place-items: center; background: #ffffff08; border: 1px solid #ffffff22; color: #f4f4f2; cursor: pointer; }
+.lm-act { position: relative; width: 32px; height: 32px; padding: 0; border-radius: 5px; display: inline-grid; vertical-align: middle; place-items: center; background: #ffffff08; border: 1px solid #ffffff22; color: #f4f4f2; cursor: pointer; }
 .lm-act svg { width: 15px; height: 15px; }
-.lm-act b { position: absolute; right: 3px; top: 1px; font-size: 10px; color: var(--ga-frost, #8fd3ff); }
+.lm-act b { position: absolute; right: 3px; top: 1px; font-size: 10px; color: var(--ga-frost, #a5cee9); }
 .lm-act:hover:not(:disabled) { background: #ffffff1a; }
 .lm-act:disabled { opacity: .4; cursor: default; }
-.lm-act.accent { color: #ff8a38; }
-.lm-act.frost { color: var(--ga-frost, #8fd3ff); }
-.lm-act.danger:hover:not(:disabled) { background: #c8321f; border-color: #c8321f; color: #fff; }
-.lm-act:focus-visible { outline: 2px solid #ff6a00; outline-offset: 2px; }
-.lm-detail { grid-area: detail; display: grid; gap: 10px; padding: 6px 0 2px; font-size: 12px; }
+.lm-act.accent { color: #d79e60; }
+.lm-act.frost { color: var(--ga-frost, #a5cee9); }
+.lm-act.danger { color: var(--ga-danger-hover, #d65c65); border-color: #be475066; }
+.lm-act.danger:hover:not(:disabled) { background: var(--ga-danger, #be4750); border-color: var(--ga-danger, #be4750); color: #fff; }
+.lm-act:focus-visible { outline: 2px solid #cc8333; outline-offset: 2px; }
 .lm-detail b { display: block; margin-bottom: 4px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #929ba2; }
 .lm-detail ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .lm-detail li { display: flex; align-items: center; gap: 6px; }
-.lm-detail li svg { width: 13px; height: 13px; color: #f0a874; }
+.lm-detail li svg { width: 13px; height: 13px; color: #d7b48d; }
 .lm-detail em { font-style: normal; color: #929ba2; }
-.lm-history { margin: 0; max-height: 12rem; overflow: auto; padding: 10px; border-radius: 6px; border: 1px solid #ffffff14; background: #0c0f11; font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; white-space: pre-wrap; }
-@media (prefers-reduced-motion: reduce) { .lm-acts, .lm-state i, .lm-donut circle { transition: none; } }
+/* The game's log: a small window barely darker than the grid, with a fine edge. */
+.lm-history { max-width: 680px; max-height: 13rem; overflow: auto; padding: 10px 12px; border-radius: 6px; border: 1px solid #ffffff17; background: #00000026;
+  font: 11px/1.6 ui-monospace, Consolas, monospace; color: #aeb6bc; scrollbar-width: thin; scrollbar-color: #ffffff26 transparent; }
+.lm-history p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A freeze or thaw inside the log: its title, the launcher's details indented under a thin frost line, and its end. */
+.lm-log-group { margin-top: 2px; }
+.lm-log-group > p:not(.lm-log-head):not(.lm-log-foot) { padding-left: 14px; border-left: 1px solid #a5cee933; margin-left: 4px; color: #8f989e; }
+.lm-log-head { color: var(--ga-frost, #a5cee9); }
+.lm-log-foot { color: #c9ced2; }
+.lm-log-group.is-failed .lm-log-foot { color: #e1898f; }
+/* With a freeze going on, the log and, beside it, the freeze bar (FreezeBar): the same top and height as the log
+   (13rem), 32 px apart like the blocks above. */
+.lm-history-row { display: flex; align-items: flex-start; gap: 32px; min-width: 0; }
+.lm-history-row > .lm-history { flex: 1 1 auto; min-width: 0; }
+.lm-history-row.has-frost > .lm-history { height: 13rem; }
+/* The bar: the size of the game's landscape picture (460:215 at the log's height), the picture faint and half
+   desaturated inside it, the cubes over it (9 × 4 of 40 px, 12 px inside the edges), closed on the left; its top and
+   bottom lines run on 180 px to the right and fade. */
+.lm-fbar { position: relative; flex: none; height: 13rem; aspect-ratio: 460 / 215; margin-right: 180px; }
+.lm-fbar::before { content: ""; position: absolute; inset: 0 -180px 0 0; z-index: 2; pointer-events: none;
+  --run: linear-gradient(90deg, #ffffff38 0, #ffffff38 70%, transparent);
+  background: var(--run) 0 0 / 100% 1px no-repeat, var(--run) 0 100% / 100% 1px no-repeat,
+              linear-gradient(#ffffff38, #ffffff38) 0 0 / 1px 100% no-repeat; }
+/* Behind the picture, a faint grid completes the bar: the lines between the cube rows and every other cube column,
+   running on to the right with the edges and fading out with them. */
+.lm-fbar-grid { position: absolute; inset: 0 -180px 0 0; pointer-events: none;
+  background: linear-gradient(#ffffff12 1px, transparent 1px) 0 12px / 100% 46px, linear-gradient(90deg, #ffffff12 1px, transparent 1px) 14px 0 / 92px 100%;
+  -webkit-mask: linear-gradient(90deg, #000 0, #000 calc(100% - 260px), transparent); mask: linear-gradient(90deg, #000 0, #000 calc(100% - 260px), transparent); }
+.lm-fbar-picture { z-index: 1; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .32; filter: saturate(.5); }
+.lm-fbar-cubes { z-index: 1; position: absolute; top: 12px; left: 14px; width: 408px; height: calc(100% - 24px); }
+.lm-fbar-cubes i { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 2px; transform-origin: 0 0;
+  border: 1px solid #ffffff38; background: #ffffff0d; transition: transform .7s cubic-bezier(.6, .05, .3, 1), background .5s, border-color .5s; }
+/* Packed (frozen): frosted, in the tone of everything frozen. */
+.lm-fbar-cubes i.is-packed { border-color: #a5cee980; background: #a5cee92b; }
+.lm-fbar-cubes i.is-next { border-color: #a5cee9; animation: lm-fbar-next 1s ease-in-out infinite; }
+.lm-fbar.is-done .lm-fbar-cubes i.is-packed { border-color: #a5cee9a6; background: #a5cee938; }
+.lm-fbar.is-failed .lm-fbar-cubes i.is-packed { border-color: #be475080; background: #be475022; }
+/* The share and the size, written on the picture at its bottom right. */
+.lm-fbar-readout { position: absolute; right: 16px; bottom: 12px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  color: #f4f4f2; text-shadow: 0 1px 6px #000c; pointer-events: none; }
+.lm-fbar-readout b { font: 400 40px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
+.lm-fbar-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
+.lm-fbar-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
+@keyframes lm-fbar-next { 50% { background: #a5cee933; } }
+@media (prefers-reduced-motion: reduce) { .lm-fbar-cubes i { transition: none; } .lm-fbar-cubes i.is-next { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
+/* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */
+.lm-import-grid { min-width: 0; }
+.lm-import-grid td { border-bottom: 1px solid #ffffff24; vertical-align: top; padding-top: 12px; padding-bottom: 12px; }
+.lm-import-grid tbody tr:last-child td { border-bottom: 0; }
+.lm-import-grid .lm-cell-name { max-width: none; }
+.lm-import-grid th.lm-cell-acts { text-align: right; }
+.lm-import-grid th, .lm-import-grid th.lm-cell-acts { background: #00000033; }
+.lm-import-grid .lm-row > td.lm-acts, .lm-import-grid th.lm-cell-acts { position: static; background-clip: padding-box; box-shadow: none; }
+.lm-import-grid .lm-row > td.lm-acts { background: transparent; }
+/* Source: the DD / Steam / folder mark, then who provided the download or which Steam account owns the game. */
+.lm-source { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; min-width: 0; }
+.lm-source-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #c9ced2; }
+/* A switch in the row (kid mode: the game is shown in the child's account): on, it is filled orange. */
+.lm-act[aria-pressed="true"] { background: #cc833333; border-color: #d79e60; color: #ffd0a0; }
+/* Third-party apps (appShortcuts.ts): shortcuts under the games, in their own section. */
+.lm-apps { margin: 18px 12px 12px; padding-top: 14px; border-top: 1px solid #ffffff14; }
+.lm-apps > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.lm-apps h3 { margin: 0 0 4px; font: 400 22px "Bebas Neue", sans-serif; letter-spacing: .04em; color: var(--ga-orange, #ff6a00); }
+.lm-apps header p { margin: 0; color: #929ba2; font-size: 12px; max-width: 70ch; }
+.lm-apps ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lm-apps li { display: grid; grid-template-columns: 22px minmax(140px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; background: #ffffff06; }
+.lm-apps li > svg { color: #c9ccd1; }
+.lm-apps-name { font-weight: 800; font-size: 13px; }
+.lm-apps-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #929ba2; font: 12px Consolas, monospace; }
+.lm-apps .lm-acts { display: flex; gap: 6px; }
+
+/* A move into the library (MoveArt.tsx), in the place of the freeze bar: the row splits in two equal halves, the log
+   on the left and on the right a box of the log's size (same top, same 13rem) drawn as faint guide lines, like the
+   ones behind the GAME ACCESS word (brand-sketch.css), fading at the edges. Over it the cover and the folder, as high
+   as the box allows (12 px inside, like the log's padding) and shrinking together when the half is narrow; the share
+   in the box's corner. The cover empties from the top, the folder's copy fills from the bottom (clip-path). */
+.lm-history-row.has-move { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.lm-history-row.has-move > .lm-history { max-width: none; height: 13rem; }
+.lm-move { position: relative; height: 13rem; display: flex; align-items: center; justify-content: center; min-width: 0; padding: 12px; box-sizing: border-box; container-type: inline-size; }
+.lm-move::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  --guide: color-mix(in srgb, var(--ga-white) 9%, transparent);
+  background: linear-gradient(var(--guide) 1px, transparent 1px) 0 -1px / 100% 26px, linear-gradient(90deg, var(--guide) 1px, transparent 1px) -1px 0 / 26px 100%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 14%, black 86%, transparent), linear-gradient(transparent, black 10%, black 90%, transparent);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent, black 14%, black 86%, transparent), linear-gradient(transparent, black 10%, black 90%, transparent);
+  mask-composite: intersect; }
+.lm-move-cover { position: relative; flex: none; height: min(100%, calc((100cqw - 100px) / 1.87)); aspect-ratio: 2 / 3; border: 1px solid color-mix(in srgb, var(--ga-white) 28%, transparent);
+  border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--ga-white) 4%, transparent); }
+/* Each picture sits in a clip that empties or fills it; the picture inside repairs itself (SteamCover, GameWideArt). */
+.lm-move-clip { position: absolute; inset: 0; transition: clip-path .4s linear; }
+.lm-move-clip > :is(img, span) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lm-move-middle { flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lm-move-flow { position: relative; width: 76px; height: 40px; overflow: hidden; }
+.lm-move-file { position: absolute; top: 10px; left: 0; width: 16px; height: 20px; fill: none; stroke: var(--ga-orange); stroke-width: 1.4;
+  stroke-linejoin: round; opacity: 0; animation: lm-move-file 1.8s linear infinite; }
+@keyframes lm-move-file { 0% { transform: translate(-16px, 6px); opacity: 0; } 20% { opacity: 1; } 50% { transform: translate(30px, -6px); } 80% { opacity: 1; } 100% { transform: translate(76px, 6px); opacity: 0; } }
+.lm-move-folder { position: relative; flex: none; height: min(100%, calc((100cqw - 100px) / 1.87)); aspect-ratio: 6 / 5; }
+.lm-move-outline { position: absolute; inset: 0; width: 100%; height: 100%; fill: color-mix(in srgb, var(--ga-white) 7%, transparent); stroke: color-mix(in srgb, var(--ga-white) 55%, transparent); stroke-width: 1.5; }
+.lm-move-inner { position: absolute; left: 50%; top: 59%; width: 80%; aspect-ratio: 460 / 215; transform: translate(-50%, -50%); border-radius: 4px; overflow: hidden;
+  outline: 1px dashed color-mix(in srgb, var(--ga-white) 22%, transparent); outline-offset: 2px; }
+.lm-move-readout { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; text-align: center; }
+.lm-move-readout b { font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; color: var(--ga-orange); }
+.lm-move-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
+.lm-move-readout span { font-size: 10px; font-weight: 700; letter-spacing: .08em; line-height: 1.4; text-transform: uppercase; font-variant-numeric: tabular-nums; opacity: .85; }
+.lm-move.is-failed .lm-move-cover, .lm-move.is-failed .lm-move-inner { border-color: var(--ga-danger); outline-color: var(--ga-danger); }
+.lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
+.lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); fill: color-mix(in srgb, var(--ga-orange) 10%, transparent); }
+@media (prefers-reduced-motion: reduce) { .lm-move-file { animation: none; display: none; } .lm-move-clip { transition: none; } }
+.lm-status.ok { color: var(--ga-success); background: color-mix(in srgb, var(--ga-success) 8%, transparent); }
+.lm-status.bad { color: var(--ga-danger-ink); background: color-mix(in srgb, var(--ga-danger) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ga-danger) 33%, transparent); }
+.lm-runcheck { margin-left: 6px; }
+
+/* A game's row, open (RowExpand.tsx, GUI_DESIGN §4.20b): the row and what opens under it read as one block. Inside,
+   two halves, the same in every open row: the game's log | the task's picture with its controls beside it. The log
+   takes the height of the picture (never less than its minimum) and scrolls inside: both halves end on one line. */
+.lm-row.is-openable { cursor: pointer; }
+.lm-row.is-expanded > td { background: var(--ga-surface); }
+.lm-row.is-expanded > td.lm-acts { background: #171b1f; }
+.lm-detail { container: lm-row / inline-size; }
+.lm-expand { display: grid; grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr); column-gap: 24px; align-items: stretch; min-height: 12rem; }
+.lm-expand-log { position: relative; min-width: 0; }
+.lm-expand-log > .lm-cell-title { display: block; }
+/* The log's content does not size the row: it fills the half (under its title) and scrolls inside, on the picture's lines. */
+.lm-expand-log-body { position: absolute; inset: 24px 0; display: flex; flex-direction: column; gap: 10px; }
+.lm-expand-log .lm-history { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; max-width: none; }
+.lm-expand-log .lm-needs { flex: none; max-height: 40%; overflow: auto; }
+.lm-cell-title { font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; color: var(--ga-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Narrow: the log goes over the picture, with its own height. */
+@container lm-row (max-width: 640px) {
+  .lm-expand { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
+  .lm-expand-log-body { position: static; height: 12rem; margin-top: 10px; }
+  .lm-detail .lm-expand .lm-stage { grid-template-columns: minmax(0, 360px); }
+  .lm-detail .lm-expand.has-controls .lm-stage { grid-template-columns: minmax(0, 360px) 96px; }
+}
+
+/* The task's picture: the game's wide image with the animation of what is happening; with figures, its base fades into
+   black and they sit on it. Beside it, the task's controls together in one column of tall buttons. */
+/* The half fills with a faint grid of 24 px cells (as the freeze's), fading out to the right, and everything sits on its
+   lines: 24 px inside, the picture 15 × 7 cells (360 × 168, the game's wide proportion), its figures 2 more cells, the
+   controls 4 cells wide one cell beside it. The same size for a download, a freeze and a move, whatever the row's width. */
+.lm-stage { position: relative; display: grid; grid-template-columns: 360px; align-content: start; gap: 24px; min-width: 0; padding: 24px; }
+.lm-stage::before { content: ""; position: absolute; inset: 0; pointer-events: none; --guide: color-mix(in srgb, var(--ga-white) 9%, transparent);
+  background: linear-gradient(var(--guide) 1px, transparent 1px) 0 0 / 100% 24px, linear-gradient(90deg, var(--guide) 1px, transparent 1px) 0 0 / 24px 100%;
+  -webkit-mask: linear-gradient(90deg, black 55%, transparent); mask: linear-gradient(90deg, black 55%, transparent); }
+.lm-expand.has-controls .lm-stage { grid-template-columns: 360px 96px; }
+.lm-stage-art { position: relative; align-self: start; border-radius: 8px; overflow: hidden; background: var(--ga-shade); box-shadow: 0 0 0 1px var(--ga-line); }
+.lm-stage-art > :is(img, .lm-download-art, .lm-fbar, .lm-move, .ga-art-fallback) { display: block; width: 100%; aspect-ratio: 15 / 7; }
+.lm-stage-art.has-facts { padding-bottom: 48px; }
+.lm-stage-art.has-facts::after { content: ""; position: absolute; left: 0; right: 0; bottom: 48px; height: 45%; background: linear-gradient(transparent, var(--ga-shade)); pointer-events: none; }
+.lm-stage-controls { position: relative; }
+.lm-expand-still { object-fit: cover; }
+.lm-expand-still.is-frozen { filter: saturate(.4) brightness(.9); }
+.lm-stage-art .lm-fbar { height: auto; margin-right: 0; }
+/* The cubes were laid out for a 13rem bar: scaled to the smaller picture (184 px of cubes into its 144). */
+.lm-stage-art .lm-fbar-cubes { transform: scale(.78); transform-origin: 0 0; }
+/* The move keeps its own layout (cover | files | folder) over the picture's box; the half's grid is its grid. */
+.lm-stage-art > .lm-move { display: flex; height: auto; }
+.lm-stage-art > .lm-move::before { display: none; }
+.lm-stage-art :is(.lm-fbar-readout, .lm-move-readout) { display: none; }
+.lm-download-art { border-radius: 0; aspect-ratio: 460 / 215; }
+.lm-stage-art .lm-download-art img { width: 100%; height: 100%; object-fit: cover !important; }
+.lm-download-art > .ga-dl-card-badges { position: absolute; top: 8px; right: 8px; }
+/* The speed is in the figures at the base: the graph alone stays over the picture. */
+.lm-stage-art .ga-dl-spark > strong { display: none; }
+.lm-stage-title { position: absolute; top: 14px; left: 62px; z-index: 1; padding: 3px 8px; border-radius: 5px; background: var(--ga-shade-soft); color: var(--ga-white); font: 800 11px/16px var(--ga-text-family); letter-spacing: .1em; text-transform: uppercase; }
+.lm-ring { position: absolute; top: 8px; left: 8px; z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--ga-shade-soft); }
+.lm-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.lm-ring circle { fill: none; stroke-width: 3; stroke: var(--ga-line); }
+.lm-ring circle + circle { stroke: var(--ga-orange); stroke-linecap: round; transition: stroke-dasharray .4s; }
+.lm-ring b { position: relative; font: 800 12px/1 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
+.lm-stage-facts { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; min-height: 48px; padding: 8px 14px; box-sizing: border-box;
+  font: 700 15px/1.3 var(--ga-text-family); color: var(--ga-white); font-variant-numeric: tabular-nums; }
+.lm-stage-facts > span + span::before { content: "·"; margin-right: 18px; color: var(--ga-muted); }
+.lm-stage-controls { display: flex; flex-direction: column; gap: 8px; }
+.lm-stage-controls > button { flex: 1 1 0; min-height: 52px; display: grid; place-items: center; align-content: center; gap: 6px; padding: 8px 6px; border-radius: 8px;
+  border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 700 13px/1.15 var(--ga-text-family); text-align: center; cursor: pointer; }
+.lm-stage-controls > button > svg { width: 22px; height: 22px; }
+.lm-stage-controls > button:hover:not(:disabled) { border-color: var(--ga-orange-line); background: var(--ga-surface-2); }
+.lm-stage-controls > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.lm-stage-controls > button.is-danger { color: var(--ga-danger-ink); }
+.lm-stage-controls > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
+.lm-stage-controls > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.lm-stage-controls > button:disabled { opacity: .5; cursor: default; }
+
+/* The game's actions: each with its icon and name, one under the other, all the cell's width (also the context menu). */
+.lm-row-actions { display: grid; gap: 6px; }
+.lm-row-actions > button { display: flex; align-items: center; justify-content: flex-start; gap: 8px; height: 34px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 13px var(--ga-text-family); text-align: start; cursor: pointer; }
+.lm-row-actions > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-row-actions > button > :is(svg, :not(span)) { flex: none; }
+.lm-row-actions > button:hover:not(:disabled) { border-color: var(--ga-orange-line); background: var(--ga-surface-2); }
+.lm-row-actions > button.is-accent { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.lm-row-actions > button.is-frost { color: var(--ga-frost); }
+.lm-row-actions > button.is-danger { color: var(--ga-danger-ink); }
+.lm-row-actions > button.is-danger:hover:not(:disabled) { border-color: var(--ga-danger); }
+.lm-row-actions > button:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.lm-row-actions > button:disabled { opacity: .5; cursor: default; }
+
+/* The context menu (right click on a row or its "⋯"): the same list, on a glass panel by the pointer. */
+.lm-menu { position: fixed; z-index: 4000; display: grid; gap: 10px; width: 240px; max-height: calc(100vh - 16px); overflow: auto; padding: 12px;
+  border-radius: 10px; border: 1px solid var(--ga-line); background: color-mix(in srgb, var(--ga-panel) 94%, transparent); backdrop-filter: blur(14px);
+  box-shadow: var(--ga-dialog-shadow); }

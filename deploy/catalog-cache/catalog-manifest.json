@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "revision": "5799ccf323715624",
-  "generated_at": "2026-10-24T09:22:15.644876+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-5799ccf323715624.sqlite.gz",
-  "sha256": "3716ec3fe2550eee8d6695793a095fdd1b4d68e8ec36ee178f7b707edaef85d2",
-  "catalog_count": 44708,
+  "revision": "90bcf17bd608bb5b",
+  "generated_at": "2026-11-03T12:26:26.082198+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-90bcf17bd608bb5b.sqlite.gz",
+  "sha256": "f09cb57a646e7bd16b06557fe0ce2e8c6fe9fc2d0c1dbfdb1b5858a08c16203b",
+  "catalog_count": 46923,
   "detail_count": 677,
-  "compressed_bytes": 11869061,
-  "uncompressed_bytes": 78131200,
+  "compressed_bytes": 12411714,
+  "uncompressed_bytes": 81223680,
   "coverage": {
-    "released_since": "2025-10-24",
-    "through": "2026-10-24",
+    "released_since": "2025-11-03",
+    "through": "2026-11-03",
     "recent_complete": true,
-    "recent_count": 28278,
+    "recent_count": 29761,
     "popular_limit": 5000,
     "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
     "cooptimus": {
@@ -21,38 +21,38 @@
       "state": "not-requested"
     },
     "artwork": {
-      "matched": 44631,
-      "capsule": 44618,
-      "hero": 42425,
-      "header": 44602,
-      "missing": 77,
-      "descriptors": 10349,
-      "adult_only": 2492,
-      "nudity": 3944,
-      "categories": 44554,
-      "requests": 895,
+      "matched": 46845,
+      "capsule": 46832,
+      "hero": 44638,
+      "header": 46816,
+      "missing": 78,
+      "descriptors": 10839,
+      "adult_only": 2592,
+      "nudity": 4104,
+      "categories": 46765,
+      "requests": 939,
       "cache_hits": 0
     },
     "server_games_added": 0,
     "server_fields_filled": 0,
-    "updated_at": "2026-10-24T09:22:13.537850+00:00",
-    "tagged_count": 38944
+    "updated_at": "2026-11-03T12:26:24.323764+00:00",
+    "tagged_count": 41163
   },
   "updates": {
-    "aef8a5983356c591": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-aef8a5983356c591-5799ccf323715624.json.gz",
-      "sha256": "6c1385d1c20e4ff3661c3f38cb3ea10b426266b4c8091d510a1eb7a320b16fe7",
-      "compressed_bytes": 779242
+    "fc8bef19170b4371": {
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-fc8bef19170b4371-90bcf17bd608bb5b.json.gz",
+      "sha256": "16aa7a1e8472fa7d46b59598bf1f00aa4974311fa96cf2a52f25a4e691e55987",
+      "compressed_bytes": 1502792
     },
-    "c38ac8b187e46a37": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-c38ac8b187e46a37-5799ccf323715624.json.gz",
-      "sha256": "b1487c47ee9d37db427df7da00701da30c6786a4c9cb9ab9f2ccb5237bb60b7d",
-      "compressed_bytes": 1114787
+    "4c49d6ba2802355a": {
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-4c49d6ba2802355a-90bcf17bd608bb5b.json.gz",
+      "sha256": "1ee3bf62bc11f8c937ee7fbd6c2baf515b3e8a4221bc32ab3a81aa49263a9a7b",
+      "compressed_bytes": 1918166
     },
-    "7894692f144e74f5": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-7894692f144e74f5-5799ccf323715624.json.gz",
-      "sha256": "fbc0b76cff05a705da02a425964112053a05e81d24f9af74f0ef8b9a5b37f557",
-      "compressed_bytes": 1349214
+    "265e20b94f122e33": {
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-265e20b94f122e33-90bcf17bd608bb5b.json.gz",
+      "sha256": "b0b2f3346584ff5af9b8b7365b25d6f0c8312d87ce97c4be871ae606fe35c512",
+      "compressed_bytes": 2083853
     }
   }
 }

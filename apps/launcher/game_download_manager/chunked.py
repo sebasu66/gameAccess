@@ -125,6 +125,14 @@ def safe_name(name: str, fallback: str) -> str:
     return cleaned[:150] or fallback
 
 
+def _app_id(value: Any) -> int | None:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
 class ChunkedDownloader:
     def __init__(self, context, session: ChunkSession, http: Any = None, sleep: Callable[[float], None] = time.sleep, parallel: int | None = None):
         self.parallel = max(1, parallel or int(os.getenv("GAMEACCESS_CHUNK_DOWNLOADS") or DOWNLOADS_IN_PARALLEL))
@@ -138,6 +146,8 @@ class ChunkedDownloader:
         self.session = session
         self.http = http or requests
         self.sleep = sleep
+        # The game being downloaded: the server does not accelerate a game marked abandoned (it answers 403).
+        self.app_id: int | None = None
 
     # ------------------------------------------------------------ server calls
     def _headers(self) -> dict[str, str]:
@@ -163,13 +173,13 @@ class ChunkedDownloader:
             return response.json()
         raise ChunkedDownloadError(ui("dlErrServerSilent"))
 
-    def peek(self, source_url: str) -> str:
+    def peek(self, source_url: str, app_id: Any = None) -> str:
         """Where the server already holds this source ("viking" or "torbox"), or "" (also when it cannot tell).
 
         One quick call, no retries: when the server does not answer the player just measures the torrent."""
         try:
             response = self.http.request("POST", f"{self.session.api}/downloads/viking-chunks/peek", headers=self._headers(),
-                                         timeout=20, json={"source_url": source_url})
+                                         timeout=20, json={"source_url": source_url, "app_id": _app_id(app_id)})
             if response.status_code != 200:
                 return ""
             body = response.json()
@@ -181,6 +191,7 @@ class ChunkedDownloader:
         """Start, join or resume the job; `have` are the pieces already on disk, which the server does not upload again."""
         return self._call("POST", "/downloads/viking-chunks", json={
             "source_url": source_url, "item_name": item_name, "file_name": file_name, "have_pieces": sorted(have),
+            "app_id": self.app_id,
         })
 
     def manifest(self, job_id: str) -> dict:
@@ -214,6 +225,7 @@ class ChunkedDownloader:
         context = self.context
         dest = Path(dest_dir)
         dest.mkdir(parents=True, exist_ok=True)
+        self.app_id = _app_id(app_id)
         source_key = hashlib.sha1(source_url.encode("utf-8")).hexdigest()[:12]
         state_path = dest / f".ga-state-{source_key}.json"
         # The state belongs to the source, not to the server's job: a server that lost the job makes a new one.

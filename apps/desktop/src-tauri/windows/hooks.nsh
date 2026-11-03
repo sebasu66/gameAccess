@@ -22,6 +22,8 @@ Var GaGamesText
 Var GaDownloadsText
 Var GaParental
 Var GaParentalBox
+Var GaAntivirus
+Var GaAntivirusBox
 
 ; Absolute local path (X:\...), not a disk root.
 !macro GaCheckFolder path
@@ -30,9 +32,9 @@ Var GaParentalBox
   ${If} $0 != ":\"
   ${OrIf} $1 < 4
     ${If} $LANGUAGE = 1034
-      MessageBox MB_ICONEXCLAMATION "Elegí una carpeta completa, por ejemplo C:\juegos_GameAccess (no la raíz de un disco)."
+      MessageBox MB_ICONEXCLAMATION "Elegí una carpeta completa, por ejemplo C:\GA_Juegos (no la raíz de un disco)."
     ${Else}
-      MessageBox MB_ICONEXCLAMATION "Choose a full folder path, for example C:\juegos_GameAccess (not the root of a disk)."
+      MessageBox MB_ICONEXCLAMATION "Choose a full folder path, for example C:\GA_Juegos (not the root of a disk)."
     ${EndIf}
     Abort
   ${EndIf}
@@ -42,6 +44,51 @@ Var GaParentalBox
 ; ($PassiveMode) already exist.
 !macro GAMEACCESS_FOLDERS_PAGE
   Page custom GaFoldersCreate GaFoldersLeave
+  Page custom GaAntivirusCreate GaAntivirusLeave
+
+; $R0 = a folder -> $R1 = 1 when games may not start from it: longer than 40 characters (the limit
+; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space, backslash and
+; _ - . : (a comment line must not end in a backslash: NSIS joins it with the next one).
+Function GaPathRisky
+  Push $R2
+  Push $R3
+  Push $R4
+  Push $R5
+  Push $R6
+  StrCpy $R1 0
+  StrLen $R2 $R0
+  ${If} $R2 > 40
+    StrCpy $R1 1
+  ${EndIf}
+  StrCpy $R5 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-.:\"
+  StrCpy $R3 0
+  ${DoWhile} $R3 < $R2
+    ${If} $R1 == 1
+      ${ExitDo}
+    ${EndIf}
+    StrCpy $R4 $R0 1 $R3
+    ; S== compares exact characters, so an accented letter never passes as the plain one.
+    StrCpy $R6 0
+    StrCpy $R1 1
+    ${Do}
+      StrCpy $0 $R5 1 $R6
+      ${If} $0 == ""
+      ${OrIf} $0 S== $R4
+        ${ExitDo}
+      ${EndIf}
+      IntOp $R6 $R6 + 1
+    ${Loop}
+    ${If} $0 S== $R4
+      StrCpy $R1 0
+    ${EndIf}
+    IntOp $R3 $R3 + 1
+  ${Loop}
+  Pop $R6
+  Pop $R5
+  Pop $R4
+  Pop $R3
+  Pop $R2
+FunctionEnd
 
 Function GaFoldersDefaults
   SetRegView 64
@@ -56,8 +103,14 @@ Function GaFoldersDefaults
   ${EndIf}
   StrCpy $GaDefaultDownloads "$0\GameAccessDownloads"
   ${If} $GaGamesDir == ""
+    ; Short and plain at the root of the disk: some games do not start from long paths (apps/launcher/game_paths.py).
+    ; A PC that already keeps its games in the old default folder goes on using it.
     StrCpy $0 $WINDIR 2
-    StrCpy $GaGamesDir "$0\juegos_GameAccess"
+    ${If} ${FileExists} "$0\juegos_GameAccess\*.*"
+      StrCpy $GaGamesDir "$0\juegos_GameAccess"
+    ${Else}
+      StrCpy $GaGamesDir "$0\GA_Juegos"
+    ${EndIf}
   ${EndIf}
   ${If} $GaDownloadsDir == ""
     StrCpy $GaDownloadsDir $GaDefaultDownloads
@@ -153,6 +206,19 @@ Function GaFoldersLeave
   ${EndIf}
   !insertmacro GaCheckFolder $GaGamesDir
   !insertmacro GaCheckFolder $GaDownloadsDir
+  ; A long games folder, or one with accents or symbols: warned, and the player decides.
+  StrCpy $R0 $GaGamesDir
+  Call GaPathRisky
+  ${If} $R1 == 1
+    ${If} $LANGUAGE = 1034
+      StrCpy $1 "La carpeta de juegos es larga o tiene acentos o símbolos.$\r$\n$\r$\nAlgunos juegos no arrancan desde rutas largas o con caracteres especiales. Conviene una carpeta corta en la raíz del disco, como C:\GA_Juegos.$\r$\n$\r$\n¿Usar esta carpeta igual?"
+    ${Else}
+      StrCpy $1 "The games folder is long or has accents or symbols.$\r$\n$\r$\nSome games do not start from long paths or paths with special characters. A short folder at the root of the disk is better, such as C:\GA_Juegos.$\r$\n$\r$\nUse this folder anyway?"
+    ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION $1 /SD IDYES IDYES gaGamesPathOk
+    Abort
+    gaGamesPathOk:
+  ${EndIf}
   ${If} $GaGamesDir == $GaDownloadsDir
     ${If} $LANGUAGE = 1034
       MessageBox MB_ICONEXCLAMATION "Los juegos y las descargas necesitan carpetas distintas."
@@ -162,9 +228,69 @@ Function GaFoldersLeave
     Abort
   ${EndIf}
 FunctionEnd
+
+; The antivirus page: whether Microsoft Defender leaves the two folders alone (only for direct download). Checked by
+; default; NSIS_HOOK_POSTINSTALL runs defender-exclusion.ps1, which skips folders already covered by an exclusion and
+; records the result in HKLM\Software\gameAccess (DefenderExclusions) for the app (antivirusExclusion.ts).
+Function GaAntivirusCreate
+  ${If} $PassiveMode = 1
+    Abort
+  ${EndIf}
+  ${If} $GaAntivirus == ""
+    StrCpy $GaAntivirus "1"
+  ${EndIf}
+  ${If} $LANGUAGE = 1034
+    !insertmacro MUI_HEADER_TEXT "Antivirus" "Que el antivirus no rompa los juegos de descarga directa."
+    StrCpy $1 "Los fixes y cracks de los juegos de descarga directa a veces se marcan como amenaza aunque no lo sean (falsos positivos). El antivirus borra esa DLL o ese .exe sin avisar y el juego deja de abrir."
+    StrCpy $2 "Por eso conviene que Microsoft Defender no revise la carpeta de juegos ni la de descargas. Solo hace falta para la descarga directa: los juegos de Steam y los vinculados no lo necesitan, y el resto de la PC se sigue revisando como siempre."
+    StrCpy $3 "Excluir la carpeta de juegos y la de descargas de Microsoft Defender"
+    StrCpy $4 "Si usás otro antivirus, Game Access te muestra cómo hacerlo al abrirse."
+  ${Else}
+    !insertmacro MUI_HEADER_TEXT "Antivirus" "Keep the antivirus from breaking direct-download games."
+    StrCpy $1 "The fixes and cracks of direct-download games are sometimes flagged as threats although they are not (false positives). The antivirus deletes that DLL or .exe without a word and the game no longer starts."
+    StrCpy $2 "So Microsoft Defender should leave the games folder and the downloads folder alone. It is only needed for direct download: Steam and linked games do not need it, and the rest of the PC is checked as usual."
+    StrCpy $3 "Exclude the games folder and the downloads folder from Microsoft Defender"
+    StrCpy $4 "If you use another antivirus, Game Access shows you how when it opens."
+  ${EndIf}
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 30u $1
+  Pop $0
+  ${NSD_CreateLabel} 0 36u 100% 30u $2
+  Pop $0
+  ${NSD_CreateLabel} 0 72u 100% 22u "$GaGamesDir$\r$\n$GaDownloadsDir"
+  Pop $0
+  ${NSD_CreateCheckbox} 0 100u 100% 12u $3
+  Pop $GaAntivirusBox
+  ${If} $GaAntivirus == "1"
+    ${NSD_Check} $GaAntivirusBox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 118u 100% 12u $4
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function GaAntivirusLeave
+  ${NSD_GetState} $GaAntivirusBox $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $GaAntivirus "1"
+  ${Else}
+    StrCpy $GaAntivirus "0"
+  ${EndIf}
+FunctionEnd
 !macroend
 
+; What earlier versions left behind and nothing uses any more (vault/Modo niño.md, MN.23): the same-account kid
+; mode's service and its folder, Windows' password for administrator tasks where Game Access turned it on, and a
+; family file whose children's accounts are gone. Every install and update, kid mode set up or not.
 !macro NSIS_HOOK_POSTINSTALL
+  ${If} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
+    nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -CleanStale`
+    Pop $0
+  ${EndIf}
   ${If} $GaShown == 1
     SetRegView 64
     WriteRegStr HKLM "${GA_REGKEY}" "GamesDir" $GaGamesDir
@@ -176,6 +302,29 @@ FunctionEnd
     WriteRegStr HKLM "${GA_REGKEY}" "ParentalDefault" $GaParental
     SetRegView lastused
     CreateDirectory $GaGamesDir
+    ; The antivirus page (the installer already runs as administrator: no second permission question). The 64-bit
+    ; PowerShell when there is one, so Defender's module and the registry are the machine's own.
+    ${If} $GaAntivirus == "1"
+    ${AndIf} ${FileExists} "$INSTDIR\runtime\defender-exclusion.ps1"
+      StrCpy $1 "powershell.exe"
+      ${If} ${FileExists} "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+        StrCpy $1 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+      ${EndIf}
+      DetailPrint "Microsoft Defender: $GaGamesDir | $GaDownloadsDir"
+      nsExec::Exec `"$1" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\defender-exclusion.ps1" -Paths "$GaGamesDir|$GaDownloadsDir"`
+      Pop $0
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; Uninstalling also deletes the children's Windows accounts that kid mode made (kid-account.ps1 -RemoveAll): an
+; account whose desktop is Game Access would be a black screen without it. Runs before the files go (the script is
+; in the install folder) and never in an update, which would otherwise erase the account at every new version.
+!macro NSIS_HOOK_PREUNINSTALL
+  ${If} $UpdateMode <> 1
+  ${AndIf} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
+    nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -RemoveAll`
+    Pop $0
   ${EndIf}
 !macroend
 

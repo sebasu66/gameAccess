@@ -23,7 +23,7 @@ describe("Digital download screen", () => {
     service.recordFailure({ id: 1912410, app_id: 1912410, name: "Minecraft Dungeons II" } as import("./types").CatalogGame, "Contraseña inválida");
     const html = renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={() => {}} />);
     expect(html).toContain("Abortar descarga de Minecraft Dungeons II");
-    expect(html).toContain(">Abortar</button>");
+    expect(html).toContain(">Abortar</span></button>");
     expect(html).toContain("Reintentar");
     expect(html).toContain("Cerrar descargas y volver a la pantalla principal");
   });
@@ -63,7 +63,7 @@ describe("Digital download screen", () => {
     ]);
     const html=renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={()=>{}}/>);
     expect(html.match(/class="ga-download-play"/g)).toHaveLength(1);
-    expect(html).toContain(locale==="es"?">JUGAR</button>":">PLAY</button>");
+    expect(html).toContain(locale==="es"?">JUGAR</span></button>":">PLAY</span></button>");
     expect(html).toContain(locale==="es"?"Instalación completada":"Installation complete");
     expect(html).toContain(locale==="es"?"Tamaño de descarga":"Download size");
     expect(html).toContain("6 GB");

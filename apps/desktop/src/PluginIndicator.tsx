@@ -7,6 +7,7 @@ export function PluginIndicator() {
   const plugins = useSyncExternalStore(subscribePluginStatuses, getPluginStatuses, getPluginStatuses);
   useEffect(() => monitorPluginRuntime(), []);
 
+  // Only with a plugin installed: without one the footer shows nothing about plugins.
   if (plugins.length === 0) return null;
 
   return <div className="plugin-indicator-group" role="status" aria-live="polite">

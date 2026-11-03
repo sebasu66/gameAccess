@@ -1,37 +1,32 @@
-import { useEffect, useState } from "react";
-import AppDialog from "./AppDialog";
+import { useEffect, useRef } from "react";
 import type { FreezeLevel } from "./catalog/DigitalProcessManager";
-import { freezeJob, freezeTitle, startFreezeJob, watchFreezeJob, type FreezeJob } from "./freezeJobs";
-import { useI18n } from "./i18n";
+import { freezeJob, freezeTitle, openFreezeConsole, startFreezeJob } from "./freezeJobs";
+import { translate } from "./i18n";
+import { confirmNotice, hideNotice } from "./notice/notice";
+import { noticeGame } from "./notice/noticeGame";
 import type { CatalogGame } from "./types";
 
 export type FreezeMode = FreezeLevel | "thaw";
 
-/** Confirm, then freeze (either level) or thaw one game; the dialog narrates the work and shows the result.
- *  The work itself is a job of the app (freezeJobs): closing the dialog does not lose it, and reopening it
- *  while the game is still being compressed shows that same job. Closing it while it works is safe: the
- *  result then arrives as a toast. */
+/** Asks, in the app's notice (bottom right, like every confirmation), whether to freeze (either level) or thaw one
+ *  game; on yes the work starts as a job of the app, shown in the game's row of the Library Manager or in the freeze
+ *  console, and its result comes back as a notice too. Opened while that game is already being frozen, it only
+ *  brings the console up on that job. Draws nothing itself; `onClose` runs once it is answered. */
 export default function FreezeDialog({ game, mode, onClose }: { game: CatalogGame; mode: FreezeMode; onClose: () => void }) {
-  const { t } = useI18n();
-  const [job, setJob] = useState<FreezeJob | undefined>(() => freezeJob(game.app_id ?? game.id));
-  const [outcome, setOutcome] = useState<{ ok: boolean; detail: string } | null>(null);
-  const shown = job?.mode ?? mode;
-  const copy = {
-    freeze: { body: t("freezeBody"), confirm: t("freezeMenu") },
-    deep: { body: t("deepFreezeBody"), confirm: t("deepFreezeMenu") },
-    thaw: { body: t("thawBody"), confirm: t("thawMenu") },
-  }[shown];
-  const title = freezeTitle(shown, game.name);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
-    if (!job) return;
-    const unwatch = watchFreezeJob(job);
-    let current = true;
-    void job.done.then(result => { if (current) setOutcome(result); });
-    return () => { current = false; unwatch(); };
-  }, [job]);
-  if (outcome && !outcome.ok) return <AppDialog title={title} message={outcome.detail} tone="error" onClose={onClose} />;
-  const progress = outcome ? { phase: "done" as const, label: title, detail: outcome.detail }
-    : job ? { phase: "working" as const, label: t(shown === "thaw" ? "thawWorking" : "freezeWorking"), detail: game.name } : undefined;
-  return <AppDialog title={title} message={copy.body} onClose={onClose} progress={progress}
-    onConfirm={() => setJob(startFreezeJob(game, mode))} confirmLabel={copy.confirm} cancelLabel={t("back")} confirmDisabled={Boolean(job)} initialAction="confirm" />;
+    const appId = game.app_id ?? game.id;
+    if (freezeJob(appId)) { openFreezeConsole(appId); close.current(); return; }
+    const copy = { freeze: ["freezeBody", "freezeMenu"], deep: ["deepFreezeBody", "deepFreezeMenu"], thaw: ["thawBody", "thawMenu"] } as const;
+    void confirmNotice({
+      game: noticeGame(game), title: freezeTitle(mode, game.name), text: translate(copy[mode][0]),
+      confirmLabel: translate(copy[mode][1]), cancelLabel: translate("noticeCancel"), kind: "frost",
+    }).then(ok => {
+      // The answer counts even when what opened the question is gone (the game menu closed meanwhile).
+      if (ok) { hideNotice(); startFreezeJob(game, mode); }
+      close.current();
+    });
+  }, [game.app_id, game.id, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }

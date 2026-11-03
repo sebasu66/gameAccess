@@ -4,6 +4,7 @@ Declared by the execution profile (`runSetup`, `setupPattern`, `setupArguments`,
 with `runSetup` unset it is automatic: only when the folder has a setup exe and no game exe."""
 from __future__ import annotations
 import game_journal as journal
+from game_download_manager.ui_text import ui
 from .executables import has_game_executable
 import subprocess
 import sys
@@ -14,6 +15,13 @@ DEFAULT_PATTERN = "setup*.exe"
 DEFAULT_ARGUMENTS = ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS"]
 TARGET_FOLDER = "Game"
 TIMEOUT_SECONDS = 2 * 60 * 60
+# The installer's own log (Inno's /LOG), next to it in the game folder: when it fails, it says why.
+LOG_FILE = "setup-install-log.txt"
+# Inno Setup's exit codes (https://jrsoftware.org/ishelp/topic_setupexitcodes.htm), each said by the app as
+# setupCode1..setupCode8 of its translations.
+INNO_CODES = range(1, 9)
+# A target deeper than this leaves little room for the game's own folders under Windows' 260-character limit.
+LONG_TARGET = 80
 
 
 def find_setup(folder, pattern=DEFAULT_PATTERN):
@@ -37,9 +45,35 @@ def needs_setup(folder, profile):
     return setup
 
 
-def build_command(setup, target, profile):
+def build_command(setup, target, profile, log=None):
     arguments = list(profile.get("setupArguments") or DEFAULT_ARGUMENTS)
-    return [str(setup), *arguments, f"/DIR={target}"]
+    return [str(setup), *arguments, *([f"/LOG={log}"] if log else []), f"/DIR={target}"]
+
+
+def log_reason(log: Path) -> str:
+    """The lines of the installer's log that say why it stopped (Inno writes "Exception", "Fatal" or "Error")."""
+    try:
+        lines = Path(log).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    found = [line.split(" ", 2)[-1].strip() for line in lines if any(word in line for word in ("Exception", "Fatal", "Error", "error"))]
+    return " / ".join(dict.fromkeys(found[-2:]))
+
+
+def failure_message(setup, code: int, target: Path, log: Path) -> str:
+    """What the player (and the log) is told: the code in words, the installer's own reason and, when the folder is
+    deep, the likely cause (games that do not fit Windows' path limit)."""
+    # Keys of the app's translations (ui_text): the app says it in its language; the installer's own words stay as
+    # they came.
+    parts = [ui("setupFailed", file=setup.name, code=code)]
+    if code in INNO_CODES:
+        parts.append(ui(f"setupCode{code}"))
+    reason = log_reason(log)
+    if reason:
+        parts.append(ui("setupReason", reason=reason))
+    if len(str(target)) > LONG_TARGET and code in (3, 4):
+        parts.append(ui("setupLongPath", length=len(str(target))))
+    return " ".join(parts)
 
 
 def run_installer(command, as_admin, timeout=TIMEOUT_SECONDS):
@@ -78,10 +112,12 @@ def install_if_needed(folder, profile, logger, progress=lambda text: None, runne
     progress(f"Instalando con {setup.name}...")
     logger.info("Setup: running %s into %s", setup, target)
     journal.note(folder, "instalador", f"ejecutando {setup.name} en silencio hacia {TARGET_FOLDER}")
-    code = runner(build_command(setup, target, profile), bool(profile.get("runAsAdmin")))
+    log = folder / LOG_FILE
+    code = runner(build_command(setup, target, profile, log), bool(profile.get("runAsAdmin")))
     if code != 0:
-        journal.note(folder, "instalador", f"falló con código {code}")
-        raise RuntimeError(f"error intentando instalar {setup.name}: el instalador terminó con código {code}")
+        message = failure_message(setup, code, target, log)
+        journal.note(folder, "instalador", f"falló con código {code}; {message}")
+        raise RuntimeError(message)
     if not has_game_executable(target):
         raise RuntimeError(f"error intentando instalar {setup.name}: terminó pero no dejó ningún ejecutable del juego")
     if remove_sources:

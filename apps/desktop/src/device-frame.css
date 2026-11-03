@@ -4,35 +4,106 @@
    controls (status, buttons) are mounted on it. */
 /* Under the app's title bar in the desktop window (--ga-frame-offset is its height; 0 in a browser). */
 .ga-frame-layer { position: fixed; left: 0; top: var(--ga-frame-offset, 0px); width: 100vw; height: calc(100vh - var(--ga-frame-offset, 0px)); pointer-events: none; overflow: visible; }
-/* The metal body: above the screen, below the controls mounted on it. Its shadow falls onto the screen, so the screen
-   reads as recessed under a bezel with some thickness. */
-.ga-frame-back { z-index: 50; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
-.ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: .7; stroke-width: 3; }
+/* The frame is the top of everything (above the detail's dark backdrop, the central dialog and the notice): it is the
+   device, not the screen. The controls mounted on it sit above it, so they show over a backdrop too.
+   The metal body: above the screen, below the controls mounted on it. */
+.ga-frame-back { z-index: 2147483600; }
+/* Its shadow falls onto the screen, so the screen reads as recessed under a bezel with some thickness. It is a layer of
+   its own just under the opening's gate (z-index 510; splash-screen.css): the gate's leaves are part of the frame. */
+.ga-frame-shadow { z-index: 509; filter: drop-shadow(0 0 10px rgba(0, 0, 0, .85)) drop-shadow(0 0 2px rgba(0, 0, 0, .9)); }
+/* The brushed-steel texture over the gunmetal, on the band and its tabs only (the frame's own shape). */
+.ga-frame-steel { mix-blend-mode: overlay; opacity: .6; }
+/* A black line where the metal meets the screen (and the gate's leaves, which have no shadow on them). */
+.ga-frame-lip-dark { fill: none; stroke: #000; stroke-opacity: 1; stroke-width: 3; }
 .ga-frame-lip-light { fill: none; stroke: #ffffff; stroke-opacity: .24; stroke-width: 1; transform: translate(-.5px, -.5px); }
 /* Engraved lines and accents on the metal, never taking the pointer. */
-.ga-frame-lines { z-index: 51; }
+.ga-frame-lines { z-index: 2147483601; }
 .ga-frame-outer { fill: none; stroke: #ffffff; stroke-opacity: .12; stroke-width: 1; }
 .ga-frame-inner { fill: none; stroke: #ffffff; stroke-opacity: .08; stroke-width: 1; }
 .ga-frame-ticks { fill: none; stroke: #ffffff; stroke-opacity: .28; stroke-width: 1; }
-.ga-frame-accent { fill: none; stroke: #ff6a00; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
+.ga-frame-accent { fill: none; stroke: #cc8333; stroke-opacity: .85; stroke-width: .9; stroke-linecap: square; stroke-linejoin: miter; }
 
-/* The animated logo, on the screen: its top-right corner, under the bezel's edge. */
-.ga-corner-logo { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + 28px); right: 38px; width: 56px; height: 56px; pointer-events: none; filter: drop-shadow(0 4px 12px #000c); }
-.ga-corner-logo video, .ga-corner-logo img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
+/* The device's name in its thin tab at the middle of the top edge (the tab wraps this label): lit orange letters
+   that glow on the metal, like a backlit inscription; Bebas Neue, the titles' font, reads best at this size. */
+.ga-frame-name { position: fixed; z-index: 2147483602; left: 50%; top: calc(var(--ga-frame-offset, 0px) + 14px); transform: translateX(-50%); display: inline-flex; align-items: center; padding: 0 12px; height: 13px; pointer-events: none; user-select: none;
+  font: 400 14px/1 "Bebas Neue", sans-serif; letter-spacing: .06em; white-space: pre; color: #ebceae; text-shadow: 0 0 1px #cc8333aa, 0 0 3px #cc833355; }
+
+/* Buttons mounted on the frame (the footer's controls) are part of the device: low-profile keys like a thin keyboard's,
+   with a crisp edge rather than a soft one. Nearly square corners, a flat face, a sharp light edge on top and a dark
+   one below, a 2 px side and a short shadow; they sink 1 px when pressed. Their icons are backlit in the green of the
+   emblem's G (SplashScreen.tsx). Buttons on the screen (the filter strip, the search dock, the view switch) are flat:
+   no gradient, bevel, glow or shadow. */
+html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle) {
+  border-radius: 4px !important; background: linear-gradient(180deg, #30373d, #262c31) !important; border: 1px solid #050607 !important;
+  box-shadow: inset 0 1px 0 #ffffff3d, inset 0 -1px 0 #0000008c, 0 1px 0 #11151a, 0 2px 0 #050607, 0 3px 5px #0009 !important;
+  transition: background .2s, box-shadow .1s, transform .1s, color .2s !important; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube::before { display: none; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube > svg { color: #a0d2b4; filter: drop-shadow(0 0 2px #a0d2b499) drop-shadow(0 0 6px #a0d2b433); transition: color .2s, filter .2s; }
+html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):is(:hover, :focus-visible) {
+  color: #fff !important; background: linear-gradient(180deg, #363e45, #2b3237) !important;
+  box-shadow: inset 0 1px 0 #ffffff52, inset 0 -1px 0 #0000008c, 0 1px 0 #11151a, 0 2px 0 #050607, 0 3px 6px #000a !important; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube:is(:hover, :focus-visible) > svg { color: #d4f2e2; filter: drop-shadow(0 0 3px #a0d2b4cc) drop-shadow(0 0 9px #a0d2b466); }
+html body.ga-device-frame .catalog-bottom-actions :is(button.ga-cube, .ga-premium-button, .ga-access-pass-toggle):active:not(:disabled) {
+  transform: translateY(1px) !important; box-shadow: inset 0 1px 1px #00000080, inset 0 -1px 0 #ffffff12, 0 1px 0 #050607, 0 1px 2px #0008 !important; }
+html body.ga-device-frame .catalog-bottom-actions button.ga-cube[aria-pressed="true"] {
+  color: #fff !important; background: linear-gradient(180deg, #22282d, #2a3136) !important;
+  box-shadow: inset 0 1px 2px #000000b3, inset 0 -1px 0 #ffffff14, 0 1px 0 #050607 !important; transform: translateY(1px) !important; }
+html body.ga-device-frame .catalog-bottom-actions .ga-premium-button { color: #ddb079; }
+
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube, summary.ga-cube) {
+  background: #ffffff08 !important; border: 1px solid #ffffff26 !important; box-shadow: none !important; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube, summary.ga-cube)::before { display: none; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) :is(button.ga-cube:is(:hover, :focus-visible), details[open] > summary.ga-cube, summary.ga-cube:is(:hover, :focus-visible)) {
+  background: #cc83331f !important; border-color: #d79e60 !important; box-shadow: none !important; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"] { background: #cc833326 !important; border-color: #d79e6099 !important; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube[aria-pressed="true"]::after { box-shadow: none; }
+html body.ga-device-frame :is(.ga-grid-toolbar, .library-catalog-toolbar) button.ga-cube.ga-personal-order.is-on { background: var(--ga-orange) !important; border-color: var(--ga-orange) !important; }
+
+/* Overlays (the game detail, the central dialog, PLUS, the import wizard, alert dialogs) live on the screen, inside
+   the bezel: their backdrop and their box fit in the frame's inner area, so the metal never covers a dialog's edge. */
+html body.ga-device-frame :is(.ga-detail-overlay, .central-dialog-backdrop, .ga-premium-overlay, .ga-overlay-root, .ga-in-frame, .ga-screen) {
+  inset: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px)) var(--ga-frame-right, 0px) var(--ga-frame-bottom, 0px) var(--ga-frame-left, 0px) !important; }
+/* ...but what dims the screen behind them covers the whole window, under the bezel too (the frame stays above it),
+   so no undimmed band shows between the dialog's area and the metal. */
+html body.ga-device-frame :is(.central-dialog-backdrop, .ga-premium-overlay, .ga-overlay-root) { box-shadow: 0 0 0 100vmax var(--ga-backdrop) !important; }
+html body.ga-device-frame .ga-detail-overlay {
+  --ga-out-top: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px)); --ga-out-right: var(--ga-frame-right, 0px);
+  --ga-out-bottom: var(--ga-frame-bottom, 0px); --ga-out-left: var(--ga-frame-left, 0px); }
+html body.ga-device-frame .ga-detail-overlay::before {
+  inset: calc(-1 * var(--ga-out-top)) calc(-1 * var(--ga-out-right)) calc(-1 * var(--ga-out-bottom)) calc(-1 * var(--ga-out-left)); }
+/* The detail's scrim (the dark layer with the hole around the dialog, OverlayScreenDimmer) too; an SVG needs its size. */
+html body.ga-device-frame .ga-detail-overlay > .ga-screen-dimmer {
+  inset: auto; top: calc(-1 * var(--ga-out-top)); left: calc(-1 * var(--ga-out-left));
+  width: calc(100% + var(--ga-out-left) + var(--ga-out-right)); height: calc(100% + var(--ga-out-top) + var(--ga-out-bottom)); }
+html body.ga-device-frame .ga-in-frame { max-height: calc(100vh - var(--ga-frame-offset, 0px) - var(--ga-frame-top, 0px) - var(--ga-frame-bottom, 0px) - 32px) !important; }
 
 /* What the frame replaces: the footer bar's own background (its controls sit on the bezel's tabs), the header logo
-   (now the corner logo and the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
+   (now the sketched word) and the top margin it needed: the screen's content starts just under the bezel,
    in the catalog and in the library. */
-body.ga-device-frame .catalog-bottom-actions { background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
-body.ga-device-frame .topbar .ga-brand-lockup { display: none; }
+body.ga-device-frame .catalog-bottom-actions { z-index: 2147483603 !important; background: transparent !important; box-shadow: none !important; border-color: transparent !important; backdrop-filter: none !important; padding-left: 34px; padding-right: 34px; }
+/* The old top bar is empty with the frame (its controls live in the dock and the footer) but still lies over the top of
+   the screen: it lets clicks through to what is under it (the filter strip), except on what it still holds. */
+body.ga-device-frame header.topbar { pointer-events: none; }
+body.ga-device-frame header.topbar :is(button, a, input, select, summary, [role="button"], [role="tab"], .library-catalog-toolbar) { pointer-events: auto; }
+/* A dialog opened from the bar (settings, kids, help) takes every click over it, its backdrop included: nothing reaches the catalog behind. */
+body.ga-device-frame header.topbar :is([role="dialog"], [role="alertdialog"], :has(> [aria-modal="true"])) { pointer-events: auto; }
 /* (The base rule sets the whole padding with !important, so this one has to as well.) */
 html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-top: calc(var(--ga-frame-offset, 0px) + 30px) !important; }
+/* The old footer bar is gone (its controls sit on the bezel's tabs): the screen reaches down to the bezel, with no dark
+   band kept for it above the bottom edge. */
+html body.ga-device-frame .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 14px !important; }
 
 /* Side panels (downloads, library manager, news) are part of the screen: they reach the window's edges, behind the
    bezel, and keep their content clear of it from the inside (padding as deep as the band and its tabs: the
    footer controls at the bottom), so nothing of the background shows around them and no tab covers their
    content. A side panel grows by that padding; the catalog keeps clear of it. */
 html body.ga-device-frame .ga-desk-panel { z-index: 48; }
+/* A screen sits under the side panel, like the games it covers, and an open panel narrows it from its side. */
+html body.ga-device-frame .ga-screen { z-index: 40;
+  left: calc(var(--ga-frame-left, 0px) + var(--ga-desk-left, 0px)) !important; right: calc(var(--ga-frame-right, 0px) + var(--ga-desk-right, 0px)) !important;
+  /* Down to the frame's opening (--ga-frame-top is the bezel's plain width); the footer's tabs lie over its corners,
+     so the content keeps clear of them (--ga-frame-bottom reaches above the tabs). */
+  bottom: var(--ga-frame-top, 0px) !important; padding-bottom: calc(var(--ga-frame-bottom, 0px) - var(--ga-frame-top, 0px) + 24px); }
 html body.ga-device-frame .ga-desk-panel[data-mode="panel"][data-side="right"] { width: calc(var(--ga-desk-w) + var(--ga-frame-right, 0px)); }
 html body.ga-device-frame .ga-desk-panel[data-mode="panel"][data-side="left"] { width: calc(var(--ga-desk-w) + var(--ga-frame-left, 0px)); }
 html body.ga-device-frame .ga-desk-panel { top: var(--ga-frame-offset, 0px); }

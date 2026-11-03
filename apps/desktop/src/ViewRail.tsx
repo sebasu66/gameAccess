@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import "@fontsource/archivo-black/400.css";
 import { gsap, motionOk } from "./motion/gsap";
+import { queueTransition } from "./motion/transitions";
 import { useI18n } from "./i18n";
 import "./view-rail.css";
 
@@ -66,8 +67,10 @@ export default function ViewRail({ view }: { view: RailView }) {
     const into = host.querySelector<HTMLElement>(`.ga-rail-word[data-view="${view}"]`);
     const travel = window.innerHeight * 1.3 * (view === "library" ? 1 : -1);
     if (!motionOk()) { gsap.set(out, { y: travel }); gsap.set(into, { y: 0 }); return; }
-    gsap.to(out, { y: -travel, duration: 1.1, ease: "expo.inOut", overwrite: "auto" });
-    gsap.fromTo(into, { y: travel }, { y: 0, duration: 1.1, ease: "expo.inOut", overwrite: "auto", delay: .05 });
+    // One timeline, one step of the transition queue (motion/transitions.ts): the old word leaves as the new one comes.
+    void queueTransition(() => gsap.timeline()
+      .to(out, { y: -travel, duration: 1.1, ease: "expo.inOut" }, 0)
+      .fromTo(into, { y: travel }, { y: 0, duration: 1.1, ease: "expo.inOut" }, .05), `rail:${view}`);
   }, [view]);
 
   return (

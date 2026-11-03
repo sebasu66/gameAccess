@@ -1,10 +1,13 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
+import { SCREEN_CHANGE_EVENT } from "./appScreen";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
 import { useCatalogQuery } from "./useCatalogQuery";
+import { buildTasteProfile, rememberTasteGame, tailorCatalog, tasteQuery } from "./tasteProfile";
+import { publishTasteReadiness, usePersonalOrder } from "./personalOrder";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -15,36 +18,43 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
-import { loadDetails } from "./api";
 import { translate, useI18n } from "./i18n";
 import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
+import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
+import { hideForBigPicture, labelOut, showAfterBigPicture, closeGate, openGate } from "./motion/bigPictureMotion";
+import { closeAllPanels } from "./desk/desk";
+import { usePluginReady } from "./usePluginReady";
+import { withoutSourceFilters } from "./librarySearch";
 import { noticeGame } from "./notice/noticeGame";
 import { cancelManagedDownload } from "./downloadCancellation";
 import { acknowledgeDownloadCompletion, cancelDownloadLifecycle } from "./downloadLifecycle";
 import { downloadManager } from "./downloadManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
-import { buildActions, EmptyLibraryContent, FeaturePanel, handleActionKey, handleGridKey, LibraryHint, libraryRoomClass, selectedDownload, selectedHero, selectedPortraitHero, selectedWideArtworkSlides, selectedMovie, selectedSummary, selectedVideo, useCrossfadeArtwork } from "./LibraryRoomParts";
+import { buildActions, EmptyLibraryContent, FeaturePanel, handleActionKey, handleGridKey, LibraryHint, libraryRoomClass, selectedDownload } from "./LibraryRoomParts";
 import { gameStateManager } from "./GameStateManager";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { renderedGridColumns } from "./libraryNavigation";
 import BigScreenControls from "./BigScreenControls";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
-import { morphClose, morphOpen, pushCards, releaseCards } from "./motion/detailMorph";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { GAME_ENDED_EVENT } from "./gameFocus";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { opensOn, startScreenUsed } from "./startupPreferences";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
 import GameStorageContextMenu from "./GameStorageContextMenu";
 import { playUiSound } from "./uiSounds";
-import type { CatalogGame, GameDetails } from "./types";
+import type { CatalogGame } from "./types";
 import { uiDemo } from "./devDemo/uiDemo";
 import ViewRail from "./ViewRail";
 import { gsap, motionOk } from "./motion/gsap";
@@ -72,24 +82,39 @@ interface LibraryRoomProps {
 
 const IDLE_SHOWCASE_ENABLED = false;
 
+/**
+ * How far the catalog screen goes: the position (in the last catalog order) of the last card visible now, or at least
+ * as many games as there are cards on screen. Read when the order is recomputed, before the new one is drawn.
+ */
+function catalogScreenEnd(last: CatalogGame[]): number {
+  if (typeof document === "undefined") return 0;
+  const index = new Map(last.map((game, position) => [String(game.id), position]));
+  if (!last.length) return 0;
+  let end = 0, onScreen = 0;
+  for (const card of document.querySelectorAll<HTMLElement>(".library-room [data-library-game-id]")) {
+    if (card.closest(".ga-detail-overlay")) continue;
+    const box = card.getBoundingClientRect();
+    if (!box.width || box.bottom <= 0 || box.top >= window.innerHeight) continue;
+    onScreen++;
+    const position = index.get(card.dataset.libraryGameId ?? "");
+    if (position !== undefined) end = Math.max(end, position + 1);
+  }
+  return Math.max(end, onScreen);
+}
+
 export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const { locale, t } = useI18n();
-  const auxiliarySurface = typeof window !== "undefined" && ["tablet", "display"].includes(new URLSearchParams(window.location.search).get("surface") ?? "");
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const actionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const idleTimerRef = useRef<number | null>(null);
   const showcaseEnteredRef = useRef(false);
   const completionHandlingRef = useRef(new Set<string>());
 
   const [selectedGameId, setSelectedGameId] = useState<number | null>(() => games[0]?.id ?? null);
-  const [detailRequestedGameId, setDetailRequestedGameId] = useState<number | null>(null);
   const [focusZone, setFocusZone] = useState<FocusZone>("grid");
   const [actionIndex, setActionIndex] = useState(0);
   const [columns, setColumns] = useState(4);
-  const [details, setDetails] = useState<GameDetails | null>(null);
-  const [detailsGameId, setDetailsGameId] = useState<number | null>(null);
   // A game opened from inside the catalog that is not in the grid (the banner's newest games) opens like an outside one.
   const [ownDetailGame, setOwnDetailGame] = useState<CatalogGame | null>(null);
   const externalDetailGame = externalDetailGameProp ?? ownDetailGame;
@@ -101,39 +126,78 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [detailMenu, setDetailMenu] = useState<{ game: CatalogGame; x: number; y: number; status?: ManagedDownloadStatus } | null>(null);
   const detailCloseRef = useRef<HTMLButtonElement>(null);
   const detailDialogRef = useRef<HTMLDivElement>(null);
-  const [loadingDetails, setLoadingDetails] = useState(false);
   const [showcaseMode, setShowcaseMode] = useState(false);
-  const [readyVideoSrc, setReadyVideoSrc] = useState<string | null>(null);
-  const [videoMuted, setVideoMuted] = useState(true);
-  const [videoVolume, setVideoVolume] = useState(0.68);
   const { managedDownloads, setManagedDownloads, trackedAppIds, setTrackedAppIds,
     completionQueue, setCompletionQueue, effectiveDownloads, persistCompletion } = useLibraryDownloads(games, downloads);
   const [cancelGame, setCancelGame] = useState<CatalogGame | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [libraryView, setLibraryView] = useState<LibraryView>("catalog");
+  const [libraryView, setLibraryView] = useState<LibraryView>(() => opensOn("library") ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog");
+  useEffect(() => startScreenUsed("library"), []);
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
-  const [artworkSlideIndex, setArtworkSlideIndex] = useState(0);
   const [bigScreen, setBigScreen] = useState(false);
-  const previousFullscreen = useRef(false);
+  /**
+   * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
+   * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
+   */
+  // The change is animated (motion/bigPictureMotion.ts): a second press while it runs is ignored.
+  const bigScreenChanging = useRef(false);
   const toggleBigScreen = async () => {
-  const { t } = useI18n();
+    if (bigScreenChanging.current) return;
     const next = !bigScreen;
+    if (next && !(await controllerConnected())) {
+      showNotice({ tone: "info", title: t("bigPictureNoControllerTitle"), text: t("bigPictureNoControllerText"), timer: true });
+      return;
+    }
+    bigScreenChanging.current = true;
+    // One step after the other (motion/bigPictureMotion.ts): the controls slide off, the opening's gate closes while the
+    // window and the grid change behind it, then opens on the mode. Leaving runs the same way back.
+    if (next) {
+      closeAllPanels();
+      setDetailMenu(null);
+      setDetailOpen(false);
+      await hideForBigPicture();
+    } else await labelOut();
+    await closeGate(next ? "enter" : "leave");
+    if (next) setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
+    setBigPictureActive(next);
     setBigScreen(next);
     try {
-      if ("__TAURI_INTERNALS__" in window) {
-        const appWindow = getCurrentWindow();
-        if (next) previousFullscreen.current = await appWindow.isFullscreen();
-        await appWindow.setFullscreen(next || previousFullscreen.current);
-      } else if (next) await document.documentElement.requestFullscreen?.();
+      // The whole screen, taskbar included; leaving puts the window back as it was (window_fit.rs).
+      if ("__TAURI_INTERNALS__" in window) await invoke("window_set_big_screen", { on: next });
+      else if (next) await document.documentElement.requestFullscreen?.();
       else if (document.fullscreenElement) await document.exitFullscreen();
     } catch { /* The large, controller-friendly layout still works windowed. */ }
+    await openGate(next ? "enter" : "leave");
+    if (!next) await showAfterBigPicture();
+    bigScreenChanging.current = false;
   };
   useEffect(() => {
     document.body.classList.toggle("ga-big-screen", bigScreen);
-    return () => document.body.classList.remove("ga-big-screen");
+    // The cleanup runs on every change too, so the current value is set here again after it.
+    setBigPictureActive(bigScreen);
+    return () => { document.body.classList.remove("ga-big-screen"); setBigPictureActive(false); };
+  }, [bigScreen]);
+  // Big picture mode stays on through a game: a fullscreen game minimizes Game Access, and the window comes back
+  // without its fullscreen. Whenever the window returns (the game ended, it got the focus or became visible) while the
+  // mode is on, it goes fullscreen again.
+  useEffect(() => {
+    if (!bigScreen || !("__TAURI_INTERNALS__" in window)) return;
+    let timer = 0;
+    const restore = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (bigPictureActive()) void invoke("window_set_big_screen", { on: true }).catch(() => undefined);
+      }, 250);
+    };
+    const visible = () => { if (document.visibilityState === "visible") restore(); };
+    window.addEventListener("focus", restore);
+    document.addEventListener("visibilitychange", visible);
+    let unlisten: (() => void) | null = null, live = true;
+    void listen(GAME_ENDED_EVENT, restore).then(stop => { if (live) unlisten = stop; else stop(); }).catch(() => undefined);
+    return () => { live = false; window.clearTimeout(timer); window.removeEventListener("focus", restore); document.removeEventListener("visibilitychange", visible); unlisten?.(); };
   }, [bigScreen]);
 
 
@@ -143,26 +207,39 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const before = previousView.current;
     previousView.current = libraryView;
     const host = rootRef.current?.querySelector<HTMLElement>(".library-room-catalog");
-    if (!host || before === libraryView || auxiliarySurface || !motionOk()) return;
+    if (!host || before === libraryView || !motionOk()) return;
     const into = libraryView === "catalog" ? -1 : 1;
     const tween = gsap.fromTo(host, { xPercent: 30 * into, rotationY: -28 * into, opacity: 0, transformPerspective: 1800, transformOrigin: into > 0 ? "100% 50%" : "0% 50%" },
       { xPercent: 0, rotationY: 0, opacity: 1, duration: .9, ease: "expo.out", clearProps: "transform,opacity" });
     return () => { tween.kill(); };
-  }, [libraryView, auxiliarySurface]);
+  }, [libraryView]);
   const isCatalog = libraryView === "catalog";
   const nativeCatalog = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || uiDemo());
   const activeQuery = (searchValue || searchQuery || "").trim();
   const genreNames = useCatalogGenreNames();
   // The parental policy wins over the player's filters in every view (catalog, library, favorites).
   const parentalPolicy = useParentalState().policy;
-  const visibleFilters = useMemo(() => applyParentalPolicy(searchFilters, parentalPolicy), [searchFilters, parentalPolicy]);
-  const catalogQuery = useCatalogQuery({
+  // Without a ready source plugin there are no download sources to filter by (librarySearch.withoutSourceFilters).
+  const pluginReady = usePluginReady();
+  const visibleFilters = useMemo(() => applyParentalPolicy(pluginReady === false ? withoutSourceFilters(searchFilters) : searchFilters, parentalPolicy), [searchFilters, parentalPolicy, pluginReady]);
+  const catalogBase = useMemo(() => ({
     ...catalogParamsFromFilters(activeQuery, visibleFilters, genreNames),
     sort_by: catalogSort,
-    sort_direction: catalogSort === "name" ? "asc" : "desc",
-    limit: 1000,
-    enabled: isCatalog,
-  });
+    sort_direction: catalogSort === "name" ? "asc" as const : "desc" as const,
+  }), [activeQuery, visibleFilters, genreNames, catalogSort]);
+  const catalogQuery = useCatalogQuery({ ...catalogBase, limit: 1000, enabled: isCatalog });
+  // The player's taste from the thumbs (tasteProfile.ts): a second query brings the games most likely to please,
+  // which the catalog order places where they rank.
+  const taste = useMemo(() => buildTasteProfile(preferences, games), [preferences, games]);
+  useEffect(() => publishTasteReadiness(taste.ready, Math.round(taste.certainty * 100)), [taste]);
+  // Only with "personalized order" on (personalOrder.ts, next to the sort) and a ready profile.
+  const personalOrder = usePersonalOrder();
+  const tailoring = personalOrder.on && taste.ready;
+  const tasteParams = useMemo(() => tailoring ? tasteQuery(taste, catalogBase, genreNames) : null, [tailoring, taste, catalogBase, genreNames]);
+  const tasteCandidates = useCatalogQuery({ ...(tasteParams ?? {}), enabled: isCatalog && nativeCatalog && tasteParams !== null });
+  // What the catalog showed last for this search, filters and sort: the games on screen keep their places when the
+  // order adapts. A new search starts over.
+  const lastCatalogRef = useRef<{ key: string; games: CatalogGame[] }>({ key: "", games: [] });
 
   const history = usePlayHistory();
   const members = useLibraryGames();
@@ -181,7 +258,14 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
       // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
       const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
-      const items = downloadManager.pinGames(sourceItems, effectiveDownloads, trackedAppIds);
+      const candidates = tasteParams && !memoryOnly ? tasteCandidates.items.filter(game => activeQuery || !isInstalledGame(game)) : [];
+      const key = JSON.stringify({ catalogBase, tailoring });
+      const last = lastCatalogRef.current.key === key ? lastCatalogRef.current.games : [];
+      const tailored = tailoring ? tailorCatalog(sourceItems, preferences, taste, { screen: last.slice(0, catalogScreenEnd(last)), candidates }) : sourceItems;
+      lastCatalogRef.current = { key, games: tailored };
+      const kept = new Set(tailored.map(game => game.id));
+      const hiddenByTaste = tailoring ? sourceItems.filter(game => !kept.has(game.id)).length : 0;
+      const items = downloadManager.pinGames(tailored, effectiveDownloads, trackedAppIds);
       const titles: Record<CatalogSort, string> = {
         "release-date": t("catalogTitleRelease"),
         "steam-popularity": t("catalogTitlePopularity"),
@@ -199,7 +283,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
         title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
-        total: memoryOnly ? sourceItems.length : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length)),
+        total: memoryOnly ? sourceItems.length - hiddenByTaste : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length) - hiddenByTaste),
         hiddenInstalled: queried.length - sourceItems.length,
       };
     }
@@ -213,7 +297,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -278,16 +362,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);
   const detailDownload = download;
-  const currentDetails = detailsGameId === selectedGameIdResolved ? details : null;
-  const fallbackHero = selectedHero(currentDetails, selectedGame);
-  const portraitHero = selectedPortraitHero(selectedGame);
-  const wideArtworkSlides = selectedWideArtworkSlides(currentDetails, selectedGame);
-  const wideHero = wideArtworkSlides.length ? wideArtworkSlides[artworkSlideIndex % wideArtworkSlides.length] : undefined;
-  const hero = (isWindowMaximized ? (wideHero ?? fallbackHero) : (portraitHero ?? fallbackHero));
-  const movie = selectedMovie(currentDetails);
-  const videoSrc = selectedVideo(movie);
-  const artwork = useCrossfadeArtwork(auxiliarySurface ? hero : undefined);
-  const summary = selectedSummary(currentDetails);
   const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
   const currentCompletion = completionQueue[0];
 
@@ -310,19 +384,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     setSelectedGameId(displayGames[0].id);
   }, [displayGames, selectedGameId]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Selection/layout changes reset the slideshow to its first image.
-  useEffect(() => {
-    setArtworkSlideIndex(0);
-  }, [selectedGameIdResolved, isWindowMaximized]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Restart the image dwell timer when selecting another game.
-  useEffect(() => {
-    if (!isWindowMaximized || wideArtworkSlides.length < 2) return;
-    const timer = window.setInterval(() => {
-      setArtworkSlideIndex((current) => (current + 1) % wideArtworkSlides.length);
-    }, 8_000);
-    return () => window.clearInterval(timer);
-  }, [isWindowMaximized, selectedGameIdResolved, wideArtworkSlides.length]);
 
 
   const markActivity = useCallback(() => {
@@ -369,21 +430,15 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
 
   useEffect(() => {
     if (!showcaseMode || displayGames.length < 2 || selectedGameIdResolved == null) return;
-    const holdMs = videoSrc ? 110_000 : 90_000;
+    const holdMs = 90_000;
     const timer = window.setTimeout(() => {
       let next = Math.floor(Math.random() * displayGames.length);
       if (next === selectedIndex) next = (next + 1) % displayGames.length;
       setSelectedGameId(displayGames[next]?.id ?? null);
     }, holdMs);
     return () => window.clearTimeout(timer);
-  }, [showcaseMode, displayGames, selectedGameIdResolved, selectedIndex, videoSrc]);
+  }, [showcaseMode, displayGames, selectedGameIdResolved, selectedIndex]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.volume = videoVolume;
-    video.muted = videoMuted;
-  }, [videoVolume, videoMuted]);
 
   useEffect(() => {
     if (!displayGames.length) return;
@@ -404,25 +459,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   }, [displayGames.length, bigScreen]);
 
 
-  useEffect(() => {
-    const shouldLoadDetails = auxiliarySurface && detailRequestedGameId === selectedGameIdResolved;
-    if (!shouldLoadDetails || selectedGameIdResolved == null) {
-      setDetails(null);
-      setDetailsGameId(null);
-      setLoadingDetails(false);
-      return;
-    }
-    let cancelled = false;
-    const requestedGameId = selectedGameIdResolved;
-    setDetails(null);
-    setDetailsGameId(null);
-    setLoadingDetails(true);
-    loadDetails(requestedGameId)
-      .then((value) => { if (!cancelled) { setDetails(value); setDetailsGameId(requestedGameId); } })
-      .catch(() => { if (!cancelled) setDetails(null); })
-      .finally(() => { if (!cancelled) setLoadingDetails(false); });
-    return () => { cancelled = true; };
-  }, [selectedGameIdResolved, detailRequestedGameId, auxiliarySurface, locale]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: A changed selection or primary action resets keyboard action focus.
   useEffect(() => { setActionIndex(0); }, [selectedGameIdResolved, actions[0]?.kind]);
@@ -435,7 +471,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     playUiSound("move");
     const gameId = displayGames[next]?.id ?? null;
     setSelectedGameId(gameId);
-    setDetailRequestedGameId(gameId);
   };
 
   const enterActions = () => {
@@ -446,10 +481,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const returnToGrid = () => { setFocusZone("grid"); rootRef.current?.focus({ preventScroll: true }); };
 
   useEffect(() => {
-    if (!detailOpen || auxiliarySurface) return;
+    if (!detailOpen) return;
     const frame = window.requestAnimationFrame(() => detailCloseRef.current?.focus({ preventScroll: true }));
     return () => window.cancelAnimationFrame(frame);
-  }, [detailOpen, auxiliarySurface]);
+  }, [detailOpen]);
 
   // The detail grows out of its card and folds back into it (docs/TAREA-interfaz-nueva.md T9).
   const detailSource = useCallback(() => {
@@ -457,12 +492,15 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const card = document.querySelector<HTMLElement>(`[data-library-game-id="${selectedGameIdResolved}"]`);
     return card?.querySelector<HTMLElement>(".library-room-card-art") ?? card;
   }, [selectedGameIdResolved]);
-  const detailMorphs = !auxiliarySurface && motionOk();
+  const detailMorphs = motionOk();
   useLayoutEffect(() => {
     const dialog = detailDialogRef.current, source = detailSource();
     if (!detailOpen || !detailMorphs || !dialog || !source) return;
     pushCards(source);
-    return morphOpen(dialog, source);
+    const stop = morphOpen(dialog, source);
+    // However the detail closes (its own close folds back into the card; big picture, an outside caller or a new
+    // outside game just drop it), the card it came from shows again and the pushed cards go back to their places.
+    return () => { stop(); restoreSource(source); releaseCards(source); };
   }, [detailOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const { closing: detailClosing, morphing: detailMorphing, close: closeGameDetail } = useOverlayClose(() => {
     setDetailOpen(false);
@@ -487,21 +525,34 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     window.setTimeout(() => void onPlay(game), 200);
   };
 
+  // Choosing another mode (kids, home, settings...) closes the game detail at once (appScreen.ts).
+  useEffect(() => {
+    const drop = () => { setDetailOpen(false); setDetailMenu(null); setOwnDetailGame(null); onDetailClose?.(); };
+    window.addEventListener(SCREEN_CHANGE_EVENT, drop);
+    return () => window.removeEventListener(SCREEN_CHANGE_EVENT, drop);
+  }, [onDetailClose]);
+  // Big picture mode stays on the library with no detail open, whatever asks otherwise.
+  useEffect(() => {
+    if (!bigScreen) return;
+    if (detailOpen) setDetailOpen(false);
+    if (libraryView === "catalog") setLibraryView(getCatalogMode() === "digital" ? "library" : "installed");
+  }, [bigScreen, detailOpen, libraryView]);
+
   // Tab (handled by LibraryInputController) flips between Catalog and Library.
   useEffect(() => {
-    if (auxiliarySurface) return;
     const toggle = () => {
+      if (bigPictureActive()) return;
       setLibraryView(current => (current === "catalog" ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog"));
       setSelectedGameId(null);
       gridRef.current?.scrollTo({ top: 0 });
     };
     window.addEventListener(TOGGLE_COLLECTION_EVENT, toggle);
     return () => window.removeEventListener(TOGGLE_COLLECTION_EVENT, toggle);
-  }, [auxiliarySurface]);
+  }, []);
 
   // Esc always backs out of a game's detail, even when the focus is not inside the library.
   useEffect(() => {
-    if (!detailOpen || auxiliarySurface) return;
+    if (!detailOpen) return;
     const back = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || event.repeat) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]:not(.ga-detail-overlay)')) return;
@@ -510,35 +561,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     };
     window.addEventListener("keydown", back);
     return () => window.removeEventListener("keydown", back);
-  }, [detailOpen, auxiliarySurface, detailMenu, closeGameDetail]);
+  }, [detailOpen, detailMenu, closeGameDetail]);
 
-  const startVideoPastIntro = (video: HTMLVideoElement) => {
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const gameplayStart = duration > 0 ? Math.min(Math.max(7, duration * 0.14), Math.max(0, duration - 4)) : 7;
-    try { video.currentTime = gameplayStart; } catch { /* WebView metadata race */ }
-    video.volume = videoVolume;
-    video.muted = videoMuted;
-    void video.play().catch(() => undefined);
-  };
-  const handleVideoReady = (video: HTMLVideoElement) => { setReadyVideoSrc(videoSrc ?? null); void video.play().catch(() => undefined); };
-  const toggleVideoSound = () => {
-    const nextMuted = !videoMuted;
-    setVideoMuted(nextMuted);
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = nextMuted;
-    video.volume = videoVolume;
-    if (!nextMuted) void video.play().catch(() => undefined);
-  };
-  const changeVideoVolume = (value: number) => {
-    setVideoVolume(value);
-    setVideoMuted(value <= 0);
-    const video = videoRef.current;
-    if (!video) return;
-    video.volume = value;
-    video.muted = value <= 0;
-    if (value > 0) void video.play().catch(() => undefined);
-  };
 
   const onAction = (index: number) => {
     setActionIndex(index);
@@ -561,7 +585,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const activateAction = () => onAction(actionIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "F11" && !auxiliarySurface) { event.preventDefault(); void toggleBigScreen(); return; }
+    if (event.key === "F11") { event.preventDefault(); void toggleBigScreen(); return; }
     if (event.key === "Escape" && detailOpen) {
       event.preventDefault();
       event.stopPropagation();
@@ -596,14 +620,12 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       if (displayGames.length && ["enter", "arrowleft", "arrowright", "arrowup", "arrowdown"].includes(key)) {
         const gameId = displayGames[0]?.id ?? null;
         setSelectedGameId(gameId);
-        setDetailRequestedGameId(gameId);
         event.preventDefault();
       }
       return;
     }
     if (focusZone === "grid" && event.key.toLowerCase() === "enter") {
       event.preventDefault();
-      setDetailRequestedGameId(selectedGame.id);
       setDetailOpen(true);
       return;
     }
@@ -622,9 +644,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     // An index outside the list must not clear the selection: that sent the grid back to the first game.
     if (gameId == null) return;
     setSelectedGameId(gameId);
-    setDetailRequestedGameId(gameId);
     setFocusZone("grid");
-    if (openDetails) setDetailOpen(true);
+    // Big picture mode never opens the game detail: a game is chosen and played, nothing else.
+    if (openDetails && !bigPictureActive()) setDetailOpen(true);
   }, []);
 
   const dismissCompletion = async (play: boolean) => {
@@ -707,24 +729,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const detailPanel = selectedGame ? (
     <FeaturePanel
       game={selectedGame}
-      artwork={artwork}
-      movie={movie}
-      videoSrc={videoSrc}
-      readyVideoSrc={readyVideoSrc}
-      videoMuted={videoMuted}
-      videoVolume={videoVolume}
-      videoRef={videoRef}
-      onVideoMetadata={startVideoPastIntro}
-      onVideoReady={handleVideoReady}
-      onToggleSound={toggleVideoSound}
-      onVolumeChange={changeVideoVolume}
       showcaseMode={showcaseMode}
-      summary={summary}
-      loadingDetails={loadingDetails}
-      details={currentDetails}
       download={detailDownload}
       preference={preferences[selectedGame.id]}
-      onPreference={(value) => onPreference(selectedGame.id, value)}
+      onPreference={(value) => { rememberTasteGame(selectedGame); onPreference(selectedGame.id, value); }}
       actions={actions}
       focusZone={focusZone}
       actionIndex={actionIndex}
@@ -737,14 +745,13 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
-      {!auxiliarySurface ? <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} /> : null}
-      {!auxiliarySurface ? <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={key => { markActivity(); handleGridKey(key, { selectedIndex, columns, enterActions, moveGrid }); }} onAccept={() => { markActivity(); if(selectedGame) { setDetailRequestedGameId(selectedGame.id); setDetailOpen(true); } }} onBack={() => { if(detailOpen) closeGameDetail(); else if(bigScreen) void toggleBigScreen(); }} onView={view => { markActivity(); setLibraryView(view === "installed" && getCatalogMode() === "digital" ? "library" : view); }} query={searchValue} onQuery={onSearchQueryChange} /> : null}
+      <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} />
+      <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={markActivity} onAccept={gameId => { markActivity(); const game = games.find(item => item.id === gameId); if (game) void playGame(game); }} />
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
         <>
-          {auxiliarySurface && selectedGame ? detailPanel : null}
-          {!auxiliarySurface && detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
+          {detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
               <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
@@ -755,7 +762,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={auxiliarySurface ? null : toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

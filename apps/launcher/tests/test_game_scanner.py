@@ -265,3 +265,49 @@ def test_removing_a_linked_game_never_touches_its_files(disk, library):
     lib.import_games([{"app_id": 5, "name": "Alpha", "path": str(alpha), "mode": "link"}])
     storage.uninstall(5, "Alpha")
     assert not storage.linked.get(5) and sorted(p.name for p in alpha.rglob("*")) == before
+
+
+def test_scan_walks_the_folders_the_player_added(tmp_path, monkeypatch):
+    # A folder outside the usual places (C:\games\mc in Seba's PC): each game folder in it is found, and a folder that
+    # is itself one game counts as that game; a folder that does not exist is skipped.
+    monkeypatch.setattr(scanner_module, "MIN_GAME_BYTES", 500)
+    mine = tmp_path / "anywhere" / "mc"
+    _game(mine / "MC instance", "launcher.exe")
+    _game(mine / "Modpack", "game.exe")
+    single = _game(tmp_path / "elsewhere" / "Lonely Game", "lonely.exe")
+    games = GameScanner().scan([], [str(mine), str(single), str(tmp_path / "missing")])
+    assert {g["name"] for g in games} == {"MC instance", "Modpack", "Lonely Game"}
+    assert all(g["source"] == "custom" for g in games)
+
+
+def test_game_folders_get_plain_short_names(tmp_path):
+    # No spaces, no "™"/"®"/accents, words joined by "_", short enough to keep the path to the .exe under 260 characters.
+    name = DigitalGameStorage.folder_name
+    assert name("Sekiro™: Shadows Die Twice - GOTY Edition") == "Sekiro_Shadows_Die_Twice_GOTY_Edition"
+    assert name("Pokémon® Legends: Árceus") == "Pokemon_Legends_Arceus"
+    assert len(name("The Witcher 3: Wild Hunt – Complete Edition (Game of the Year) Remastered Deluxe")) <= 40
+    assert name("???") == "game"
+
+
+def test_the_scan_reports_folders_and_games_live_for_the_app(disk, tmp_path):
+    from game_scanner.live import ScanReport, read
+    live = tmp_path / "live"
+    games = GameScanner(report=ScanReport(live)).scan([str(disk)])
+    state = read(live)
+    assert state["done"] and not state["cancelled"] and state["folders"] >= 3
+    assert {g["name"] for g in state["found"]} == {g["name"] for g in games}
+
+
+def test_stop_ends_the_scan_and_keeps_what_was_found(disk, tmp_path):
+    from game_scanner.live import ScanReport, read
+    live = tmp_path / "live"
+    report = ScanReport(live)
+    seen = []
+
+    def stop_after_first(game):
+        seen.append(game["name"])
+        (live / "cancel").write_text("")      # the app's "Stop", right after the first game
+    report.found = stop_after_first
+    games = GameScanner(report=report).scan([str(disk)])
+    assert read(live)["cancelled"] and len(games) == 1 == len(seen)
+    assert not (live / "cancel").exists()   # the next scan starts clean

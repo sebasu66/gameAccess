@@ -23,8 +23,11 @@ impl Lease {
     }
 }
 #[derive(Default)]
-struct State { lease: Option<Lease>, generation: u64, ended: bool }
-static STATE: Mutex<State> = Mutex::new(State { lease: None, generation: 0, ended: false });
+/// `forget`: the end was asked for (the server said 401, or the app cleared the session), so the saved activation goes
+/// too. A lease that only ran out (a renewal missed, the server unreachable for a while) ends access but keeps it: the
+/// next check brings PLUS back (Seba, 2026-10-30: a moment without the server erased the activation).
+struct State { lease: Option<Lease>, generation: u64, ended: bool, forget: bool }
+static STATE: Mutex<State> = Mutex::new(State { lease: None, generation: 0, ended: false, forget: false });
 static CHECK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn trusted_base(raw: &str) -> Result<String, String> {
@@ -57,6 +60,7 @@ pub fn clear() {
         state.lease = None;
         state.generation = state.generation.wrapping_add(1);
         state.ended |= was_active;
+        state.forget = true;
     }
 }
 /// What the server's admin console shows about this installation: app version and the PC's name.
@@ -96,16 +100,17 @@ pub fn check(base: &str, token: &str) -> Result<Value, String> {
     activity(format!("Native access verified; grant valid for {} seconds", ttl.as_secs()), "INFO");
     Ok(status)
 }
-/// Returns true once per ended grant, independent of the React view.
-pub fn finish_ended(cleanup: impl FnOnce()) {
+/// Runs `cleanup` once per ended grant, independent of the React view; it is told whether the saved activation goes.
+pub fn finish_ended(cleanup: impl FnOnce(bool)) {
     let Ok(mut state) = STATE.lock() else { return };
     if state.lease.as_ref().is_some_and(|lease| lease.remaining().is_zero()) {
         state.lease = None; state.generation = state.generation.wrapping_add(1); state.ended = true;
     }
     if state.ended {
         // Cleanup and emitting the event finish before another grant can be published.
-        cleanup();
+        cleanup(state.forget);
         state.ended = false;
+        state.forget = false;
     }
 }
 #[cfg(test)]

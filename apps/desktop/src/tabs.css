@@ -3,8 +3,8 @@
    - Each selector has its own muted colour (data-tab-index 0..5); the selected one is lighter with an orange edge.
    Reuse: render <GaTabs tabs={[{ id, label, content }]} label="..." /> and do not restyle per screen. */
 :root {
-  --ga-tab-0: #27434a; --ga-tab-1: #3f3553; --ga-tab-2: #50402b;
-  --ga-tab-3: #33473a; --ga-tab-4: #353d58; --ga-tab-5: #4b3640;
+  --ga-tab-0: #2e3f43; --ga-tab-1: #413b4d; --ga-tab-2: #493f32;
+  --ga-tab-3: #33473a; --ga-tab-4: #3c4151; --ga-tab-5: #4b3640;
   --ga-tab-lift: rgba(255, 255, 255, .09);
 }
 .ga-tabs { display: flex; flex-direction: column; min-height: 0; }
@@ -23,7 +23,7 @@
 .ga-tabs .ga-tab[data-tab-index="4"] { --ga-tab-bg: var(--ga-tab-4); }
 .ga-tabs .ga-tab[data-tab-index="5"] { --ga-tab-bg: var(--ga-tab-5); }
 .ga-tabs .ga-tab:hover { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); color: #fff; }
-.ga-tabs .ga-tab[aria-selected="true"] { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); border-color: #ff8a38; color: #fff; }
-.ga-tabs .ga-tab:focus-visible { outline: 2px solid #ff8a38; outline-offset: 2px; }
+.ga-tabs .ga-tab[aria-selected="true"] { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); border-color: #d79e60; color: #fff; }
+.ga-tabs .ga-tab:focus-visible { outline: 2px solid #d79e60; outline-offset: 2px; }
 .ga-tabs-panel { min-height: 0; }
 @media (prefers-reduced-motion: reduce) { .ga-tabs .ga-tab { transition: none; } }

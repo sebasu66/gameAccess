@@ -15,6 +15,11 @@ pub(crate) fn launcher_data_dir(launcher: &Path) -> PathBuf {
 /// Call first thing in `main`, before any thread starts: child processes inherit the variable.
 pub(crate) fn configure_launcher_data() {
     if env::var_os(LAUNCHER_DATA_VAR).is_some() { return; }
+    // A child's account plays from the adult's library (kid_mode.rs): the same records, so the same play.
+    if let Some(library) = crate::kid_mode::kid_account().map(|kid| PathBuf::from(kid.library)).filter(|library| library.is_dir()) {
+        env::set_var(LAUNCHER_DATA_VAR, &library);
+        return;
+    }
     let installed = find_launcher_dir().and_then(|launcher| launcher.parent().and_then(|parent| parent.file_name()).map(|name| name == "runtime")).unwrap_or(false);
     if !installed { return; }
     let Some(base) = env::var_os("LOCALAPPDATA") else { return };

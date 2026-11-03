@@ -226,6 +226,14 @@ def test_switch_starts_a_closed_steam_without_shutdown():
     assert steam.calls == [("auto_login", "owner_acc"), ("start",)]
 
 
+def test_in_a_childs_account_steam_starts_minimised(monkeypatch):
+    # Kid mode (kid_mode.rs): after signing in, Steam must not open its library on the child's account.
+    monkeypatch.setenv("GAMEACCESS_STEAM_SILENT", "1")
+    steam = FakeSteam(active=0, running=False)
+    steam.switcher().ensure_account(39734273, "owner_acc")
+    assert steam.calls == [("auto_login", "owner_acc"), ("start", "-silent")]
+
+
 def test_switch_fails_clearly_when_steam_asks_for_the_password():
     steam = FakeSteam(active=1, signs_in=False)
     with pytest.raises(RuntimeError, match="contraseña"):
@@ -336,3 +344,31 @@ def test_steam_running_reads_tasklist_in_any_code_page(monkeypatch):
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, next(answers), b""))
     assert switch.steam_running() is False
     assert switch.steam_running() is True
+
+
+def test_uninstall_deletes_a_steam_game_without_its_account_and_closes_steam_first(setup):
+    steam, storage, _, switched = setup
+    library = GameLibraryManager(storage, steam=steam)
+    library.steam_sync()
+    steamapps = Path(storage.linked.get(20)["path"]).parents[1]
+    (steamapps / "common" / "Beta" / "game.exe").write_bytes(b"x")
+    _write(steamapps / "workshop" / "content" / "20" / "mod.pak", "x")
+    _write(steamapps / "workshop" / "appworkshop_20.acf", "x")
+    _write(steamapps / "shadercache" / "20" / "cache.bin", "x")
+    switched.is_running = True
+    assert library.batch("steam_uninstall", [20]) == [{"app_id": 20, "ok": True, "folder": str(steamapps / "common" / "Beta"), "freed_bytes": 1234}]
+    assert switched.calls == [("start", "-shutdown")]
+    assert not (steamapps / "common" / "Beta").exists() and not (steamapps / "appmanifest_20.acf").exists()
+    assert not (steamapps / "workshop" / "content" / "20").exists() and not (steamapps / "workshop" / "appworkshop_20.acf").exists()
+    assert not (steamapps / "shadercache" / "20").exists()
+    assert (steamapps / "common" / "Gamma").is_dir() and (steamapps / "appmanifest_30.acf").is_file()   # the other games stay
+    assert storage.linked.get(20) is None and 20 not in storage.linked.hidden()     # still offered to install again
+
+
+def test_steam_uninstall_only_for_installed_steam_games(setup):
+    steam, storage, *_ = setup
+    library = GameLibraryManager(storage, steam=steam)
+    library.steam_sync()
+    assert library.batch("steam_uninstall", [99])[0] == {"app_id": 99, "ok": False, "error": "No es un juego de Steam instalado."}
+    with pytest.raises(ValueError, match="no tiene instalado"):
+        steam.uninstall(99)

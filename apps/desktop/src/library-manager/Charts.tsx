@@ -18,11 +18,11 @@ export function DiskBar({ summary, c }: { summary: LibrarySummary; c: LibraryCop
   const known = games + reclaim + summary.transfers_bytes + free;
   const total = Math.max(summary.disk_total_bytes ?? 0, known);
   const parts = [
-    { key: "games", name: c.libraryGames, value: games, color: "#ff6a00" },
-    { key: "duplicates", name: c.duplicates, value: reclaim, color: "#ffb000" },
-    { key: "unfinished", name: c.unfinished, value: summary.transfers_bytes, color: "#569cff" },
+    { key: "games", name: c.libraryGames, value: games, color: "#cc8333" },
+    { key: "duplicates", name: c.duplicates, value: reclaim, color: "#cc8f33" },
+    { key: "unfinished", name: c.unfinished, value: summary.transfers_bytes, color: "#78a2dd" },
     { key: "other", name: c.otherUse, value: total - known, color: "#5b6672" },
-    { key: "free", name: c.free, value: free, color: "#34c778" },
+    { key: "free", name: c.free, value: free, color: "#51aa7a" },
   ].filter(part => part.value > 0);
   return (
     <div className="grid gap-2">
@@ -44,7 +44,7 @@ export function DiskBar({ summary, c }: { summary: LibrarySummary; c: LibraryCop
 export function SizeChart({ games, c }: { games: LibraryGame[]; c: LibraryCopy }) {
   const data = useMemo(() => [...games].filter(g => (g.size_bytes ?? 0) > 0).sort((a, b) => (b.size_bytes ?? 0) - (a.size_bytes ?? 0)).slice(0, 6)
     .map(g => ({ name: g.name.length > 18 ? `${g.name.slice(0, 17)}…` : g.name, gb: Number(((g.size_bytes ?? 0) / GB).toFixed(1)) })), [games]);
-  const config: ChartConfig = { gb: { label: "GB", color: "#ff6a00" } };
+  const config: ChartConfig = { gb: { label: "GB", color: "#cc8333" } };
   return (
     <Card>
       <CardHeader><CardTitle>{c.sizeChart}</CardTitle></CardHeader>
@@ -77,7 +77,7 @@ export function UsageChart({ usage, c, className }: { usage: LibraryUsage | null
   const [mode, setMode] = useState<"day" | "month">("day");
   const data = useMemo(() => !usage ? [] : mode === "day" ? lastDays(usage.by_day, 14) : lastMonths(usage.by_month, 6), [usage, mode]);
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  const config: ChartConfig = { value: { label: c.launches, color: "#569cff" } };
+  const config: ChartConfig = { value: { label: c.launches, color: "#78a2dd" } };
   return (
     <Card className={className}>
       <CardHeader className="flex-row items-center justify-between">
@@ -117,8 +117,8 @@ export function DiskDonut({ summary, frozenBytes, c }: { summary: LibrarySummary
   const total = Math.max(used + free, 1);
   const disk = Math.max(summary.disk_total_bytes ?? 0, total);
   const parts = [
-    { label: c.donutGames, value: games, color: "#ff6a00" },
-    { label: c.donutFrozen, value: frozenBytes, color: "#8fd3ff" },
+    { label: c.donutGames, value: games, color: "#cc8333" },
+    { label: c.donutFrozen, value: frozenBytes, color: "#a5cee9" },
     { label: c.donutFree, value: free, color: "#ffffff22", free: true },
   ].filter(part => part.value > 0);
   const ranked = parts.filter(part => !part.free).map(part => part.value).sort((a, b) => b - a);

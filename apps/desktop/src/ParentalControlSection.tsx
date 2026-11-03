@@ -26,47 +26,6 @@ export function parentalErrorText(error: unknown, t: Translate): string {
   return t("parentalSaveFailed", { error: error instanceof Error ? error.message : String(error) });
 }
 
-/** The two fields that create or replace the password (`current` is the password in use), and their save. */
-export function useNewParentalPassword(current: string | undefined, onSaved: (password: string) => void, autoFocus = false) {
-  const { t } = useI18n();
-  const [first, setFirst] = useState("");
-  const [second, setSecond] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const save = async () => {
-    if (first.length < 4) return setError(t("parentalPasswordTooShort"));
-    if (first !== second) return setError(t("parentalPasswordsDiffer"));
-    setBusy(true);
-    setError("");
-    try {
-      await saveParentalPolicy({}, { password: current, newPassword: first });
-      onSaved(first);
-    } catch (failure) {
-      setError(parentalErrorText(failure, t));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const onEnter = (event: React.KeyboardEvent) => { if (event.key === "Enter") { event.preventDefault(); void save(); } };
-  const fields = <>
-    <label className="ga-field"><span>{t("parentalNewPassword")}</span>
-      <input type="password" autoComplete="new-password" value={first} autoFocus={autoFocus} disabled={busy} onChange={e => setFirst(e.target.value)} onKeyDown={onEnter} /></label>
-    <label className="ga-field"><span>{t("parentalRepeatPassword")}</span>
-      <input type="password" autoComplete="new-password" value={second} disabled={busy} onChange={e => setSecond(e.target.value)} onKeyDown={onEnter} /></label>
-    {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
-  </>;
-  return { fields, save, busy, ready: Boolean(first) && !busy };
-}
-
-function ParentalPasswordForm({ current, onSaved }: { current?: string; onSaved: (password: string) => void }) {
-  const { t } = useI18n();
-  const form = useNewParentalPassword(current, onSaved);
-  return <div className="ga-parental-password">
-    {form.fields}
-    <GaButton variant="primary" disabled={!form.ready} onClick={() => void form.save()}>{t("parentalSavePassword")}</GaButton>
-  </div>;
-}
-
 /**
  * Parental policy editor.
  *
@@ -74,7 +33,8 @@ function ParentalPasswordForm({ current, onSaved }: { current?: string; onSaved:
  * That is why they show "solo excluir" instead of the include/exclude pair the
  * other groups use, and why the rest of the panel's content discovery is
  * disabled while a policy is enforced. With a password, the options stay
- * read-only until it is typed; it is kept only while this panel is open.
+ * read-only until it is typed; it is kept only while this panel is open. The filter has no password of its own any more:
+ * the parent's key protects it (vault/Modo niño.md, MN.14); a password set before still unlocks it here.
  */
 export default function ParentalControlSection() {
   const { t } = useI18n();
@@ -82,13 +42,10 @@ export default function ParentalControlSection() {
   const [password, setPassword] = useState<string | undefined>(undefined);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [changing, setChanging] = useState(false);
   const locked = policy.enabled && policy.level !== "off";
   const editable = !hasPassword || password !== undefined;
   const save = async (change: Partial<ParentalPolicy>) => {
     setError("");
-    setNotice("");
     try {
       await saveParentalPolicy(change, { password });
     } catch (failure) {
@@ -110,13 +67,14 @@ export default function ParentalControlSection() {
     { id: "adult-only", label: t("parentalAdultOnly"), detail: t("parentalAdultOnlyDetail") },
     { id: "strict", label: t("parentalStrict"), detail: t("parentalStrictDetail") },
   ];
-  return <details className={"ga-filter-accordion ga-parental" + (locked ? " is-locked" : "")} open>
+  return <details className={"ga-disclosure ga-parental" + (locked ? " is-locked" : "")} open>
     <summary>
       {locked ? <Lock size={12} aria-hidden="true" /> : <ShieldCheck size={12} aria-hidden="true" />}
       {t("parentalTitle")}
       {locked ? <small className="ga-filter-locked-note">{t("uiActivo")}</small> : null}
     </summary>
-    <p className="ga-parental-note">
+    <div className="ga-stack">
+    <p className="ga-hint">
       {t("parentalNoteBefore")}<strong>{t("uiExcluyen")}</strong>{t("parentalNoteAfter")}
     </p>
     <div className="ga-parental-levels">
@@ -130,21 +88,18 @@ export default function ParentalControlSection() {
       <span>{t("uiOcultarTambienViolenciaY")}<small>{t("uiDescriptor2DeValve")}</small></span>
     </label>
     <div className="ga-parental-access">
-      <p className={"ga-parental-status" + (hasPassword ? " is-protected" : "")}>
-        <KeyRound size={13} aria-hidden="true" />{hasPassword ? t("parentalPasswordOn") : t("parentalPasswordMissing")}
-      </p>
+      <p className="ga-status is-ok"><KeyRound size={13} aria-hidden="true" />{t("parentalByAdminKey")}</p>
       {!editable ? <>
-        <p className="ga-parental-note">{t("parentalLockedHint")}</p>
+        <p className="ga-hint">{t("parentalLockedHint")}</p>
         <div className="ga-parental-unlock">
           <label className="ga-field"><span>{t("parentalPasswordField")}</span>
             <input type="password" autoComplete="current-password" value={typed} onChange={e => setTyped(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void unlock(); } }} /></label>
           <GaButton variant="primary" disabled={!typed} onClick={() => void unlock()}>{t("parentalUnlock")}</GaButton>
         </div>
-      </> : !hasPassword || changing ? <ParentalPasswordForm current={password} onSaved={next => { setPassword(next); setChanging(false); setNotice(t("parentalPasswordSaved")); }} />
-        : <GaButton onClick={() => { setChanging(true); setNotice(""); }}>{t("parentalChangePassword")}</GaButton>}
-      {error ? <p className="ga-parental-error" role="alert">{error}</p> : null}
-      {notice ? <p className="ga-parental-saved" role="status">{notice}</p> : null}
+      </> : null}
+      {error ? <p className="ga-status is-error" role="alert">{error}</p> : null}
+    </div>
     </div>
   </details>;
 }

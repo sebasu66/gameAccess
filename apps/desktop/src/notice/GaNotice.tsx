@@ -3,15 +3,35 @@ import { AlertTriangle, Check, Download, Snowflake, Trash2, X } from "lucide-rea
 import { gsap, motionOk, useGSAP } from "../motion/gsap";
 import { useI18n } from "../i18n";
 import { GaButton } from "../components/ga/Buttons";
-import { hideNotice, useNotice, type Notice, type NoticeTone } from "./notice";
+import { hideNotice, useNotice, type Notice, type NoticeDetails, type NoticeTone } from "./notice";
+import { useOpeningSettled } from "../centralDialog/openingSettled";
+import { GameThumb } from "../GameArt";
 import "./notice.css";
 
 const TONE_ICON: Record<NoticeTone, typeof Check> = { ok: Check, info: Download, frost: Snowflake, danger: Trash2, error: AlertTriangle };
+
+/** The notice's folded section: its text loads the first time it opens and scrolls inside it. */
+function NoticeDetailsSection({ details }: { details: NoticeDetails }) {
+  const { t } = useI18n();
+  const [text, setText] = useState<string | null>(null);
+  const opened = useRef(false);
+  const toggle = (event: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if (!event.currentTarget.open || opened.current) return;
+    opened.current = true;
+    void details.load().then(setText, error => setText(String(error instanceof Error ? error.message : error)));
+  };
+  return <details className="ga-notice-details" onToggle={toggle}>
+    <summary>{details.label}</summary>
+    <pre>{text ?? t("noticeDetailsLoading")}</pre>
+  </details>;
+}
 
 /** The single notice, mounted once at the app root (docs/GUI_DESIGN.md §4.9). */
 export default function GaNotice() {
   const { t } = useI18n();
   const notice = useNotice();
+  // The opening (the cover with its doors) protects the device: nothing shows over it; the notice waits until it opened.
+  const opened = useOpeningSettled();
   const [shown, setShown] = useState<Notice | null>(notice);
   const root = useRef<HTMLDivElement>(null);
   const leaving = useRef(false);
@@ -28,29 +48,30 @@ export default function GaNotice() {
   useGSAP(() => {
     if (!shown || !root.current || !motionOk()) return;
     gsap.fromTo(root.current, { x: 40, y: 0, opacity: 0 }, { x: 0, opacity: 1, duration: .55, ease: "expo.out", overwrite: true });
-  }, { dependencies: [Boolean(shown)], scope: root });
+  }, { dependencies: [Boolean(shown) && opened], scope: root });
 
   useGSAP(() => {
     if (!shown || !root.current || !motionOk()) return;
     gsap.fromTo(root.current.querySelectorAll(".ga-notice-head, .ga-notice-steps, .ga-notice-actions"), { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .3, stagger: .04, ease: "power3.out" });
-  }, { dependencies: [shown?.id], scope: root });
+  }, { dependencies: [shown?.id, opened], scope: root });
 
   // Error and confirmation notices take the keyboard focus on their first button; Esc presses the first (Cancel/Close).
   useEffect(() => {
-    if (!shown || shown.timer || !shown.actions.length) return;
+    if (!shown || !opened || shown.timer || !shown.actions.length) return;
     const first = root.current?.querySelector<HTMLButtonElement>(".ga-notice-actions button");
     first?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); shown.actions[0].run(); } };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [shown?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown?.id, opened]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!shown) return null;
+  if (!shown || !opened) return null;
   const Icon = TONE_ICON[shown.tone];
   return (
     <div ref={root} className="ga-notice" data-tone={shown.tone} data-timer={shown.timer || undefined} role={shown.tone === "error" ? "alert" : "status"} aria-live="polite" aria-label={t("toastRegion")}>
       <div className="ga-notice-head">
-        {shown.game?.image ? <img className="ga-notice-art" src={shown.game.image} alt="" /> : <span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>}
+        {shown.game?.image || shown.game?.appId ? <GameThumb appId={shown.game.appId} image={shown.game.image} className="ga-notice-art" fallback={<span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>} />
+          : <span className="ga-notice-icon"><Icon size={18} aria-hidden="true" /></span>}
         <div className="ga-notice-text"><strong>{shown.title}</strong>{shown.text ? <span>{shown.text}</span> : null}</div>
       </div>
       {shown.timer ? (
@@ -62,6 +83,7 @@ export default function GaNotice() {
       {shown.steps?.length ? (
         <ol className="ga-notice-steps">{shown.steps.map((step, index) => <li key={index} data-state={step.state}><i aria-hidden="true" />{step.label}</li>)}</ol>
       ) : null}
+      {shown.details ? <NoticeDetailsSection key={shown.id} details={shown.details} /> : null}
       {shown.actions.length ? (
         <div className="ga-notice-actions">{shown.actions.map(action => <GaButton key={action.label} variant={action.kind ?? "secondary"} onClick={action.run}>{action.label}</GaButton>)}</div>
       ) : null}

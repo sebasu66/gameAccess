@@ -1,3 +1,5 @@
+import { getAppLocale, translate, type AppLocale } from "./i18n";
+
 /**
  * The "how recent" slider is not linear: the past moves a year per step, the
  * present a month per step, so recent releases can be told apart finely.
@@ -46,21 +48,21 @@ export function releaseIndexFor(days: number | undefined): number {
   return best;
 }
 
-/** "en el último año", "en los últimos 3 meses", or null for no limit. */
-export function releaseWords(days: number | undefined): string | null {
+/** "en el último año" / "in the last year", "en los últimos 3 meses", or null for no limit. */
+export function releaseWords(days: number | undefined, locale: AppLocale = getAppLocale()): string | null {
   if (days === undefined) return null;
   if (days >= 365) {
     const years = Math.round(days / 365);
-    return years === 1 ? "en el último año" : `en los últimos ${years} años`;
+    return years === 1 ? translate("sentenceLastYear", undefined, locale) : translate("sentenceLastYears", { count: years }, locale);
   }
   const months = Math.max(1, Math.round(days / DAYS_PER_MONTH));
-  return months === 1 ? "en el último mes" : `en los últimos ${months} meses`;
+  return months === 1 ? translate("sentenceLastMonth", undefined, locale) : translate("sentenceLastMonths", { count: months }, locale);
 }
 
-/** Short label for the slider bubble: "cualquiera", "30 años", "1 año", "6 meses". */
-export function releaseShort(days: number | undefined): string {
-  if (days === undefined) return "cualquiera";
-  if (days >= 365) { const y = Math.round(days / 365); return y === 1 ? "1 año" : `${y} años`; }
+/** Short label for the slider bubble: "cualquiera", "30 años", "1 año", "6 meses" (or the English ones). */
+export function releaseShort(days: number | undefined, locale: AppLocale = getAppLocale()): string {
+  if (days === undefined) return translate("releaseShortAny", undefined, locale);
+  if (days >= 365) { const y = Math.round(days / 365); return y === 1 ? translate("releaseShortYear", undefined, locale) : translate("releaseShortYears", { count: y }, locale); }
   const m = Math.max(1, Math.round(days / DAYS_PER_MONTH));
-  return m === 1 ? "1 mes" : `${m} meses`;
+  return m === 1 ? translate("releaseShortMonth", undefined, locale) : translate("releaseShortMonths", { count: m }, locale);
 }
