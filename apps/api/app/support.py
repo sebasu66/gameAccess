@@ -6,7 +6,7 @@ email as Reply-To so Seba answers from his mailbox. Without GAMEACCESS_RESEND_AP
 waits in /admin. A phone alert (notify.py) says only that a message arrived: ntfy topics are public, so never its text.
 
 Settings: GAMEACCESS_RESEND_API_KEY; GAMEACCESS_SUPPORT_TO (default game-access-contacto@proton.me);
-GAMEACCESS_SUPPORT_FROM, a sender on a domain verified in Resend (default "Game Access <contacto@gameaccess.site>").
+GAMEACCESS_SUPPORT_FROM, a sender on the domain verified in Resend, mail.gameaccess.site (default "Game Access <contacto@mail.gameaccess.site>").
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ router = APIRouter()
 
 RESEND_URL = "https://api.resend.com/emails"
 DEFAULT_TO = "game-access-contacto@proton.me"
-DEFAULT_FROM = "Game Access <contacto@gameaccess.site>"
+DEFAULT_FROM = "Game Access <contacto@mail.gameaccess.site>"
 # A player with a real problem writes a few times; more than this in an hour, from one installation or one address, is
 # a loop or abuse.
 MESSAGES_PER_HOUR = 5

@@ -40,7 +40,7 @@ actualizado: 2026-11-03
 - [ ] **S2** Pasar los enlaces de Patreon.
 - [ ] **S3** Decidir si Render se publica desde `main` en vez de `dev` (recomendado al salir: un push a `dev` no le cambia el servidor a los usuarios).
 - [ ] **S4** Mercado Pago, después de que la web esté actualizada.
-- [ ] **S5** Cuenta gratis en Resend (resend.com), verificar el dominio `gameaccess.site` (registros DNS que da Resend) y cargar la clave como `GAMEACCESS_RESEND_API_KEY` en Render. Sin esto los mensajes de contacto llegan a `/admin` pero no al correo. Nota: `render.yaml` dice `branch: main`, pero Render publica desde `dev` (configurado en el panel).
+- [ ] **S5** (en curso, 2026-11-03: cuenta creada y conectada; Claude creó el dominio `mail.gameaccess.site` en Resend, us-east-1, solo envío, sin seguimiento; faltan los 4 registros DNS + DMARC en DonWeb, la clave de envío en Render y la prueba) Cuenta gratis en Resend (resend.com), verificar el dominio `gameaccess.site` (registros DNS que da Resend) y cargar la clave como `GAMEACCESS_RESEND_API_KEY` en Render. Sin esto los mensajes de contacto llegan a `/admin` pero no al correo. Nota: `render.yaml` dice `branch: main`, pero Render publica desde `dev` (configurado en el panel).
 
 
 ### Próximamente (no bloquea la salida)
