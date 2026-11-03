@@ -37,3 +37,40 @@ export async function catalogSearch({ query = "", filters = {}, initial = false,
     })),
   };
 }
+
+/**
+ * Why a search leaves out games another source finds: for each game, which single criterion keeps it out (the search
+ * is run again without that criterion, only over those games), or that the catalog does not have it.
+ */
+export async function explainMissing({ query = "", filters = {}, appIds }) {
+  const [search, params, cache] = await Promise.all([
+    import("/src/librarySearch.ts"), import("/src/catalogFilterParams.ts"), import("/src/catalogCache.ts"),
+  ]);
+  const names = await params.loadCatalogGenreNames();
+  const chosen = { ...search.defaultLibraryFilters(), ...filters };
+  const run = async (text, wanted) => {
+    const sent = { ...params.catalogParamsFromFilters(text, wanted, names), app_ids: appIds, limit: appIds.length };
+    return new Set((await cache.queryCatalogCache(sent)).items.map(game => game.app_id));
+  };
+  const known = await cache.queryCatalogCache({ app_ids: appIds, limit: appIds.length });
+  const games = new Map(known.items.map(game => [game.app_id, game]));
+  const without = {
+    query: () => run("", chosen),
+    genre: () => run(query, { ...chosen, genres: [] }),
+    players: () => run(query, { ...chosen, features: [] }),
+    score: () => run(query, { ...chosen, minReviewScore: undefined }),
+    date: () => run(query, { ...chosen, maxAgeDays: undefined, releaseYearFrom: undefined, releaseYearTo: undefined }),
+  };
+  const found = {};
+  for (const [criterion, again] of Object.entries(without)) found[criterion] = await again();
+  return appIds.map(appId => {
+    const game = games.get(appId);
+    if (!game) return { app_id: appId, reasons: ["not in the catalog"] };
+    const reasons = Object.keys(without).filter(criterion => found[criterion].has(appId));
+    return {
+      app_id: appId, name: game.name, reasons: reasons.length ? reasons : ["more than one criterion"],
+      rating: game.steam_review_score ?? null, reviews: game.steam_review_count ?? null, release_date: game.release_date ?? null,
+      genres: game.genres ?? [], categories: (game.categories ?? []).filter(name => /screen|pantalla|co-?op|multi/i.test(name)),
+    };
+  });
+}
