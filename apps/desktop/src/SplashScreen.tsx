@@ -124,12 +124,15 @@ function Padlock() {
 // The brand across the cover: GAME on the left leaf, ACCESS on the right, so the word parts with the gate. The letters
 // are the side column's (brandGlyphs.ts, cells of 60 x 64), laid in a row on two guide lines, as sketched on the wall.
 const WORD_ADVANCE = 58;
+const WORD_CELLS = 6;
 
 /** One word of the brand, sketched on its leaf: a pencil line drawn with the lock, a faint fill as it closes. */
 function GateWord({ word }: { word: "GAME" | "ACCESS" }) {
  const id = useId().replace(/:/g, "");
  const letters = [...word];
- const width = (letters.length - 1) * WORD_ADVANCE + 60;
+ // Both words take the box of the longer one, centred in it, so a narrow leaf scales them alike.
+ const width = (WORD_CELLS - 1) * WORD_ADVANCE + 60;
+ const start = (WORD_CELLS - letters.length) * WORD_ADVANCE / 2;
  return <svg className="gs-word" viewBox={`0 0 ${width} 64`} style={{ "--n": letters.length } as React.CSSProperties} aria-hidden="true">
   <defs>
    <linearGradient id={`${id}-guide`} gradientUnits="userSpaceOnUse" x1="-40" y1="0" x2={width + 40} y2="0">
@@ -138,7 +141,7 @@ function GateWord({ word }: { word: "GAME" | "ACCESS" }) {
    </linearGradient>
   </defs>
   <g className="gs-word-guides">{[10, 54].map(y => <line key={y} x1="-40" y1={y} x2={width + 40} y2={y} stroke={`url(#${id}-guide)`} />)}</g>
-  {letters.map((letter, index) => <g key={index} className="gs-word-cell" style={{ "--i": index } as React.CSSProperties} transform={`translate(${index * WORD_ADVANCE} 0)`}>
+  {letters.map((letter, index) => <g key={index} className="gs-word-cell" style={{ "--i": index } as React.CSSProperties} transform={`translate(${start + index * WORD_ADVANCE} 0)`}>
    <path className="gs-word-ghost" d={SKETCH_GLYPHS[letter]} pathLength={1} transform="translate(1.2 1)" />
    <path className="gs-word-letter" d={SKETCH_GLYPHS[letter]} pathLength={1} />
   </g>)}
