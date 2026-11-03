@@ -102,6 +102,8 @@ vault/.obsidian/workspace.json
 vault/.obsidian/workspace-mobile.json
 vault/.obsidian/cache
 vault/.trash/
+# Cuentas de Steam de prueba (accFull.csv): en la bóveda para encontrarlas, nunca en git
+vault/Cuentas/
 
 # Papelera local: archivos movidos de la raíz, no se versionan
 /_papelera/
