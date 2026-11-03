@@ -4,6 +4,7 @@ import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
+import { loadStartup } from "./startupPreferences";
 import { SKETCH_GLYPHS } from "./brandGlyphs";
 import "./admin-gate.css";
 // The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
@@ -202,7 +203,8 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  }, [onDocked]);
  const play = () => {
   const audio = sound.current;
-  if (!audio || reducedRef.current) return;
+  // Settings › Appearance can mute it (startupPreferences.ts).
+  if (!audio || reducedRef.current || loadStartup().muteOpening) return;
   audio.currentTime = 0;
   void audio.play().catch(() => setAudioState("blocked"));
  };

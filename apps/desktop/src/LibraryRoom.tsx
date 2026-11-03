@@ -48,6 +48,7 @@ import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySe
 import { steamDownloadStatus } from "./native";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { getCatalogMode } from "./catalogMode";
+import { opensOn, startScreenUsed } from "./startupPreferences";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
 import DigitalGameContextMenu from "./DigitalGameContextMenu";
@@ -132,7 +133,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [libraryView, setLibraryView] = useState<LibraryView>("catalog");
+  const [libraryView, setLibraryView] = useState<LibraryView>(() => opensOn("library") ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog");
+  useEffect(() => startScreenUsed("library"), []);
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);

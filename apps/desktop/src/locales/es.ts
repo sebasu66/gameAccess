@@ -1154,6 +1154,12 @@ export const es = {
   lessonIncomplete: "faltaban partes",
   lessonOther: "no funcionó",
 
+  startupTitle: "Al abrir la app",
+  startScreenLabel: "Pantalla al abrir",
+  startScreenHome: "Inicio",
+  startScreenCatalog: "Catálogo",
+  startScreenLibrary: "Biblioteca",
+  startupMuteOpening: "Silenciar el sonido de apertura",
   sentenceStart: "Quiero encontrar ",
   sentenceGames: "juegos",
   sentenceGenresLead: " de ",

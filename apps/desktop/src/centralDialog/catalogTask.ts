@@ -65,10 +65,10 @@ export async function runStartupPreparation(options: { checkUpdates: boolean; ex
   await centralDialog.runTask(translate("prepTitle"), steps);
 }
 
-/** A later check (every 24 h or the refresh button): the dialog appears only if there is something to download.
+/** A later check (every 24 h or the refresh button), a task of the Activity panel: the app stays usable.
  * Rejects when the catalog could not be reached, so a manual refresh can tell the player. */
 export async function runCatalogUpdateTask(): Promise<void> {
   const outcome: { error?: unknown } = {};
-  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)]);
+  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)], { background: true });
   if (outcome.error) throw outcome.error;
 }

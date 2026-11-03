@@ -17,3 +17,8 @@
 .ga-home-account-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ga-space-3); }
 .ga-home-account-form { max-width: 560px; }
 .ga-home-account .ga-field, .ga-home-account .ga-field input { font-size: 16px; }
+/* The welcome (announcements.json, kind "welcome"): its body at the screen's size, its subheads in the card's orange. */
+.ga-home-welcome { --ga-p-size: 16px; }
+.ga-home-welcome .ga-home-card-title { color: var(--ga-orange-ink); }
+.ga-home-welcome-body { max-width: 80ch; font-size: 16px; }
+.ga-home-welcome-body ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; }

@@ -49,3 +49,6 @@ button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); out
 .ga-activity-lines { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font: 400 14px/1.4 var(--ga-text-family); color: var(--ga-text-ink); }
 .ga-activity-lines time { margin-right: 8px; font-weight: 700; color: var(--kind); font-variant-numeric: tabular-nums; }
 .ga-activity-time { font: 700 12px/1.2 var(--ga-text-family); letter-spacing: .02em; color: color-mix(in srgb, var(--kind) 75%, var(--ga-white)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The app's own tasks (download sources, catalog updates) have no game to open and cannot be cancelled. */
+.ga-process-task[data-app-task] .ga-process-task-open { cursor: default; }
+.ga-process-task[data-app-task] .ga-process-task-open:hover { border-color: var(--ga-line); }

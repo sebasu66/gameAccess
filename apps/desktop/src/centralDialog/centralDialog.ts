@@ -7,9 +7,12 @@
  * - Announcements: the welcome on the first run and later news (new versions, features). Each one is shown once.
  *
  * Anything that needs the player to wait goes through `runTask` (or `beginTask` for code that reports by itself);
- * nothing long runs hidden in the background.
+ * nothing long runs hidden in the background. A task the app can be used during (syncing the download sources, the
+ * later catalog updates) runs with `background`: it is not drawn here but in the Activity panel's "Running" list,
+ * like a download, and leaves its end in the history (Seba, 2026-11-03).
  */
 
+import { recordActivity } from "../activity/activity";
 import { narrate } from "../narrationLog";
 
 export type StepState = "pending" | "running" | "done" | "skipped" | "failed";
@@ -32,6 +35,8 @@ export interface TaskView {
   /** Set when the task ended with a failure the player has to acknowledge. */
   failure?: string;
   canRetry?: boolean;
+  /** Shown in the Activity panel instead of this dialog; the app stays usable. */
+  background?: boolean;
 }
 
 export interface Announcement {
@@ -104,12 +109,14 @@ class CentralDialog {
   }
 
   /** Starts a task the caller reports on step by step. Tasks run one after another. */
-  beginTask(title: string, steps: Array<{ id: string; label: string }>): Promise<TaskHandle> {
+  beginTask(title: string, steps: Array<{ id: string; label: string }>, options: { background?: boolean } = {}): Promise<TaskHandle> {
+    const background = !!options.background;
     let release!: () => void;
     const turn = new Promise<void>(resolve => { release = resolve; });
     const ready = this.chain.then(() => {
-      this.set({ task: { id: ++this.sequence, title, steps: steps.map(step => ({ ...step, state: "pending" })) }, taskVisible: false });
-      this.showTimer = setTimeout(() => this.set({ taskVisible: true }), SHOW_AFTER_MS);
+      const id = ++this.sequence;
+      this.set({ task: { id, title, background, steps: steps.map(step => ({ ...step, state: "pending" })) }, taskVisible: false });
+      if (!background) this.showTimer = setTimeout(() => this.set({ taskVisible: true }), SHOW_AFTER_MS);
       // Every task and step logs when it starts and how long it took, so a slow startup can be read from the log.
       const began = Date.now();
       const stepStarted = new Map<string, number>();
@@ -127,12 +134,21 @@ class CentralDialog {
           this.updateStep(stepId, { state, ...(detail !== undefined ? { detail } : {}) });
         },
         fail: (message, canRetry = false) => new Promise<"continue" | "retry">(resolve => {
+          // In the background nobody is waiting on a dialog: the failure stays in the history and the task goes on.
+          if (background) {
+            recordActivity({ key: `task:${id}`, kind: "task", title, text: message, tone: "error", state: "failed" });
+            resolve("continue");
+            return;
+          }
           if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
           this.acknowledge = resolve;
           const task = this.state.task;
           if (task) this.set({ task: { ...task, failure: message, canRetry }, taskVisible: true });
         }),
         end: () => {
+          // A background task that took a while leaves its end in the history, like a download (a quick check does not).
+          const failed = this.state.task?.steps.some(step => step.state === "failed");
+          if (background && !failed && Date.now() - began > SHOW_AFTER_MS) recordActivity({ key: `task:${id}`, kind: "task", title, tone: "ok", state: "done" });
           void narrate(`Task "${title}" finished in ${seconds(Date.now() - began)}; the dialog was ${this.state.taskVisible ? "shown" : "not shown (under " + SHOW_AFTER_MS + " ms)"}${sinceOpen()}.`, { area: "TASK" });
           if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
           this.set({ task: null, taskVisible: false });
@@ -149,8 +165,8 @@ class CentralDialog {
    * Runs the steps in order. A failed step does not stop the next ones; the failures are shown at the end.
    * With `canRetry`, the player can run the failed steps again from the failure.
    */
-  async runTask(title: string, steps: StepRunner[], options: { canRetry?: boolean } = {}): Promise<{ failed: string[] }> {
-    const task = await this.beginTask(title, steps);
+  async runTask(title: string, steps: StepRunner[], options: { canRetry?: boolean; background?: boolean } = {}): Promise<{ failed: string[] }> {
+    const task = await this.beginTask(title, steps, { background: options.background });
     let pending = steps;
     let failed: string[] = [];
     for (;;) {

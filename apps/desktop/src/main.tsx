@@ -14,6 +14,9 @@ import RuntimeGate from "./RuntimeGate";
 import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
+import { setAppScreen } from "./appScreen";
+import { opensOn, startScreenUsed } from "./startupPreferences";
+import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
 import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
@@ -104,6 +107,14 @@ function CatalogShell() {
   const [prepared, setPrepared] = React.useState(false);
   React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
   useAnnouncements(prepared);
+  // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
+  // opening has ended: a change of mode under the logo animation would run behind it.
+  const openingSettled = useOpeningSettled();
+  React.useEffect(() => {
+    if (!prepared || !openingSettled || !opensOn("home")) return;
+    startScreenUsed("home");
+    setAppScreen("home");
+  }, [prepared, openingSettled]);
   React.useEffect(() => {
     const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
     window.addEventListener(CATALOG_REFRESH_STATUS, status);

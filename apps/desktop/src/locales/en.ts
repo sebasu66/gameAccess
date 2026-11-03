@@ -1156,6 +1156,12 @@ export const en: Record<keyof typeof es, string> = {
   lessonIncomplete: "parts were missing",
   lessonOther: "it did not work",
 
+  startupTitle: "When the app opens",
+  startScreenLabel: "Screen on opening",
+  startScreenHome: "Home",
+  startScreenCatalog: "Catalog",
+  startScreenLibrary: "Library",
+  startupMuteOpening: "Mute the opening sound",
   sentenceStart: "I want to find ",
   sentenceGames: "games",
   sentenceGenresLead: " in ",

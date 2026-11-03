@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, Download, Heart, Info, ShieldCheck, Snowflake, Sparkles, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, Download, Heart, Info, RefreshCw, ShieldCheck, Snowflake, Sparkles, X, type LucideIcon } from "lucide-react";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
+import { centralDialog, type TaskView } from "../centralDialog/centralDialog";
 import { activeDownloadService } from "../downloads/activeService";
 import { GaButton } from "../components/ga/Buttons";
 import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
@@ -13,7 +14,7 @@ import { GameThumb } from "../GameArt";
 import { clearActivity, markActivitySeen, useActivity, type ActivityEntry } from "./activity";
 import "./activity.css";
 
-type Running = { key: string; appId: number; title: string; percent: number | null; waiting?: string; cancelling?: boolean; cancel: () => void };
+type Running = { key: string; appId?: number; title: string; percent: number | null; waiting?: string; cancelling?: boolean; cancel?: () => void };
 
 /** The downloads that have not ended, kept up to date. */
 function useActiveDownloads() {
@@ -23,21 +24,32 @@ function useActiveDownloads() {
   return downloads;
 }
 
-/** One running process: its name, its bar, cancel; a click takes to its game's row in the Library Manager. */
+/** The app's own task running in the background (download sources, catalog updates), kept up to date. */
+function useBackgroundTask(): TaskView | null {
+  const [task, setTask] = useState<TaskView | null>(null);
+  useEffect(() => centralDialog.subscribe(state => setTask(state.task?.background ? state.task : null)), []);
+  return task;
+}
+
+/** One running process: its name, its bar, cancel; a click takes to its game's row in the Library Manager. The app's
+ *  own tasks have no game and cannot be cancelled. */
 function RunningRow({ item, onOpen }: { item: Running; onOpen?: () => void }) {
   const { t } = useI18n();
-  return <li className="ga-process-task">
-    <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: item.title })} onClick={() => { onOpen?.(); openLibraryManager(item.appId); }}>
-      <span className="ga-process-task-name">{item.title}</span>
-      <span className="ga-process-task-state">{item.waiting ?? `${Math.round(item.percent ?? 0)}%`}</span>
-      <span className="ga-process-task-bar" aria-hidden="true"><i style={{ width: `${item.waiting ? 0 : item.percent ?? 0}%` }} /></span>
-    </button>
-    <button type="button" className="ga-process-task-cancel" disabled={item.cancelling} aria-label={t("downloadsCancel")} title={t("downloadsCancel")} onClick={item.cancel}><X size={16} aria-hidden="true" /></button>
+  const content = <>
+    <span className="ga-process-task-name">{item.title}</span>
+    <span className="ga-process-task-state">{item.waiting ?? `${Math.round(item.percent ?? 0)}%`}</span>
+    <span className="ga-process-task-bar" aria-hidden="true"><i style={{ width: `${item.waiting ? 0 : item.percent ?? 0}%` }} /></span>
+  </>;
+  return <li className="ga-process-task" data-app-task={item.appId === undefined || undefined}>
+    {item.appId !== undefined
+      ? <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: item.title })} onClick={() => { onOpen?.(); openLibraryManager(item.appId); }}>{content}</button>
+      : <div className="ga-process-task-open" role="status">{content}</div>}
+    {item.cancel ? <button type="button" className="ga-process-task-cancel" disabled={item.cancelling} aria-label={t("downloadsCancel")} title={t("downloadsCancel")} onClick={item.cancel}><X size={16} aria-hidden="true" /></button> : null}
   </li>;
 }
 
 /** The kinds of entries, each with its icon; its colour and gradient are in activity.css (`data-kind`). */
-const KIND_ICON: Record<string, LucideIcon> = { news: Sparkles, taste: Heart, verify: ShieldCheck, download: Download, freeze: Snowflake, failed: AlertTriangle, done: Check, info: Info };
+const KIND_ICON: Record<string, LucideIcon> = { news: Sparkles, taste: Heart, verify: ShieldCheck, download: Download, freeze: Snowflake, task: RefreshCw, failed: AlertTriangle, done: Check, info: Info };
 
 /** What an entry is about: its own kind, or its process (by its key), or how it ended. */
 export function entryKind(entry: ActivityEntry): string {
@@ -98,6 +110,8 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
   const { t, locale } = useI18n();
   const downloads = useActiveDownloads();
   const jobs = useFreezeConsole().jobs.filter(job => !job.outcome);
+  const task = useBackgroundTask();
+  const step = task?.steps.find(item => item.state === "running");
   const history = useActivity().filter(entry => entry.state !== "running");
   useEffect(() => { markActivitySeen(); }, [history.length]);
 
@@ -112,6 +126,11 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
       key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name), percent: job.progress?.percent ?? 0,
       waiting: job.queued ? t("tasksWaiting") : undefined, cancelling: job.cancelling, cancel: () => cancelFreezeJob(job.appId),
     })),
+    // Without a count the step says what it is doing (starting the plugin, reading the sources) in place of a percent.
+    ...(task && step ? [{
+      key: `task:${task.id}`, title: task.title, percent: step.total ? Math.min(100, (step.done ?? 0) / step.total * 100) : null,
+      waiting: step.total ? undefined : step.detail ?? step.label,
+    }] : []),
   ];
 
   const groups: Array<{ label: string; entries: ActivityEntry[] }> = [];

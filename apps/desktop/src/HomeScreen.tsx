@@ -5,6 +5,7 @@ import AccountCard from "./AccountCard";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import { HelpContent } from "./AppHelp";
 import { setAppScreen, useAppScreen } from "./appScreen";
+import { AnnouncementBody } from "./centralDialog/CentralDialogView";
 import { useNews } from "./centralDialog/useAnnouncements";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import GaScreen from "./components/ga/Screen";
@@ -23,14 +24,20 @@ const subscribeTier = (listener: () => void) => {
 const greetingKey = (hour = new Date().getHours()) => hour >= 6 && hour < 13 ? "homeMorning" : hour >= 13 && hour < 20 ? "homeAfternoon" : "homeEvening";
 
 /**
- * Home (docs/GUI_DESIGN.md §0b, docs/TAREA-pantallas-y-modos.md P8): the greeting, PLUS or base mode explained, the
- * player's account, the news (they took the bell's place) and, at the end, help and contact. Stage: prototype.
+ * Home (docs/GUI_DESIGN.md §0b, docs/TAREA-pantallas-y-modos.md P8): the greeting, the welcome (it was a dialog over
+ * the catalog; a new install opens here), PLUS or base mode explained, the player's account, the news (they took the
+ * bell's place) and, at the end, help and contact. Stage: prototype.
  */
 function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
   const { t } = useI18n();
   const tier = useSyncExternalStore(subscribeTier, getActivationTier, () => null);
+  const { welcome } = useNews();
   return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
     <div className="ga-home-content ga-stack ga-stack-lg">
+      {welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>
+        <h3 id={`ga-home-welcome-${item.id}`} className="ga-home-card-title">{item.title}</h3>
+        <div className="ga-home-welcome-body ga-stack"><AnnouncementBody text={item.body} /></div>
+      </section>)}
       <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
         <div className="ga-stack">
           <h3 id="ga-home-plus-title" className="ga-home-card-title"><Sparkles size={20} aria-hidden="true" />{t(tier ? "homePlusOnTitle" : "homeBaseTitle")}</h3>

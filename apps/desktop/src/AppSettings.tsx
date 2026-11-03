@@ -2,6 +2,7 @@ import DigitalStorageSettings from "./DigitalStorageSettings";
 import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import LanguageSwitch from "./LanguageSwitch";
+import StartupSettings from "./StartupSettings";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import PluginSettings from "./PluginSettings";
 import { getPluginStatuses, pollPluginRuntime, subscribePluginStatuses } from "./catalog/PluginRuntime";
@@ -32,6 +33,7 @@ function SettingsScreen() {
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
    { id: "style", label: c.tabStyle, content: <>
     <fieldset><legend>{t("language")}</legend><LanguageSwitch /></fieldset>
+    <StartupSettings />
     <fieldset><legend>{c.background}</legend><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.field} onChange={e => { const next = { ...style, field: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.field}</label>{style.field ? (["spd", "cob", "blink"] as StyleParam[]).map(slider) : <p className="ga-style-hint">{c.fieldHint}</p>}</fieldset>
     <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
     <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.animate} onChange={e => { const next = { ...style, animate: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.animation}</label>

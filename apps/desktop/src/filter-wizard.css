@@ -2,7 +2,9 @@
 .ga-filter-dialog.ga-wizard { width: min(960px, 100%); padding: 22px 36px 24px; }
 .ga-wizard header h2 { margin: 0; font-size: 34px; }
 .ga-wizard .ga-sx-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; padding: 26px 0 8px; }
-.ga-wizard .ga-sx-sentence { margin: 0; text-align: center; --sx-fs: 26.4px; font: 600 var(--sx-fs)/1.65 Manrope, "Segoe UI", sans-serif; color: #e8edf1; text-wrap: balance; transition: font-size .32s cubic-bezier(.3,.9,.3,1); }
+/* The sentence is the dialog's one big text: the paragraph template (components/ga/content.css) sizes it through
+   --ga-p-size and centres it through --ga-p-align; without them the template held it at 16 px. */
+.ga-wizard .ga-sx-sentence { margin: 0; text-align: center; --sx-fs: 24px; --ga-p-size: var(--sx-fs); --ga-p-align: center; font: 600 var(--sx-fs)/1.65 Manrope, "Segoe UI", sans-serif; color: #e8edf1; text-wrap: balance; transition: font-size .32s cubic-bezier(.3,.9,.3,1); }
 .ga-wizard .ga-sx-line { display: block; }
 .ga-filter-dialog.ga-wizard .ga-sx-term {
   display: inline; padding: 0 2px; margin: 0; border: 0; border-radius: 4px; background: none; cursor: pointer;
@@ -135,7 +137,7 @@
 .ga-filter-dialog.ga-wizard { width: min(1078px, 100%); height: auto; padding: 20px 35px 24px; }
 .ga-wizard header { align-items: center; position: relative; z-index: 5; }
 .ga-wizard .ga-sx-body { position: relative; height: clamp(484px, calc(100svh - 250px), 560px); flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0; }
-.ga-wizard .ga-sx-body.has-open .ga-sx-sentence { font-size: calc(var(--sx-fs) * .85); }
+.ga-wizard .ga-sx-body.has-open .ga-sx-sentence { --ga-p-size: calc(var(--sx-fs) * .85); font-size: calc(var(--sx-fs) * .85); }
 .ga-wizard .ga-sx-zone { flex: none; width: min(726px, 100%); height: 0; min-height: 0; overflow: hidden; padding: 0; display: flex; flex-direction: column; transition: height .32s cubic-bezier(.3,.9,.3,1); }
 .ga-wizard .ga-sx-zone.is-open { height: var(--zone-h); }
 .ga-wizard .ga-sx-zone.is-top { justify-content: flex-end; padding-bottom: 0; }
