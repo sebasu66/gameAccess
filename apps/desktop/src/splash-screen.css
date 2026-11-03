@@ -54,6 +54,21 @@
  background:repeating-linear-gradient(45deg,#cc8333 0 6px,#0000 6px 12px)}
 .gs-hazard::after{content:"";position:absolute;left:0;right:0;top:calc(var(--gs-lock) + 160px);height:80px;background:inherit}
 .gs-leaf.is-left .gs-hazard{right:36px}.gs-leaf.is-right .gs-hazard{left:36px}
+/* The brand across the cover (GateWord): GAME on the left leaf, ACCESS on the right, each centred in the free band
+   between the vents and the padlock or lock, on the engraved middle line. Subtle, like the side column's sketch: a thin
+   pencil line drawn letter by letter with the lock, then a faint fill; two fading guide lines above and below. */
+.gs-word-slot{position:absolute;z-index:1;top:50%;height:calc(var(--gs-lock) * .2);display:flex;justify-content:center;transform:translateY(-50%);pointer-events:none}
+.gs-leaf.is-left .gs-word-slot{left:168px;right:calc(var(--gs-lock)/2 + 70px)}
+.gs-leaf.is-right .gs-word-slot{right:168px;left:calc(var(--gs-lock)/2 + 70px)}
+.gs-word{height:100%;width:auto;max-width:100%;overflow:visible}
+.gs-word-guides line{stroke-width:.5;opacity:.2}
+.gs-word-cell{--p:1}
+.gs-word-letter,.gs-word-ghost{stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1 1}
+.gs-word-letter{stroke:#f4f4f2;stroke-width:.8;stroke-opacity:.5;fill:#c9d4dc;fill-opacity:.1;
+ animation:gs-word-line calc(var(--gs-draw) * .6) ease-out calc(var(--gs-draw) * .08 * var(--i)) both,gs-word-fill calc(var(--gs-draw) * .4) ease-out calc(var(--gs-draw) * .6) both}
+.gs-word-ghost{fill:none;stroke:#d89f63;stroke-width:.5;opacity:.24;animation:gs-word-line calc(var(--gs-draw) * .6) ease-out calc(var(--gs-draw) * .08 * var(--i) + 60ms) both}
+@keyframes gs-word-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes gs-word-fill{from{fill-opacity:0}to{fill-opacity:.1}}
 /* The lock sits on the seam: each leaf holds the whole of it and shows its own half. */
 /* The lock lies over the seam, fixed to the right leaf (which is above the left one and lets it show past its edge). */
 .gs-leaf.is-right{overflow:visible;z-index:1}
@@ -99,11 +114,11 @@
 @keyframes gs-turn{from{transform:rotate(90deg)}to{transform:rotate(0)}}
 @keyframes gs-unlocked{0%{opacity:0}40%{opacity:1;filter:drop-shadow(0 0 12px #ff7a1acc)}100%{opacity:.94;filter:drop-shadow(0 0 4px #ff7a1a66)}}
 /* Reduced motion (or the pixel style's animation off): the lock is shown open and the gate simply goes. */
-.gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-glass,.gs-padlock *){animation:none}
+.gs-gate.is-still :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-glass,.gs-padlock *,.gs-word *){animation:none}
 .gs-gate.is-still .gs-padlock-body{fill:#14181b;filter:none}.gs-gate.is-still .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}
 .gs-gate.is-still .gs-glass.is-a{opacity:.94}
 .gs-gate.is-still .gs-leaf{transition:none}
-@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-glass,.gs-padlock *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-glass.is-a{opacity:.94}.gs-gate .gs-leaf{transition:none}}
+@media(prefers-reduced-motion:reduce){.gs-gate :is(.gs-lock,.gs-emblem,.gs-lock-turn,.gs-cut,.gs-glass,.gs-padlock *,.gs-word *){animation:none}.gs-gate .gs-padlock-body{fill:#14181b;filter:none}.gs-gate .gs-padlock-shackle{stroke:#14181b;filter:none;transform:translateY(-4px) rotate(28deg)}.gs-gate .gs-glass.is-a{opacity:.94}.gs-gate .gs-leaf{transition:none}}
 .ga-opening-background{position:fixed;inset:0;z-index:500;pointer-events:none;background:#08090b;overflow:hidden}
 .ga-opening-background[data-stage=validation],.ga-opening-background[data-stage=holding]{background:transparent}
 .ga-opening-background.is-docking{animation:ga-opening-out 1s linear both}

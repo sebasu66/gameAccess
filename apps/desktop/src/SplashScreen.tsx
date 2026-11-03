@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useI18n } from "./i18n";
 import { loadPixelStyle } from "./pixelStylePreferences";
 import type { OpeningStage } from "./openingFlow";
 import { LOGO_SETTLED_EVENT } from "./centralDialog/openingSettled";
 import openingAudio from "../public/brand/opening-audio.json";
+import { SKETCH_GLYPHS } from "./brandGlyphs";
 import "./admin-gate.css";
 // The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
 // (splash.mp3) and the quarter turn start together, and the gate opens as the turn ends. Never the sound alone.
@@ -120,6 +121,30 @@ function Padlock() {
  </svg>;
 }
 
+// The brand across the cover: GAME on the left leaf, ACCESS on the right, so the word parts with the gate. The letters
+// are the side column's (brandGlyphs.ts, cells of 60 x 64), laid in a row on two guide lines, as sketched on the wall.
+const WORD_ADVANCE = 58;
+
+/** One word of the brand, sketched on its leaf: a pencil line drawn with the lock, a faint fill as it closes. */
+function GateWord({ word }: { word: "GAME" | "ACCESS" }) {
+ const id = useId().replace(/:/g, "");
+ const letters = [...word];
+ const width = (letters.length - 1) * WORD_ADVANCE + 60;
+ return <svg className="gs-word" viewBox={`0 0 ${width} 64`} style={{ "--n": letters.length } as React.CSSProperties} aria-hidden="true">
+  <defs>
+   <linearGradient id={`${id}-guide`} gradientUnits="userSpaceOnUse" x1="-40" y1="0" x2={width + 40} y2="0">
+    <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".25" stopColor="#fff" stopOpacity="1" />
+    <stop offset=".75" stopColor="#fff" stopOpacity="1" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+   </linearGradient>
+  </defs>
+  <g className="gs-word-guides">{[10, 54].map(y => <line key={y} x1="-40" y1={y} x2={width + 40} y2={y} stroke={`url(#${id}-guide)`} />)}</g>
+  {letters.map((letter, index) => <g key={index} className="gs-word-cell" style={{ "--i": index } as React.CSSProperties} transform={`translate(${index * WORD_ADVANCE} 0)`}>
+   <path className="gs-word-ghost" d={SKETCH_GLYPHS[letter]} pathLength={1} transform="translate(1.2 1)" />
+   <path className="gs-word-letter" d={SKETCH_GLYPHS[letter]} pathLength={1} />
+  </g>)}
+ </svg>;
+}
+
 /** One half of the cover: brushed gunmetal like the frame, with its own framed border and a bevelled edge on the
  *  seam, recessed panels, vents, bolts and fine engraved lines. The right one carries the lock, lying over the seam. */
 export function Leaf({ side, children }: { side: "left" | "right"; children?: React.ReactNode }) {
@@ -132,6 +157,7 @@ export function Leaf({ side, children }: { side: "left" | "right"; children?: Re
   <i className="gs-leaf-engrave" />
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
   <i className="gs-hazard" />
+  <div className="gs-word-slot"><GateWord word={side === "left" ? "GAME" : "ACCESS"} /></div>
   {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : <Padlock />}
   {children}
  </div>;
