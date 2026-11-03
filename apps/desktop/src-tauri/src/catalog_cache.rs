@@ -953,7 +953,8 @@ fn feature_clause(feat: &str) -> Option<String> {
         "coop_generic" => "(m.coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Кооперативна гра')))".to_string(),
         "online_coop" => "(m.online_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра')))".to_string(),
         "local_coop" => "(m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada')))".to_string(),
-        "shared_split_screen" | "local_multiplayer" => "(m.shared_split_screen = 1 OR m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Shared/Split Screen','Pantalla partida/compartida','Tela compartilhada/dividida','Geteilter Bildschirm','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada','Shared/Split Screen PvP')))".to_string(),
+        // Not m.local_coop: the catalog also sets it for LAN co-op, which is not one screen (catalog_metadata.py).
+        "shared_split_screen" | "local_multiplayer" => "(m.shared_split_screen = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Shared/Split Screen','Pantalla partida/compartida','Tela compartilhada/dividida','Geteilter Bildschirm','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada','Shared/Split Screen PvP')))".to_string(),
         "online_multiplayer" => "(m.online_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі')))".to_string(),
         "mmo" => "(m.mmo = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('MMO','Multijugador masivo','Massively Multiplayer')))".to_string(),
         "pvp" => "(m.pvp = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('PvP','JcJ','JxJ','Гравець проти гравця','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі','LAN PvP','JcJ en rede local (LAN)','JxJ em rede local (LAN)','Shared/Split Screen PvP')))".to_string(),
@@ -2425,6 +2426,26 @@ mod tests {
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn same_screen_counts_shared_categories_not_the_local_coop_flag() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+        ").unwrap();
+        // The catalog sets local_coop for LAN co-op too (catalog_metadata.py), so the flag alone is not one screen.
+        conn.execute("INSERT INTO catalog_game VALUES(1, 10, ?1)", [r#"{"id":1,"app_id":10,"name":"LAN only","local_coop":true,"categories":["Cooperativo en LAN"]}"#]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(2, 20, ?1)", [r#"{"id":2,"app_id":20,"name":"Screen co-op","categories":["Shared/Split Screen Co-op"]}"#]).unwrap();
+        conn.execute("INSERT INTO catalog_game VALUES(3, 30, ?1)", [r#"{"id":3,"app_id":30,"name":"Split","shared_split_screen":true}"#]).unwrap();
+        ensure_normalized_schema(&conn).unwrap();
+        let params = CatalogQueryParams { features: Some(vec!["shared_split_screen".into()]), ..Default::default() };
+        let mut ids: Vec<i64> = query_catalog_conn(&conn, &params).unwrap().items.iter().map(|game| game["id"].as_i64().unwrap()).collect();
+        ids.sort();
+        assert_eq!(ids, vec![2, 3]);
     }
 
     #[test]
