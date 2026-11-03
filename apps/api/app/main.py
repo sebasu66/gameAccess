@@ -154,6 +154,7 @@ from .steam_owned_routes import router as steam_owned_router
 from .premium_routes import router as premium_router
 from .game_lessons import router as game_lessons_router
 from .run_fixes import router as run_fixes_router
+from .support import router as support_router
 app.include_router(premium_router)
 app.include_router(steam_search_router)
 app.include_router(resolver_router)
@@ -163,6 +164,7 @@ app.include_router(cooptimus_router)
 app.include_router(steam_owned_router)
 app.include_router(game_lessons_router)
 app.include_router(run_fixes_router)
+app.include_router(support_router)
 
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)

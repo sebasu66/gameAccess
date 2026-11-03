@@ -9,3 +9,6 @@
 /* The news and the help keep their own layout; inside a card they need no second frame. */
 .ga-home-card .ga-news { padding: 0; }
 .ga-home-help .ga-help-topic ol { font-size: 16px; }
+/* The contact form at the screen's size: nothing under 16 px on a screen (§4.26). */
+.ga-home-help .ga-help-contact { --ga-p-size: 16px; }
+.ga-home-help .ga-field, .ga-home-help .ga-field input, .ga-home-help .ga-field textarea, .ga-home-help .ga-help-check { font-size: 16px; }

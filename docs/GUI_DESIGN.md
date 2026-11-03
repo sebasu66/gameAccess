@@ -128,6 +128,7 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 ### 4.8 Campo de texto `ga-field`
 - Fondo `#0d1114`, borde 1 px `#ffffff20`, radio 8 px, **altura 44 px**. Foco: borde naranja y contorno `2 px` naranja con 3 px de offset.
 - Etiqueta arriba, Manrope 500 13 px, `--ga-white`.
+- Texto largo (`textarea`, p. ej. el formulario de contacto): el mismo campo, 132 px de alto mínimo, padding 10 × 12 px, crece solo hacia abajo. En una pantalla (Home) la etiqueta y el texto van a 16 px.
 
 ### 4.9 Aviso único `ga-notice` (componente `GaNotice`; reemplaza al toast y a los diálogos de resultado y confirmación simple)
 - Uno solo a la vez, **abajo a la derecha** (16 px sobre el pie, 20 px del borde; si hay panel derecho abierto, a la izquierda del panel), 380 px de ancho. Si llega otro, el mismo aviso cambia su contenido: no se apilan.
