@@ -67,6 +67,10 @@ Se corre cada tanto, no en cada build. Abre la instancia de prueba y:
 3. Saca una captura por pantalla (Inicio, catálogo, filtros, ficha, Actividad, gestor de biblioteca, Configuración),
    con los errores de consola y los comandos fallidos de cada una.
 
+Antes de empezar anota si el cliente de Steam está abierto y con una cuenta con sesión (`regress/steam-status.mjs`:
+el proceso `steam.exe` y `ActiveUser` en `HKCU\Software\Valve\Steam\ActiveProcess`). Ejecutar juegos lo necesita;
+si falta, el informe lo dice como paso no listo, no como falla del juego.
+
 Deja `report.json`, `summary.md` y `shots/` en `%LOCALAPPDATA%\GameAccess-MCP\runs\<fecha>` (u otra carpeta con
 `GA_RUNS`). Cada informe nombra la pasada anterior y su captura de la misma pantalla. `--no-build` reusa la última
 build; `--only search` u `--only screens` hace solo una parte.

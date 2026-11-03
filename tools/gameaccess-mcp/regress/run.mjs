@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Instance } from "../instance.mjs";
 import { catalogSearch, explainMissing } from "../page.mjs";
 import { compareWithPrevious, compareWithSteam, steamMatches } from "./compare.mjs";
+import { steamStatus } from "./steam-status.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNS = process.env.GA_RUNS ?? join(process.env.LOCALAPPDATA, "GameAccess-MCP", "runs");
@@ -99,7 +100,8 @@ async function screens(page) {
 }
 
 function summary() {
-  const lines = [`# Pasada de regresión ${stamp}`, "", previous ? `Anterior: ${join(RUNS, previous)}` : "Primera pasada.", ""];
+  const steam = report.steam ? (report.steam.problem ? `no listo: ${report.steam.problem}` : "abierto, con sesión") : "sin comprobar";
+  const lines = [`# Pasada de regresión ${stamp}`, "", previous ? `Anterior: ${join(RUNS, previous)}` : "Primera pasada.", "", `Steam: ${steam}.`, ""];
   lines.push("## Búsquedas", "", "| Búsqueda | Nosotros | Steam | En común | Faltan | Sobran | Desde la anterior |", "|---|---|---|---|---|---|---|");
   for (const search of report.searches) {
     const change = search.since_previous ? `+${search.since_previous.added.length} / −${search.since_previous.removed.length}` : "—";
@@ -124,6 +126,8 @@ function summary() {
 }
 
 try {
+  // Not a failure of the app: the steps that run games report it as their reason.
+  report.steam = await steamStatus();
   const page = await ready();
   if (only !== "screens") await searches(page);
   if (only !== "search") await screens(page);

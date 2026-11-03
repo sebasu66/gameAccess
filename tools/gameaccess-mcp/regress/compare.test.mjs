@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { compareWithPrevious, compareWithSteam, steamDate, steamMatches } from "./compare.mjs";
+import { registryDword } from "./steam-status.mjs";
 
 const NOW = Date.UTC(2026, 10, 3);
 const search = { minScore: 70, maxAgeDays: 365 * 5 };
@@ -35,4 +36,11 @@ test("says why we show a game Steam does not", () => {
 
 test("lists what a search gained and lost since the previous pass", () => {
   assert.deepEqual(compareWithPrevious([1, 2], [{ app_id: 2 }, { app_id: 3 }]), { added: [3], removed: [1] });
+});
+
+test("reads Steam's signed-in account from the registry", () => {
+  const output = ["HKEY_CURRENT_USER\\Software\\Valve\\Steam\\ActiveProcess", "    pid    REG_DWORD    0x64fc", "    ActiveUser    REG_DWORD    0x0", ""].join("\r\n");
+  assert.equal(registryDword(output, "ActiveUser"), 0);
+  assert.equal(registryDword(output, "pid"), 0x64fc);
+  assert.equal(registryDword("", "ActiveUser"), null);
 });
