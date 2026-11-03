@@ -27,3 +27,15 @@ def test_packaged_catalog_is_served_with_matching_hash_and_steam_identities(tmp_
     assert all("downloadSource" not in json.loads(payload) for _, payload in rows)
     assert dict(database.execute("SELECT key,value FROM metadata"))["generated_at"]
     database.close()
+
+
+def test_catalog_games_can_be_read_from_more_than_one_thread(tmp_path, monkeypatch):
+    # /catalog streams through Starlette's thread pool, so each chunk may be read by another thread.
+    from concurrent.futures import ThreadPoolExecutor
+    monkeypatch.setattr(discovery_service, "ROOT", tmp_path)
+    monkeypatch.setattr(discovery_service, "OUTPUT_DIR", Path(__file__).resolve().parents[3] / "deploy/catalog-cache")
+    games = discovery_service.iter_catalog_games()
+    with ThreadPoolExecutor(1) as first, ThreadPoolExecutor(1) as second:
+        assert first.submit(next, games).result()["id"]
+        assert second.submit(next, games).result()["id"]
+    games.close()
