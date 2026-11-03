@@ -1,6 +1,6 @@
 ---
 tipo: tareas
-actualizado: 2026-10-19
+actualizado: 2026-11-03
 ---
 # Tareas pendientes — Game Access
 
@@ -10,6 +10,39 @@ actualizado: 2026-10-19
 > Reglas de git: una sola rama (`dev`), commits chicos **con push a `dev` después de cada paso verificado**, sin ramas ni PR intermedios. Todavía no hay usuarios: `main` solo se actualiza cuando Seba decide el primer test en vivo (único PR válido `dev → main`).
 
 > 🧪 **Lo nuevo que Seba tiene que probar está en [[Pruebas pendientes]]** (dónde está el código y cómo se prueba cada cosa).
+
+## 🚀 Lanzamiento de la beta pública (Seba, 2026-11-03) — se tacha de a uno
+> Decisión de Seba: **salir ya con lo que funciona** y terminar el resto con usuarios reales. Esta lista manda sobre el resto de este archivo para el lanzamiento. Lo que no está acá no bloquea la salida.
+> Estado real corregido por Seba (2026-11-03): el **modo niño funciona** (cuenta del niño, horarios de entrada y horas por día los hace cumplir **Windows**; probado entrando y jugando); el **servidor de Render** solo controla PLUS y acelera descargas, y **se publica desde `dev`**; **gameaccess.site está online** (hay que actualizarla); `STEAM_WEB_API_KEY` está en Render; el instalador **sale sin firmar** (se explica en la página de descarga).
+
+### A. Lo que hay que hacer (Claude)
+- [x] **L1 · El modo base dice que es gratis** (Claude, 2026-11-03): la ayuda "Mi acceso" (abajo en Home) todavía hablaba del pase de 12 horas y de "ingresar una llave nueva para seguir"; la tarjeta de Home y los avisos de vencimiento de PLUS ahora dicen que BASE es gratis y no vence y que al vencer PLUS se sigue en BASE.
+- [ ] **L2 · Formulario de contacto en la app** (Home › Ayuda y contacto): asunto, mensaje, correo opcional para responder (precargado si está registrado), versión y log adjuntables. Lo recibe el servidor (`/support/message`), lo guarda (sección "Mensajes" en `/admin`) y **manda un correo a Seba** (a `gameaccess@proton.me` cuando exista). Necesita un servicio de envío (Resend o Brevo, plan gratis, con el dominio `gameaccess.site` verificado): Proton no envía por SMTP en el plan gratis. Límite de envíos por instalación.
+- [ ] **L3 · Registro de usuario en la app**: nombre, correo y contraseña sobre la tabla `account` de US.1 (`apps/api/app/accounts.py`, hoy solo se crean desde `/admin`): endpoints de registro e inicio de sesión, la llave PLUS queda atada a la cuenta, la sesión se recuerda en la PC. Opcional para usar BASE. Recuperar la contraseña por correo usa el mismo servicio de L2 (puede ir después).
+- [ ] **L4 · Modo niño: "próximamente" donde corresponda**: la app del celular, el control desde el servidor y el tiempo que cuenta Game Access (sumar minutos, desbloquear, cerrar el juego al terminar) se muestran como "próximamente"; revisar que la pantalla de niños no ofrezca botones que dependen de eso (p. ej. "+15 / +30 min", órdenes en vivo).
+- [ ] **L5 · gameaccess.site actualizada** (`deploy/website`): BASE gratis / PLUS mensual con precio, enlace a Patreon, página de descarga con el aviso de **beta sin firmar** (qué muestra SmartScreen y cómo seguir: "Más información" › "Ejecutar de todos modos"), contacto, y el modo niño tal como funciona hoy.
+- [ ] **L6 · Enlaces reales de Patreon** en la app y la web (hoy todo apunta a `https://gameaccess.site/plus`). Mercado Pago después, cuando la web esté (Seba).
+- [ ] **L7 · Test roto del catálogo**: `real catalog › has popularity data for nearly the whole catalog` falla en vitest desde el catálogo actualizado `9030165` (no por cambios del cliente). Arreglar el dato o el test.
+- [ ] **L8 · Versión 0.1.10** y su instalador de prueba con todo lo de arriba.
+- [ ] **L9 · Salida**: pasar `dev` a `main`, tag `gameaccess-v0.1.10`, build firmado para el auto-update y promoverla ([[Releases]]). Cada paso lo aprueba Seba.
+
+### B. Lo que Seba tiene que probar (o decirme que ya está probado)
+- [ ] **T1 · Descarga y biblioteca**: bajar un juego con la 0.1.10; al terminar, Administrar biblioteca lo muestra **Instalado** (no "Descargando") y no queda en "Descargas sin terminar" (arreglo `56d4445`).
+- [ ] **T2 · Modo niño, últimos arreglos**: los casos que faltan de los cambios recientes (Seba sabe cuáles).
+- [ ] **T3 · Modo niño, fin de horario jugando**: con el niño jugando, al terminar el horario Windows cierra la sesión (y el juego). No es crítico.
+- [ ] **T4 · Vence PLUS**: con un PLUS que vence (o la llave revocada desde `/admin`): BASE sigue funcionando entero, el modo niño queda en pausa y nada se borra; al volver PLUS, todo se reanuda.
+- [ ] **T5 · Auto-update**: con la release anterior instalada (`gameaccess-v0.1.3`), abrir Game Access: se actualiza sola a la 0.1.10 y conserva la biblioteca, la configuración y la cuenta del niño.
+- [ ] **T6 · PC limpia**: instalar en una PC (o VM) sin Game Access y, si se puede, sin Steam: abre, se ve el catálogo, descarga y juega un juego.
+- [ ] **T7 · Contacto y registro** (cuando estén L2 y L3): un mensaje enviado desde la app llega al correo; registrarse, cerrar y volver a abrir la app sigue con la sesión; la llave PLUS queda en la cuenta.
+
+### C. Lo que hace Seba
+- [ ] **S1** Crear `gameaccess@proton.me` (destino de los mensajes de contacto).
+- [ ] **S2** Pasar los enlaces de Patreon.
+- [ ] **S3** Decidir si Render se publica desde `main` en vez de `dev` (recomendado al salir: un push a `dev` no le cambia el servidor a los usuarios).
+- [ ] **S4** Mercado Pago, después de que la web esté actualizada.
+
+### Próximamente (no bloquea la salida)
+App del celular para padres (MN.7), control del modo niño desde el servidor (MN.9, PR.1), tiempo y cierre contados por Game Access en vez de Windows (MN.5, MN.25), firma del instalador, winget, Discord, WhatsApp de contacto, cobro automático (US.2).
 
 ## En curso / siguiente para Gemini
 Especificación completa: `docs/gemini-tasks-2026-10-16.md`. Orden: A → B (depende de A); C es independiente.

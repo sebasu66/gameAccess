@@ -1,7 +1,7 @@
 ---
 tipo: diseño
 actualizado: 2026-10-31
-estado: redefinido 2026-10-31 (cuenta de Windows del niño, nada en la cuenta del adulto); sin implementar
+estado: funciona (Seba, 2026-11-03) con Windows haciendo cumplir horarios y horas por día; celular, servidor y tiempo contado por Game Access, próximamente
 ---
 # Modo niño — control de acceso y tiempo para chicos
 

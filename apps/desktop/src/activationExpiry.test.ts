@@ -11,14 +11,14 @@ describe("activation lifetime UX", () => {
   it("warns ten minutes before the key expires", () => {
     expect(ACTIVATION_WARNING_MS).toBe(10 * 60 * 1000);
     expect(gateSource).toContain('t("activationExpiringSoon")');
-    expect(i18nSource).toContain("Tu acceso expirará en 10 minutos");
+    expect(i18nSource).toContain("Tu PLUS vence en 10 minutos");
   });
 
   it("returns to the activation gate when access time ends", () => {
     expect(gateSource).toContain("clearActivationSession");
     expect(gateSource).toContain("setStatus(null)");
     expect(gateSource).toContain('t("activationTimeEnded")');
-    expect(i18nSource).toContain("Terminó el tiempo de acceso");
+    expect(i18nSource).toContain("Terminó tu PLUS. Seguís en el modo base");
   });
 
   it("never schedules a one-month timeout directly", () => {
