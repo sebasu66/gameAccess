@@ -354,6 +354,10 @@ class GameLibraryManager:
             # What really arrived: a torrent's files have their full length from the start (sparse).
             size = allocated_size(Path(item["folder"])) if with_sizes else None
             row = by_id.get(item["app_id"])
+            # The folder's status is the state: "ready" is written only once the install ended, so whatever is left in
+            # the temporary root (an empty folder, a fresh "completed" progress file) is not a download of that game.
+            if row is not None and row.get("state") == "ready":
+                continue
             if row is not None:
                 row["transfer_bytes"], row["transfer_active"], row["transfer_kind"] = size, item["active"], item["kind"]
                 row["unfinished"] = True
@@ -373,7 +377,7 @@ class GameLibraryManager:
             game["queued"] = game.get("app_id") in queued
             game["unfinished"] = game["unfinished"] or game["queued"]
             # Where a stopped download goes on (download, extract): the same point the Download Manager retries from.
-            point = self.storage.resume_point(game["app_id"]) if game.get("app_id") is not None and not game.get("linked") else {}
+            point = self.storage.resume_point(game["app_id"]) if game.get("app_id") is not None and not game.get("linked") and game.get("state") != "ready" else {}
             game["resume_step"] = point.get("step", "") if point.get("source") else ""
             if game["resume_step"] and not game.get("transfer_active"):
                 game["unfinished"] = True

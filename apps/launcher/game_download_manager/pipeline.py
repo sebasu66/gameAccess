@@ -389,8 +389,13 @@ class DownloadPipeline:
                     if target.exists():
                         raise RuntimeError(f"Ya existe el archivo de destino: {target.name}")
                     shutil.move(str(item), str(target))
-            if dest_dir != game_dir and Path(dest_dir).is_dir() and not any(Path(dest_dir).iterdir()):
-                Path(dest_dir).rmdir()
+            if dest_dir != game_dir and Path(dest_dir).is_dir():
+                # Only empty folders go: a download by pieces leaves its content folder empty inside the temporary one.
+                for folder, _, _ in os.walk(dest_dir, topdown=False):
+                    try:
+                        os.rmdir(folder)
+                    except OSError:
+                        pass
             journal.note(game_dir, "descompresión", "terminada" if extracted else "sin comprimidos; archivos movidos")
             context.logger.info("AppID %s: extraction finished; extracted=%s; portable installation complete; installProcess is skipped by existing policy", app_id, extracted)
             # Digital is portable: extraction is the installation. Never execute installProcess.

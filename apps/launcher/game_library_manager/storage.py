@@ -344,8 +344,16 @@ class DigitalGameStorage:
             # Pieces downloaded from our server keep a state file: they continue exactly where they stopped.
             kind = "pieces" if any(folder.glob(".ga-state-*.json")) else "other"
             found.append({"app_id": app_id, "name": title, "folder": str(folder), "kind": kind,
-                          "active": live.is_file() and now - live.stat().st_mtime < 120})
+                          "active": live.is_file() and now - live.stat().st_mtime < 120 and not self._ended(live)})
         return found
+
+    @staticmethod
+    def _ended(live: Path) -> bool:
+        """A worker's last word was the end (finished, failed, cancelled): its progress file is fresh but nothing runs."""
+        try:
+            return json.loads(live.read_text(encoding="utf-8")).get("phase") in ("completed", "error", "cancelled", "interrupted", "external")
+        except (OSError, ValueError, AttributeError):
+            return False
 
     def discard_transfer(self, app_id: int, game_folder: bool = False) -> None:
         """Delete the leftover temporary download of a game that has no live worker. With `game_folder` (the player's
