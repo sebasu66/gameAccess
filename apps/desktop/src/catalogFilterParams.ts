@@ -85,7 +85,9 @@ export function catalogParamsFromFilters(query: string, filters: LibrarySearchFi
     release_year_to: filters.releaseYearTo,
     min_rating: filters.minReviewScore,
     max_age_days: filters.maxAgeDays,
-    include_recent_unrated: filters.spareUnprovenGames,
+    // Always explicit with a score bar: catalog_cache.rs reads a missing value as "keep unrated games", while the
+    // filters mean "do not" (libraryQuality.ts), so after "Limpiar todo" and a new score the grid showed them anyway.
+    include_recent_unrated: filters.minReviewScore === undefined ? undefined : filters.spareUnprovenGames === true,
     min_review_count: filters.minReviewCount,
   };
 }
