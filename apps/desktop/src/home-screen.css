@@ -12,3 +12,8 @@
 /* The contact form at the screen's size: nothing under 16 px on a screen (§4.26). */
 .ga-home-help .ga-help-contact { --ga-p-size: 16px; }
 .ga-home-help .ga-field, .ga-home-help .ga-field input, .ga-home-help .ga-field textarea, .ga-home-help .ga-help-check { font-size: 16px; }
+/* My account (AccountCard.tsx): signed in, the name and PLUS beside "Sign out"; signed out, the form at the screen's size. */
+.ga-home-account { --ga-p-size: 16px; }
+.ga-home-account-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ga-space-3); }
+.ga-home-account-form { max-width: 560px; }
+.ga-home-account .ga-field, .ga-home-account .ga-field input { font-size: 16px; }

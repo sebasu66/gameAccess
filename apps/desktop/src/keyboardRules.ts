@@ -49,9 +49,11 @@ export function focusNewField(): void {
 
 /** Enter in a field: the next field of its region, or its primary button. True when it moved the focus. */
 export function advanceFromField(field: HTMLInputElement | HTMLTextAreaElement): boolean {
-  const region = field.closest(REGION);
+  // Inside a form, Enter stays in it (Home has the account and the contact forms one under the other).
+  const form = field.closest("form");
+  const region = form ?? field.closest(REGION);
   if (!region) return false;
-  const fields = regionFields(region);
+  const fields = form ? Array.from(form.querySelectorAll("input, textarea")).filter(isTextField).filter(visible) : regionFields(region);
   const next = fields[fields.indexOf(field) + 1];
   if (next) { next.focus({ preventScroll: true }); next.select?.(); return true; }
   const primary = Array.from(region.querySelectorAll<HTMLButtonElement>("button.ga-btn-primary, button[data-primary]"))

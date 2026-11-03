@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { House, Sparkles } from "lucide-react";
+import AccountCard from "./AccountCard";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import { HelpContent } from "./AppHelp";
 import { setAppScreen, useAppScreen } from "./appScreen";
@@ -23,7 +24,7 @@ const greetingKey = (hour = new Date().getHours()) => hour >= 6 && hour < 13 ? "
 
 /**
  * Home (docs/GUI_DESIGN.md §0b, docs/TAREA-pantallas-y-modos.md P8): the greeting, PLUS or base mode explained, the
- * news (they took the bell's place) and, at the end, help and contact. Stage: prototype.
+ * player's account, the news (they took the bell's place) and, at the end, help and contact. Stage: prototype.
  */
 function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
   const { t } = useI18n();
@@ -37,6 +38,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         </div>
         {tier ? null : <GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("homeActivatePlus")}</GaButton>}
       </section>
+      <AccountCard />
       <section className="ga-home-card" aria-labelledby="ga-home-news-title">
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         <NewsPanel games={games} onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />
