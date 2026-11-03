@@ -46,8 +46,12 @@ fn main() {
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
     let visual_debug_dir = visual_debug::visual_debug_session_dir();
     let automation_state = automation::AutomationState::from_process();
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+    // A test instance (tools/gameaccess-mcp, debug builds only) runs beside the installed app with its own data,
+    // so it must not take over what belongs to the installed one: the single instance, gameaccess:// and updates.
+    let test_instance = cfg!(debug_assertions) && env::var_os("GAMEACCESS_TEST_INSTANCE").is_some();
+    let builder = tauri::Builder::default();
+    let builder = if test_instance { builder } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             use tauri::{Emitter,Manager};
             launch_intent::receive(&args);
             plugin_install::receive(&args);
@@ -56,6 +60,8 @@ fn main() {
             webview_rest::wake(app);
             let _=app.emit("gameaccess:launch-request",());
         }))
+    };
+    builder
         // Releases from main update themselves: the app checks GitHub's latest.json and installs signed builds only.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -72,11 +78,11 @@ fn main() {
             tauri::WindowEvent::CloseRequested { .. } if kid_mode::kid_account().is_some() => kid_mode::sign_out(),
             _ => {}
         })
-        .setup(|app| {
+        .setup(move |app| {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
             plugin_install::attach(app.handle().clone());
-            plugin_install::register_protocol();
+            if !test_instance { plugin_install::register_protocol(); }
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
             // A child's account: what Steam starts outside the child's games is closed (kid_mode.rs).
@@ -84,7 +90,7 @@ fn main() {
             // A child's account cannot install updates or plugins: the adult's Game Access does.
             if kid_mode::kid_account().is_none() {
                 plugin_registry::start_registered_plugins();
-                app_update::start_watchdog(app.handle().clone());
+                if !test_instance { app_update::start_watchdog(app.handle().clone()); }
             }
             Ok(())
         })
