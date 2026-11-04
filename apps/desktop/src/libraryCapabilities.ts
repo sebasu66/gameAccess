@@ -135,8 +135,8 @@ function computeGameFeatures(game: CatalogGame): Set<LibraryFeatureKey> {
   const onlineCoop = game.online_coop === true
     || hasAny("Online Co-op", "Cooperativo en línea", "Cooperativo online", "Мережева кооперативна гра");
   const lanCoop = hasAny(...LAN_COOP_VALUES);
-  const screenCoop = game.local_coop === true
-    || hasAny("Shared/Split Screen Co-op", "Coop. a pantalla (com)partida", "Cooperativo em tela dividida/compartilhada");
+  const screenCoopCategory = hasAny("Shared/Split Screen Co-op", "Coop. a pantalla (com)partida", "Cooperativo em tela dividida/compartilhada");
+  const screenCoop = game.local_coop === true || screenCoopCategory;
   /**
    * Categories and flags only, never tags. A community tag is user opinion, so it
    * cannot satisfy a required criterion; tags stay searchable as text and are
@@ -169,7 +169,7 @@ function computeGameFeatures(game: CatalogGame): Set<LibraryFeatureKey> {
    */
   const lanAny = () => lanCoop || lanPvp;
   const onlineAny = () => onlineCoop || onlinePvp;
-  const localAny = () => shared || screenCoop || screenPvp;
+  const localAny = () => shared || screenCoopCategory || screenPvp;
   const mmo = () => game.mmo === true
     || hasAny("MMO", "Multijugador masivo", "Massively Multiplayer");
 
@@ -206,7 +206,9 @@ function computeGameFeatures(game: CatalogGame): Set<LibraryFeatureKey> {
     coop_generic: coopGenericOnly,
     online_coop: () => onlineCoop,
     local_coop: () => screenCoop,
-    shared_split_screen: () => shared,
+    // One screen, as the catalog query counts it (catalog_cache.rs feature_clause): the shared categories, including
+    // their co-op and PvP forms, but not the local_coop flag, which the catalog also sets for LAN co-op.
+    shared_split_screen: () => shared || screenCoopCategory || screenPvp,
     mmo,
     cross_platform: () => hasAny("Cross-Platform Multiplayer", "Multijugador multiplataforma",
       "Multijogador entre plataformas", "Кросплатформова гра"),

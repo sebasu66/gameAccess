@@ -256,9 +256,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       // database (browser preview, tests) or on a query error does it filter what is in memory.
       const memoryOnly = !nativeCatalog || Boolean(catalogQuery.error);
       const queried = memoryOnly ? filterLibraryGames(games, activeQuery, visibleFilters) : catalogQuery.items;
-      // The catalog is for discovering: without a search it leaves out what is already installed (it is in the library).
-      const sourceItems = activeQuery ? queried : queried.filter(game => !isInstalledGame(game));
-      const candidates = tasteParams && !memoryOnly ? tasteCandidates.items.filter(game => activeQuery || !isInstalledGame(game)) : [];
+      // The catalog shows every game, the player's own too (Seba, 2026-11-03): a game that was being looked at stays
+      // in its place when its download starts, instead of leaving the grid and taking the open detail with it.
+      const sourceItems = queried;
+      const candidates = tasteParams && !memoryOnly ? tasteCandidates.items : [];
       const key = JSON.stringify({ catalogBase, tailoring });
       const last = lastCatalogRef.current.key === key ? lastCatalogRef.current.games : [];
       const tailored = tailoring ? tailorCatalog(sourceItems, preferences, taste, { screen: last.slice(0, catalogScreenEnd(last)), candidates }) : sourceItems;
@@ -283,8 +284,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
         title: titles[catalogSort] ?? t("catalogTitleDefault"),
         description: descriptions[catalogSort],
         games: items,
-        total: memoryOnly ? sourceItems.length - hiddenByTaste : Math.max(0, catalogQuery.total - (queried.length - sourceItems.length) - hiddenByTaste),
-        hiddenInstalled: queried.length - sourceItems.length,
+        total: memoryOnly ? sourceItems.length - hiddenByTaste : Math.max(0, catalogQuery.total - hiddenByTaste),
       };
     }
     const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
@@ -304,7 +304,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   // Downloads may refer to games outside the current search, collection or catalog.
   const selectedGame = externalDetailGame
     ? games.find(game => game.id === externalDetailGame.id) ?? displayGames.find(game => game.id === externalDetailGame.id) ?? externalDetailGame
-    : selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw] : displayGames[0];
+    : selectedIndexRaw >= 0 ? displayGames[selectedIndexRaw]
+      // An open detail keeps its game when the game leaves the grid (the library view after its download starts, say):
+      // the first game of the grid taking its place looked like the app chose another game.
+      : detailOpen ? games.find(game => game.id === selectedGameId) ?? displayGames[0] : displayGames[0];
   const selectedGameIdResolved = selectedGame?.id;
   const selectedAppId = selectedGame?.app_id ?? selectedGame?.id;
   const download = selectedDownload(selectedAppId, effectiveDownloads);
@@ -762,7 +765,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} hiddenInstalled={"hiddenInstalled" in catalogCollection ? catalogCollection.hiddenInstalled : 0} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

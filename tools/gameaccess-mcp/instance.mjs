@@ -57,6 +57,15 @@ function tail(path, lines = 25) {
 }
 
 export class Instance {
+  /**
+   * With no options, the debug build of this checkout with its own profile, loading the frontend from Vite. With
+   * `exe`, an app installed as a person installs it (a test build, inside Windows Sandbox): no build, no Vite, its
+   * normal data folders.
+   */
+  constructor({ exe = null } = {}) {
+    this.installedExe = exe;
+  }
+
   phase = "stopped";
   error = null;
   events = [];
@@ -86,24 +95,27 @@ export class Instance {
   }
 
   async bringUp({ fresh, build }) {
-    if (fresh) rmSync(PROFILE, { recursive: true, force: true });
-    for (const folder of ["local", "webview", "launcher"]) mkdirSync(join(PROFILE, folder), { recursive: true });
-    if (build || !existsSync(EXE)) {
+    const installed = Boolean(this.installedExe);
+    if (fresh && !installed) rmSync(PROFILE, { recursive: true, force: true });
+    mkdirSync(dirname(APP_LOG), { recursive: true });
+    if (!installed) for (const folder of ["local", "webview", "launcher"]) mkdirSync(join(PROFILE, folder), { recursive: true });
+    if (!installed && (build || !existsSync(EXE))) {
       this.phase = "building";
       await this.build();
     }
     this.phase = "starting";
-    await this.ensureVite();
+    if (!installed) await this.ensureVite();
     const port = await freePort();
-    this.app = spawn(EXE, [], {
-      cwd: TAURI, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
+    // The debugging port is read by WebView2 from the environment of this one process.
+    const debug = { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}` };
+    this.app = spawn(this.installedExe ?? EXE, [], {
+      cwd: installed ? dirname(this.installedExe) : TAURI, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+      env: installed ? { ...process.env, ...debug } : {
+        ...process.env, ...debug,
         GAMEACCESS_TEST_INSTANCE: "1",
         LOCALAPPDATA: join(PROFILE, "local"),
         GAMEACCESS_LAUNCHER_DATA: join(PROFILE, "launcher"),
         WEBVIEW2_USER_DATA_FOLDER: join(PROFILE, "webview"),
-        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
       },
     });
     const log = createWriteStream(APP_LOG);
@@ -193,7 +205,11 @@ export class Instance {
       record({ kind: "ipc", command, args, status: response?.status() ?? null, result });
     };
     page.on("requestfinished", async request => finished(request, await request.response().catch(() => null)));
-    page.on("requestfailed", request => finished(request, null));
+    page.on("requestfailed", request => {
+      // A console "Failed to load resource" does not say what failed to load: the address does.
+      if (!commandFromUrl(request.url())) record({ kind: "request-failed", url: request.url().slice(0, 300), error: request.failure()?.errorText ?? null });
+      return finished(request, null);
+    });
   }
 
   /** Waits until the page stops asking the app for things, with a cap because some screens poll forever. */

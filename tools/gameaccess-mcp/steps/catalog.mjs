@@ -19,10 +19,9 @@ export async function run(call, log) {
   assert.equal(rated.params.max_age_days, FIVE_YEARS);
   assert.ok(rated.total > 0 && rated.total === rated.games.length, "every game fits in one page");
   assert.ok(rated.games.every(game => game.rating !== null), "without keeping unrated games, every game has a score");
-  // Known bug: with spareUnprovenGames unset (after "Limpiar todo" and choosing a score) the query omits
-  // include_recent_unrated and catalog_cache.rs takes that as true, so unrated games come back anyway.
+  // Unset means "do not keep them", as after "Limpiar todo" and a new score (catalogFilterParams.ts).
   const unset = await call("ga_catalog_search", { filters: { ...RACING, spareUnprovenGames: undefined } });
-  if (unset.total !== rated.total) log(`BUG: spareUnprovenGames unset gives ${unset.total}, not ${rated.total} (include_recent_unrated defaults to true)`);
+  assert.equal(unset.total, rated.total, "an unset spareUnprovenGames does not bring unrated games back");
   const oldest = new Date(Date.now() - FIVE_YEARS * 86400000);
   for (const game of rated.games) {
     assert.ok(game.rating >= 70, `${game.name} has ${game.rating} %`);

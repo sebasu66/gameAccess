@@ -6,8 +6,10 @@
   "description": "MCP server that drives the real Game Access window in an isolated test instance.",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test",
-    "smoke": "node smoke.mjs"
+    "test": "node --test lib.test.mjs regress/compare.test.mjs",
+    "smoke": "node smoke.mjs",
+    "regress": "node regress/run.mjs",
+    "steam": "node regress/fetch-steam.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

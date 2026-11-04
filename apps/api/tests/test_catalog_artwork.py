@@ -15,8 +15,13 @@ from app.catalog_artwork import (
     assets_from_item,
     categories_from_item,
     descriptors_from_item,
+    free_promo_from_item,
     has_nudity_descriptor,
     is_adult_only,
+    platforms_from_item,
+    release_from_item,
+    reviews_from_item,
+    tags_from_item,
 )
 
 ITEM = {
@@ -106,7 +111,8 @@ def test_apply_assets_replaces_guesses_and_keeps_unknowns_untouched():
     # A game the API did not cover keeps whatever it had.
     assert games[2]["capsule_image"] == "guessed"
     assert report == {"matched": 1, "capsule": 1, "hero": 1, "header": 0, "missing": 1,
-                      "descriptors": 1, "adult_only": 0, "nudity": 0, "categories": 1}
+                      "descriptors": 1, "adult_only": 0, "nudity": 0, "categories": 1,
+                      "reviews": 0, "tags": 0, "free_promos": 0}
 
 
 def test_apply_assets_leaves_a_cache_without_descriptors_untouched():
@@ -222,8 +228,8 @@ def test_resolver_batches_large_catalogs(tmp_path: Path):
     resolver = ArtworkResolver(client, tmp_path / "artwork", delay=0)
     resolved = resolver.resolve(list(range(1, 121)))
     assert len(resolved) == 120
-    # 120 games at 50 per request.
-    assert client.calls == 3
+    # 120 games at 100 per request.
+    assert client.calls == 2
 
 
 def test_resolver_reports_missing_games_instead_of_inventing_them(tmp_path: Path):
@@ -233,3 +239,56 @@ def test_resolver_reports_missing_games_instead_of_inventing_them(tmp_path: Path
     resolver = ArtworkResolver(client, tmp_path / "artwork", delay=0)
     assert resolver.resolve([42]) == {}
     assert list((tmp_path / "artwork").glob("*.json")) == []
+
+
+# Shape returned by the store API for Terraria on 2026-11-04, trimmed.
+STORE_ITEM = {
+    "appid": 105600,
+    "reviews": {"summary_filtered": {"review_count": 1249546, "percent_positive": 97, "review_score": 9}},
+    "tags": [{"tagid": 3810, "weight": 890}, {"tagid": 1100689, "weight": 906}, {"tagid": 1662, "weight": 713}],
+    "release": {"steam_release_date": 1305568020},
+    "platforms": {"windows": True, "mac": True, "steamos_linux": True},
+    "best_purchase_option": {"final_price_in_cents": "579", "discount_pct": 0},
+}
+
+
+class TestStoreDetails:
+    def test_reviews_count_and_score(self):
+        assert reviews_from_item(STORE_ITEM) == {"steam_review_count": 1249546, "steam_review_score": 97}
+        # No reviews yet: the count is known, the score is not.
+        assert reviews_from_item({"reviews": {"summary_filtered": {"review_count": 0, "percent_positive": 0}}}) == {"steam_review_count": 0}
+        assert reviews_from_item({}) == {}
+
+    def test_tags_heaviest_first_release_and_platforms(self):
+        assert tags_from_item(STORE_ITEM) == [1100689, 3810, 1662]
+        assert tags_from_item({"tagids": [5, "x", 7]}) == [5, 7]
+        assert release_from_item(STORE_ITEM) == "2011-05-16"
+        assert release_from_item({"release": {}}) is None
+        assert platforms_from_item(STORE_ITEM) == ["win", "mac", "linux"]
+        assert platforms_from_item({}) is None
+
+    def test_free_promotions(self):
+        assert free_promo_from_item(STORE_ITEM) is None
+        assert free_promo_from_item({"free_weekend": {"start_time": 10, "end_time": 20}}) == {
+            "kind": "free_weekend", "starts_at": 10, "ends_at": 20}
+        keep = {"best_purchase_option": {"is_free_to_keep": True, "active_discounts": [{"discount_end_date": 99}]}}
+        assert free_promo_from_item(keep) == {"kind": "free_to_keep", "ends_at": 99}
+        # Free-to-play is not a promotion.
+        assert free_promo_from_item({"is_free": True}) is None
+
+    def test_apply_replaces_store_tags_and_keeps_other_sources(self):
+        games = {1: {"tags": ["Old store tag", "Co-op: 4 players"],
+                     "tag_sources": {"steam-store": ["Old store tag"], "co-optimus": ["Co-op: 4 players"]},
+                     "steam_review_score": 50, "release_date": "2011-01-01", "steam_free_promo": {"kind": "free_weekend"}}}
+        resolved = {1: {"steam_review_count": 10, "steam_review_score": 90, "steam_tag_ids": [2, 1],
+                        "release_date": None, "platforms": ["win"], "steam_free_promo": None}}
+        report = apply_assets(games, resolved, {1: "Sandbox", 2: "Survival"})
+        game = games[1]
+        assert game["tags"] == ["Co-op: 4 players", "Sandbox", "Survival"]
+        assert game["tag_sources"]["steam-store"] == ["Survival", "Sandbox"]
+        assert game["steam_tag_ids"] == [2, 1]
+        assert (game["steam_review_count"], game["steam_review_score"]) == (10, 90)
+        # A date Steam did not give is kept; an offer Steam no longer reports is gone.
+        assert game["release_date"] == "2011-01-01"
+        assert "steam_free_promo" not in game
+        assert (report["reviews"], report["tags"], report["free_promos"]) == (1, 1, 0)

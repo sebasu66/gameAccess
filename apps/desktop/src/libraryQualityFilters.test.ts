@@ -233,6 +233,13 @@ describe("filterLibraryGames and the hidden notice", () => {
     expect(filterLibraryGamesDetailed(games, "", { ...DEFAULT_LIBRARY_FILTERS, minReviewCount: 100 }).hiddenCount).toBe(3);
   });
 
+  it("a game spared by the score bar still has to meet the date bounds", () => {
+    // "Sin criticas" (2019, no score) used to skip the release check and show up in "last year".
+    const recentGood = { ...DEFAULT_LIBRARY_FILTERS, minReviewScore: 60, spareUnprovenGames: true, maxAgeDays: 365 };
+    expect(filterLibraryGames(games, "", recentGood).map(g => g.id)).toEqual([5]);
+    expect(filterLibraryGames(games, "", { ...recentGood, maxAgeDays: undefined, releaseYearTo: 2018 }).map(g => g.id)).toEqual([]);
+  });
+
   it("starts with no bound set, so an untouched panel filters nothing", () => {
     // The score and year controls are explicit bounds. Until the user sets one,
     // nothing is hidden: the old set of always-on screens is gone, and a panel

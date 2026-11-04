@@ -86,6 +86,13 @@ describe("useful catalog facets", () => {
     expect(matching(["multiplayer"])).toEqual([21, 22, 23, 25]);
     expect(matching(["online_coop", "local_coop"])).toEqual([21, 22]);
     expect(gameMatchesLibraryFeature({ ...game(26, "Unknown"), tags: ["Co-op"], categories: ["Steam Cloud", "Remote Play Together"] }, "coop")).toBe(false);
+    // One screen counts the shared categories, co-op and PvP forms included, like the catalog query; the local_coop
+    // flag alone does not, because the catalog also sets it for LAN co-op.
+    const lanFlag = { ...game(27, "LAN flag"), categories: ["Cooperativo en LAN"], local_coop: true };
+    const screenCoop = { ...game(28, "Screen co-op"), categories: ["Shared/Split Screen Co-op"] };
+    expect(gameMatchesLibraryFeature(lanFlag, "shared_split_screen")).toBe(false);
+    expect(gameMatchesLibraryFeature(screenCoop, "shared_split_screen")).toBe(true);
+    expect(gameMatchesLibraryFeature({ ...game(29, "Screen PvP"), categories: ["Shared/Split Screen PvP"] }, "shared_split_screen")).toBe(true);
   });
   const games: CatalogGame[] = [
     {

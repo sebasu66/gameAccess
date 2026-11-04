@@ -20,7 +20,6 @@ from .access_keys import ensure_access_key_schema
 from .access_overrides import courtesy_access_configured
 from .catalog_metadata import ensure_catalog_schema, seed_known_games
 from .steam_client import steam_catalog
-from .review_maintenance import _start_steam_review_importer
 from .activation_routes import router as activation_router, require_active_installation, redeem_access_key, activation_status
 from .access_admin_routes import router as access_admin_router, create_access_keys, list_access_keys, renew_access_key, revoke_access_key
 from .account_admin_routes import router as account_admin_router
@@ -87,7 +86,6 @@ def startup() -> None:
     recover_interrupted_chunk_jobs(local_engine)
     from .telemetry import start_sampler
     start_sampler(local_engine)
-    _start_steam_review_importer()
     from .discovery_service import start_maintenance
     start_maintenance()
     from .keep_awake import start as start_keep_awake

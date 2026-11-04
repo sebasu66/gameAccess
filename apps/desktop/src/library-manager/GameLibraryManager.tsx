@@ -440,11 +440,14 @@ function downloadStatus(entry: DownloadEntry): Status {
 
 /** A game being downloaded that has no folder in the library yet (just asked for in the catalog): the row and the
  *  download's detail under it. */
-function DownloadRow({ row, entry, columns, c }: { row: GridRow; entry: DownloadEntry; columns: number; c: LibraryCopy }) {
+function DownloadRow({ row, entry, columns, c, focusId }: { row: GridRow; entry: DownloadEntry; columns: number; c: LibraryCopy; focusId: number | null }) {
   const appId = entry.game.app_id ?? entry.snapshot.gameId;
   const view = useDownloadView(entry, activeDownloadService());
+  const ref = useRef<HTMLTableRowElement>(null);
+  const focused = focusId === appId;
+  useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   return (<>
-    <tr className="lm-row is-expanded" data-app-id={appId}>
+    <tr ref={ref} className={`lm-row is-expanded${focused ? " is-focus" : ""}`} data-app-id={appId}>
       <td className="lm-cell-check" />
       <td />
       <td className="lm-cell-name"><div className="lm-name" title={entry.game.name}>{entry.game.name}</div></td>
@@ -570,7 +573,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       if (result.found) void suggestVerify();
     } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
   };
-  useEffect(() => { if (focusAppId != null) setFilter("all"); }, [focusAppId]);
+  // A game opened from Activity shows its row open: the download's or the process's detail (Seba, 2026-11-03).
+  useEffect(() => { if (focusAppId != null) { setFilter("all"); setExpanded(focusAppId); } }, [focusAppId]);
   // Every word of the search in the name, without accents or case, as in the catalog; the game "Manage" opened stays.
   const terms = useMemo(() => normalizeSearchText(query.trim()).split(/\s+/).filter(Boolean), [query]);
   const matches = (name: string, appId?: number | null) => !terms.length || (focusAppId != null && appId === focusAppId) || terms.every(term => normalizeSearchText(name).includes(term));
@@ -759,7 +763,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
               <tbody>
-                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} c={c} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
+                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} c={c} focusId={focusAppId ?? null} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
               </tbody>
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />

@@ -7,6 +7,9 @@
 .ga-process-task-open:focus-visible, .ga-process-task-cancel:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
 .ga-process-task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-process-task-state { color: var(--ga-muted); font-variant-numeric: tabular-nums; }
+/* What the process is, over its name, and a download's size under its bar. */
+.ga-process-task-kind { grid-column: 1 / -1; font: 700 12px var(--ga-text-family); letter-spacing: .08em; text-transform: uppercase; color: var(--ga-orange); }
+.ga-process-task-detail { grid-column: 1 / -1; font: 400 13px var(--ga-text-family); color: var(--ga-muted); font-variant-numeric: tabular-nums; }
 .ga-process-task-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--ga-surface-2); overflow: hidden; }
 .ga-process-task-bar > i { display: block; height: 100%; background: var(--ga-orange); transition: width .4s; }
 .ga-process-task-cancel { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); cursor: pointer; }

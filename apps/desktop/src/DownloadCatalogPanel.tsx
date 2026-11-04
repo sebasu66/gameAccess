@@ -185,8 +185,6 @@ interface DownloadCatalogPanelProps {
   onInstall?: (game: CatalogGame) => void | Promise<void>;
   /** Marks or unmarks a favorite (the same toggle as the detail screen's). */
   onPreference?: (gameId: number, value: 1 | -1) => void;
-  /** Installed games the catalog leaves out while there is no search (they are in the library). */
-  hiddenInstalled?: number;
   isInstalled?: (game: CatalogGame) => boolean;
 }
 
@@ -250,7 +248,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     const show = (event: Event) => {
       const appId = (event as CustomEvent<{ appId?: number }>).detail?.appId;
       setAppScreen("games");
-      if (appId != null) setManagerFocus(appId);
+      // Set again a moment later, so the same game asked twice still scrolls to its row and opens it.
+      if (appId != null) { setManagerFocus(null); window.setTimeout(() => setManagerFocus(appId), 0); }
       if (view === "library") toggleManager(true);
       else { pendingManager.current = true; onViewChange("library"); }
     };
@@ -539,7 +538,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
-      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} />{view === "catalog" && props.hiddenInstalled ? <button type="button" className="ga-hidden-installed" onClick={() => { onViewChange(getCatalogMode() === "digital" ? "library" : "installed"); props.onSelect(0, false); }}>{t("catalogHiddenInstalled", { count: props.hiddenInstalled })}</button> : null}</div>}
+      </div> : null}<span className="ga-strip-info" ref={setInfoTarget} /></div>}
       <div className="ga-scroll-frame">
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (

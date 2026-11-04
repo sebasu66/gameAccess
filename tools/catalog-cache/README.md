@@ -6,16 +6,24 @@ installed games and plugin download availability. No download links are exported
 ## Coverage and provenance
 
 The seed includes the existing catalog, all games found in the public US/English
-Steam Store search released in the rolling last 365 days, and the first 5,000 games
-ranked by Steam review count. DLC/software/bundles are excluded by the game search
+Steam Store search released in the rolling last 365 days, the first 5,000 games of
+Steam's review ranking, and every game released in the last 10 years with at least
+100 reviews (`--important-years`, `--important-min-reviews`). The full refresh takes about an hour. Steam's review ranking
+groups games by score, not by review count, so its first pages alone missed about
+half of the well-reviewed games since 2016; the whole ranking (~78,000 games) is read. DLC/software/bundles are excluded by the game search
 filter and exact AppID row validation. Regionally unavailable, delisted or hidden
 Steam products cannot be guaranteed by a public Store listing.
 
 Discovery traverses newest releases until the date boundary. Empty/malformed
 intermediate pages and exhausted retries abort publication. The coverage report
 records the interval, counts, completion and source URL. No claim is based on an
-AppID range. Store tags and review summaries accompany the basic records; existing
-localized full details are preserved. Missing player counts remain unknown.
+AppID range. Existing localized full details are preserved. Missing player counts remain unknown.
+
+Every catalog game is then read from `IStoreBrowseService/GetItems` (official, no key,
+100 AppIDs per request): real cover URLs, Valve's age descriptors, player categories,
+review count and percent positive, the 20 heaviest tags, release date, platforms and
+temporary free offers (`steam_free_promo`: free weekend or free to keep, with its end
+time). The central server no longer asks Steam for reviews.
 
 Co-Optimus is separate: opening a game detail invokes a server lookup by exact
 Steam AppID. Verified results cache for seven days; failures retry after an hour.
