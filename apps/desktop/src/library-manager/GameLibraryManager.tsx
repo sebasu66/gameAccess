@@ -142,7 +142,8 @@ function History({ game, c, job, download }: { game?: LibraryGame; c: LibraryCop
   useEffect(() => {
     let live = true;
     // A download with no folder yet has no log of its own so far: only its running groups.
-    if (!game) { setText(""); return; }
+    // A folder not yet identified (no AppID) has no game log the launcher can find.
+    if (!game || game.app_id == null) { setText(""); return; }
     if (libraryDemo() || uiDemo()) { setText("2026-10-12 21:04:11 | importado | carpeta adaptada al estándar actual\n2026-10-12 21:04:12 | analisis | estado=ready; ejecutable=Game/game.exe"); return; }
     void digitalProcessManager.gameLog(asGame(game as LibraryGame)).then(result => { if (live) setText(result.log ?? ""); }).catch(() => { if (live) setText(""); });
     return () => { live = false; };

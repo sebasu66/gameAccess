@@ -675,7 +675,12 @@ class GameLibraryManager:
                 results.append({"app_id": app_id, "ok": False, "error": "Es un juego vinculado: sus archivos no se modifican."})
                 continue
             if name is None:
-                results.append({"app_id": app_id, "ok": False, "error": "El juego no está en la biblioteca."})
+                if action == "uninstall":
+                    # Already gone (its folder deleted a moment ago, say): removing it again is done, not an error.
+                    self.log.info("Batch uninstall AppID %s: not in the library any more; nothing to remove", app_id)
+                    results.append({"app_id": app_id, "ok": True, "already_gone": True})
+                else:
+                    results.append({"app_id": app_id, "ok": False, "error": "El juego no está en la biblioteca."})
                 continue
             if action in ("adopt", "repair", "analyze") and self.freezer.is_deep(app_id):
                 results.append({"app_id": app_id, "ok": False, "error": "Está en congelado profundo: descongelalo antes."})
@@ -716,4 +721,6 @@ class GameLibraryManager:
                 else:
                     results.append({"app_id": app_id, "ok": False, "error": str(error)})
         self.log.info("Batch %s done: %s ok, %s failed", action, sum(1 for r in results if r.get("ok")), sum(1 for r in results if not r.get("ok")))
+        for failed in (r for r in results if not r.get("ok")):
+            self.log.warning("Batch %s AppID %s not done: %s", action, failed["app_id"], failed.get("error", "?"))
         return results
