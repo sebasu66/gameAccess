@@ -1464,6 +1464,7 @@ export const es = {
   accountBadCredentials: "El correo o la contraseña no coinciden.",
   accountFailed: "No se pudo completar. Probá de nuevo.",
   homeNewsTitle: "Novedades",
+  homeChangesTitle: "Qué cambió en la versión {{version}}",
   homeHelpTitle: "Ayuda y contacto",
   contactSubject: "Asunto",
   contactSubjectPlaceholder: "Por ejemplo: un juego no abre",

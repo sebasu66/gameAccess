@@ -1466,6 +1466,7 @@ export const en: Record<keyof typeof es, string> = {
   accountBadCredentials: "The email or the password don't match.",
   accountFailed: "It couldn't be done. Try again.",
   homeNewsTitle: "News",
+  homeChangesTitle: "What changed in version {{version}}",
   homeHelpTitle: "Help and contact",
   contactSubject: "Subject",
   contactSubjectPlaceholder: "For example: a game won't start",
