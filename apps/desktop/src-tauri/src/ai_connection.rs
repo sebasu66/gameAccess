@@ -153,8 +153,9 @@ pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Va
 /// Opens Ollama's key page in a Game Access window with the guide over it. Events to the main window:
 /// `gameaccess:ai-key` when the key was kept ({ ending }), `gameaccess:ai-google` when the player chose Google
 /// (it does not work here) and `gameaccess:ai-guide-closed` when the window closes ({ saved }).
+// Async on purpose: a window built inside a synchronous command deadlocks WebView2 on Windows and stays blank.
 #[tauri::command]
-pub fn ai_guide_open(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn ai_guide_open(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(GUIDE_LABEL) { let _ = window.unminimize(); let _ = window.set_focus(); return Ok(()); }
     let saved = Arc::new(AtomicBool::new(false));
     let (nav_app, nav_saved) = (app.clone(), saved.clone());

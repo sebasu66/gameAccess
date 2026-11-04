@@ -278,3 +278,18 @@ def test_discarding_a_download_also_removes_the_unfinished_folder_it_left_but_ne
     assert not broken.exists() and not (storage.registry / "5.json").exists()
     assert storage.folder(1, "Alpha").is_dir()                     # a finished game is never touched
     assert 5 not in {g["app_id"] for g in lib.list_games(with_sizes=False)}
+
+
+def test_fixed_by_hand_skips_unpacking_and_needs_the_game_executable(tmp_path):
+    # «Arreglado manualmente»: an archive would not unpack and the player fixed the folder by hand.
+    storage, lib = library(tmp_path)
+    storage.set_status(2, "Beta", "ERROR")
+    storage.set_resume(2, "extract", source="https://example.invalid/beta", error="ninguna contraseña del perfil funcionó")
+    not_yet = lib.batch("manual_fixed", [2])[0]
+    assert not not_yet["ok"] and "comprimidos" in not_yet["error"] and storage.resume_point(2) != {}
+    (storage.folder(2, "Beta") / "Beta.exe").write_bytes(b"z" * 100)   # the player unpacked it by hand
+    fixed = lib.batch("manual_fixed", [2])[0]
+    assert fixed["ok"] and fixed["analysis"]["executable"] == "Beta.exe"
+    game = {g["app_id"]: g for g in lib.list_games()}[2]
+    assert game["state"] == "ready" and storage.resume_point(2) == {}
+    assert "arreglo manual" in journal.read(storage.folder(2, "Beta"))

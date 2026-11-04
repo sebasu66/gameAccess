@@ -82,7 +82,7 @@ export interface SteamOwner { id64: string; account: string; persona: string; re
 export type FreezeLevel = "freeze" | "deep";
 export interface LibrarySummary { count: number; by_state: Record<string, number>; needs_repair: number; nonstandard: number; partial_downloads: number; used_bytes: number; transfers_bytes: number; reclaimable_bytes: number; frozen_saved_bytes?: number; disk_free_bytes?: number; disk_total_bytes?: number; linked_count?: number; linked_bytes?: number }
 export interface LibrarySpace { ok: boolean; needed_bytes: number; free_bytes: number; message: string }
-export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer" | "linked_delete" | "linked_move" | "linked_move_resume" | "linked_move_discard";
+export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "analyze" | "adopt" | "discard_transfer" | "linked_delete" | "linked_move" | "linked_move_resume" | "linked_move_discard" | "manual_fixed";
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
 export interface RelocationGame { app_id: number; name: string; folder: string; size_bytes: number; same_disk: boolean; fits: boolean; taken: boolean; must_move: boolean }
 export interface RelocationPlan { target: string; games: RelocationGame[]; copy_bytes: number; free_bytes: number; room: boolean }

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAiConnected } from "./aiConnection";
 import { usePersonalOrder } from "./personalOrder";
@@ -6,7 +6,7 @@ import { queryCatalogCache, type CatalogQueryParams } from "./catalogCache";
 import { getAppLocale } from "./i18n";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { readPlayHistory } from "./recentGames";
-import { loadTasteNames, type Ratings } from "./tasteProfile";
+import { loadTasteNames, rememberTasteNames, type Ratings } from "./tasteProfile";
 import type { CatalogGame } from "./types";
 import { uiDemo } from "./devDemo/uiDemo";
 
@@ -271,10 +271,48 @@ const readRatings = (): Ratings => { try { return JSON.parse(localStorage.getIte
  * The magic button (personalOrder.ts) as "search in words": with an AI connected it can be turned on from
  * MIN_SIGNALS choices (thumbs and library), without waiting for the taste profile. `on`: searches go to Gemma.
  */
-export function useAiSearch(): { available: boolean; on: boolean } {
+export function useAiSearch(): { available: boolean; on: boolean; connected: boolean } {
   const order = usePersonalOrder();
   const connected = useAiConnected();
+  // With an AI connected nothing else is asked (Seba, 2026-11-04): the thumbs only make the answers better.
+  useEffect(() => { if (connected) void backfillTasteNames(); }, [connected]);
+  return { available: connected, on: order.on && connected, connected };
+}
+
+let backfilling: Promise<boolean> | null = null;
+/**
+ * The names of games rated before names were kept with the thumbs (before 0.1.13): looked up in the catalog once, so
+ * Gemma hears about every like and dislike. Resolves true when it found some (AI_SUGGESTIONS_EVENT is sent).
+ */
+export function backfillTasteNames(ratings: Ratings = readRatings()): Promise<boolean> {
+  if (backfilling) return backfilling;
+  const names = loadTasteNames();
+  const missing = Object.keys(ratings).map(Number).filter(id => id > 0 && !names[id]).slice(0, 200);
+  if (!missing.length) return Promise.resolve(false);
+  backfilling = queryCatalogCache({ game_ids: missing, limit: missing.length })
+    .then(result => {
+      const found = Object.fromEntries(result.items.filter(game => game.name).map(game => [game.id, game.name]));
+      if (!Object.keys(found).length) return false;
+      rememberTasteNames(found);
+      window.dispatchEvent(new Event(AI_SUGGESTIONS_EVENT));
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => { backfilling = null; });
+  return backfilling;
+}
+
+/** The player's signals, again whenever names were found or suggestions changed. */
+export function useTasteSignals(): TasteSignals {
   const members = useLibraryGames();
-  const available = useMemo(() => connected && enoughSignals(tasteSignals(readRatings(), loadTasteNames(), members)), [connected, members, order.on]);
-  return { available, on: order.on && available };
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const update = () => setTick(value => value + 1);
+    window.addEventListener(AI_SUGGESTIONS_EVENT, update);
+    void backfillTasteNames();
+    return () => window.removeEventListener(AI_SUGGESTIONS_EVENT, update);
+  }, []);
+  const [signals, setSignals] = useState(() => tasteSignals(readRatings(), loadTasteNames(), members));
+  useEffect(() => setSignals(tasteSignals(readRatings(), loadTasteNames(), members)), [members, tick]);
+  return signals;
 }

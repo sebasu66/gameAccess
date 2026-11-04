@@ -76,6 +76,10 @@ export function rememberTasteGame(game: (CatalogGame & { steam?: SteamMetadata |
 }
 
 const NAMES_KEY = "gameaccess:taste-names";
+/** Keeps names found later for games rated before names were kept (aiSuggestions.backfillTasteNames). */
+export function rememberTasteNames(found: Record<number, string>): void {
+  try { localStorage.setItem(NAMES_KEY, JSON.stringify({ ...loadTasteNames(), ...found })); } catch { /* only the suggestions use it */ }
+}
 /** The names of the games the player rated, by catalog id (rememberTasteGame). */
 export function loadTasteNames(): Record<number, string> {
   try { return JSON.parse(localStorage.getItem(NAMES_KEY) || "{}") as Record<number, string>; } catch { return {}; }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Square, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
 import { aiState } from "./aiConnection";
-import { AI_SUGGESTIONS_EVENT, aiError, aiExplain, aiWhy, enoughSignals, MIN_SIGNALS, readPicks, refreshFreshPicks, refreshPicks, signalCount, tasteSignals, type AiError, type AiPick, type AiPicksState } from "./aiSuggestions";
+import { AI_SUGGESTIONS_EVENT, aiError, aiExplain, aiWhy, enoughSignals, useTasteSignals, MIN_SIGNALS, readPicks, refreshFreshPicks, refreshPicks, signalCount, tasteSignals, type AiError, type AiPick, type AiPicksState } from "./aiSuggestions";
 import { setAppScreen } from "./appScreen";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import { speak, stopSpeaking, useSpeaking, voiceAvailable } from "./aiVoice";
@@ -39,7 +39,7 @@ export default function AiPicks({ onOpenGame }: { onOpenGame: (game: CatalogGame
   const [state, setState] = useState<AiPicksState | null>(() => readPicks());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<AiError | null>(null);
-  const [signals] = useState(() => tasteSignals(readRatings()));
+  const signals = useTasteSignals();
   const ready = enoughSignals(signals);
 
   useEffect(() => { void aiState().then(value => setConnected(value.connected)).catch(() => setConnected(false)); }, []);

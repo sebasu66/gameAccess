@@ -50,7 +50,9 @@ function PersonalOrderSwitch() {
     return () => window.clearTimeout(timer);
   }, [unlocked]);
   const label = t("personalOrderLabel");
-  const tip = !ready ? t("personalOrderLocked", { percent }) : ai.available ? t(on ? "aiSearchOn" : "aiSearchOff") : on ? t("personalOrderOn") : t("personalOrderOff");
+  // Without an AI the tooltip says where the key goes, so the player knows the button can search in words.
+  const tip = ai.available ? t(on ? "aiSearchOn" : "aiSearchOff")
+    : `${!ready ? t("personalOrderLocked", { percent }) : on ? t("personalOrderOn") : t("personalOrderOff")} ${t("aiSearchNeedsKey")}`;
   return <button ref={button} type="button" className={`ga-cube ga-personal-order${on && ready ? " is-on" : ""}`} aria-pressed={on && ready} aria-disabled={!ready} aria-label={`${label}. ${tip}`} title={tip}
     onClick={() => { if (ready) setPersonalOrder(!on); }}><Sparkles size={18} aria-hidden="true" /><span className="ga-cube-label">{label}</span></button>;
 }

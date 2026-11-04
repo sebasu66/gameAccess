@@ -11,7 +11,7 @@ import { recordActivity, type ActivityState } from "../activity/activity";
  */
 export type NoticeTone = "ok" | "info" | "frost" | "danger" | "error";
 export type NoticeActionKind = "primary" | "secondary" | "danger" | "frost";
-export interface NoticeAction { label: string; kind?: NoticeActionKind; run: () => void }
+export interface NoticeAction { label: string; kind?: NoticeActionKind; run: () => void; /** Its tooltip. */ title?: string }
 export type NoticeStepState = "pending" | "running" | "done" | "failed";
 export interface NoticeStep { label: string; state: NoticeStepState }
 export interface NoticeGame { name: string; image?: string | null; appId?: number | null }

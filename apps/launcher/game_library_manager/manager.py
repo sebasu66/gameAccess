@@ -32,7 +32,7 @@ from game_download_manager.ui_text import ui
 # moved into the games folder and adopted (renamed to <AppID>-<name>-ready, like any game Game Access installs).
 # linked_move_resume / linked_move_discard: a move cut short goes on from its half-made copy, or that copy is deleted.
 BATCH_ACTIONS = ("uninstall", "steam_uninstall", "repair", "analyze", "adopt", "discard_transfer", "linked_delete", "linked_move",
-                 "linked_move_resume", "linked_move_discard")
+                 "linked_move_resume", "linked_move_discard", "manual_fixed")
 MOVE_ACTIONS = ("linked_move", "linked_move_resume", "linked_move_discard")
 
 
@@ -637,6 +637,22 @@ class GameLibraryManager:
         return {"ok": True, **outcome, "seconds": seconds}
 
     # -- batch ---------------------------------------------------------------------------------
+    def _manual_fixed(self, app_id: int, name: str) -> dict:
+        """«Arreglado manualmente» (Seba, 2026-11-04): the install stopped (an archive that would not unpack, an
+        installer that failed) and the player fixed the folder by hand. Nothing is unpacked or installed again: the
+        stopped step is forgotten (the download kept for a retry stays where it is) and the folder is analysed as it
+        is now. Ready when it has the game's executable; the app then runs the run check (verify-run)."""
+        analysis = self.manager.analyze(app_id, name)
+        folder = self.storage.folder(app_id, name)
+        if not analysis["ready"]:
+            journal.note(folder, "arreglo manual", f"la carpeta todavía no está lista: {analysis['warning']}")
+            return {"ok": False, "error": analysis["warning"], "analysis": analysis}
+        self.storage.clear_resume(app_id)
+        self.storage.set_status(app_id, name, "ready")
+        journal.note(folder, "arreglo manual", f"el jugador la arregló a mano; ejecutable {analysis['executable']}")
+        self.log.info("AppID %s: fixed by hand, executable %s", app_id, analysis["executable"])
+        return {"ok": True, "analysis": analysis}
+
     def batch(self, action: str, app_ids: list[int]) -> list[dict]:
         """Run one action on many games; one failure never stops the rest."""
         self.log.info("Batch %s on %s", action, list(app_ids))
@@ -684,6 +700,9 @@ class GameLibraryManager:
                 continue
             if action in ("adopt", "repair", "analyze") and self.freezer.is_deep(app_id):
                 results.append({"app_id": app_id, "ok": False, "error": "Está en congelado profundo: descongelalo antes."})
+                continue
+            if action == "manual_fixed":
+                results.append({"app_id": app_id, **self._manual_fixed(app_id, name)})
                 continue
             if app_id in unfinished and action in ("adopt", "repair"):
                 results.append({"app_id": app_id, "ok": False, "error": UNFINISHED_MESSAGE})
