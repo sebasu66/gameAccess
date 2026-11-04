@@ -225,3 +225,32 @@ it("preserves provider ranking instead of promoting a small higher-score supplem
   expect(sources.map(item=>item.title)).toEqual(["Full package","Supplement"]);
   expect(pluginDownloadLabel(game,sources,"es")).toContain("45 GB");
 });
+
+describe("Sources on the game detail", () => {
+  const sourcesFetcher = () => vi.fn(async (url: string): Promise<any> => {
+    if (url.includes("/api/sources?")) return { ok: true, status: 200, json: async () => [{ title: "Example Repack", url: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", type: "torrent", size: "1 GB", score: 1, sourceName: "Feed A" }] };
+    throw new Error("Unexpected URL: " + url);
+  });
+  const catalogSays = (sourceCount: number) => vi.mocked(invoke).mockImplementation(async (cmd: string) =>
+    cmd === "get_registered_plugins" ? [plugin] : cmd === "catalog_cache_query" ? { items: [{ ...game, source_count: sourceCount }], total: 1 } : undefined);
+
+  it("asks no plugin when the local index lists the game without sources", async () => {
+    catalogSays(0);
+    const fetcher = sourcesFetcher();
+    vi.stubGlobal("fetch", fetcher);
+    expect(await getPluginSources(game)).toEqual([]);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("asks the plugin once per game until its index changes", async () => {
+    catalogSays(1);
+    const fetcher = sourcesFetcher();
+    vi.stubGlobal("fetch", fetcher);
+    expect(await getPluginSources(game)).toHaveLength(1);
+    expect(await getPluginSources(game)).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    invalidatePluginSources();
+    await getPluginSources(game);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});

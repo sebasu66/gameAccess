@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
 import {
   applyCatalogSources,
+  queryCatalogCache,
   removePluginCatalogSources,
   type SourceIndexEntry,
 } from "../catalogCache";
@@ -35,6 +36,10 @@ const syncedSessionRevisions = new Map<string, string>();
 const knownSourceNames = new Set<string>();
 let pendingSync: Promise<Record<number, number>> | null = null;
 const keyOf = (game: CatalogGame) => game.app_id ?? game.id;
+/** One plugin answer per game until a plugin or its index changes (`indexVersion`), so reopening a game asks nothing. */
+const gameAnswers = new Map<number, { stamp: string; sources: Promise<PluginSource[]> }>();
+let indexVersion = 0;
+const answerStamp = () => `${pluginGeneration()}:${indexVersion}`;
 
 function getSavedPluginRevision(pluginId: string): string {
   const inMem = appliedRevisions.get(pluginId);
@@ -136,6 +141,7 @@ function endpoint(plugin: PluginManifest, path: string): string {
  * from it, but the catalog database answer is unchanged, so grids must not
  * query again (that re-ran the whole 1000-row query on every selection). */
 function publish(scope: "all" | "game" = "all"): void {
+  if (scope === "all") indexVersion += 1;
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent(SOURCES_CHANGED_EVENT, { detail: { scope } }));
 }
 
@@ -168,7 +174,31 @@ function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[]
     pluginName: plugin.name, sourceName: typeof item.sourceName === "string" ? item.sourceName : plugin.name,
   }];
 }
-export async function getPluginSources(game: CatalogGame): Promise<PluginSource[]> {
+/** Sources for one game. The local catalog database already holds which games the plugins' indexes match, so a
+ * game it lists without sources asks no plugin; the plugin is asked only for the links of a game that has them. */
+export function getPluginSources(game: CatalogGame): Promise<PluginSource[]> {
+  const key = keyOf(game), stamp = answerStamp();
+  const known = gameAnswers.get(key);
+  if (known?.stamp === stamp) return known.sources;
+  const sources = askPlugins(game);
+  gameAnswers.set(key, { stamp, sources });
+  void sources.catch(() => gameAnswers.delete(key));
+  return sources;
+}
+
+/** Linked sources in the local database: 0 when the game is listed without any, null when it is not listed. */
+async function localSourceCount(game: CatalogGame): Promise<number | null> {
+  const found = await queryCatalogCache({ app_ids: [keyOf(game)], limit: 1 }).catch(() => null);
+  const item = found?.items?.[0];
+  return item ? item.source_count ?? 0 : null;
+}
+
+async function askPlugins(game: CatalogGame): Promise<PluginSource[]> {
+  if (await localSourceCount(game) === 0) {
+    void narrate(`AppID ${keyOf(game)} · no download source in the local index; no plugin asked.`, { area: "DOWNLOAD_SOURCES" });
+    detailSources.delete(keyOf(game));
+    return [];
+  }
   const epoch = pluginGeneration();
   const manifests = await plugins();
   void narrate(`AppID ${keyOf(game)} · source discovery started for '${game.name}' with ${manifests.length} registered provider(s).`, { area: "DOWNLOAD_SOURCES" });
@@ -443,6 +473,7 @@ function pluginErrorText(body: { code?: unknown; error?: unknown }): string {
 
 export function invalidatePluginSources(): void {
   detailSources.clear();
+  gameAnswers.clear();
   syncedSessionRevisions.clear();
   appliedRevisions.clear();
   knownSourceNames.clear();
