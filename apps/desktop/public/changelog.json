@@ -3,7 +3,7 @@
   "_help": "What changed in each version, for the card at the top of Home (releaseNotes.ts). Ships inside the app, so the notes always match the installed version. Newest first; one short line per change, in the player's words. Add the new version's entry in the same commit that raises the version.",
   "versions": [
     {
-      "version": "0.1.11",
+      "version": "0.1.12",
       "date": "2026-11-04",
       "changes": {
         "es": [

@@ -143,7 +143,9 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
-          $target = Join-Path $env:RUNNER_TEMP "ga-installed"
+          # The installer keeps the app inside Program Files (installer.nsi, KeepInProgramFiles): a /D= folder elsewhere
+          # falls back to the default, so the test folders live there too.
+          $target = Join-Path $env:ProgramFiles "gameAccess-ci"
           Start-Process $installer.FullName -ArgumentList '/S', "/D=$target" -Wait
           $report = Join-Path $env:RUNNER_TEMP "self-test.json"
           $env:GAMEACCESS_SELF_TEST_OUT = $report
@@ -166,7 +168,7 @@ jobs:
           $global:LASTEXITCODE = 0
           $old = Get-ChildItem "$previousDir/*-setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $old) { Write-Host "No published release yet: the update path is tested by reinstalling this build over itself."; $old = $new }
-          $target = Join-Path $env:RUNNER_TEMP "ga-update"
+          $target = Join-Path $env:ProgramFiles "gameAccess-ci-update"
           Start-Process $old.FullName -ArgumentList '/S', "/D=$target" -Wait
           $launcher = Join-Path $target "runtime/launcher"
           $markers = @("games/Marker Game-ready/game.bin", ".cache/digital-settings.json", ".gameaccess/marker.txt")
