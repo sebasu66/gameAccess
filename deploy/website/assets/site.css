@@ -153,36 +153,55 @@ a { color: inherit; }
 .faq details p { padding: 0 0 20px; }
 .site-footer { padding: 30px var(--gutter) 40px; text-align: center; color: var(--ga-muted); font-size: 13px; }
 .plus-page { min-height: 100vh; display: grid; align-content: center; max-width: 820px; }
+/* Install guide (index.html, #install-guide): the installer is not signed yet (beta), so Windows may warn. An
+   expandable panel with four steps; each one draws the warning in HTML and rings the one button to press. */
+.install-guide { max-width: 980px; margin: 30px auto 0; text-align: left; border: 1px solid #ffffff24; border-radius: 18px; background: #07090d99; }
+.install-guide > summary { display: flex; align-items: center; gap: 14px; padding: 18px 22px; cursor: pointer; font-weight: 800; font-size: 16px; list-style: none; }
+.install-guide > summary::-webkit-details-marker { display: none; }
+.install-guide > summary::after { content: "+"; margin-left: auto; font: 400 26px/1 Manrope, sans-serif; color: var(--ga-orange); transition: transform .2s ease; }
+.install-guide[open] > summary::after { transform: rotate(45deg); }
+.install-guide > summary:focus-visible { outline: 2px solid var(--ga-orange-hover); outline-offset: 4px; border-radius: 14px; }
+.guide-badge { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--ga-orange); color: var(--ga-on-orange); font: 800 17px/1 Manrope, sans-serif; }
+.guide-body { padding: 0 22px 24px; }
+.guide-intro { margin: 0 0 22px; color: #c9cdd1; max-width: 760px; }
+.guide-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; margin: 0; padding: 0; list-style: none; }
+.guide-step h3 { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; font-size: 16px; }
+.guide-step p { margin: 0; color: #c9cdd1; font-size: 14px; line-height: 1.5; }
+.guide-n { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ga-orange); color: var(--ga-orange); font: 800 13px/1 Manrope, sans-serif; }
+.guide-foot { margin: 22px 0 0; padding-top: 16px; border-top: 1px solid var(--ga-line); color: var(--ga-muted); font-size: 14px; }
 
-/* One-click install (install.js): the keys to press, the command and each step as the player's PC reports it */
-.install-flow { display: grid; gap: 18px; max-width: 640px; margin: 30px auto 0; padding-top: 28px; border-top: 1px solid var(--ga-line); text-align: left; }
-.install-flow[hidden] { display: none; }
-.install-keys { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
-.install-key-group { display: inline-flex; align-items: center; gap: 6px; }
-.install-key-group b { color: var(--ga-muted); font-weight: 800; }
-.install-keys kbd { display: inline-grid; place-items: center; min-width: 46px; height: 46px; padding: 0 12px; border-radius: 10px; border: 1px solid #ffffff38; border-bottom-width: 3px; background: linear-gradient(#ffffff14, #ffffff05); font: 800 14px Manrope, sans-serif; color: var(--ga-white); }
-.install-arrow { color: var(--ga-orange); font: 800 22px Manrope, sans-serif; }
-.install-flow .install-howto { margin: 0; text-align: center; color: #c9cdd1; }
-.install-command { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 12px; border: 1px solid #ffffff2e; background: #07090dcc; }
-.install-command code { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 500 13px/1.45 Consolas, "Cascadia Mono", monospace; color: #ffcf9e; }
-.install-status { margin: 0; text-align: center; font-weight: 800; font-size: 17px; }
-.install-status[data-tone="done"] { color: var(--ga-orange-hover); }
-.install-status[data-tone="error"] { color: #ff7a6b; }
-.install-steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.install-steps li { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; column-gap: 12px; padding: 10px 14px; border-radius: 10px; background: #ffffff08; color: var(--ga-muted); transition: color .3s ease, background .3s ease; }
-.install-steps li::before { content: ""; width: 14px; height: 14px; margin: 4px; border-radius: 50%; border: 2px solid #ffffff38; }
-.install-steps li[data-state="running"] { color: var(--ga-white); background: #ff6a0014; }
-.install-steps li[data-state="running"]::before { border-color: var(--ga-orange) transparent var(--ga-orange) var(--ga-orange); animation: install-spin .8s linear infinite; }
-.install-steps li[data-state="ok"], .install-steps li[data-state="skip"] { color: var(--ga-white); }
-.install-steps li[data-state="ok"]::before, .install-steps li[data-state="skip"]::before { content: "✓"; display: grid; place-items: center; width: 22px; height: 22px; margin: 0; border: 0; background: var(--ga-orange); color: var(--ga-on-orange); font: 800 13px/1 Manrope, sans-serif; }
-.install-steps li[data-state="skip"]::before { background: #ffffff38; color: var(--ga-white); }
-.install-steps li[data-state="error"] { color: #ff9b8f; background: #ff3b2614; }
-.install-steps li[data-state="error"]::before { content: "!"; display: grid; place-items: center; width: 22px; height: 22px; margin: 0; border: 0; background: #ff5a47; color: #1a0604; font: 800 13px/1 Manrope, sans-serif; }
-.install-step-label { font-weight: 700; }
-.install-step-detail { font-size: 13px; color: var(--ga-muted); }
-.install-bar { grid-column: 2 / -1; height: 4px; margin-top: 8px; border-radius: 2px; background: #ffffff14; overflow: hidden; }
-.install-bar i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #ff8b1b, var(--ga-orange)); transition: width .8s ease; }
-.install-steps li:not([data-state="running"]):not([data-state="ok"]) .install-bar { display: none; }
-@keyframes install-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .install-steps li[data-state="running"]::before { animation: none; } .install-bar i { transition: none; } }
-@media (max-width: 480px) { .install-command { flex-direction: column; align-items: stretch; } .install-keys kbd { min-width: 40px; height: 40px; } }
+/* The pictures: small drawings of each warning, not screenshots. */
+.guide-shot { position: relative; height: 180px; padding: 18px 16px 14px; border-radius: 12px; overflow: hidden; display: grid; align-content: center;
+  font: 600 11px/1.35 "Segoe UI", system-ui, sans-serif; text-shadow: none; }
+.shot-browser { background: #e9ebef; color: #1b1f24; }
+.shot-blue { background: #0b5cad; color: #fff; }
+.shot-uac { background: #1d2733; color: #e8ecf1; }
+.mock-dl, .mock-smart, .mock-uac { display: grid; gap: 6px; }
+.mock-dl { padding: 10px 12px; border-radius: 8px; background: #fff; box-shadow: 0 6px 18px #0002; }
+.mock-file { font-weight: 700; }
+.mock-warn { color: #b3261e; }
+.mock-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+.mock-dots { padding: 0 8px; border-radius: 6px; font-size: 15px; line-height: 20px; }
+.mock-menu { display: flex; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 10px; color: #555c66; }
+.mock-smart b, .mock-uac b { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.mock-lines { display: grid; gap: 4px; margin: 2px 0 4px; }
+.mock-lines i { height: 5px; border-radius: 3px; background: #ffffff59; }
+.mock-lines i:nth-child(2) { width: 82%; } .mock-lines i:nth-child(3) { width: 60%; }
+.mock-link { justify-self: start; margin-top: 8px; text-decoration: underline; }
+.mock-kv { opacity: .9; }
+.mock-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.mock-btn { padding: 4px 8px; border: 1px solid #ffffffa6; font-weight: 600; white-space: nowrap; }
+.mock-right { justify-self: end; margin-top: 4px; }
+.mock-uac-head { margin: -14px -14px 6px; padding: 7px 14px; background: #0f5aa8; color: #fff; font-weight: 600; }
+.shot-uac .mock-btn { border-color: #ffffff59; background: #ffffff12; min-width: 56px; text-align: center; }
+
+/* A real capture (assets/guide/paso-N.png) replaces the drawing when it is there. */
+.guide-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.guide-shot.has-img > :not(.guide-img) { visibility: hidden; }
+/* The button to press: an orange ring that breathes, with a numbered pin or a pointing hand. */
+.ga-target { position: relative; display: inline-block; border-radius: 6px; box-shadow: 0 0 0 3px var(--ga-orange), 0 0 16px #ff6a00b3; animation: guide-ring 1.6s ease-in-out infinite; }
+.ga-pin { position: absolute; top: -20px; right: -14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ga-orange); color: var(--ga-on-orange); font: 800 12px/1 Manrope, sans-serif; font-style: normal; box-shadow: 0 2px 6px #0008; }
+.ga-pin.is-tap::before { content: "👆"; font-size: 13px; }
+@keyframes guide-ring { 50% { box-shadow: 0 0 0 5px var(--ga-orange), 0 0 26px #ff6a00e6; } }
+@media (prefers-reduced-motion: reduce) { .ga-target { animation: none; } .install-guide > summary::after { transition: none; } }
+@media (max-width: 480px) { .install-guide > summary { padding: 16px; font-size: 15px; } .guide-body { padding: 0 16px 20px; } }
