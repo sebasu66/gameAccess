@@ -38,9 +38,9 @@ actualizado: 2026-11-03
 ### C. Lo que hace Seba
 - [ ] **S1** Crear `gameaccess@proton.me` (destino de los mensajes de contacto).
 - [ ] **S2** Pasar los enlaces de Patreon.
-- [ ] **S3** Decidir si Render se publica desde `main` en vez de `dev` (recomendado al salir: un push a `dev` no le cambia el servidor a los usuarios).
+- [x] **S3** Render publica desde `main` (2026-11-03: Seba cambió la rama en el panel; `main` = `3382f85`, `dev` probado antes en Render). Un push a `main` vuelve a publicar solo (el servicio tiene auto-deploy).
 - [ ] **S4** Mercado Pago, después de que la web esté actualizada.
-- [ ] **S5** (en curso, 2026-11-03: cuenta creada y conectada; Claude creó el dominio `mail.gameaccess.site` en Resend, us-east-1, solo envío, sin seguimiento; faltan los 4 registros DNS + DMARC en DonWeb, la clave de envío en Render y la prueba) Cuenta gratis en Resend (resend.com), verificar el dominio `gameaccess.site` (registros DNS que da Resend) y cargar la clave como `GAMEACCESS_RESEND_API_KEY` en Render. Sin esto los mensajes de contacto llegan a `/admin` pero no al correo. Nota: `render.yaml` dice `branch: main`, pero Render publica desde `dev` (configurado en el panel).
+- [x] **S5** Correo de contacto con Resend (2026-11-03): dominio `mail.gameaccess.site` verificado (DNS en DonWeb, con DMARC), clave de solo envío `gameaccess-render-support` cargada por Seba en Render como `GAMEACCESS_RESEND_API_KEY`; mensaje de prueba enviado a game-access-contacto@proton.me (Resend: sent).
 
 
 ### Próximamente (no bloquea la salida)
