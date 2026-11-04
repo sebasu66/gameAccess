@@ -3,7 +3,9 @@
  * code and compares them with Steam's saved answers and with the previous pass, then takes a picture of each screen.
  * Leaves report.json, summary.md and shots/ in a dated folder under runs/, next to the previous passes.
  *
- *   node regress/run.mjs [--no-build] [--only search|screens]
+ *   node regress/run.mjs [--no-build] [--only search|screens|cycle] [--cycle]
+ *
+ * --cycle adds the whole life of a fixed game (cycle.mjs): it downloads about 600 MB through the source plugin.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,6 +14,7 @@ import { Instance } from "../instance.mjs";
 import { catalogSearch, explainMissing } from "../page.mjs";
 import { compareWithPrevious, compareWithSteam, steamMatches } from "./compare.mjs";
 import { steamStatus } from "./steam-status.mjs";
+import { runCycle } from "./cycle.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNS = process.env.GA_RUNS ?? join(process.env.LOCALAPPDATA, "GameAccess-MCP", "runs");
@@ -121,6 +124,15 @@ function summary() {
     const issues = screen.problems.filter(problem => problem.kind === "page-error" || problem.kind === "console-error").length;
     lines.push(`- ${screen.name}: ${screen.shot}${issues ? ` · ${issues} errores en consola` : ""}${screen.failed_commands.length ? ` · comandos fallidos: ${screen.failed_commands.join(", ")}` : ""}`);
   }
+  if (report.cycle) {
+    lines.push("", "## Ciclo de un juego", "", "| Paso | Resultado | Tiempo | Detalle |", "|---|---|---|---|");
+    for (const step of report.cycle) {
+      const result = step.ok ? "ok" : step.blocked ? `no listo (${step.blocked})` : "FALLA";
+      const detail = String(step.detail ?? "").replace(/\|/g, "/").replace(/\s+/g, " ");
+      lines.push(`| ${step.step} | ${result} | ${Math.round((step.ms ?? 0) / 1000)} s | ${detail}${step.errors?.length ? ` · ${step.errors.length} errores en consola` : ""}${step.failed_loads?.length ? ` · no cargó: ${[...new Set(step.failed_loads)].join(", ")}` : ""} |`);
+    }
+  }
+  if (report.not_ready?.length) lines.push("", "## No listo (la máquina, no la app)", "", ...report.not_ready.map(item => `- ${item.step}: ${item.why}`));
   lines.push("", "## Fallas", "", ...(report.failures.length ? report.failures.map(item => `- ${item.step}: ${item.error}`) : ["Ninguna."]), "");
   return lines.join("\n");
 }
@@ -129,8 +141,13 @@ try {
   // Not a failure of the app: the steps that run games report it as their reason.
   report.steam = await steamStatus();
   const page = await ready();
-  if (only !== "screens") await searches(page);
-  if (only !== "search") await screens(page);
+  if (!only || only === "search") await searches(page);
+  if (!only || only === "screens") await screens(page);
+  if (only === "cycle" || args.includes("--cycle")) {
+    report.cycle = await runCycle(page, instance, console.log);
+    for (const step of report.cycle.filter(item => !item.ok && !item.blocked)) fail(`cycle ${step.step}`, step.detail);
+    report.not_ready = report.cycle.filter(item => item.blocked).map(item => ({ step: `cycle ${item.step}`, why: item.blocked }));
+  }
 } catch (error) {
   fail("start", error);
 } finally {

@@ -71,6 +71,13 @@ Antes de empezar anota si el cliente de Steam está abierto y con una cuenta con
 el proceso `steam.exe` y `ActiveUser` en `HKCU\Software\Valve\Steam\ActiveProcess`). Ejecutar juegos lo necesita;
 si falta, el informe lo dice como paso no listo, no como falla del juego.
 
+Con `--cycle` (o `--only cycle`) suma la vida entera de un juego fijo, Terraria (105600), por los mismos servicios que
+usan los botones (`regress/cycle.mjs`): fuentes del plugin, nivel de la cola (base: 1 descarga; PLUS: hasta 4),
+descarga e instalación, carpeta en disco con su ejecutable, verificación, jugar (que el proceso siga vivo 15 s y se
+cierra), congelar, descongelar, verificar y jugar otra vez, y desinstalar (que la carpeta ya no esté). Baja unos
+600 MB y usa la carpeta de juegos real de la PC; si Terraria ya está instalado no corre, para no borrarlo. Jugar
+necesita Steam con sesión: si falta, el paso queda como **no listo** (la máquina), no como falla del juego.
+
 Deja `report.json`, `summary.md` y `shots/` en `%LOCALAPPDATA%\GameAccess-MCP\runs\<fecha>` (u otra carpeta con
 `GA_RUNS`). Cada informe nombra la pasada anterior y su captura de la misma pantalla. `--no-build` reusa la última
 build; `--only search` u `--only screens` hace solo una parte.
@@ -90,8 +97,17 @@ Para sumar una búsqueda: agregarla en `searches.json` con su versión de Steam 
   `build.log`, `app.log` y `server.log`. La build va a `apps/desktop/src-tauri/target/mcp`.
 - **La biblioteca no está aislada.** La carpeta de juegos sale del registro del instalador (HKLM `GamesDir`) o de
   `C:\juegos_GameAccess` si existe (`launcher_data.py`), no del perfil de prueba: el gestor de biblioteca de la
-  instancia muestra los juegos reales de la PC. Por eso todavía no hay ciclo de descarga e instalación automático.
+  instancia muestra los juegos reales de la PC, y el ciclo instala ahí (Seba lo aceptó, 2026-11-04).
 - Lo que es del sistema se comparte: la instancia ve tu Steam (juegos instalados), la activación PLUS de la PC y el
   plugin de fuentes registrado. Descargar, instalar o congelar desde la prueba actúa sobre esas cosas reales.
 - Los argumentos de cada comando se recortan a 1000 caracteres en los informes: al abrir, `catalog_sources_apply`
   manda 13,5 MB por IPC, y una respuesta de más de 10 MB corta la conexión del cliente MCP.
+
+## Windows Sandbox (pendiente)
+
+`regress/sandbox/steam-login.ps1` instala Steam sin intervención si falta (`SteamSetup.exe /S`) y entra con la
+primera cuenta de prueba que funcione (`vault/Cuentas/accFull.csv`, copiada a la carpeta compartida solo para la
+pasada y borrada al terminar); el informe dice "account N", nunca la cuenta. Lo corre Seba: los agentes no inician
+sesión con contraseñas. Falta el resto: el `.wsb`, el instalador de prueba, el plugin instalado desde el botón de su
+página (la dirección se lee de un archivo local, nunca del repo) y la pasada sin PLUS y con una llave de prueba. Una
+app instalada no tiene el código fuente en Vite, así que ahí el ciclo tiene que llamar a los comandos de la app.

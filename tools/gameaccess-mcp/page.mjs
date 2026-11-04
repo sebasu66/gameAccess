@@ -74,3 +74,34 @@ export async function explainMissing({ query = "", filters = {}, appIds }) {
     };
   });
 }
+
+/**
+ * One step of a game's life, through the services the interface's buttons call: sources, download, status, verify,
+ * play, freeze, thaw, uninstall. The game is looked up by Steam app id, as the catalog does.
+ */
+export async function gameStep({ appId, step }) {
+  const [{ digitalCatalogService }, { digitalProcessManager }, { digitalDownloadService }, freezeJobs] = await Promise.all([
+    import("/src/catalog/DigitalCatalog.ts"), import("/src/catalog/DigitalProcessManager.ts"),
+    import("/src/catalog/DigitalDownloadService.ts"), import("/src/freezeJobs.ts"),
+  ]);
+  const [game] = await digitalCatalogService.getGamesByAppIds([appId]);
+  if (!game) throw new Error(`The catalog has no game with app id ${appId}.`);
+  const invoke = (command, args) => window.__TAURI_INTERNALS__.invoke(command, args);
+  switch (step) {
+    case "sources":
+      // Only what a report needs: the resolver links carry the plugin's tokens.
+      return (await digitalCatalogService.getSources(game)).map(source => ({
+        source: source.sourceName, plugin: source.pluginName, type: source.type, size: source.size, title: source.title, learned: source.lesson ?? null,
+      }));
+    case "download": await digitalCatalogService.download(game); return { started: true };
+    case "status": return { ...(await digitalCatalogService.getStatus(game)), managed: digitalDownloadService.getManagedStatus(game.id) ?? null };
+    case "process": return digitalProcessManager.status(game);
+    case "queue": return invoke("download_queue_request", { path: "/state", body: null });
+    case "verify": return digitalProcessManager.verifyRun(game, true);
+    case "play": await digitalCatalogService.play(game); return { started: true };
+    case "launch": return invoke("launch_progress", { appId });
+    case "freeze": case "thaw": return freezeJobs.startFreezeJob(game, step).done;
+    case "uninstall": return digitalCatalogService.uninstall(game);
+    default: throw new Error(`Unknown step ${step}.`);
+  }
+}

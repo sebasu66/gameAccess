@@ -193,7 +193,11 @@ export class Instance {
       record({ kind: "ipc", command, args, status: response?.status() ?? null, result });
     };
     page.on("requestfinished", async request => finished(request, await request.response().catch(() => null)));
-    page.on("requestfailed", request => finished(request, null));
+    page.on("requestfailed", request => {
+      // A console "Failed to load resource" does not say what failed to load: the address does.
+      if (!commandFromUrl(request.url())) record({ kind: "request-failed", url: request.url().slice(0, 300), error: request.failure()?.errorText ?? null });
+      return finished(request, null);
+    });
   }
 
   /** Waits until the page stops asking the app for things, with a cap because some screens poll forever. */
