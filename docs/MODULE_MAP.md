@@ -12,7 +12,7 @@ implementations. Follow the flow to its owner before changing behavior.
 | `api_dependencies.py` | Shared session injection |
 | `catalog_routes.py`, `steam_search_routes.py` | Public catalog/detail/search endpoints |
 | `catalog_metadata.py`, `discovery_service.py` | Durable catalog data and update packages |
-| `steam_client.py`, `review_maintenance.py` | Shared Steam adapter and review maintenance |
+| `steam_client.py` | Shared Steam adapter (review scores come with the daily catalog, not from the server) |
 | `activation_routes.py`, `access_service.py` | Client activation and session checks |
 | `access_admin_routes.py`, `admin_security.py` | Administrative access-key operations |
 | `client_error_routes.py` | Sanitized client error reports and views |

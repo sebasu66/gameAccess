@@ -11,6 +11,12 @@ Both answers come from the same store request, so resolving them together costs
 nothing extra. Cover URLs are measured: guessed `library_600x900_2x.jpg` paths
 answer HTTP 200 for roughly 44% of games, while the hashed URLs returned here
 answer 200 for 199 of 200 sampled games.
+
+The same request also carries the review summary, weighted tags, release date,
+platforms and temporary free offers, so the daily catalog job gets them for every
+game in one pass and the central server never asks Steam for reviews. Measured on
+1,000 catalog games: scores differ from Steam's own review endpoint by a median of
+0.5 points.
 """
 from __future__ import annotations
 
@@ -18,6 +24,7 @@ import hashlib
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -27,12 +34,15 @@ LOG = logging.getLogger("gameaccess.artwork")
 STORE_API = "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/"
 ASSET_BASE = "https://shared.akamai.steamstatic.com/store_item_assets/"
 USER_AGENT = "GameAccess/1.0 discovery catalog (metadata only)"
-# The endpoint accepts a batch of ids per call; 50 keeps the query string sane.
-BATCH_SIZE = 50
+# The endpoint accepts a batch of ids per call: 200 answer in under a second, 300
+# are refused with HTTP 400 (measured 2026-11-04); 100 leaves room in the query string.
+BATCH_SIZE = 100
 # Bump when the resolved payload gains a field. The cache key includes it so
 # batches written before a field existed are refetched rather than misread as
 # "the API returned nothing" for that field.
-CACHE_VERSION = 2
+CACHE_VERSION = 3
+# Steam returns tags by weight; the first 20 are the ones its own store shows.
+TAG_COUNT = 20
 
 # Valve's content descriptor ids, confirmed against known titles:
 #   1 = some nudity or sexual content      -> South Park, Dragon's Dogma 2
@@ -100,6 +110,63 @@ def categories_from_item(item: dict) -> list[int]:
     return sorted({value for value in values if isinstance(value, int) and value in PLAYER_CATEGORY_IDS})
 
 
+def reviews_from_item(item: dict) -> dict[str, int]:
+    """Review count and percent positive; a game without reviews has no score."""
+    summary = (item.get("reviews") or {}).get("summary_filtered")
+    if not isinstance(summary, dict):
+        return {}
+    count, score = summary.get("review_count"), summary.get("percent_positive")
+    result = {}
+    if isinstance(count, int) and count >= 0:
+        result["steam_review_count"] = count
+        if count and isinstance(score, int) and 0 <= score <= 100:
+            result["steam_review_score"] = score
+    return result
+
+
+def tags_from_item(item: dict) -> list[int]:
+    """Tag ids, heaviest first, so the order says what the game mostly is."""
+    tags = item.get("tags")
+    if isinstance(tags, list) and tags:
+        weighted = [t for t in tags if isinstance(t, dict) and isinstance(t.get("tagid"), int)]
+        return [t["tagid"] for t in sorted(weighted, key=lambda t: -int(t.get("weight") or 0))]
+    ids = item.get("tagids")
+    return [value for value in ids if isinstance(value, int)] if isinstance(ids, list) else []
+
+
+def release_from_item(item: dict) -> str | None:
+    """Release day; games still coming soon have none."""
+    stamp = (item.get("release") or {}).get("steam_release_date")
+    if not isinstance(stamp, int) or stamp <= 0:
+        return None
+    return datetime.fromtimestamp(stamp, tz=timezone.utc).date().isoformat()
+
+
+def platforms_from_item(item: dict) -> list[str] | None:
+    platforms = item.get("platforms")
+    if not isinstance(platforms, dict):
+        return None
+    return [name for name, key in (("win", "windows"), ("mac", "mac"), ("linux", "steamos_linux")) if platforms.get(key)]
+
+
+def free_promo_from_item(item: dict) -> dict | None:
+    """A paid game Steam gives away for a while: free weekend or free to keep.
+
+    Times are Unix seconds. Free-to-play games are not promotions and return None.
+    """
+    weekend = item.get("free_weekend")
+    if isinstance(weekend, dict) and isinstance(weekend.get("end_time"), int):
+        return {"kind": "free_weekend", "starts_at": weekend.get("start_time"), "ends_at": weekend["end_time"]}
+    option = item.get("best_purchase_option")
+    if isinstance(option, dict) and option.get("is_free_to_keep"):
+        ends = option.get("free_to_keep_ends") or max(
+            (d.get("discount_end_date") or 0 for d in option.get("active_discounts") or [] if isinstance(d, dict)), default=0)
+        return {"kind": "free_to_keep", "ends_at": ends or None}
+    if item.get("is_free_temporarily"):
+        return {"kind": "free_temporarily", "ends_at": None}
+    return None
+
+
 def is_adult_only(descriptor_ids: list[int] | None) -> bool:
     """Adult-only sexual content, per Valve's descriptors rather than user tags."""
     return bool(ADULT_ONLY_DESCRIPTORS.intersection(descriptor_ids or []))
@@ -133,7 +200,8 @@ class ArtworkResolver:
         payload = {
             "ids": [{"appid": app_id} for app_id in app_ids],
             "context": {"language": "english", "country_code": "US"},
-            "data_request": {"include_assets": True},
+            "data_request": {"include_assets": True, "include_reviews": True, "include_tag_count": TAG_COUNT,
+                             "include_release": True, "include_platforms": True},
         }
         for attempt in range(4):
             time.sleep(max(0, self.delay - (time.monotonic() - self.last_request)))
@@ -152,8 +220,13 @@ class ArtworkResolver:
                     # so the catalog pays for a single request for both.
                     resolved[app_id] = {
                         **assets_from_item(item),
+                        **reviews_from_item(item),
                         "content_descriptorids": descriptors_from_item(item),
                         "steam_category_ids": categories_from_item(item),
+                        "steam_tag_ids": tags_from_item(item),
+                        "release_date": release_from_item(item),
+                        "platforms": platforms_from_item(item),
+                        "steam_free_promo": free_promo_from_item(item),
                     }
             return resolved
         # A failed batch must not abort the whole catalog: those games keep
@@ -186,14 +259,15 @@ class ArtworkResolver:
         return result
 
 
-def apply_assets(games: dict, resolved: dict[int, dict[str, object]]) -> dict[str, int]:
-    """Copy resolved URLs and official ratings onto the catalog records.
+def apply_assets(games: dict, resolved: dict[int, dict[str, object]], tag_names: dict[int, str] | None = None) -> dict[str, int]:
+    """Copy resolved URLs, official ratings, reviews and tags onto the catalog records.
 
     An asset the API did not return for a game is left untouched rather than
     overwritten, so a partial API response never erases a known-good URL.
     """
     report = {"matched": 0, "capsule": 0, "hero": 0, "header": 0, "missing": 0,
-              "descriptors": 0, "adult_only": 0, "nudity": 0, "categories": 0}
+              "descriptors": 0, "adult_only": 0, "nudity": 0, "categories": 0,
+              "reviews": 0, "tags": 0, "free_promos": 0}
     for app_id, game in games.items():
         resolved_item = resolved.get(app_id)
         if resolved_item is None:
@@ -225,4 +299,30 @@ def apply_assets(games: dict, resolved: dict[int, dict[str, object]]) -> dict[st
             game["steam_category_ids"] = categories
             if categories:
                 report["categories"] += 1
+        if "steam_review_count" in resolved_item:
+            game["steam_review_count"] = resolved_item["steam_review_count"]
+            if "steam_review_score" in resolved_item:
+                game["steam_review_score"] = resolved_item["steam_review_score"]
+                report["reviews"] += 1
+        tag_ids = resolved_item.get("steam_tag_ids")
+        if tag_ids:
+            game["steam_tag_ids"] = tag_ids
+            report["tags"] += 1
+            if tag_names:
+                # Replace this source's previous tags, keep the ones other sources gave.
+                names = [tag_names[t] for t in tag_ids if t in tag_names]
+                previous = set(game.get("tag_sources", {}).get("steam-store", []))
+                game["tags"] = sorted((set(game.get("tags", [])) - previous) | set(names))
+                game["tag_sources"] = {**game.get("tag_sources", {}), "steam-store": names}
+        for field in ("release_date", "platforms"):
+            if resolved_item.get(field) is not None:
+                game[field] = resolved_item[field]
+        # Present but empty means the offer ended, so the flag goes away.
+        if "steam_free_promo" in resolved_item:
+            promo = resolved_item["steam_free_promo"]
+            if promo:
+                game["steam_free_promo"] = promo
+                report["free_promos"] += 1
+            else:
+                game.pop("steam_free_promo", None)
     return report

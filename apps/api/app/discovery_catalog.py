@@ -136,12 +136,22 @@ class Remote:
         raise RuntimeError("Metadata service remained unavailable after backoff")
 
 
-def discover(remote, cutoff: date, today: date, *, popular_limit: int = 5000):
+def discover(remote, cutoff: date, today: date, *, popular_limit: int = 5000,
+             important_since: date | None = None, important_min_reviews: int = 100):
+    """Recent releases, the top of Steam's review ranking, and every important game since a date.
+
+    Steam's review ranking groups games by score, not by how many reviews they have, so its
+    first pages miss well-known games with an average score. With `important_since`, the whole
+    ranking is read and any game released since then with enough reviews is kept too.
+    """
     rows = {}
     report = {"released_since": cutoff.isoformat(), "through": today.isoformat(),
               "recent_complete": False, "recent_count": 0, "popular_limit": popular_limit,
               "source": STORE + "/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1"}
-    for sort, limit in (("Released_DESC", None), ("Reviews_DESC", popular_limit)):
+    if important_since:
+        report.update({"important_since": important_since.isoformat(),
+                       "important_min_reviews": important_min_reviews, "important_count": 0})
+    for sort, limit in (("Released_DESC", None), ("Reviews_DESC", None if important_since else popular_limit)):
         start = 0
         recent_ids = set()
         while limit is None or start < limit:
@@ -166,7 +176,12 @@ def discover(remote, cutoff: date, today: date, *, popular_limit: int = 5000):
                         rows[row["app_id"]] = row
                         recent_ids.add(row["app_id"])
                 elif not released or released <= today:
-                    rows.setdefault(row["app_id"], row)
+                    if start < popular_limit:
+                        rows.setdefault(row["app_id"], row)
+                    elif (released and important_since and released >= important_since
+                          and (row["review_count"] or 0) >= important_min_reviews and row["app_id"] not in rows):
+                        rows[row["app_id"]] = row
+                        report["important_count"] += 1
             start += 100
             LOG.info("Steam %s offset=%s total=%s collected=%s", sort, start, total, len(rows))
             if boundary or start >= total:
@@ -412,24 +427,29 @@ def refresh(args):
         }) as client:
             remote = Remote(client, args.cache_dir, args.delay)
             names = {int(t["tagid"]): t["name"] for t in remote.get(STORE + "/tagdata/populartags/english", ttl=86400)}
-            rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit)
+            years = args.important_years
+            important_since = today - timedelta(days=365 * years + years // 4) if years else None
+            rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit,
+                                    important_since=important_since, important_min_reviews=args.important_min_reviews)
             merge_search(games, rows, names)
             report["cooptimus"] = enrich_cooptimus(remote, games, args.cooptimus_limit)
             # Resolve real artwork and official age ratings once here, so no client
             # ever guesses a cover URL or decides adult content from user tags.
             if getattr(args, "resolve_artwork", True):
                 resolver = ArtworkResolver(remote.client, args.cache_dir / "artwork", delay=args.delay)
-                asset_report = apply_assets(games, resolver.resolve(sorted(games)))
+                asset_report = apply_assets(games, resolver.resolve(sorted(games)), names)
                 asset_report["requests"] = resolver.requests
                 asset_report["cache_hits"] = resolver.cache_hits
                 report["artwork"] = asset_report
                 LOG.info(
                     "Assets resolved: matched=%s capsule=%s hero=%s header=%s missing=%s "
-                    "descriptors=%s adult_only=%s nudity=%s category_ids=%s requests=%s cache_hits=%s",
+                    "descriptors=%s adult_only=%s nudity=%s category_ids=%s reviews=%s tags=%s free_promos=%s "
+                    "requests=%s cache_hits=%s",
                     asset_report["matched"], asset_report["capsule"], asset_report["hero"],
                     asset_report["header"], asset_report["missing"],
                     asset_report["descriptors"], asset_report["adult_only"],
                     asset_report["nudity"], asset_report["categories"],
+                    asset_report["reviews"], asset_report["tags"], asset_report["free_promos"],
                     asset_report["requests"], asset_report["cache_hits"],
                 )
     # The server's own data is added last and only fills gaps, so Steam's fresh values win.
@@ -473,6 +493,9 @@ def main():
     parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--as-of")
     parser.add_argument("--popular-limit", type=int, default=5000)
+    parser.add_argument("--important-years", type=int, default=10,
+                        help="Also keep games released in the last N years with enough reviews (0 turns it off).")
+    parser.add_argument("--important-min-reviews", type=int, default=100)
     parser.add_argument("--cooptimus-limit", type=int, default=0)
     parser.add_argument("--enrichment-file", type=Path)
     parser.add_argument("--delay", type=float, default=1.1)

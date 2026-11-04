@@ -45,6 +45,23 @@ def test_traversal_includes_boundary_and_stops_before_older_games():
     assert report["recent_count"] == 2
 
 
+def test_whole_review_ranking_keeps_important_games_since_a_date():
+    class Remote:
+        def get(self, url, params):
+            if params["sort_by"] == "Released_DESC":
+                return page(10, "Oct 10, 2026")
+            # Past the popular limit, only games released since the date with enough reviews stay.
+            return {0: page(20, "Oct 10, 2010"), 100: page(21, "Oct 10, 2020"),
+                    200: page(22, "Oct 10, 2012")}[params["start"]]
+    args = (Remote(), date(2025,10,10), date(2026,10,10))
+    rows, report = discover(*args, popular_limit=100, important_since=date(2016,10,10), important_min_reviews=1000)
+    assert {row["app_id"] for row in rows} == {10, 20, 21}
+    assert report["important_count"] == 1
+    rows, report = discover(*args, popular_limit=100, important_since=date(2016,10,10), important_min_reviews=5000)
+    assert {row["app_id"] for row in rows} == {10, 20}
+    assert report["important_count"] == 0
+
+
 def test_incomplete_page_is_not_published():
     class Remote:
         def get(self, url, params):
