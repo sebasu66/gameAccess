@@ -11,7 +11,7 @@ implementations. Follow the flow to its owner before changing behavior.
 | `models.py`, `api_schemas.py` | Persistent records and request contracts |
 | `api_dependencies.py` | Shared session injection |
 | `catalog_routes.py`, `steam_search_routes.py` | Public catalog/detail/search endpoints |
-| `catalog_metadata.py`, `discovery_service.py` | Durable catalog data and update packages |
+| `catalog_metadata.py`, `catalog_updates.py` | Durable catalog data and the update batches the daily job publishes on GitHub |
 | `steam_client.py` | Shared Steam adapter (review scores come with the daily catalog, not from the server) |
 | `activation_routes.py`, `access_service.py` | Client activation and session checks |
 | `access_admin_routes.py`, `admin_security.py` | Administrative access-key operations |

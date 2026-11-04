@@ -372,3 +372,19 @@ def test_steam_uninstall_only_for_installed_steam_games(setup):
     assert library.batch("steam_uninstall", [99])[0] == {"app_id": 99, "ok": False, "error": "No es un juego de Steam instalado."}
     with pytest.raises(ValueError, match="no tiene instalado"):
         steam.uninstall(99)
+
+
+def test_uninstall_finds_a_game_in_a_library_steam_no_longer_lists(setup, tmp_path):
+    steam, storage, _, _ = setup
+    forgotten = tmp_path / "ForgottenLibrary" / "steamapps"
+    _manifest(forgotten, 60, "Ride", OWNER)
+    (forgotten / "common" / "Ride" / "game.exe").write_bytes(b"x")
+    storage.linked.link(60, "RV There Yet?", str(forgotten / "common" / "Ride"), kind="steam")
+    library = GameLibraryManager(storage, steam=steam)
+    assert library.batch("steam_uninstall", [60])[0]["ok"] is True
+    assert not (forgotten / "common" / "Ride").exists() and not (forgotten / "appmanifest_60.acf").exists()
+
+
+def test_removing_a_game_already_gone_from_the_library_is_done(setup):
+    steam, storage, _, _ = setup
+    assert GameLibraryManager(storage, steam=steam).batch("uninstall", [99999]) == [{"app_id": 99999, "ok": True, "already_gone": True}]

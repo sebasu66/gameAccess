@@ -49,17 +49,22 @@ pub(crate) fn open_cooptimus_page(url: String) -> Result<(), String> {
     if !url.starts_with("https://www.co-optimus.com/") || url.len() > 600 || url.chars().any(|c| c.is_control() || c == ' ') {
         return Err("Only Co-Optimus pages can be opened".into());
     }
+    open_external(&url)
+}
+
+/// Opens a web page in the player's default browser (the caller has checked the address).
+pub(crate) fn open_external(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let mut command = {
         use std::os::windows::process::CommandExt;
         let mut command = std::process::Command::new("rundll32.exe");
-        command.args(["url.dll,FileProtocolHandler", &url]).creation_flags(0x0800_0000);
+        command.args(["url.dll,FileProtocolHandler", url]).creation_flags(0x0800_0000);
         command
     };
     #[cfg(target_os = "macos")]
-    let mut command = { let mut command = std::process::Command::new("open"); command.arg(&url); command };
+    let mut command = { let mut command = std::process::Command::new("open"); command.arg(url); command };
     #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = { let mut command = std::process::Command::new("xdg-open"); command.arg(&url); command };
+    let mut command = { let mut command = std::process::Command::new("xdg-open"); command.arg(url); command };
     command.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 

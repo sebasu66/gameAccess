@@ -23,7 +23,11 @@ Every catalog game is then read from `IStoreBrowseService/GetItems` (official, n
 100 AppIDs per request): real cover URLs, Valve's age descriptors, player categories,
 review count and percent positive, the 20 heaviest tags, release date, platforms and
 temporary free offers (`steam_free_promo`: free weekend or free to keep, with its end
-time). The central server no longer asks Steam for reviews.
+time), developers, publishers and franchises, Spanish support (`spanish`: interface,
+subtitles, full audio, Latin American), the official minimum age (`required_age`), Steam
+Deck compatibility (`steam_deck`: verified, playable, unsupported) and controller support
+(`controller_support`: full, partial). A value Steam stops reporting is removed. The
+central server no longer asks Steam for reviews.
 
 Co-Optimus is separate: opening a game detail invokes a server lookup by exact
 Steam AppID. Verified results cache for seven days; failures retry after an hour.
@@ -37,32 +41,20 @@ installer. The first catalog load reads this SQLite seed without waiting for a
 network response. An upgraded installer can replace an older seed offline, while
 a newer downloaded database is retained.
 
-Five seconds after catalog display, then every 30 minutes, on focus after that
-interval and on manual refresh, the client checks the configured server's
-/library/catalog/manifest. It falls back to the configured GitHub manifest.
-An unchanged revision downloads nothing. A new package is checked against its
-SHA-256, SQLite schema, revision and count before atomic replacement. Update
-failures preserve the previous catalog. The previous library and downloads are
-stored separately.
+At startup, then every 24 hours (and on focus once that time has passed) or on manual refresh, the client
+reads the GitHub manifest (`catalog_manifest_url` in gameaccess.settings.json). An unchanged revision
+downloads nothing. If the manifest lists an update from the client's revision under `updates`, only that
+batch is downloaded; otherwise the full package is. A new package is checked against its SHA-256, SQLite
+schema, revision and count before atomic replacement. Update failures preserve the previous catalog. The
+previous library and downloads are stored separately.
 
 The package is built only by the daily GitHub Actions job (`.github/workflows/discovery-catalog.yml`),
-which commits it to `deploy/catalog-cache` on `dev`. The central API never builds it (that loaded the whole
-catalog into memory and took the 512 MB Render server down at every start): a background thread downloads the
-published package when its revision changes (streamed to disk, SHA-256 checked) and keeps the last three, so
-clients a day or two behind get a delta of additions and changes, computed on disk. The thread checks every
-6 hours; the time of the last check is kept on disk, so a restart does not check again. It never blocks
-health, login or catalog requests. GAMEACCESS_DISCOVERY_SYNC=0 disables it, GAMEACCESS_DISCOVERY_DIR selects
-the writable package directory and GAMEACCESS_DISCOVERY_INTERVAL_SECONDS the interval (minimum one hour).
-
-Server routes:
-- GET /library/catalog/manifest
-- GET /library/catalog/packages/{revision}
-- GET /library/catalog/status
-- GET /library/games/{app_id}/cooptimus
+which commits it to `deploy/catalog-cache` on `dev`. The central server takes no part: it neither builds,
+downloads nor serves the catalog, and game details are asked from Steam by each client on a local cache miss.
+The only per-game server route left is GET /library/games/{app_id}/cooptimus.
 
 The daily GitHub workflow also refreshes the committed installer seed on dev.
 Scheduled workflows require this workflow to be integrated in the default branch.
-The server keeps earlier immutable packages for clients already downloading them.
 Operational request caches and third-party response caches stay outside Git.
 
 ## Administrative refresh
@@ -82,4 +74,4 @@ exact app_id, source, source_url, tags and verified player-count fields through
 available for deeper tag enrichment. PCGamingWiki's path importer remains separate.
 
 For validation use PYTHONPATH=apps/api and run pytest on
-tools/catalog-cache/test_discovery_catalog.py and apps/api/tests/test_discovery_service.py.
+tools/catalog-cache/test_discovery_catalog.py and apps/api/tests/test_catalog_updates.py.

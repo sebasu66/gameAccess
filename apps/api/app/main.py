@@ -19,12 +19,11 @@ from .access_service import now_utc
 from .access_keys import ensure_access_key_schema
 from .access_overrides import courtesy_access_configured
 from .catalog_metadata import ensure_catalog_schema, seed_known_games
-from .steam_client import steam_catalog
 from .activation_routes import router as activation_router, require_active_installation, redeem_access_key, activation_status
 from .access_admin_routes import router as access_admin_router, create_access_keys, list_access_keys, renew_access_key, revoke_access_key
 from .account_admin_routes import router as account_admin_router
 from .client_error_routes import router as client_error_router, report_client_error, admin_client_errors_view
-from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary, library_catalog, digital_game_details
+from .catalog_routes import router as catalog_router, CATALOG_PRODUCT_FILTER, game_summary
 from .viking_cache_routes import router as viking_cache_router
 from .viking_chunk_routes import router as viking_chunk_router
 from .admin_dashboard_routes import router as admin_dashboard_router
@@ -45,6 +44,12 @@ app.add_middleware(
         "tauri://localhost",
         "https://tauri.localhost",
         "http://tauri.localhost",
+        # The website's install page (web_install.py) and a local copy of it for tests.
+        "https://gameaccess.site",
+        "https://www.gameaccess.site",
+        "https://mineral-mantle-7vbt.here.now",
+        "http://localhost:8790",
+        "http://127.0.0.1:8790",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
@@ -86,16 +91,12 @@ def startup() -> None:
     recover_interrupted_chunk_jobs(local_engine)
     from .telemetry import start_sampler
     start_sampler(local_engine)
-    from .discovery_service import start_maintenance
-    start_maintenance()
     from .keep_awake import start as start_keep_awake
     start_keep_awake()
 
 
 @app.on_event("shutdown")
-def stop_discovery_worker():
-    from .discovery_service import stop_maintenance
-    stop_maintenance()
+def stop_workers():
     from .telemetry import stop_sampler
     stop_sampler()
     from .keep_awake import stop as stop_keep_awake
@@ -146,7 +147,6 @@ def get_user(user_id: int, session: Session = Depends(get_session)) -> User:
 from .steam_search_routes import router as steam_search_router
 from .resolver_routes import router as resolver_router
 from .linkvertise_access import router as linkvertise_access_router
-from .discovery_service import router as discovery_router
 from .cooptimus import router as cooptimus_router
 from .steam_owned_routes import router as steam_owned_router
 from .premium_routes import router as premium_router
@@ -154,17 +154,18 @@ from .game_lessons import router as game_lessons_router
 from .run_fixes import router as run_fixes_router
 from .support import router as support_router
 from .account_routes import router as account_router
+from .web_install import router as web_install_router
 app.include_router(premium_router)
 app.include_router(steam_search_router)
 app.include_router(resolver_router)
 app.include_router(linkvertise_access_router)
-app.include_router(discovery_router)
 app.include_router(cooptimus_router)
 app.include_router(steam_owned_router)
 app.include_router(game_lessons_router)
 app.include_router(run_fixes_router)
 app.include_router(support_router)
 app.include_router(account_router)
+app.include_router(web_install_router)
 
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)

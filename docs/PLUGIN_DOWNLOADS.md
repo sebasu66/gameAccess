@@ -12,7 +12,7 @@ The default Download action uses the plugin's first ranked option. Its label ret
 The application reads source_provider manifests registered in the user's GameAccess/plugins folder.
 GET /api/sources?app_id=<Steam AppID>&name=<game name> returns an array of {title,url,type,size,score,sourceName?}. Only magnet and HTTP(S) URLs are accepted. Size belongs to the returned URL; score orders options and is not proof of connectivity.
 POST /api/bulk_check receives {games:[{id,name}],include_sources:true}. Existing numeric counts remain supported and use the provider's manifest name. For named feed filters, providers may return {<AppID>:{count:number,sources:string[]}}. The bundled example requests no source lists until the user configures them externally.
-The server's /library/catalog endpoint supplies metadata without leases, source URLs or package sizes. Legacy source admin data is retained for migration; the current client does not consume it.
+The catalog comes from the package GitHub publishes, without leases, source URLs or package sizes; the server does not serve it. Legacy source admin data is retained for migration; the current client does not consume it.
 
 The UI refreshes sources periodically and on focus, updates React state immutably, and rejects stale detail results. A failed plugin contributes no current availability. Source choice is explicit in the queued record; default and alternative downloads use the same durable service.
 Changing tiers changes admission of queued jobs. Already running jobs are preserved when the limit decreases; no new job starts until the active count fits the new limit.

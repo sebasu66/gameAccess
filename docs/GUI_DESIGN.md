@@ -324,6 +324,13 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Botones, una fila de 44 px a la derecha: **Agregar la excepción** (naranja; un solo permiso de Windows), **Hacerlo a mano** y **No, gracias**. A mano (otro antivirus, Defender de una organización, permiso negado o error): los pasos en `ga-label` + lista, y **Abrir Seguridad de Windows** (naranja, solo Defender) o **Copiar las carpetas**, más **Ya lo hice** y **No, gracias**.
 - Espera a que el diálogo central (bienvenida, novedades, tareas largas) se cierre: nunca se apila. Vista previa: `?uiDemo=1&antivirus=missing|other|managed`.
 
+### 4.29 Asistente «Conectar IA» `ga-ai` (componente `AiConnectWizard`, Seba 2026-11-04)
+- Diálogo grande con las medidas de §4.26 (`ai-connect.css`, las mismas de `ga-av`): eyebrow «Conectar IA · paso N de 3», título Bebas 52 px y debajo una barra de tres partes que marca el paso. Un solo `ga-close`.
+- Paso 1: texto de 18 px y dos tarjetas lado a lado: **Qué hace** (`--ga-ok`) y **Qué se manda a Ollama** (`--ga-warn`); botones **Ahora no** y **Conectar** (naranja).
+- Paso 2: la página de claves de Ollama se abre en una ventana de Game Access con una guía encima (`ollama_guide.js`: anillo naranja y globo «paso N de 4» sobre lo que hay que tocar); la clave vuelve sola. Tarjetas **Tu cuenta** (`--ga-violet`) y **Tu clave** (`--ga-warn`), «Esperando tu clave…» con ruedita, y **Con tu navegador**: campo para pegar la clave y **Abrir en mi navegador** (Google no deja entrar en la ventana embebida). Botones: **Atrás** a la izquierda; **Abrir/Mostrar la ventana de Ollama** y **Usar esta clave** (naranja).
+- Paso 3: ícono grande (ruedita, ✓ o ✗) y tres comprobaciones; **Listo**, o **Probar otra clave** / **Reintentar**.
+- Configuración › IA: tarjeta «Ollama en la nube» con el estado y **Conectar** (naranja) o **Probar** y **Desconectar**. Vista previa: `?uiDemo=1`, Configuración › IA (la guía se simula).
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

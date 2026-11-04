@@ -16,7 +16,6 @@ import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
 import { digitalProcessManager } from "./DigitalProcessManager";
-import { getApiBaseUrl } from "../settings";
 
 /** The game is already installed: the player has to uninstall it before installing another version. */
 export class GameAlreadyInstalledError extends Error {
@@ -186,36 +185,10 @@ export class DigitalCatalog {
     diagnostics.debug(`Local detail cache=${cached?.steam ? "hit" : "miss"}; schema=${cached?.detail_schema_version}`);
     if (cached?.steam && cached.detail_schema_version === 2) return applyBundledDetails({ ...game, ...cached, steam: cached.steam });
 
-    // Prefer durable server metadata; public Steam is only a cache-miss fallback.
-    if (game.app_id) {
-      try {
-        const apiUrl = await getApiBaseUrl();
-        if (apiUrl) {
-          const res = await fetch(`${apiUrl}/digital/games/${game.app_id}/details?language=${encodeURIComponent(lang)}&country=ar`, {
-            signal: AbortSignal.timeout(8000)
-          });
-          diagnostics.debug(`Server detail HTTP=${res.status}`);
-          if (res.ok) {
-            const serverData = await res.json();
-            if (serverData && serverData.steam) {
-              const steam = normalizeSteamStoreMetadata(game, serverData.steam);
-              const detail = await applyBundledDetails({ ...game, steam, metadata_state: serverData.metadata_state || "ready", detail_schema_version: 2 });
-              await storeCatalogCachedDetail(game.catalog_cache_id ?? game.id, lang, "ar", detail).catch(() => undefined);
-              return detail;
-            }
-          }
-        }
-      } catch (e) {
-        diagnostics.debug(`Server detail failed; trying fallback: ${String(e)}`);
-        void narrate("AppID " + game.app_id + " · using cached catalog detail after server failure: " + String(e), {area:"DETAILS",level:"WARN"});
-        // Continue to fallback
-      }
-    }
-
-    // Opening a detail can use public Steam metadata even when the central API is older/offline.
+    // A cache miss asks public Steam from this PC; the central server is never asked for game details.
     if (game.app_id && hasTauriRuntime()) {
       try {
-        diagnostics.debug("Trying native Steam detail fallback");
+        diagnostics.debug("Asking public Steam for the detail");
         const raw = await getSteamStoreMetadata(game.app_id, false, lang);
         if (raw) {
           const detail = await applyBundledDetails(mergeLocalSteamDetails({ ...game, steam: null, metadata_state: "ready", detail_schema_version: 2 }, raw));

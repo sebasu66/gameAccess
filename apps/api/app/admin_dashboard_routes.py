@@ -70,7 +70,6 @@ def api_clients_overview(request: Request, response: Response, hours: int = Quer
 # Sections that only returned JSON, now shown as a table with search, filter and sort.
 TABLE_VIEWS = {
     "access-events": {"title": "Eventos de acceso", "src": "/admin/access-events?limit=1000", "description": "Cada vez que un cliente pidió, activó o fue rechazado."},
-    "catalog-status": {"title": "Estado del catálogo", "src": "/library/catalog/status", "description": "Versión del catálogo y última sincronización."},
     "download-usage": {"title": "Uso de descargas", "src": "/admin/viking-download-usage?limit=1000", "key": "requests", "description": "Pedidos de descarga por cliente."},
 }
 

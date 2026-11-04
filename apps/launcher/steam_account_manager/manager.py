@@ -205,7 +205,7 @@ class SteamAccountManager:
         folder (Steam Cloud, Documents, AppData) are not touched. `linked`: the library's linked games, whose record
         for the game goes without hiding it, so an owned game shows again as "Install"."""
         app_id = int(app_id)
-        game = next((g for g in self.installed_all() if g.app_id == app_id), None)
+        game = next((g for g in self.installed_all() if g.app_id == app_id), None) or self._in_forgotten_library(app_id, linked)
         if game is None:
             raise ValueError("Steam no tiene instalado este juego.")
         folder = Path(game.folder)
@@ -230,6 +230,20 @@ class SteamAccountManager:
             linked.unlink(app_id, hide=False)
         self.log.info("Steam game AppID %s uninstalled: %s (%s bytes)", app_id, folder, game.size_bytes)
         return {"folder": str(folder), "freed_bytes": game.size_bytes}
+
+    @staticmethod
+    def _in_forgotten_library(app_id: int, linked) -> client.InstalledSteamGame | None:
+        """A game linked from a Steam library folder Steam no longer lists (removed from its settings, or a drive it
+        forgot): its own manifest beside the folder still says it is that game there."""
+        record = linked.get(app_id) if linked is not None else None
+        if not record or record.get("kind") != "steam" or not record.get("path"):
+            return None
+        folder = Path(record["path"])
+        if len(folder.parents) < 2 or folder.parent.name.lower() != "common":
+            return None
+        same = lambda path: os.path.normcase(os.path.normpath(str(path)))
+        return next((g for g in client.installed_games([folder.parents[1]])
+                     if g.app_id == app_id and same(g.folder) == same(folder)), None)
 
     def installed_all(self) -> list[client.InstalledSteamGame]:
         """Every game with a manifest in Steam's libraries, whoever owns it (tools and unfinished ones too)."""

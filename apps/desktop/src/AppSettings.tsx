@@ -5,6 +5,7 @@ import LanguageSwitch from "./LanguageSwitch";
 import StartupSettings from "./StartupSettings";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import PluginSettings from "./PluginSettings";
+import AiSettings from "./AiSettings";
 import { getPluginStatuses, pollPluginRuntime, subscribePluginStatuses } from "./catalog/PluginRuntime";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
@@ -31,6 +32,7 @@ function SettingsScreen() {
   <div className="ga-settings-content ga-settings-screen-content"><GaTabs label={c.title} tabs={[
    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
+   { id: "ai", label: t("aiTab"), content: <AiSettings /> },
    { id: "style", label: c.tabStyle, content: <>
     <fieldset><legend>{t("language")}</legend><LanguageSwitch /></fieldset>
     <StartupSettings />

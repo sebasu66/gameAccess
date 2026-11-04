@@ -3,6 +3,7 @@
 mod automation;
 mod access_activation;
 mod admin_key;
+mod ai_connection;
 mod parental_lock;
 mod access_policy;
 mod launch_intent;
@@ -111,6 +112,12 @@ fn main() {
             download_queue::download_queue_request,
             access_commands::activation_installation_id,
             admin_key::admin_key_state,
+            ai_connection::ai_state,
+            ai_connection::ai_save_key,
+            ai_connection::ai_disconnect,
+            ai_connection::ai_test,
+            ai_connection::ai_guide_open,
+            ai_connection::ai_open_keys_in_browser,
             admin_key::admin_key_check,
             admin_key::admin_key_set,
             admin_key::admin_key_clear,

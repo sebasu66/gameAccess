@@ -1,5 +1,4 @@
 import { AsyncResourceCache } from "./asyncResourceCache";
-import { activationHeaders, invalidateActivation } from "./activation";
 import { applyBundledCatalogArtwork } from "./bundledArtwork";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
@@ -7,10 +6,9 @@ import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { libraryMembership } from "./libraryMembership";
 import { queryCatalogCache } from "./catalogCache";
 import { getCatalogMode } from "./catalogMode";
-import { getAppLocale, getSteamStoreLanguage, LOCALE_CHANGED_EVENT, translate } from "./i18n";
+import { getAppLocale, LOCALE_CHANGED_EVENT, translate } from "./i18n";
 import { narrate } from "./narrationLog";
 import { getSteamStoreMetadata, steamInstalledAppIds } from "./native";
-import { getApiBaseUrl } from "./settings";
 import { normalizeSteamStoreMetadata } from "./steamMetadata";
 import type { CatalogGame, GameDetails, SteamMetadata, SteamSearchResponse, UserSummary } from "./types";
 const gameDetailsResources = new AsyncResourceCache<string, GameDetails>({ttlMs: 24 * 60 * 60 * 1000});
@@ -22,37 +20,6 @@ if (typeof window !== "undefined") {
   });
 }
 function detailCacheKey(gameId: number) { return `${getAppLocale()}|${gameId}`; }
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const api = await getApiBaseUrl();
-  if (!api) {
-    await narrate(`Backend request ${init?.method ?? "GET"} ${path} was skipped because no GameAccess server URL is configured.`, { area: "BACKEND", level: "WARN" });
-    throw new Error("El servidor de GameAccess no está configurado.");
-  }
-
-  const method = init?.method ?? "GET";
-  await narrate(`Sending ${method} ${path} to the GameAccess backend at ${api}.`, { area: "BACKEND" });
-  const response = await fetch(`${api}${path}`, {
-    ...init,
-    cache: method === "GET" ? "no-store" : init?.cache,
-    headers: { "Content-Type": "application/json", ...activationHeaders(), ...(init?.headers ?? {}) },
-  });
-  if (!response.ok) {
-    if (response.status === 401) invalidateActivation();
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json() as { detail?: unknown };
-      if (body?.detail) detail = `${response.status} ${String(body.detail)}`;
-    } catch {
-      // Keep the HTTP status when the backend did not return JSON.
-    }
-    await narrate(`Backend request ${method} ${path} failed with HTTP ${response.status}: ${detail}.`, { area: "BACKEND", level: "ERROR" });
-    throw new Error(detail);
-  }
-  await narrate(`Backend request ${method} ${path} succeeded with HTTP ${response.status}.`, { area: "BACKEND" });
-  return response.json() as Promise<T>;
-}
-
-
 /** App ids of games with real files in the games folder (empty or partial folders are skipped). */
 async function installedDiskAppIds(): Promise<number[]> {
   const local = await digitalProcessManager.localGames();
@@ -131,7 +98,8 @@ export const loadSteamApp = async (appId: number): Promise<SteamMetadata> => {
     const list = await digitalCatalogService.getGamesByAppIds([appId]).catch(() => []);
     game = list[0];
   }
+  // Asked from this PC: the central server is not a Steam proxy.
   const raw = await getSteamStoreMetadata(appId);
   if (raw && game) return normalizeSteamStoreMetadata(game, raw);
-  return request<SteamMetadata>(`/steam/apps/${appId}?language=${encodeURIComponent(getSteamStoreLanguage())}&country=ar`);
+  throw new Error(`Steam has no store details for AppID ${appId}`);
 };

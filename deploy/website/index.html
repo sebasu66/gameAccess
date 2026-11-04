@@ -6,7 +6,7 @@
   <title>Game Access — Jugá más y mejor</title>
   <meta name="description" content="Game Access: tu catálogo de juegos de PC. Buscá, filtrá, descargá, instalá y jugá desde un solo lugar. Beta gratuita para Windows.">
   <link rel="icon" href="assets/brand/logo-header-poster.png">
-  <link rel="stylesheet" href="assets/site.css?v=7">
+  <link rel="stylesheet" href="assets/site.css?v=8">
 </head>
 <body>
   <header class="site-header">
@@ -102,9 +102,31 @@
         <h2 class="section-title" id="descargar-title" data-i18n="dlTitle">Descargá la beta</h2>
         <p class="lead" data-i18n="dlText">Gratis para Windows 10 y 11 de 64 bits.</p>
         <div class="actions">
-          <a class="btn led" id="installer-link" href="https://github.com/sebasu66/gameAccess/releases/latest"><span data-i18n="dlButton">Descargar para Windows</span></a>
+          <button class="btn led" type="button" id="magic-install"><span data-i18n="dlMagic">Instalar con un clic</span></button>
+          <a class="btn btn-glass" id="installer-link" href="https://github.com/sebasu66/gameAccess/releases/latest" data-i18n="dlButton">Descargar el instalador</a>
         </div>
         <p class="note" id="release-note" data-i18n="dlNote">Estamos en beta: algunas funciones todavía están en desarrollo.</p>
+
+        <!-- Install from the page (assets/install.js, apps/api/app/web_install.py): the player pastes one command in
+             Win + R and this panel shows each step as the script on their PC reports it. -->
+        <div class="install-flow" id="install-flow" hidden>
+          <div class="install-keys" aria-hidden="true">
+            <span class="install-key-group"><kbd>Win</kbd><b>+</b><kbd>R</kbd></span>
+            <span class="install-arrow">›</span>
+            <span class="install-key-group"><kbd>Ctrl</kbd><b>+</b><kbd>V</kbd></span>
+            <span class="install-arrow">›</span>
+            <span class="install-key-group"><kbd>Enter</kbd></span>
+          </div>
+          <p class="install-howto" data-i18n="imHowto">Ya copiamos el comando. Presioná Win + R, pegalo con Ctrl + V y apretá Enter.</p>
+          <div class="install-command">
+            <code id="install-command">…</code>
+            <button class="btn btn-glass btn-small" type="button" id="install-copy" data-i18n="imCopy">Copiar</button>
+          </div>
+          <p class="install-status" id="install-status" aria-live="polite" data-i18n="imPreparing">Preparando tu código…</p>
+          <ol class="install-steps" id="install-steps"></ol>
+          <p class="note"><span data-i18n="imPermission">Windows te va a pedir permiso una o dos veces: tocá «Sí».</span>
+            <a href="https://github.com/sebasu66/gameAccess/blob/dev/apps/api/app/web_install.ps1" target="_blank" rel="noopener" data-i18n="imSource">Ver el script (es abierto)</a></p>
+        </div>
       </div>
     </section>
 
@@ -113,7 +135,7 @@
       <div class="faq">
         <details class="glass"><summary data-i18n="q1">¿Cuánto cuesta?</summary><p data-i18n="a1">Nada. La beta es gratuita.</p></details>
         <details class="glass"><summary data-i18n="q2">Windows dice «Windows protegió tu PC». ¿Es seguro?</summary><p data-i18n="a2">Es el aviso que Windows muestra con los programas nuevos que todavía tienen pocas descargas. Tocá «Más información» y después «Ejecutar de todas formas».</p></details>
-        <details class="glass"><summary data-i18n="q3">¿Necesito Steam?</summary><p data-i18n="a3">Para instalar Game Access, sí: instalá Steam primero. Game Access usa las sesiones que Steam ya recuerda y nunca lee ni guarda tus contraseñas.</p></details>
+        <details class="glass"><summary data-i18n="q3">¿Necesito Steam?</summary><p data-i18n="a3">Sí: instalá Steam primero. Game Access usa las sesiones que Steam ya recuerda y nunca lee ni guarda tus contraseñas.</p></details>
         <details class="glass"><summary data-i18n="q4">¿Cómo se actualiza?</summary><p data-i18n="a4">Solo. Cada vez que lo abrís busca una versión nueva y, si hay, la instala y se reinicia. Tus juegos y tus ajustes se conservan.</p></details>
         <details class="glass"><summary data-i18n="q5">¿Dónde guarda mis datos?</summary><p data-i18n="a5">En tu PC, en la carpeta %LOCALAPPDATA%\gameAccess. Los juegos van a la carpeta de juegos que elijas (por defecto C:\GA_Juegos).</p></details>
         <details class="glass"><summary data-i18n="q6">Encontré un error. ¿Qué hago?</summary><p data-i18n="a6">Contanos qué hiciste y qué pasó por el mismo grupo donde te llegó la invitación. Si podés, sumá una captura.</p></details>
@@ -123,10 +145,11 @@
 
   <footer class="site-footer"><p>© 2026 Game Access · <span data-i18n="footer">Jugá más y mejor.</span></p></footer>
 
-  <script src="assets/i18n.js?v=7"></script>
+  <script src="assets/i18n.js?v=10"></script>
   <script src="assets/pixel.js?v=6"></script>
   <script src="assets/covers.js?v=6"></script>
   <script src="assets/site.js?v=7"></script>
   <script src="assets/release.js?v=7"></script>
+  <script src="assets/install.js?v=3"></script>
 </body>
 </html>

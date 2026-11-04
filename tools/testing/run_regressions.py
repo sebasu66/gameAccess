@@ -19,7 +19,7 @@ LAUNCHER = ROOT / "apps/launcher"
 
 BATCHES = {
     "catalog": [
-        ("api", ["test_library_catalog.py", "test_detail_cache_recovery.py", "test_catalog_locale.py", "test_discovery_service.py", "test_packaged_discovery.py"]),
+        ("api", ["test_catalog_locale.py", "test_catalog_updates.py", "test_cooptimus.py"]),
         ("desktop", ["src/librarySearch.test.ts", "src/libraryMembership.test.ts", "src/catalog/digitalCatalog.test.ts", "src/catalog/digitalCatalogDetails.test.ts", "src/catalogUpdates.test.ts", "src/regressionScale.test.tsx"]),
     ],
     "downloads": [

@@ -144,7 +144,15 @@ export class DigitalProcessManager {
   async relocate(appId: number, target: string, mode: "move" | "link") { return this.execute("library-relocate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target, mode })).then(localizeResult); }
   /** After the moves: the old games folders with nothing of ours left leave the list. */
   async relocateFinish() { return this.execute("library-relocate-finish", {id:0,name:""} as CatalogGame); }
-  async libraryBatch(action: LibraryBatchAction, appIds: number[]) { return this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult); }
+  async libraryBatch(action: LibraryBatchAction, appIds: number[]) {
+    const result = await this.execute("library-batch", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ action, app_ids: appIds })).then(localizeResult);
+    // The app log says what each library action did, not only the launcher's own log.
+    const results = (result as { results?: Array<{ app_id: number; ok: boolean; error?: string }> }).results ?? [];
+    const failed = results.filter(item => !item.ok);
+    void narrate(`Library ${action} on ${appIds.join(", ")}: ${results.length - failed.length} done, ${failed.length} failed`
+      + failed.map(item => `; AppID ${item.app_id}: ${item.error ?? "?"}`).join(""), { area: "LIBRARY", level: failed.length ? "WARN" : "INFO" });
+    return result;
+  }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
   importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
   async importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
@@ -154,7 +162,10 @@ export class DigitalProcessManager {
   /** Link the installed Steam games not in the library yet; `refresh` asks Steam again for the owned games. */
   steamSync(refresh = false, auto = false, api = "") { return this.execute("steam-sync", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ refresh, auto, api })); }
   /** Steam installs the game itself: it asks the library folder and checks the space. */
-  steamInstall(appId: number, name: string) { return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame); }
+  steamInstall(appId: number, name: string) {
+    void narrate(`Steam AppID ${appId} · install handed to Steam for '${name}'.`, { area: "LIBRARY" });
+    return this.execute("steam-install", { id: appId, app_id: appId, name } as CatalogGame);
+  }
   /** Why a game may not open (the launch dialog's error mode): the launcher's checks, each `{ id, ok, ... }`. */
   diagnoseLaunch(game: CatalogGame) { return this.execute("launch-diagnose", game); }
   /** The launch dialog's "fix it for me": starts Steam if the game uses it, thaws, re-applies the fix backup and puts the language files back. */

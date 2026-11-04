@@ -5,7 +5,7 @@ import { useI18n, type TranslationKey, type TranslationParams } from "./i18n";
 import { downloadButtonLabel } from "./downloadSize";
 import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/DigitalCatalog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
-import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
+import { getPluginSources, SOURCES_CHANGED_EVENT, type PluginSource } from "./catalog/PluginSources";
 import { PLUGINS_CHANGED_EVENT } from "./catalog/PluginRuntime";
 import type { CatalogGame } from "./types";
 import "./plugin-sources.css";
@@ -45,9 +45,11 @@ export default function PluginDownloadButton({ game, disabled = false, buttonRef
     };
     void refresh();
     const pluginChanged = () => { setResult({ key, sources: [], loading: true }); setOpen(false); setError(""); void refresh(); };
+    // Asked again only when a plugin or its index changes, not on a timer.
+    const indexChanged = (event: Event) => { if ((event as CustomEvent<{ scope?: string }>).detail?.scope === "all") void refresh(); };
     window.addEventListener(PLUGINS_CHANGED_EVENT, pluginChanged);
-    const timer = window.setInterval(() => void refresh(), 30000);
-    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener(PLUGINS_CHANGED_EVENT, pluginChanged); };
+    window.addEventListener(SOURCES_CHANGED_EVENT, indexChanged);
+    return () => { cancelled = true; window.removeEventListener(PLUGINS_CHANGED_EVENT, pluginChanged); window.removeEventListener(SOURCES_CHANGED_EVENT, indexChanged); };
   }, [key]);
   const start = async (source: PluginSource) => {
     if (starting || disabled) return;

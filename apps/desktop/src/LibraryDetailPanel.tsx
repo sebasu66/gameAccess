@@ -1,4 +1,7 @@
-import {Store} from "lucide-react";
+import {Download, Store} from "lucide-react";
+import { installThroughSteam, isSteamOwned } from "./steamLibrary";
+import { useLibraryEntry } from "./libraryScan";
+import { notify } from "./toasts";
 import { openSteamStore } from "./native";
 import { usePluginReady } from "./usePluginReady";
 import CooptimusDetails from "./CooptimusDetails";
@@ -204,13 +207,32 @@ function SteamStoreButton({ game, primary, className, buttonRef, onFocus }: { ga
   </button>;
 }
 
+/** A Steam game one of the player's accounts owns is installed by Steam, not by a download source. */
+function SteamInstallButton({ game, className, buttonRef, onFocus }: { game: CatalogGame; className: string; buttonRef: (node: HTMLButtonElement | null) => void; onFocus: () => void }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const install = async () => {
+    setBusy(true);
+    try { await installThroughSteam(game); notify(t("steamInstallHandedOff", { name: game.name }), { tone: "success" }); }
+    catch (error) { notify(t("steamInstallError", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); }
+    finally { setBusy(false); }
+  };
+  return <button type="button" ref={buttonRef} onFocus={onFocus} data-action="steam-install" className={className} disabled={busy} onClick={() => void install()}>
+    <span className="glass-action-icon">{busy ? <Loader2 className="spin" size={23} /> : <Download size={23} />}</span>
+    <span className="glass-action-label">{t("steamInstallMenu")}</span>
+  </button>;
+}
+
 function ActionButtons(props: FeaturePanelProps) {
   const { t } = useI18n();
+  const steamOwned = isSteamOwned(useLibraryEntry(props.game.app_id ?? undefined));
   // The download plugin is optional and installed by hand: until it is installed and synced the detail never
   // says "no download sources"; it offers Play (installed games) or the Steam store page.
   const pluginReady = usePluginReady() === true;
   return <div className="library-room-actions glass-actions-row">
-    {props.actions.map((action, index) => action.kind === "download" && !pluginReady
+    {props.actions.map((action, index) => action.kind === "download" && steamOwned
+      ? <SteamInstallButton key="steam-install" game={props.game} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : action.kind === "download" && !pluginReady
       ? <SteamStoreButton key="steam" game={props.game} primary className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
       : action.kind === "download"
       ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
