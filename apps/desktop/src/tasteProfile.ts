@@ -203,10 +203,12 @@ export function tailorCatalog(games: CatalogGame[], ratings: Ratings, profile: T
 
 type Translate = (key: TranslationKey, params?: TranslationParams) => string;
 
-/** After a thumb: how far the profile is built, and what that means for the personalized order. */
+/** After a thumb: how many of the player's ratings the profile gets right (it goes down as well as up: a rating that
+ *  contradicts the others lowers it), and what that means for the personalized order. Not "how complete" it is: that
+ *  read as a progress bar going backwards (Seba, 2026-11-03). */
 export function tasteProgressText(before: TasteProfile, after: TasteProfile, personalOn: boolean, t: Translate): string {
   const percent = Math.round(after.certainty * 100);
-  if (!after.ready) return t("tasteProgress", { percent });
+  if (!after.ready) return t("tasteProgress", { percent, each: MIN_EACH, ready: Math.round(READY_CERTAINTY * 100) });
   if (!before.ready) return t("tasteUnlocked", { percent });
   return personalOn ? t("tasteReady", { percent }) : t("tasteReadyOff", { percent });
 }
