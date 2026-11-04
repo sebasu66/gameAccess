@@ -44,6 +44,12 @@ app.add_middleware(
         "tauri://localhost",
         "https://tauri.localhost",
         "http://tauri.localhost",
+        # The website's install page (web_install.py) and a local copy of it for tests.
+        "https://gameaccess.site",
+        "https://www.gameaccess.site",
+        "https://mineral-mantle-7vbt.here.now",
+        "http://localhost:8790",
+        "http://127.0.0.1:8790",
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
@@ -148,6 +154,7 @@ from .game_lessons import router as game_lessons_router
 from .run_fixes import router as run_fixes_router
 from .support import router as support_router
 from .account_routes import router as account_router
+from .web_install import router as web_install_router
 app.include_router(premium_router)
 app.include_router(steam_search_router)
 app.include_router(resolver_router)
@@ -158,6 +165,7 @@ app.include_router(game_lessons_router)
 app.include_router(run_fixes_router)
 app.include_router(support_router)
 app.include_router(account_router)
+app.include_router(web_install_router)
 
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)
