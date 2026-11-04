@@ -29,3 +29,5 @@
 /* The AI's answer above the catalog grid (LibraryRoom.tsx, a search in words). */
 .ga-ai-search-answer { margin: 0 0 var(--ga-space-2); }
 .global-search.is-ai .ga-search-icon { color: var(--ga-orange); }
+/* The header of an AI panel: the title and, at the end, "Listen to Gemma" (aiVoice.ts). */
+.ga-ai-reason-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }

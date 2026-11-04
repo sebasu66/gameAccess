@@ -1592,6 +1592,8 @@ export const es = {
   aiAskPlaceholder: "Contale a la IA qué querés jugar: «algo como Portal, cooperativo e indie»",
   aiSearchOn: "Búsqueda con IA prendida: escribí con tus palabras qué querés jugar y apretá Enter.",
   aiSearchOff: "Prendelo para buscar con IA: escribís con tus palabras qué querés jugar y la IA te elige juegos que no tenés.",
+  aiVoiceListen: "Escuchar a Gemma",
+  aiVoiceStop: "Dejar de escuchar",
   aiAskTitle: "La IA te responde",
   aiAskThinking: "Preguntándole a la IA…",
   aiAskNothing: "La IA no encontró juegos del catálogo para eso. Probá con otras palabras.",

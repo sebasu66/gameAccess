@@ -1594,6 +1594,8 @@ export const en: Record<keyof typeof es, string> = {
   aiAskPlaceholder: "Tell the AI what you want to play: \"something like Portal, co-op and indie\"",
   aiSearchOn: "AI search on: write in your own words what you want to play and press Enter.",
   aiSearchOff: "Turn it on to search with AI: write in your own words what you want to play and the AI picks games you don't have.",
+  aiVoiceListen: "Listen to Gemma",
+  aiVoiceStop: "Stop listening",
   aiAskTitle: "The AI answers",
   aiAskThinking: "Asking the AI…",
   aiAskNothing: "The AI found no catalog games for that. Try other words.",

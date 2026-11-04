@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Sparkles, Square, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
 import { aiState } from "./aiConnection";
 import { AI_SUGGESTIONS_EVENT, aiError, aiExplain, aiWhy, enoughSignals, MIN_SIGNALS, readPicks, refreshFreshPicks, refreshPicks, signalCount, tasteSignals, type AiError, type AiPick, type AiPicksState } from "./aiSuggestions";
 import { setAppScreen } from "./appScreen";
-import { GaButton } from "./components/ga/Buttons";
+import { GaButton, GaIconButton } from "./components/ga/Buttons";
+import { speak, stopSpeaking, useSpeaking, voiceAvailable } from "./aiVoice";
 import { useI18n } from "./i18n";
 import SteamCover from "./SteamCover";
 import type { Ratings } from "./tasteProfile";
@@ -86,6 +87,14 @@ export default function AiPicks({ onOpenGame }: { onOpenGame: (game: CatalogGame
   </section>;
 }
 
+/** Reads the panel's text aloud in Gemma's voice (aiVoice.ts), or stops it. */
+function SpeakButton({ text }: { text: string }) {
+  const { t } = useI18n();
+  const now = useSpeaking(text);
+  if (!voiceAvailable() || !text) return null;
+  return <GaIconButton className="ga-ai-speak" icon={now ? <Square size={14} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />} label={t(now ? "aiVoiceStop" : "aiVoiceListen")} pressed={now} onClick={() => now ? stopSpeaking() : speak(text)} />;
+}
+
 /**
  * The detail's glass panel for a game Gemma suggested (Seba, 2026-11-04): her short reason right away, then her
  * longer explanation, asked once when the detail opens (aiExplain). Games she did not suggest show nothing.
@@ -104,7 +113,7 @@ export function AiReasonPanel({ game }: { game: CatalogGame }) {
   }, [game, short]);
   if (!short) return null;
   return <section className="ga-ai-reason" aria-labelledby={`ga-ai-reason-${game.id}`} aria-busy={busy}>
-    <h4 id={`ga-ai-reason-${game.id}`}><Sparkles size={16} aria-hidden="true" />{t("aiReasonTitle")}</h4>
+    <div className="ga-ai-reason-head"><h4 id={`ga-ai-reason-${game.id}`}><Sparkles size={16} aria-hidden="true" />{t("aiReasonTitle")}</h4><SpeakButton text={long ?? short} /></div>
     <p>{long ?? short}</p>
     {busy && !long ? <p className="ga-ai-reason-more" role="status">{t("aiReasonMore")}</p> : null}
   </section>;
@@ -115,7 +124,7 @@ export function AiSearchAnswer({ busy, reply, count, error }: { busy: boolean; r
   const { t } = useI18n();
   const text = busy ? t("aiAskThinking") : error ? t(`aiError_${error}`) : count ? reply : t("aiAskNothing");
   return <section className="ga-ai-reason ga-ai-search-answer" aria-live="polite" aria-busy={busy}>
-    <h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>
+    <div className="ga-ai-reason-head"><h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>{busy || error ? null : <SpeakButton text={text} />}</div>
     <p>{text}</p>
   </section>;
 }
