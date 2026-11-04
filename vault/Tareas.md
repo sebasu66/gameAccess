@@ -292,7 +292,9 @@ Ordenadas a partir de las notas sueltas de Seba y de lo conversado ese día.
 
 **Extensiones del catálogo (deseable, sin prioridad)**
 - [ ] Paneles de vidrio a los costados de la ficha, como realidad aumentada, con extras: crítica (Metacritic, que ya está en el catálogo, y OpenCritic), PCGamingWiki, guías de Steam, páginas de mods (Workshop, Nexus, ModDB) y HowLongToBeat; solo enlaces. Con la ventana chica, se muestran aparte. Mencionar Co-Optimus en la web como parte del catálogo enriquecido.
+- [ ] Mostrar en la app los datos nuevos del catálogo (GetItems, commit `b424881`; Seba 2026-11-04: pendiente, no crítico): filtro «en español» (interfaz, subtítulos, audio, latinoamericano), insignias de Steam Deck (verificado / jugable) y de soporte de mando, desarrollador, editor y saga en la ficha («más de este estudio o saga»), edad mínima para el modo chicos. El catálogo ya los trae desde la corrida diaria del 2026-11-05.
 
 **IA (Seba, 2026-11-04)**
 - [x] Asistente para conectar una IA gratis de Ollama (en la nube): ventana de Ollama con guía encima que toma la clave sola, clave guardada con DPAPI, prueba con `gemma4:31b`, Configuración › IA. Falta probarlo en la app compilada.
 - [ ] Usar la IA: recomendaciones del catálogo con el perfil de gustos, ayuda cuando un juego no arranca, aviso de juegos que ocupan lugar sin usarse.
+- [ ] Integrar la clave de Ollama (ya guardada por el asistente «Conectar IA») en la búsqueda: sugerencias mejores a partir de lo que escribe el jugador, y otros usos de la IA (Seba 2026-11-04: pendiente, no crítico).
