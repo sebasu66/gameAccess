@@ -38,6 +38,25 @@ Pedido de Seba (2026-11-04): usar la clave de Ollama, que ya toma el asistente �
 - **Ejecución**: las herramientas `read` corren solas. Las `fix` le piden permiso al jugador con lo que van a hacer, en sus palabras. Una herramienta que no está en el catálogo se rechaza.
 - **El resultado**: el jugador ve qué pasaba y qué se hizo. El `dev_report` (juego, pasos, herramientas, resultado, sin datos personales) queda en el log y, si el jugador quiere, nos llega como reporte.
 
+## Primera entrega acordada (Seba, 2026-11-04): sugerencias con IA
+Lo primero que se termina y se publica. El resto puede esperar.
+- **Datos que recibe Gemma**:
+  - Los «me gusta / no me gusta» (`gameaccess:preferences`) con los nombres de esos juegos. Hay que guardar el nombre junto con los rasgos en `rememberTasteGame`.
+  - Los juegos jugados (`recentGames.ts`, `gameaccess:last-played`).
+  - Los rasgos del perfil (`tasteProfile.ts`).
+  - Una **lista corta de candidatos**, no el catálogo entero (60.000 juegos no entran en un pedido): los de `tasteQuery` / `tasteScore`, o los primeros 40 resultados de la búsqueda. Cada uno va compacto: id, nombre, 3 géneros, 5 etiquetas, año y reseña.
+- **Respuesta**: `{ "picks": [{ "id": n, "score": 0-100, "why": "..." }] }`, en el idioma de la app. Solo puede elegir ids de la lista de candidatos. El «por qué» nombra juegos que le gustaron o que jugó («te va a gustar porque te gustaron X e Y y se parece a Z»).
+- **Nativo**: `ai_chat_json(system, user, schema)` en `ai_connection.rs`, con el mismo cliente que `ai_test`, `format` = el esquema y 60 s de espera. Devuelve el JSON del mensaje y los mismos errores (`no_key`, `rejected`, `limit`, `offline`).
+- **Módulo** `aiPicks.ts`:
+  - arma los candidatos y valida la respuesta;
+  - guarda en caché por 24 h, con una clave hecha del perfil, los candidatos y la búsqueda;
+  - guarda el «por qué» de cada juego (`gameaccess:ai-why`), para mostrarlo en la ficha.
+- **Interfaz**:
+  1. **Sugerencias**: una lista «Elegidos por la IA para vos» con portada y «por qué».
+  2. **Búsqueda**: con el botón mágico prendido y la IA conectada, los primeros 40 resultados se reordenan con lo que dice Gemma, con un aviso «Ordenado por la IA».
+  3. **Ficha** (`LibraryDetailPanel.tsx`, `DesktopFeature`, en la columna `ga-detail-gallery` junto a `CooptimusDetails`): el panel «Recomendación de la IA» muestra el «por qué» guardado, o el botón «¿Me va a gustar?», que pregunta solo por ese juego.
+- **Sin IA**: todo queda como hoy.
+
 ## 3. Recomendaciones y biblioteca con IA
 - **Recomendaciones**: Gemma recibe el perfil de gustos y una lista corta de candidatos del catálogo, y devuelve un orden con una línea de «por qué» para cada uno. Solo puede elegir entre los candidatos.
 - **Biblioteca**: con las mismas herramientas, sugiere qué juegos ocupan lugar sin usarse, qué congelar o mover y qué falló. Nada se hace sin el permiso del jugador.
