@@ -23,7 +23,11 @@ Every catalog game is then read from `IStoreBrowseService/GetItems` (official, n
 100 AppIDs per request): real cover URLs, Valve's age descriptors, player categories,
 review count and percent positive, the 20 heaviest tags, release date, platforms and
 temporary free offers (`steam_free_promo`: free weekend or free to keep, with its end
-time). The central server no longer asks Steam for reviews.
+time), developers, publishers and franchises, Spanish support (`spanish`: interface,
+subtitles, full audio, Latin American), the official minimum age (`required_age`), Steam
+Deck compatibility (`steam_deck`: verified, playable, unsupported) and controller support
+(`controller_support`: full, partial). A value Steam stops reporting is removed. The
+central server no longer asks Steam for reviews.
 
 Co-Optimus is separate: opening a game detail invokes a server lookup by exact
 Steam AppID. Verified results cache for seven days; failures retry after an hour.

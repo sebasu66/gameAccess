@@ -17,6 +17,11 @@ platforms and temporary free offers, so the daily catalog job gets them for ever
 game in one pass and the central server never asks Steam for reviews. Measured on
 1,000 catalog games: scores differ from Steam's own review endpoint by a median of
 0.5 points.
+
+It also names the developers, publishers and franchise, whether the game has Spanish
+(interface, subtitles, full audio), the official minimum age, Steam Deck compatibility
+and controller support. Asking for those made a 100-game batch 0.93 s instead of
+0.88 s and 381 KB instead of 276 KB (measured 2026-11-04).
 """
 from __future__ import annotations
 
@@ -40,9 +45,16 @@ BATCH_SIZE = 100
 # Bump when the resolved payload gains a field. The cache key includes it so
 # batches written before a field existed are refetched rather than misread as
 # "the API returned nothing" for that field.
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 # Steam returns tags by weight; the first 20 are the ones its own store shows.
 TAG_COUNT = 20
+
+# Steam's ELanguage: Spanish (Spain) and Latin American Spanish.
+SPANISH_LANGUAGES = {5: "es", 27: "latam"}
+# Steam category ids for controllers: 28 = full controller support, 18 = partial.
+CONTROLLER_SUPPORT = ((28, "full"), (18, "partial"))
+# Steam Deck compatibility categories: 1 unsupported, 2 playable, 3 verified (0 = not tested).
+STEAM_DECK = {1: "unsupported", 2: "playable", 3: "verified"}
 
 # Valve's content descriptor ids, confirmed against known titles:
 #   1 = some nudity or sexual content      -> South Park, Dragon's Dogma 2
@@ -167,6 +179,46 @@ def free_promo_from_item(item: dict) -> dict | None:
     return None
 
 
+def credits_from_item(item: dict) -> dict[str, list[str]]:
+    """Developers, publishers and franchises by name; a list the API did not send is left out."""
+    info = item.get("basic_info")
+    if not isinstance(info, dict):
+        return {}
+    result = {}
+    for field in ("developers", "publishers", "franchises"):
+        names = [entry.get("name").strip() for entry in info.get(field) or []
+                 if isinstance(entry, dict) and isinstance(entry.get("name"), str) and entry.get("name").strip()]
+        if names:
+            result[field] = list(dict.fromkeys(names))
+    return result
+
+
+def spanish_from_item(item: dict) -> dict | None:
+    """Whether the game has Spanish and how far: interface, subtitles, full audio, and if it is Latin American."""
+    found = {}
+    for entry in item.get("supported_languages") or []:
+        if isinstance(entry, dict) and entry.get("supported") and entry.get("elanguage") in SPANISH_LANGUAGES:
+            found[SPANISH_LANGUAGES[entry["elanguage"]]] = entry
+    if not found:
+        return None
+    return {"interface": True, "subtitles": any(bool(e.get("subtitles")) for e in found.values()),
+            "audio": any(bool(e.get("full_audio")) for e in found.values()), "latam": "latam" in found}
+
+
+def required_age_from_item(item: dict) -> int | None:
+    age = (item.get("game_rating") or {}).get("required_age")
+    return age if isinstance(age, int) and age > 0 else None
+
+
+def steam_deck_from_item(item: dict) -> str | None:
+    return STEAM_DECK.get((item.get("platforms") or {}).get("steam_deck_compat_category"))
+
+
+def controller_from_item(item: dict) -> str | None:
+    ids = (item.get("categories") or {}).get("controller_categoryids") or []
+    return next((level for category, level in CONTROLLER_SUPPORT if category in ids), None)
+
+
 def is_adult_only(descriptor_ids: list[int] | None) -> bool:
     """Adult-only sexual content, per Valve's descriptors rather than user tags."""
     return bool(ADULT_ONLY_DESCRIPTORS.intersection(descriptor_ids or []))
@@ -201,7 +253,8 @@ class ArtworkResolver:
             "ids": [{"appid": app_id} for app_id in app_ids],
             "context": {"language": "english", "country_code": "US"},
             "data_request": {"include_assets": True, "include_reviews": True, "include_tag_count": TAG_COUNT,
-                             "include_release": True, "include_platforms": True},
+                             "include_release": True, "include_platforms": True, "include_basic_info": True,
+                             "include_supported_languages": True, "include_ratings": True},
         }
         for attempt in range(4):
             time.sleep(max(0, self.delay - (time.monotonic() - self.last_request)))
@@ -227,6 +280,11 @@ class ArtworkResolver:
                         "release_date": release_from_item(item),
                         "platforms": platforms_from_item(item),
                         "steam_free_promo": free_promo_from_item(item),
+                        "credits": credits_from_item(item),
+                        "spanish": spanish_from_item(item),
+                        "required_age": required_age_from_item(item),
+                        "steam_deck": steam_deck_from_item(item),
+                        "controller_support": controller_from_item(item),
                     }
             return resolved
         # A failed batch must not abort the whole catalog: those games keep
@@ -267,7 +325,8 @@ def apply_assets(games: dict, resolved: dict[int, dict[str, object]], tag_names:
     """
     report = {"matched": 0, "capsule": 0, "hero": 0, "header": 0, "missing": 0,
               "descriptors": 0, "adult_only": 0, "nudity": 0, "categories": 0,
-              "reviews": 0, "tags": 0, "free_promos": 0}
+              "reviews": 0, "tags": 0, "free_promos": 0, "developers": 0, "franchises": 0, "spanish": 0,
+              "required_age": 0, "steam_deck": 0, "controller": 0}
     for app_id, game in games.items():
         resolved_item = resolved.get(app_id)
         if resolved_item is None:
@@ -317,6 +376,20 @@ def apply_assets(games: dict, resolved: dict[int, dict[str, object]], tag_names:
         for field in ("release_date", "platforms"):
             if resolved_item.get(field) is not None:
                 game[field] = resolved_item[field]
+        for field, value in (resolved_item.get("credits") or {}).items():
+            game[field] = value
+        report["developers"] += bool((resolved_item.get("credits") or {}).get("developers"))
+        report["franchises"] += bool((resolved_item.get("credits") or {}).get("franchises"))
+        # These say what Steam says today: an answer without them (Spanish dropped, say) clears the old value.
+        for field, counter in (("spanish", "spanish"), ("required_age", "required_age"), ("steam_deck", "steam_deck"),
+                               ("controller_support", "controller")):
+            if field not in resolved_item:
+                continue
+            if resolved_item[field] is None:
+                game.pop(field, None)
+            else:
+                game[field] = resolved_item[field]
+                report[counter] += 1
         # Present but empty means the offer ended, so the flag goes away.
         if "steam_free_promo" in resolved_item:
             promo = resolved_item["steam_free_promo"]

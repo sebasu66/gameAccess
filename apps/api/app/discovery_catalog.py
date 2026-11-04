@@ -441,17 +441,7 @@ def refresh(args):
                 asset_report["requests"] = resolver.requests
                 asset_report["cache_hits"] = resolver.cache_hits
                 report["artwork"] = asset_report
-                LOG.info(
-                    "Assets resolved: matched=%s capsule=%s hero=%s header=%s missing=%s "
-                    "descriptors=%s adult_only=%s nudity=%s category_ids=%s reviews=%s tags=%s free_promos=%s "
-                    "requests=%s cache_hits=%s",
-                    asset_report["matched"], asset_report["capsule"], asset_report["hero"],
-                    asset_report["header"], asset_report["missing"],
-                    asset_report["descriptors"], asset_report["adult_only"],
-                    asset_report["nudity"], asset_report["categories"],
-                    asset_report["reviews"], asset_report["tags"], asset_report["free_promos"],
-                    asset_report["requests"], asset_report["cache_hits"],
-                )
+                LOG.info("Assets resolved: %s", " ".join(f"{key}={value}" for key, value in asset_report.items()))
     # The server's own data is added last and only fills gaps, so Steam's fresh values win.
     report["server_games_added"], report["server_fields_filled"] = merge_server_games(games, args.server_db)
     LOG.info("Server database: added %s games, filled %s fields",

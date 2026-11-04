@@ -14,6 +14,11 @@ from app.catalog_artwork import (
     asset_url,
     assets_from_item,
     categories_from_item,
+    controller_from_item,
+    credits_from_item,
+    required_age_from_item,
+    spanish_from_item,
+    steam_deck_from_item,
     descriptors_from_item,
     free_promo_from_item,
     has_nudity_descriptor,
@@ -112,7 +117,8 @@ def test_apply_assets_replaces_guesses_and_keeps_unknowns_untouched():
     assert games[2]["capsule_image"] == "guessed"
     assert report == {"matched": 1, "capsule": 1, "hero": 1, "header": 0, "missing": 1,
                       "descriptors": 1, "adult_only": 0, "nudity": 0, "categories": 1,
-                      "reviews": 0, "tags": 0, "free_promos": 0}
+                      "reviews": 0, "tags": 0, "free_promos": 0, "developers": 0, "franchises": 0, "spanish": 0,
+                      "required_age": 0, "steam_deck": 0, "controller": 0}
 
 
 def test_apply_assets_leaves_a_cache_without_descriptors_untouched():
@@ -292,3 +298,41 @@ class TestStoreDetails:
         assert game["release_date"] == "2011-01-01"
         assert "steam_free_promo" not in game
         assert (report["reviews"], report["tags"], report["free_promos"]) == (1, 1, 0)
+
+
+# Fields from include_basic_info, include_supported_languages and include_ratings (Baldur's Gate 3, 2026-11-04, trimmed).
+CREDITS_ITEM = {
+    "basic_info": {"developers": [{"name": "Larian Studios"}], "publishers": [{"name": "Larian Studios"}],
+                   "franchises": [{"name": "Baldur's Gate"}]},
+    "supported_languages": [{"elanguage": 0, "supported": True, "full_audio": True, "subtitles": True},
+                            {"elanguage": 5, "supported": True, "full_audio": False, "subtitles": True},
+                            {"elanguage": 27, "supported": True, "full_audio": False, "subtitles": True}],
+    "game_rating": {"required_age": 18},
+    "platforms": {"windows": True, "steam_deck_compat_category": 3},
+    "categories": {"controller_categoryids": [28, 55]},
+}
+
+
+class TestStoreExtras:
+    def test_credits_spanish_age_deck_and_controller(self):
+        assert credits_from_item(CREDITS_ITEM) == {"developers": ["Larian Studios"], "publishers": ["Larian Studios"],
+                                                   "franchises": ["Baldur's Gate"]}
+        assert spanish_from_item(CREDITS_ITEM) == {"interface": True, "subtitles": True, "audio": False, "latam": True}
+        assert spanish_from_item({"supported_languages": [{"elanguage": 0, "supported": True}]}) is None
+        assert required_age_from_item(CREDITS_ITEM) == 18 and required_age_from_item({}) is None
+        assert steam_deck_from_item(CREDITS_ITEM) == "verified"
+        assert steam_deck_from_item({"platforms": {"steam_deck_compat_category": 0}}) is None
+        assert controller_from_item(CREDITS_ITEM) == "full"
+        assert controller_from_item({"categories": {"controller_categoryids": [18]}}) == "partial"
+
+    def test_apply_sets_and_clears_the_extras(self):
+        games = {1: {"developers": ["Old"], "spanish": {"interface": True}, "steam_deck": "playable"}}
+        resolved = {1: {"credits": {"developers": ["Larian Studios"], "franchises": ["Baldur's Gate"]},
+                        "spanish": None, "required_age": 18, "steam_deck": None, "controller_support": "full"}}
+        report = apply_assets(games, resolved)
+        game = games[1]
+        assert game["developers"] == ["Larian Studios"] and game["franchises"] == ["Baldur's Gate"]
+        # Steam no longer lists Spanish or a Deck rating: the old values go.
+        assert "spanish" not in game and "steam_deck" not in game
+        assert (game["required_age"], game["controller_support"]) == (18, "full")
+        assert (report["developers"], report["franchises"], report["required_age"], report["controller"]) == (1, 1, 1, 1)
