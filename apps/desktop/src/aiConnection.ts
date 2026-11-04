@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { hasTauriRuntime } from "./native";
@@ -19,7 +20,9 @@ export const OPEN_AI_CONNECT_EVENT = "gameaccess:open-ai-connect";
 
 // Browser preview (`?uiDemo=1`): no Rust, so the state lives here and the guide window is played by a timer.
 const demo = () => import.meta.env.DEV && uiDemo() && !hasTauriRuntime();
-let demoState: AiState = { connected: false, ending: "" };
+const DEMO_KEY = "gameaccess:demo-ai";
+let demoState: AiState = (() => { try { return JSON.parse(sessionStorage.getItem(DEMO_KEY) || "null") ?? { connected: false, ending: "" }; } catch { return { connected: false, ending: "" }; } })();
+const setDemo = (next: AiState) => { demoState = next; try { sessionStorage.setItem(DEMO_KEY, JSON.stringify(next)); } catch { /* the preview only */ } return next; };
 const demoEmit = (name: string, detail: unknown, ms: number) => window.setTimeout(() => window.dispatchEvent(new CustomEvent(name, { detail })), ms);
 
 export async function aiState(): Promise<AiState> {
@@ -29,12 +32,12 @@ export async function aiState(): Promise<AiState> {
 }
 
 export async function aiSaveKey(key: string): Promise<AiState> {
-  if (demo()) { demoState = { connected: true, ending: key.trim().slice(-4) }; return demoState; }
+  if (demo()) return setDemo({ connected: true, ending: key.trim().slice(-4) });
   return invoke<AiState>("ai_save_key", { key });
 }
 
 export async function aiDisconnect(): Promise<void> {
-  if (demo()) { demoState = { connected: false, ending: "" }; return; }
+  if (demo()) { setDemo({ connected: false, ending: "" }); return; }
   await invoke("ai_disconnect");
 }
 
@@ -51,7 +54,7 @@ export function aiTestError(error: unknown): AiTestError {
 
 /** Opens Ollama's key page in a Game Access window with the guide over it. */
 export async function aiGuideOpen(): Promise<void> {
-  if (demo()) { demoState = { connected: true, ending: "a91f" }; demoEmit(AI_KEY_EVENT, { ending: "a91f" }, 2500); demoEmit(AI_GUIDE_CLOSED_EVENT, { saved: true }, 3700); return; }
+  if (demo()) { setDemo({ connected: true, ending: "a91f" }); demoEmit(AI_KEY_EVENT, { ending: "a91f" }, 2500); demoEmit(AI_GUIDE_CLOSED_EVENT, { saved: true }, 3700); return; }
   await invoke("ai_guide_open");
 }
 
@@ -77,3 +80,16 @@ export function listenAiGuide(handlers: { key: (ending: string) => void; google:
 
 /** A pasted key that could be one: one token without spaces. Ollama decides whether it works. */
 export const looksLikeKey = (text: string) => /^[\x21-\x7e]{16,256}$/.test(text.trim());
+
+/** Whether the player has an AI connected, asked once per screen that needs it (the search, Home). */
+export function useAiConnected(): boolean {
+  const [connected, setConnected] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = () => void aiState().then(state => { if (alive) setConnected(state.connected); }).catch(() => undefined);
+    check();
+    window.addEventListener("focus", check);
+    return () => { alive = false; window.removeEventListener("focus", check); };
+  }, []);
+  return connected;
+}

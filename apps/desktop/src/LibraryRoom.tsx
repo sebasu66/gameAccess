@@ -8,6 +8,8 @@ import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./li
 import { useCatalogQuery } from "./useCatalogQuery";
 import { buildTasteProfile, rememberTasteGame, tailorCatalog, tasteQuery } from "./tasteProfile";
 import { publishTasteReadiness, usePersonalOrder } from "./personalOrder";
+import { aiAsk, aiError, tasteSignals, useAiSearch, type AiAnswer, type AiError } from "./aiSuggestions";
+import { AiSearchAnswer } from "./AiPicks";
 import { usePlayHistory } from "./recentGames";
 import { GAME_STORAGE_STATE_CHANGED_EVENT } from "./gameStorage";
 import { DEFAULT_LIBRARY_FILTERS, findLibraryLetter, filterLibraryGames, LIBRARY_SEARCH_EVENT } from "./librarySearch";
@@ -237,6 +239,23 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const tailoring = personalOrder.on && taste.ready;
   const tasteParams = useMemo(() => tailoring ? tasteQuery(taste, catalogBase, genreNames) : null, [tailoring, taste, catalogBase, genreNames]);
   const tasteCandidates = useCatalogQuery({ ...(tasteParams ?? {}), enabled: isCatalog && nativeCatalog && tasteParams !== null });
+  // The magic button with an AI connected (Seba, 2026-11-04): the search is a request in the player's own words.
+  // Gemma gets it with the thumbs and the library and answers with games the player does not have (aiSuggestions.ts).
+  const aiSearch = useAiSearch();
+  const aiAsking = aiSearch.on && isCatalog && activeQuery.length > 0;
+  const [aiResult, setAiResult] = useState<{ text: string; answer: AiAnswer | null; error: AiError | null; busy: boolean } | null>(null);
+  useEffect(() => {
+    if (!aiAsking) { setAiResult(null); return; }
+    let alive = true;
+    const text = activeQuery;
+    setAiResult({ text, answer: null, error: null, busy: true });
+    aiAsk(text, tasteSignals(preferences))
+      .then(answer => { if (alive) setAiResult({ text, answer, error: null, busy: false }); })
+      .catch(reason => { if (alive) setAiResult({ text, answer: null, error: aiError(reason), busy: false }); });
+    return () => { alive = false; };
+  // Only a new request asks again; a thumb given meanwhile counts on the next one.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiAsking, activeQuery]);
   // What the catalog showed last for this search, filters and sort: the games on screen keep their places when the
   // order adapts. A new search starts over.
   const lastCatalogRef = useRef<{ key: string; games: CatalogGame[] }>({ key: "", games: [] });
@@ -251,6 +270,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     return state.installed || state.prepared;
   }, [effectiveDownloads]);
   const catalogCollection = useMemo(() => {
+    if (libraryView === "catalog" && aiResult) {
+      const found = aiResult.answer?.picks.map(pick => pick.game) ?? [];
+      return { id: "catalog" as const, title: t("aiAskTitle"), description: aiResult.answer?.reply ?? "", games: downloadManager.pinGames(found, effectiveDownloads, trackedAppIds), total: found.length };
+    }
     if (libraryView === "catalog") {
       // The grid shows the database answer, even when it is empty. Only without the
       // database (browser preview, tests) or on a query error does it filter what is in memory.
@@ -297,7 +320,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       catalogSort,
       libraryIds,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring]);
+  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring, aiResult]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -765,7 +788,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
               ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
               : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
           </div> : null}
-          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? catalogQuery.loading : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
+          <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? (aiResult ? aiResult.busy : catalogQuery.loading) : undefined} lead={aiResult ? <AiSearchAnswer busy={aiResult.busy} reply={aiResult.answer?.reply ?? ""} count={aiResult.answer?.picks.length ?? 0} error={aiResult.error} /> : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />

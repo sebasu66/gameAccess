@@ -116,6 +116,7 @@ fn main() {
             ai_connection::ai_save_key,
             ai_connection::ai_disconnect,
             ai_connection::ai_test,
+            ai_connection::ai_chat_json,
             ai_connection::ai_guide_open,
             ai_connection::ai_open_keys_in_browser,
             admin_key::admin_key_check,

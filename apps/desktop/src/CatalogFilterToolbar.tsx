@@ -10,6 +10,7 @@ import type { CatalogGame } from "./types";
 import { useI18n } from "./i18n";
 import { GaIconButton } from "./components/ga/Buttons";
 import { setPersonalOrder, unlockCelebrated, usePersonalOrder } from "./personalOrder";
+import { useAiSearch } from "./aiSuggestions";
 import { gsap, motionOk } from "./motion/gsap";
 import { playUnlockChime } from "./uiSounds";
 
@@ -19,7 +20,10 @@ import { playUnlockChime } from "./uiSounds";
  */
 function PersonalOrderSwitch() {
   const { t } = useI18n();
-  const { on, ready, percent, unlocked } = usePersonalOrder();
+  const { on, ready: profileReady, percent, unlocked } = usePersonalOrder();
+  // With an AI connected the button is the search in words, ready from a few choices (aiSuggestions.useAiSearch).
+  const ai = useAiSearch();
+  const ready = profileReady || ai.available;
   const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!unlocked || !button.current) return;
@@ -46,7 +50,7 @@ function PersonalOrderSwitch() {
     return () => window.clearTimeout(timer);
   }, [unlocked]);
   const label = t("personalOrderLabel");
-  const tip = !ready ? t("personalOrderLocked", { percent }) : on ? t("personalOrderOn") : t("personalOrderOff");
+  const tip = !ready ? t("personalOrderLocked", { percent }) : ai.available ? t(on ? "aiSearchOn" : "aiSearchOff") : on ? t("personalOrderOn") : t("personalOrderOff");
   return <button ref={button} type="button" className={`ga-cube ga-personal-order${on && ready ? " is-on" : ""}`} aria-pressed={on && ready} aria-disabled={!ready} aria-label={`${label}. ${tip}`} title={tip}
     onClick={() => { if (ready) setPersonalOrder(!on); }}><Sparkles size={18} aria-hidden="true" /><span className="ga-cube-label">{label}</span></button>;
 }

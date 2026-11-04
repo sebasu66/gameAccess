@@ -1,0 +1,31 @@
+/* AI picks (AiPicks.tsx): Home's AI card, the detail's AI panel and the search answer share the tile. */
+.ga-ai-picks { --ga-p-size: 16px; }
+.ga-ai-picks-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--ga-space-3); }
+.ga-ai-picks-head p { max-width: 80ch; }
+.ga-ai-picks .ga-home-card-title { color: var(--ga-orange-ink); }
+.ga-ai-picks-how { display: flex; align-items: center; gap: 8px; color: var(--ga-muted); }
+.ga-ai-picks-note { margin: 0; font-size: 16px; color: var(--ga-muted); }
+.ga-ai-picks-progress { display: flex; align-items: center; gap: var(--ga-space-2); font-size: 16px; color: var(--ga-muted); }
+.ga-ai-picks-meter { position: relative; width: 160px; height: 6px; border-radius: 3px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-ai-picks-meter i { position: absolute; inset: 0 auto 0 0; background: var(--ga-orange); border-radius: 3px; transition: width .4s; }
+.ga-ai-picks-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--ga-space-2); }
+.ga-ai-pick { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 14px; align-items: start; width: 100%; padding: 10px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface-2); color: inherit; text-align: start; cursor: pointer; transition: border-color .2s, transform .2s; }
+.ga-ai-pick:hover, .ga-ai-pick:focus-visible { border-color: var(--ga-orange); transform: translateY(-2px); }
+.ga-ai-pick.is-fresh { border-color: var(--ga-orange-line); background: var(--ga-orange-tint); }
+.ga-ai-pick-cover { display: block; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--ga-surface); }
+.ga-ai-pick-cover img { width: 100%; height: 100%; object-fit: cover; }
+.ga-ai-pick-text { display: grid; gap: 4px; min-width: 0; }
+.ga-ai-pick-badge { justify-self: start; padding: 2px 8px; border-radius: 999px; font: 700 13px var(--ga-text-family); color: var(--ga-orange-ink); border: 1px solid var(--ga-orange-line); }
+.ga-ai-pick-name { font: 700 16px/1.3 var(--ga-text-family); color: var(--ga-white); }
+.ga-ai-pick-why { font-size: 15px; line-height: 1.4; color: var(--ga-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* The detail's panel (LibraryDetailPanel.tsx). */
+.ga-ai-reason { display: grid; gap: 10px; padding: 18px 20px; border-radius: 14px; border: 1px solid var(--ga-orange-line); background: var(--ga-orange-tint); }
+.ga-ai-reason h4 { display: flex; align-items: center; gap: 8px; color: var(--ga-orange-ink); }
+@media (prefers-reduced-motion: reduce) { .ga-ai-pick, .ga-ai-picks-meter i { transition: none; } .ga-ai-pick:hover { transform: none; } }
+@media (max-width: 760px) { .ga-ai-picks-head { grid-template-columns: 1fr; } }
+/* The detail's panel is a piece of glass over the media column (GUI_DESIGN §4.4 glass, orange edge). */
+.ga-detail-gallery .ga-ai-reason { margin-top: 14px; background: linear-gradient(160deg, var(--ga-orange-tint), var(--ga-surface)); backdrop-filter: blur(14px) saturate(1.2); box-shadow: inset 0 1px 0 var(--ga-line); }
+.ga-ai-reason-more { color: var(--ga-muted); font-size: 15px; }
+/* The AI's answer above the catalog grid (LibraryRoom.tsx, a search in words). */
+.ga-ai-search-answer { margin: 0 0 var(--ga-space-2); }
+.global-search.is-ai .ga-search-icon { color: var(--ga-orange); }

@@ -5,6 +5,7 @@ import { notify } from "./toasts";
 import { openSteamStore } from "./native";
 import { usePluginReady } from "./usePluginReady";
 import CooptimusDetails from "./CooptimusDetails";
+import { AiReasonPanel } from "./AiPicks";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
@@ -562,7 +563,7 @@ function DesktopFeature(props: FeaturePanelProps) {
           </div>
           <div ref={actionsRef} className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
+        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} />{props.showcaseMode ? null : <AiReasonPanel game={props.game} />}<CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
       </div>
     </article>
   );

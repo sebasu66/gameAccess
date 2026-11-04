@@ -67,6 +67,18 @@ export function rememberTasteGame(game: (CatalogGame & { steam?: SteamMetadata |
   const saved = loadTraits();
   saved[game.id] = traits;
   try { localStorage.setItem(TRAITS_KEY, JSON.stringify(saved)); } catch { /* the profile then uses loaded games */ }
+  // Its name too: the AI suggestions (aiSuggestions.ts) tell Gemma which games the player liked or not, by name.
+  try {
+    const names = loadTasteNames();
+    names[game.id] = game.name;
+    localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+  } catch { /* only the suggestions use it */ }
+}
+
+const NAMES_KEY = "gameaccess:taste-names";
+/** The names of the games the player rated, by catalog id (rememberTasteGame). */
+export function loadTasteNames(): Record<number, string> {
+  try { return JSON.parse(localStorage.getItem(NAMES_KEY) || "{}") as Record<number, string>; } catch { return {}; }
 }
 
 function patterns(liked: string[][], disliked: string[][]): TasteTrait[] {

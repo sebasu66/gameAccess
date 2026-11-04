@@ -122,6 +122,34 @@ pub async fn ai_test() -> Result<String, String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+/// Longest prompt the app sends: a short list of games and the player's tastes, never the whole catalog.
+const MAX_PROMPT: usize = 24_000;
+
+/// Asks Gemma for an answer in a fixed shape: Ollama's `format` takes the JSON schema, so the model answers exactly
+/// that JSON (aiSuggestions.ts builds the prompts and checks every answer against what really exists). Same errors as
+/// `ai_test`, plus "failed:json" when the answer is not the JSON asked for.
+#[tauri::command]
+pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Value) -> Result<serde_json::Value, String> {
+    if system.len() + prompt.len() > MAX_PROMPT { return Err("failed:too_long".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = ollama_key().ok_or("no_key")?;
+        let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(90)).build().map_err(|e| e.to_string())?;
+        let body = serde_json::json!({ "model": TEST_MODEL, "stream": false, "think": false, "format": schema,
+            "options": { "temperature": 0.4 },
+            "messages": [{ "role": "system", "content": system }, { "role": "user", "content": prompt }] });
+        let response = client.post(CHAT_URL).bearer_auth(key).json(&body).send().map_err(|_| "offline".to_string())?;
+        match response.status().as_u16() {
+            200 => {}
+            401 | 403 => return Err("rejected".into()),
+            429 => return Err("limit".into()),
+            status => return Err(format!("failed:{status}")),
+        }
+        let reply: serde_json::Value = response.json().map_err(|_| "failed:body".to_string())?;
+        let content = reply["message"]["content"].as_str().ok_or("failed:empty")?;
+        serde_json::from_str(content).map_err(|_| "failed:json".to_string())
+    }).await.map_err(|e| e.to_string())?
+}
+
 /// Opens Ollama's key page in a Game Access window with the guide over it. Events to the main window:
 /// `gameaccess:ai-key` when the key was kept ({ ending }), `gameaccess:ai-google` when the player chose Google
 /// (it does not work here) and `gameaccess:ai-guide-closed` when the window closes ({ saved }).

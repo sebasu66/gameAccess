@@ -57,6 +57,20 @@ Lo primero que se termina y se publica. El resto puede esperar.
   3. **Ficha** (`LibraryDetailPanel.tsx`, `DesktopFeature`, en la columna `ga-detail-gallery` junto a `CooptimusDetails`): el panel «Recomendación de la IA» muestra el «por qué» guardado, o el botón «¿Me va a gustar?», que pregunta solo por ese juego.
 - **Sin IA**: todo queda como hoy.
 
+### Cómo quedó (Seba, 2026-11-04, cambios durante la entrega)
+- **Buscar con tus palabras**: con la IA conectada, el botón mágico del filtro pasa a ser «buscar con IA».
+  - El jugador escribe lo que quiere («algo como Portal, cooperativo e indie») y aprieta Enter.
+  - Gemma recibe el pedido, los me gusta / no me gusta (por nombre), la biblioteca y lo jugado.
+  - Responde con juegos (nombre + **app id de Steam**) que el jugador no tiene. Arriba de la grilla, «La IA te responde».
+  - Se prende desde 5 elecciones (pulgares y biblioteca), sin esperar el perfil de gustos.
+- **El app id**: Gemma no navega por internet (Ollama en la nube solo corre el modelo), así que el id sale de su memoria y a veces está mal. Se usa solo si el juego del catálogo con ese id tiene el mismo nombre; si no, se busca por nombre. Lo que no está en el catálogo se descarta.
+- **Inicio**: la tarjeta «Elegidos por la IA para vos».
+  - Explica los pulgares y la biblioteca, y muestra el avance hasta 5 elecciones.
+  - Muestra unos 20 juegos con su porqué (cache de 24 h).
+  - Una vez por día, Gemma mira los lanzamientos de 30 días y puede marcar hasta 3 como «Nuevo».
+- **Ficha**: en los juegos que sugirió Gemma, un panel de vidrio «Recomendación de la IA» con el porqué corto y, al abrir la ficha, su explicación larga (se pide una vez y queda guardada).
+- Código: `aiSuggestions.ts` (con pruebas), `AiPicks.tsx`, `ai-picks.css`, `ai_chat_json` en `ai_connection.rs`.
+
 ## 3. Recomendaciones y biblioteca con IA
 - **Recomendaciones**: Gemma recibe el perfil de gustos y una lista corta de candidatos del catálogo, y devuelve un orden con una línea de «por qué» para cada uno. Solo puede elegir entre los candidatos.
 - **Biblioteca**: con las mismas herramientas, sugiere qué juegos ocupan lugar sin usarse, qué congelar o mover y qué falló. Nada se hace sin el permiso del jugador.

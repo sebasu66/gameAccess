@@ -164,6 +164,8 @@ interface DownloadCatalogPanelProps {
   onCatalogSortChange?: (sort: CatalogSort) => void;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
+  /** Shown above the grid instead of the spotlight: the AI's answer to a search in words (AiSearchAnswer). */
+  lead?: ReactNode;
   allGames?: CatalogGame[];
   searchFilters?: LibrarySearchFilters;
   onSearchFiltersChange?: (filters: LibrarySearchFilters) => void;
@@ -533,7 +535,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     <section className="library-room-catalog">
       {filtersOpen ? <LibraryFilterDialog games={view === "installed" ? allGames.filter(game => { const status = game.app_id ? props.downloads[game.app_id] : undefined; const state = gameStateManager.resolve(status); return state.installed || state.prepared || props.preferences?.[game.id] === 1; }) : allGames} countFromCatalog={view !== "installed"} query={searchQuery} filters={searchFilters} genres={facets.genres} onApply={next => { onSearchFiltersChange(next); setFiltersOpen(false); setSectionReset(value => value + 1); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }} /> : null}
       {props.toolbarTarget ? createPortal(toolbar, props.toolbarTarget) : toolbar}
-      {view === "catalog" && !searchQuery.trim() ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
+      {props.lead ?? null}
+      {view === "catalog" && !searchQuery.trim() && !props.lead ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
       {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
