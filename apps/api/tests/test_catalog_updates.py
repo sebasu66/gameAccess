@@ -5,10 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from app import discovery_service as service
 from app.catalog_snapshot import write_snapshot
 from app.catalog_updates import published_packages, publish_updates
 
@@ -31,7 +28,7 @@ def _publish(repo, out, rows, message):
     return json.loads((out / "catalog-manifest.json").read_text())["revision"]
 
 
-def test_batches_from_the_last_revisions_are_published_and_served_from_github(tmp_path, monkeypatch):
+def test_batches_from_the_last_revisions_are_published_on_github(tmp_path):
     repo = tmp_path / "repo"
     out = repo / "deploy" / "catalog-cache"
     out.mkdir(parents=True)
@@ -60,21 +57,6 @@ def test_batches_from_the_last_revisions_are_published_and_served_from_github(tm
         assert batch["base_revision"] == base and batch["revision"] == third
         assert sorted(game["app_id"] for game in batch["games"]) == expected
 
-    # The server answers with the GitHub file for each case; it never serves catalog bytes itself.
-    monkeypatch.setattr(service, "ROOT", out)
-    monkeypatch.setattr(service, "_cached_revision", "")
-    app = FastAPI()
-    app.include_router(service.router)
-    client = TestClient(app)
-    delta = client.get("/library/catalog/manifest", params={"since": second}).json()
-    assert delta["kind"] == "delta" and delta["base_revision"] == second
-    assert delta["artifact_url"] == updates[second]["artifact_url"] and delta["sha256"] == updates[second]["sha256"]
-    assert "updates" not in delta
-    for since in ("", "0123456789abcdef", third):
-        baseline = client.get("/library/catalog/manifest", params={"since": since}).json()
-        assert baseline["kind"] == "baseline"
-        assert baseline["artifact_url"] == manifest["artifact_url"]
-        assert baseline["artifact_url"].startswith("https://raw.githubusercontent.com/")
 
 
 def test_without_git_history_there_are_no_batches_and_clients_get_the_package(tmp_path):

@@ -215,14 +215,6 @@ def test_active_status_lease_is_bounded_and_has_managed_permissions(activation_d
         assert status["lease_expires_at"] <= expiry
         assert set(status["permissions"]) == {"downloads", "extended-catalog", "big-screen", "library"}
 
-def test_catalog_manifest_remains_public_without_activation():
-    client = TestClient(core.app)
-    response = client.get("/library/catalog/manifest")
-    assert response.status_code == 200
-    assert response.json()["catalog_count"] > 0
-    assert "inventory_sha256" in response.json()
-
-
 def test_tester_key_is_plus_until_its_date_bound_to_one_windows_and_can_be_released(activation_db, monkeypatch, tmp_path):
     from fastapi import HTTPException, Request
     from app import access_admin_routes as admin_routes

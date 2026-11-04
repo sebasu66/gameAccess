@@ -54,7 +54,7 @@ progress, detail reveal, drag without click and position restoration. The produc
 
 ## Sincronización Servidor → Cliente (Delta vs Snapshot)
 
-- **Soporte delta en cliente y Rust:** `catalog_cache_sync` en `apps/desktop/src-tauri/src/catalog_cache.rs` soporta sincronización diferencial consultando `/library/catalog/manifest?since=<revision>`. Cuando el manifiesto declara `kind == "delta"`, descarga únicamente el `CatalogBatch` (JSON comprimido con juegos y detalles diferenciales que empatan con `base_revision`) y los aplica sobre la base SQLite existente mediante `apply_batch`, sin redescargar toda la base.
+- **Soporte delta en cliente y Rust:** `catalog_cache_sync` en `apps/desktop/src-tauri/src/catalog_cache.rs` soporta sincronización diferencial leyendo el manifiesto de GitHub: si `updates` trae un lote desde la revisión local, descarga únicamente el `CatalogBatch` (JSON comprimido con juegos y detalles diferenciales que empatan con `base_revision`) y los aplica sobre la base SQLite existente mediante `apply_batch`, sin redescargar toda la base.
 - **Estado del servidor:** Las publicaciones estáticas actuales en GitHub sirven snapshots completos (`catalog-cache-*.sqlite.gz`, `kind` no es delta). Cuando el servidor o pipeline genere deltas, el cliente los consumirá automáticamente.
 - **Frecuencia de sincronización:**
   1. Al instalar / primera apertura (descarga de snapshot inicial).
