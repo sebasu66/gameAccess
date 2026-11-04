@@ -343,6 +343,11 @@ export class DigitalDownloadService implements IDownloadProvider {
     return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase)).length;
   }
 
+  /** The downloads left unfinished by an earlier session (not the ones started in this one). */
+  leftUnfinished() {
+    return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase) && !this.startedNow.has(snapshot.gameId));
+  }
+
   async resume(gameId: number): Promise<void> {
     if (this.activeJobs.get(gameId)?.phase !== "paused") return;
     this.apply(await this.queue.resume(this.appIdOf(gameId)));

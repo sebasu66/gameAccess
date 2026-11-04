@@ -67,17 +67,16 @@ describe("LibraryRoom grid presentation", () => {
   });
 
   it("keeps file readiness independent from the available-copy count", () => {
-    // A search shows installed games in the catalog too (without one they live in the library).
     expect(render({ 10: installed }, 1, "Test")).toContain("ga-card-installed");
     const withoutLicense = render({ 10: installed }, 0, "Test");
     expect(withoutLicense).toContain("ga-card-installed");
     expect(withoutLicense).not.toContain("ga-card-installed no-license");
   });
 
-  it("leaves installed games out of the catalog until there is a search", () => {
+  it("keeps the player's own installed games in the catalog without a search", () => {
     const markup = render({ 10: installed });
-    expect(markup).not.toContain('aria-label="Seleccionado: Test Game');
-    expect(markup).toContain("ga-hidden-installed");
+    expect(markup).toContain('aria-label="Seleccionado: Test Game');
+    expect(markup).toContain("ga-card-installed");
   });
 
   it("does not mark a legacy frozen game as ready or playable", () => {

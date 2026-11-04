@@ -44,6 +44,7 @@ import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
 import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
+import { openLibraryManager } from "./libraryManagerNav";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
 import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
@@ -52,7 +53,7 @@ import { digitalCatalogService, GameAlreadyInstalledError } from "./catalog/Digi
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import DeskPanel from "./desk/DeskPanel";
 import { uiDemo } from "./devDemo/uiDemo";
-import { closePanel, isWideDesk, openPanel, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
+import { closePanel, isWideDesk, togglePanel, useDesk, useDeskLayout } from "./desk/desk";
 import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
@@ -247,11 +248,19 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     return () => { unsub(); if (timer !== null) window.clearTimeout(timer); };
   }, []);
 
-  // Once per launch, tell the player when downloads were left unfinished (paused, stopped for lack of room...).
+  // Once per launch, tell the player when downloads were left unfinished (paused, stopped for lack of room...) by an
+  // earlier session: a download started now is not one (it showed this notice on the first download of the session).
+  // It names the games and takes to them in the Library Manager, where each download has its detail (Seba, 2026-11-03).
   useEffect(() => {
     if (!unfinishedDownloads || pendingNoticeShown.current) return;
+    const left = digitalDownloadService.leftUnfinished();
     pendingNoticeShown.current = true;
-    showNotice({ tone: "info", title: t("pendingDownloadsNotice", { count: unfinishedDownloads }), actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openPanel("downloads"); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
+    if (!left.length) return;
+    const first = left[0].game;
+    const appId = left.length === 1 ? first.app_id ?? left[0].snapshot.gameId : undefined;
+    showNotice({ tone: "info", game: left.length === 1 ? noticeGame(first) : undefined, title: t("pendingDownloadsNotice", { count: left.length }),
+      text: left.map(entry => entry.game.name).join(", "), activity: { kind: "download" },
+      actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openLibraryManager(appId); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
   }, [unfinishedDownloads, t]);
 
   // Source/metadata updates do not change the folders we need to check.
