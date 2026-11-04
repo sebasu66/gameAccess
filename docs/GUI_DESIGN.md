@@ -331,6 +331,10 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Paso 3: ícono grande (ruedita, ✓ o ✗) y tres comprobaciones; **Listo**, o **Probar otra clave** / **Reintentar**.
 - Configuración › IA: tarjeta «Ollama en la nube» con el estado y **Conectar** (naranja) o **Probar** y **Desconectar**. Vista previa: `?uiDemo=1`, Configuración › IA (la guía se simula).
 
+### 4.30 Tapa de apertura y aspecto PLUS (Seba 2026-11-04)
+- La palabra de la tapa (`GateWord`, `splash-screen.css`) es tan tenue como la de la columna derecha (`brand-wall.css`): línea de 1 px que no escala (`vector-effect: non-scaling-stroke`), opacidad .26, relleno .03, sombra naranja .12. Es grande (franja de `--gs-lock` × .4, del marco de la hoja hasta el candado o la cerradura) y se dibuja letra por letra antes de que gire la cerradura (`DRAW_MS` 1500). Seba: «apenas legibles, un poco más grandes».
+- Con PLUS (`html.ga-plus`, `plusLook.ts`; recuerda el último estado para que la tapa ya salga dorada): marco, labio de la pantalla, líneas grabadas y nombre de la pestaña en dorado (`--ga-plus-*` en `gameaccess-theme.css`); en la tapa, marco de cada hoja y líneas en dorado y la marca **+ PLUS** arriba a la derecha (`gs-plus-mark`). Solo cambian colores, nada se mueve ni cambia de tamaño.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

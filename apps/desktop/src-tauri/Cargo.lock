@@ -1343,7 +1343,7 @@ dependencies = [
 
 [[package]]
 name = "gameaccess-desktop"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aes-gcm",
  "argon2",

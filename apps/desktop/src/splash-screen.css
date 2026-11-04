@@ -34,7 +34,7 @@
 .gs-leaf.is-left .gs-panel{left:60px;right:calc(var(--gs-lock)/2 + 70px)}
 .gs-leaf.is-right .gs-panel{right:60px;left:calc(var(--gs-lock)/2 + 70px)}
 /* Vent slots near the outer side, at mid height. */
-.gs-vents{position:absolute;z-index:1;top:calc(50% - 46px);width:84px;height:92px;pointer-events:none;
+.gs-vents{position:absolute;z-index:1;top:calc(50% + var(--gs-lock) * .2 + 12px);width:84px;height:56px;pointer-events:none;
  background:repeating-linear-gradient(180deg,#000000b3 0 3px,#ffffff14 3px 4px,#0000 4px 12px);border-radius:3px}
 .gs-leaf.is-left .gs-vents{left:64px}.gs-leaf.is-right .gs-vents{right:64px}
 /* Engraved lines: one across the middle, fading towards the lock and the outer edge, and two fainter ones. */
@@ -54,21 +54,22 @@
  background:repeating-linear-gradient(45deg,#cc8333 0 6px,#0000 6px 12px)}
 .gs-hazard::after{content:"";position:absolute;left:0;right:0;top:calc(var(--gs-lock) + 160px);height:80px;background:inherit}
 .gs-leaf.is-left .gs-hazard{right:36px}.gs-leaf.is-right .gs-hazard{left:36px}
-/* The brand across the cover (GateWord): GAME on the left leaf, ACCESS on the right, each centred in the free band
-   between the vents and the padlock or lock, on the engraved middle line. Subtle, like the side column's sketch: a thin
-   pencil line drawn letter by letter with the lock, then a faint fill; two fading guide lines above and below. */
-.gs-word-slot{position:absolute;z-index:1;top:50%;height:calc(var(--gs-lock) * .2);display:flex;justify-content:center;transform:translateY(-50%);pointer-events:none}
-.gs-leaf.is-left .gs-word-slot{left:168px;right:calc(var(--gs-lock)/2 + 70px)}
-.gs-leaf.is-right .gs-word-slot{right:168px;left:calc(var(--gs-lock)/2 + 70px)}
+/* The brand across the cover (GateWord): GAME on the left leaf, ACCESS on the right, large in the band between the
+   leaf's frame and the padlock or lock, on the engraved middle line. Barely legible, like the word in the right column
+   of the main screen (brand-wall.css): a 1 px line at low opacity, drawn letter by letter before the lock turns, and
+   an almost invisible fill. The vents step down under it. (Seba, 2026-11-04: larger, but just as faint.) */
+.gs-word-slot{position:absolute;z-index:1;top:50%;height:calc(var(--gs-lock) * .4);display:flex;justify-content:center;transform:translateY(-50%);pointer-events:none}
+.gs-leaf.is-left .gs-word-slot{left:52px;right:calc(var(--gs-lock)/2 + 84px)}
+.gs-leaf.is-right .gs-word-slot{right:52px;left:calc(var(--gs-lock)/2 + 84px)}
 .gs-word{height:100%;width:auto;max-width:100%;overflow:visible}
-.gs-word-guides line{stroke-width:.5;opacity:.2}
+.gs-word-guides line{stroke-width:1px;vector-effect:non-scaling-stroke;opacity:.12}
 .gs-word-cell{--p:1}
-.gs-word-letter,.gs-word-ghost{stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1 1}
-.gs-word-letter{stroke:#f4f4f2;stroke-width:.8;stroke-opacity:.5;fill:#c9d4dc;fill-opacity:.1;
- animation:gs-word-line calc(var(--gs-draw) * .6) ease-out calc(var(--gs-draw) * .08 * var(--i)) both,gs-word-fill calc(var(--gs-draw) * .4) ease-out calc(var(--gs-draw) * .6) both}
-.gs-word-ghost{fill:none;stroke:#d89f63;stroke-width:.5;opacity:.24;animation:gs-word-line calc(var(--gs-draw) * .6) ease-out calc(var(--gs-draw) * .08 * var(--i) + 60ms) both}
+.gs-word-letter,.gs-word-ghost{stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1 1;stroke-width:1px;vector-effect:non-scaling-stroke}
+.gs-word-letter{stroke:#f4f4f2;stroke-opacity:.26;fill:#c9d4dc;fill-opacity:.03;
+ animation:gs-word-line calc(var(--gs-draw) * .65) cubic-bezier(.45,0,.3,1) calc(var(--gs-draw) * .07 * var(--i)) both,gs-word-fill calc(var(--gs-draw) * .3) ease-out calc(var(--gs-draw) * .75) both}
+.gs-word-ghost{fill:none;stroke:#d89f63;opacity:.12;animation:gs-word-line calc(var(--gs-draw) * .65) cubic-bezier(.45,0,.3,1) calc(var(--gs-draw) * .07 * var(--i) + 70ms) both}
 @keyframes gs-word-line{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-@keyframes gs-word-fill{from{fill-opacity:0}to{fill-opacity:.1}}
+@keyframes gs-word-fill{from{fill-opacity:0}to{fill-opacity:.03}}
 /* The lock sits on the seam: each leaf holds the whole of it and shows its own half. */
 /* The lock lies over the seam, fixed to the right leaf (which is above the left one and lets it show past its edge). */
 .gs-leaf.is-right{overflow:visible;z-index:1}

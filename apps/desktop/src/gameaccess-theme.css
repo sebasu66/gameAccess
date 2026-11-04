@@ -17,6 +17,10 @@
   --ga-dialog-ring:linear-gradient(135deg, #ffffff85 0%, #ffffff4d 25%, #ffffff14 65%, #ffffff02 100%);
   --ga-dialog-radius:12px; --ga-dialog-shadow:0 24px 60px #0008;
 }
+/* The PLUS look's gold (plus-look.css): lines, glows and the PLUS mark, only while PLUS is on. */
+:root { --ga-plus-gold:#e6bf6e; --ga-plus-gold-soft:#e6bf6e59; --ga-plus-gold-faint:#e6bf6e2e; --ga-plus-gold-line:#e6bf6e4d; --ga-plus-gold-line-faint:#e6bf6e2b;
+  --ga-plus-gold-tint:#e6bf6e14; --ga-plus-gold-bright:#f5dc9c; --ga-plus-gold-label:#f0d48f; --ga-plus-glow:#d9a74a66; --ga-plus-glow-strong:#d9a74acc;
+  --ga-plus-cut:#000a; --ga-plus-seam:#000000b3; --ga-plus-lip:#ffffff1a; }
 :root { --ga-btn-font:700 16px/1 Manrope,"Segoe UI",sans-serif; --ga-btn-case:none; --ga-btn-track:normal; --ga-btn-bg:var(--ga-orange); --ga-btn-bg-hover:#d69959; --ga-btn-ink:#140a02; --ga-frost:#a5cee9; --ga-orange:#cc8333; --ga-bg:#111416; --ga-white:#f4f4f2; --ga-muted:#929ba2; --ga-line:#ffffff20; --accent:var(--ga-orange); --ga-footer:50px; }
 /* Colour and content tokens (docs/GUI_DESIGN.md §1 and §4.25): the content layer (components/ga/content.css) reads only these. */
 :root {

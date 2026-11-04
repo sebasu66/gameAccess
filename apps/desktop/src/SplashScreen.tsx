@@ -9,7 +9,7 @@ import { SKETCH_GLYPHS } from "./brandGlyphs";
 import "./admin-gate.css";
 // The lock is drawn and waits shut. Once access is settled it works as one mechanism (Seba, 2026-10-30): the sound
 // (splash.mp3) and the quarter turn start together, and the gate opens as the turn ends. Never the sound alone.
-const DRAW_MS = 1100, TURN_MS = 950, OPEN_MS = 1300;
+const DRAW_MS = 1500, TURN_MS = 950, OPEN_MS = 1300;
 type Props = { stage: OpeningStage; onIntroReady: () => void; onDockStart: () => void; onDocked: () => void };
 
 // The maker's emblem, engraved in the lock and filled with coloured glass: a G and an A that together make one circle (outer radius 138, inner 106).
@@ -124,7 +124,7 @@ function Padlock() {
 
 // The brand across the cover: GAME on the left leaf, ACCESS on the right, so the word parts with the gate. The letters
 // are the side column's (brandGlyphs.ts, cells of 60 x 64), laid in a row on two guide lines, as sketched on the wall.
-const WORD_ADVANCE = 58;
+const WORD_ADVANCE = 53;
 const WORD_CELLS = 6;
 
 /** One word of the brand, sketched on its leaf: a pencil line drawn with the lock, a faint fill as it closes. */
@@ -134,7 +134,7 @@ function GateWord({ word }: { word: "GAME" | "ACCESS" }) {
  // Both words take the box of the longer one, centred in it, so a narrow leaf scales them alike.
  const width = (WORD_CELLS - 1) * WORD_ADVANCE + 60;
  const start = (WORD_CELLS - letters.length) * WORD_ADVANCE / 2;
- return <svg className="gs-word" viewBox={`0 0 ${width} 64`} style={{ "--n": letters.length } as React.CSSProperties} aria-hidden="true">
+ return <svg className="gs-word" viewBox={`2 6 ${width - 4} 52`} style={{ "--n": letters.length } as React.CSSProperties} aria-hidden="true">
   <defs>
    <linearGradient id={`${id}-guide`} gradientUnits="userSpaceOnUse" x1="-40" y1="0" x2={width + 40} y2="0">
     <stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset=".25" stopColor="#fff" stopOpacity="1" />
@@ -161,6 +161,8 @@ export function Leaf({ side, children }: { side: "left" | "right"; children?: Re
   <i className="gs-leaf-engrave" />
   <i className="gs-bolt is-a" /><i className="gs-bolt is-b" /><i className="gs-bolt is-c" /><i className="gs-bolt is-d" />
   <i className="gs-hazard" />
+  {/* With PLUS on, a gold PLUS mark in the right leaf's top corner (plus-look.css; hidden otherwise). */}
+  {side === "right" ? <i className="gs-plus-mark" /> : null}
   <div className="gs-word-slot"><GateWord word={side === "left" ? "GAME" : "ACCESS"} /></div>
   {side === "right" ? <div className="gs-leaf-lock"><Lock /></div> : <Padlock />}
   {children}
