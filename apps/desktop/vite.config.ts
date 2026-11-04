@@ -1,9 +1,26 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
+
+/**
+ * A test build (VITE_GA_TEST=1) adds src/testHook.ts as a second entry of the page: the regression pass then reaches
+ * the app's services inside an installed copy. Any other build leaves the page as it is.
+ */
+function testHook(): Plugin {
+  return {
+    name: "gameaccess-test-hook",
+    // "pre", so the script is bundled like the main entry instead of being left as a link to the source.
+    transformIndexHtml: {
+      order: "pre",
+      handler: () => process.env.VITE_GA_TEST === "1"
+        ? [{ tag: "script", attrs: { type: "module", src: "/src/testHook.ts" }, injectTo: "body" }] : [],
+    },
+  };
+}
 
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
-  plugins: [react()],
+  plugins: [react(), testHook()],
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(process.env.VITE_BUILD_TIMESTAMP || new Date().toISOString()),
   },

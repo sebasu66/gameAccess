@@ -3,21 +3,25 @@
  * code and compares them with Steam's saved answers and with the previous pass, then takes a picture of each screen.
  * Leaves report.json, summary.md and shots/ in a dated folder under runs/, next to the previous passes.
  *
- *   node regress/run.mjs [--no-build] [--only search|screens|cycle] [--cycle]
+ *   node regress/run.mjs [--no-build] [--only search|screens|cycle] [--cycle] [--installed <exe>] [--activate <file>]
  *
+ * --installed drives an app installed from a test build (VITE_GA_TEST=1) instead of this checkout's debug build.
+ * --activate loads the PLUS key in that file (its first line) the way the activation screen does, before the rest;
+ *   the report says which access the app ended with, never the key.
  * --cycle adds the whole life of a fixed game (cycle.mjs): it downloads about 600 MB through the source plugin.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Instance } from "../instance.mjs";
-import { catalogSearch, explainMissing } from "../page.mjs";
+import { callModule, catalogSearch, explainMissing } from "../page.mjs";
 import { compareWithPrevious, compareWithSteam, steamMatches } from "./compare.mjs";
 import { steamStatus } from "./steam-status.mjs";
 import { runCycle } from "./cycle.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNS = process.env.GA_RUNS ?? join(process.env.LOCALAPPDATA, "GameAccess-MCP", "runs");
+mkdirSync(RUNS, { recursive: true });
 const args = process.argv.slice(2);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 const stamp = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "");
@@ -29,7 +33,24 @@ const before = previous ? JSON.parse(readFileSync(join(RUNS, previous, "report.j
 
 const report = { started: new Date().toISOString(), folder, previous, searches: [], screens: [], failures: [] };
 const fail = (step, error) => report.failures.push({ step, error: String(error?.message ?? error) });
-const instance = new Instance();
+const installed = args.includes("--installed") ? args[args.indexOf("--installed") + 1] : null;
+const instance = new Instance({ exe: installed });
+const keyFile = args.includes("--activate") ? args[args.indexOf("--activate") + 1] : null;
+
+/** Redeems the key like the activation screen (activation.ts › redeemActivation) and notes the tier it left. */
+async function activate(page) {
+  const key = readFileSync(keyFile, "utf8").split(/\r?\n/)[0].trim();
+  const tier = () => page.evaluate(callModule, { module: "activation.ts", name: "getActivationTier", args: [] });
+  report.access = { before: await tier() };
+  try {
+    await page.evaluate(callModule, { module: "activation.ts", name: "redeemActivation", args: [key] });
+  } catch (error) {
+    // The server's answer, not the key: redeemActivation's errors never repeat it.
+    report.access.error = String(error?.message ?? error).split("\n")[0];
+    fail("activate", report.access.error);
+  }
+  report.access.after = await tier();
+}
 
 async function ready() {
   instance.start({ build: !args.includes("--no-build") });
@@ -105,6 +126,7 @@ async function screens(page) {
 function summary() {
   const steam = report.steam ? (report.steam.problem ? `no listo: ${report.steam.problem}` : "abierto, con sesión") : "sin comprobar";
   const lines = [`# Pasada de regresión ${stamp}`, "", previous ? `Anterior: ${join(RUNS, previous)}` : "Primera pasada.", "", `Steam: ${steam}.`, ""];
+  if (report.access) lines.push(`Acceso: ${report.access.before ?? "sin llave"} → ${report.access.after ?? "sin llave"}${report.access.error ? ` (${report.access.error})` : ""}.`, "");
   lines.push("## Búsquedas", "", "| Búsqueda | Nosotros | Steam | En común | Faltan | Sobran | Desde la anterior |", "|---|---|---|---|---|---|---|");
   for (const search of report.searches) {
     const change = search.since_previous ? `+${search.since_previous.added.length} / −${search.since_previous.removed.length}` : "—";
@@ -141,6 +163,7 @@ try {
   // Not a failure of the app: the steps that run games report it as their reason.
   report.steam = await steamStatus();
   const page = await ready();
+  if (keyFile) await activate(page);
   if (!only || only === "search") await searches(page);
   if (!only || only === "screens") await screens(page);
   if (only === "cycle" || args.includes("--cycle")) {

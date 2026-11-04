@@ -103,11 +103,38 @@ Para sumar una búsqueda: agregarla en `searches.json` con su versión de Steam 
 - Los argumentos de cada comando se recortan a 1000 caracteres en los informes: al abrir, `catalog_sources_apply`
   manda 13,5 MB por IPC, y una respuesta de más de 10 MB corta la conexión del cliente MCP.
 
-## Windows Sandbox (pendiente)
+## Windows Sandbox (instalación limpia)
 
-`regress/sandbox/steam-login.ps1` instala Steam sin intervención si falta (`SteamSetup.exe /S`) y entra con la
-primera cuenta de prueba que funcione (`vault/Cuentas/accFull.csv`, copiada a la carpeta compartida solo para la
-pasada y borrada al terminar); el informe dice "account N", nunca la cuenta. Lo corre Seba: los agentes no inician
-sesión con contraseñas. Falta el resto: el `.wsb`, el instalador de prueba, el plugin instalado desde el botón de su
-página (la dirección se lee de un archivo local, nunca del repo) y la pasada sin PLUS y con una llave de prueba. Una
-app instalada no tiene el código fuente en Vite, así que ahí el ciclo tiene que llamar a los comandos de la app.
+Prueba la app como la recibe un usuario, en un Windows recién creado que se borra al cerrarlo.
+
+1. Instalador de prueba, desde `apps/desktop`:
+
+   ```bash
+   VITE_GA_TEST=1 CARGO_TARGET_DIR="$PWD/src-tauri/target/sandbox" npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+   ```
+
+   `VITE_GA_TEST=1` suma `src/testHook.ts`: deja en `window.__gameAccessTest` los mismos módulos que llaman los
+   botones (catálogo, descargas, congelado, activación…), porque una app instalada no tiene el código en Vite. Una build
+   normal no lo incluye. Esta build escribe `apps/desktop/dist` con el hook; la próxima build normal lo regenera.
+2. `node regress/sandbox/make-kit.mjs` arma `%LOCALAPPDATA%\GameAccess-MCP\sandbox`: el instalador, esta carpeta con
+   sus `node_modules`, el `node.exe` de esta PC y, en `secret\`, copias de lo que vive solo en `vault/Cuentas`
+   (ignorada por git):
+   - `accFull.csv`: cuentas de Steam de prueba;
+   - `plugin-page.txt`: la dirección de la página del plugin de fuentes; el kit lee el enlace
+     `gameaccess://install-plugin…` de su botón en ese momento, así prueba la versión publicada (o `plugin-link.txt`
+     con el enlace tal cual);
+   - `plus-key.txt`: una llave PLUS (primera línea), del servidor de prueba o la de cortesía de Render.
+3. Abrir `gameaccess.wsb`. Adentro, `in-sandbox.ps1`:
+   1. instala Game Access con `/S`;
+   2. instala Steam (`SteamSetup.exe /S`, bajado de Steam si no se pasó `--steam-setup`) y entra con la primera
+      cuenta que funcione (`steam-login.ps1`; el informe dice "account N", nunca la cuenta);
+   3. abre la app con el enlace del plugin y contesta "Sí" a su pregunta, como el botón de la página;
+   4. corre la pasada con el ciclo sin llave (`run.mjs --installed <exe> --cycle`: acceso base, 1 descarga);
+   5. si hay llave, la carga como la pantalla de activación (`--activate`, `activation.ts › redeemActivation`) y repite
+      el ciclo (PLUS, hasta 4). El informe dice el acceso antes y después, nunca la llave.
+
+   Al terminar borra `secret\` y escribe `out\done.txt`. Todo queda en `out\`: `sandbox.log`, `steam-login.json`,
+   `plugin.json` y `runs\<fecha>` por pasada.
+
+Lo abre Seba: inicia sesión en Steam con contraseñas. Steam Guard por correo o móvil frena el ingreso de una cuenta
+que lo tenga; esa cuenta queda como fallida y se prueba la siguiente.

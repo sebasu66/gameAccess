@@ -1,11 +1,14 @@
 /**
  * Functions that run inside the app's window. Playwright sends each one's source to the page, so they cannot use
- * anything from this file: what they need they import from Vite, the same modules the interface runs.
+ * anything from this file: what they need they import from Vite, the same modules the interface runs, or take from
+ * the test hook an installed test build carries (apps/desktop/src/testHook.ts).
  */
 
 /** Calls an export of the frontend with JSON arguments. */
 export async function callModule({ module, name, args }) {
-  const loaded = await import(/* @vite-ignore */ `/src/${module}`);
+  // An installed test build has no source to import: its testHook.ts hands the same modules over.
+  const load = path => window.__gameAccessTest?.modules[path] ?? import(/* @vite-ignore */ `/src/${path}`);
+  const loaded = await load(module);
   if (!(name in loaded)) throw new Error(`${module} exports no ${name}.`);
   const value = loaded[name];
   return typeof value === "function" ? await value(...args) : value;
@@ -13,8 +16,10 @@ export async function callModule({ module, name, args }) {
 
 /** The catalog screen's query (LibraryRoom.tsx, catalogBase), sent through queryCatalogCache like the grid's. */
 export async function catalogSearch({ query = "", filters = {}, initial = false, sort = "steam-popularity", limit = 1000 }) {
+  // An installed test build has no source to import: its testHook.ts hands the same modules over.
+  const load = path => window.__gameAccessTest?.modules[path] ?? import(/* @vite-ignore */ `/src/${path}`);
   const [search, params, cache, parental] = await Promise.all([
-    import("/src/librarySearch.ts"), import("/src/catalogFilterParams.ts"), import("/src/catalogCache.ts"), import("/src/parentalControl.ts"),
+    load("librarySearch.ts"), load("catalogFilterParams.ts"), load("catalogCache.ts"), load("parentalControl.ts"),
   ]);
   const base = initial ? search.INITIAL_CATALOG_FILTERS : search.defaultLibraryFilters();
   const chosen = parental.applyParentalPolicy({ ...base, ...filters });
@@ -43,8 +48,10 @@ export async function catalogSearch({ query = "", filters = {}, initial = false,
  * is run again without that criterion, only over those games), or that the catalog does not have it.
  */
 export async function explainMissing({ query = "", filters = {}, appIds }) {
+  // An installed test build has no source to import: its testHook.ts hands the same modules over.
+  const load = path => window.__gameAccessTest?.modules[path] ?? import(/* @vite-ignore */ `/src/${path}`);
   const [search, params, cache] = await Promise.all([
-    import("/src/librarySearch.ts"), import("/src/catalogFilterParams.ts"), import("/src/catalogCache.ts"),
+    load("librarySearch.ts"), load("catalogFilterParams.ts"), load("catalogCache.ts"),
   ]);
   const names = await params.loadCatalogGenreNames();
   const chosen = { ...search.defaultLibraryFilters(), ...filters };
@@ -80,9 +87,11 @@ export async function explainMissing({ query = "", filters = {}, appIds }) {
  * play, freeze, thaw, uninstall. The game is looked up by Steam app id, as the catalog does.
  */
 export async function gameStep({ appId, step }) {
+  // An installed test build has no source to import: its testHook.ts hands the same modules over.
+  const load = path => window.__gameAccessTest?.modules[path] ?? import(/* @vite-ignore */ `/src/${path}`);
   const [{ digitalCatalogService }, { digitalProcessManager }, { digitalDownloadService }, freezeJobs] = await Promise.all([
-    import("/src/catalog/DigitalCatalog.ts"), import("/src/catalog/DigitalProcessManager.ts"),
-    import("/src/catalog/DigitalDownloadService.ts"), import("/src/freezeJobs.ts"),
+    load("catalog/DigitalCatalog.ts"), load("catalog/DigitalProcessManager.ts"),
+    load("catalog/DigitalDownloadService.ts"), load("freezeJobs.ts"),
   ]);
   const [game] = await digitalCatalogService.getGamesByAppIds([appId]);
   if (!game) throw new Error(`The catalog has no game with app id ${appId}.`);
