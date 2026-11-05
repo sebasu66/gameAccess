@@ -15,8 +15,8 @@ const STEPS_LABEL: &str = "ai-steps";
 static KEY_KEPT: AtomicBool = AtomicBool::new(false);
 const KEYS_PAGE: &str = "https://ollama.com/settings/keys";
 const CHAT_URL: &str = "https://ollama.com/api/chat";
-const STEPS_WIDTH: f64 = 380.0;
-const STEPS_HEIGHT: f64 = 984.0;
+const STEPS_WIDTH: f64 = 340.0;
+const STEPS_HEIGHT: f64 = 980.0;
 /// The model of the connection test: a free cloud model listed by ollama.com/api/tags (2026-11-04).
 pub const TEST_MODEL: &str = "gemma4:31b";
 

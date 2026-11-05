@@ -37,7 +37,7 @@ export default function AiStepsWindow() {
       <GaButton icon={<ExternalLink size={18} aria-hidden="true" />} onClick={() => void aiOpenKeysInBrowser()}>{t("aiStepsReopen")}</GaButton>
     </header>
     <ol className="ga-steps-list">
-      <Step number={1} title={t("aiStep1")} image={step1} tall />
+      <Step number={1} title={t("aiStep1")} image={step1} />
       <Step number={2} title={t("aiStep2")} image={step2} />
       <Step number={3} title={t("aiStep3")} image={step3} />
       <Step number={4} title={t("aiStep4")} image={step4}>
@@ -50,10 +50,10 @@ export default function AiStepsWindow() {
   </main>;
 }
 
-function Step({ number, title, image, tall, children }: { number: number; title: string; image: string; tall?: boolean; children?: ReactNode }) {
+function Step({ number, title, image, children }: { number: number; title: string; image: string; children?: ReactNode }) {
   return <li className="ga-step">
     <h2 className="ga-step-title"><span className="ga-step-number" aria-hidden="true">{number}</span>{title}</h2>
-    <img className={tall ? "ga-step-shot is-tall" : "ga-step-shot"} src={image} alt="" />
+    <img className="ga-step-shot" src={image} alt="" />
     {children}
   </li>;
 }
