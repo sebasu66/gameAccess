@@ -18,7 +18,6 @@ import { setAppScreen } from "./appScreen";
 import { opensOn, startScreenUsed } from "./startupPreferences";
 import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
-import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
@@ -101,10 +100,10 @@ function CatalogShell() {
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
-  // The catalog database is prepared (and brought up to date when due) before the library opens; the central
-  // dialog shows the progress when it takes a while.
+  // The catalog database is in place before the library opens (the central dialog appears only if it has to be
+  // installed); the news arrive afterwards, as a task of the Activity panel.
   const [prepared, setPrepared] = React.useState(false);
-  React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
+  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); }, []);
   useAnnouncements(prepared);
   // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
   // opening has ended: a change of mode under the logo animation would run behind it.

@@ -59,13 +59,13 @@ export const catalogUpdatesStep = (outcome: { error?: unknown } = {}): StepRunne
   }),
 });
 
-/** Startup: the local database first, then (when due) the news since its revision. The app waits for both. */
-export async function runStartupPreparation(options: { checkUpdates: boolean; extraSteps?: StepRunner[] }): Promise<void> {
-  const steps = [localDatabaseStep(), ...(options.checkUpdates ? [catalogUpdatesStep()] : []), ...(options.extraSteps ?? [])];
-  await centralDialog.runTask(translate("prepTitle"), steps);
+/** Startup: only the local database, which the screens read as soon as they open. It is instant unless it has to be
+ * installed; the news are looked for later as a task of the Activity panel (useCatalogUpdates). */
+export async function runStartupPreparation(): Promise<void> {
+  await centralDialog.runTask(translate("prepTitle"), [localDatabaseStep()]);
 }
 
-/** A later check (every 24 h or the refresh button), a task of the Activity panel: the app stays usable.
+/** The check for news (on opening when due, every 24 h or the refresh button), a task of the Activity panel: the app stays usable.
  * Rejects when the catalog could not be reached, so a manual refresh can tell the player. */
 export async function runCatalogUpdateTask(): Promise<void> {
   const outcome: { error?: unknown } = {};

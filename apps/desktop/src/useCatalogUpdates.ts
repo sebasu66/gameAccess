@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
+import { CatalogUpdater, CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS, shouldSyncOnOpen } from "./catalogUpdates";
 import { runCatalogUpdateTask } from "./centralDialog/catalogTask";
 import type { CatalogNotice } from "./CatalogNewGameNotices";
 import type { CatalogGame } from "./types";
 import { playCatalogBell } from "./uiSounds";
 import { narrate } from "./narrationLog";
 import { translate } from "./i18n";
+
+/** The check on opening runs once per session, even if the catalog screens mount again. */
+let openingChecked = false;
 
 export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled: boolean, apply: (games: CatalogGame[]) => void, showError: (message: string) => void) {
   const [notices, setNotices] = useState<CatalogNotice[]>([]);
@@ -15,7 +18,7 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
   useEffect(() => {
     if (!enabled || !ready) return;
     const updater = new CatalogUpdater(latest.current.games, {
-      // Runs in the central dialog, which appears only when there is something to download.
+      // A task of the Activity panel: the app stays usable while it runs.
       load: async () => {
         await runCatalogUpdateTask();
         return latest.current.games;
@@ -40,8 +43,11 @@ export function useCatalogUpdates(games: CatalogGame[], ready: boolean, enabled:
     });
     const manual = () => void updater.refresh(true);
     const focus = () => updater.catchUp();
-    // The startup check already ran before the library opened (startup preparation); this keeps it current.
     updater.start();
+    if (!openingChecked) {
+      openingChecked = true;
+      if (shouldSyncOnOpen()) void updater.refresh();
+    }
     window.addEventListener(CATALOG_REFRESH_REQUEST, manual);
     window.addEventListener("focus", focus);
     return () => {
