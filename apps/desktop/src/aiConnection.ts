@@ -13,7 +13,6 @@ export interface AiState { connected: boolean; ending: string }
 export type AiTestError = "no_key" | "rejected" | "limit" | "offline" | "failed";
 
 export const AI_KEY_EVENT = "gameaccess:ai-key";
-export const AI_GOOGLE_EVENT = "gameaccess:ai-google";
 export const AI_GUIDE_CLOSED_EVENT = "gameaccess:ai-guide-closed";
 /** Asks the screen that owns the wizard to open it (Settings › AI). */
 export const OPEN_AI_CONNECT_EVENT = "gameaccess:open-ai-connect";
@@ -31,9 +30,10 @@ export async function aiState(): Promise<AiState> {
   return invoke<AiState>("ai_state");
 }
 
-export async function aiSaveKey(key: string): Promise<AiState> {
-  if (demo()) return setDemo({ connected: true, ending: key.trim().slice(-4) });
-  return invoke<AiState>("ai_save_key", { key });
+/** Keeps the pasted key; Rust tells the main window and closes the steps window. */
+export async function aiSaveKey(key: string): Promise<void> {
+  if (demo()) { setDemo({ connected: true, ending: key.trim().slice(-4) }); return; }
+  await invoke("ai_save_key", { key });
 }
 
 export async function aiDisconnect(): Promise<void> {
@@ -52,7 +52,7 @@ export function aiTestError(error: unknown): AiTestError {
   return (["no_key", "rejected", "limit", "offline"] as const).find(kind => kind === said) ?? "failed";
 }
 
-/** Opens Ollama's key page in a Game Access window with the guide over it. */
+/** Opens Ollama's key page in the player's browser and the steps window. */
 export async function aiGuideOpen(): Promise<void> {
   if (demo()) { setDemo({ connected: true, ending: "a91f" }); demoEmit(AI_KEY_EVENT, { ending: "a91f" }, 2500); demoEmit(AI_GUIDE_CLOSED_EVENT, { saved: true }, 3700); return; }
   await invoke("ai_guide_open");
@@ -63,18 +63,17 @@ export async function aiOpenKeysInBrowser(): Promise<void> {
   await invoke("ai_open_keys_in_browser");
 }
 
-/** Listens to the guide window: the key kept, Google chosen (it went to the player's browser), the window closed. */
-export function listenAiGuide(handlers: { key: (ending: string) => void; google: () => void; closed: (saved: boolean) => void }): () => void {
+/** Listens to the steps window: the key kept, the window closed. */
+export function listenAiGuide(handlers: { key: (ending: string) => void; closed: (saved: boolean) => void }): () => void {
   const onKey = (detail: unknown) => handlers.key(String((detail as { ending?: string } | null)?.ending ?? ""));
   const onClosed = (detail: unknown) => handlers.closed(Boolean((detail as { saved?: boolean } | null)?.saved));
   if (!hasTauriRuntime()) {
     const key = (event: Event) => onKey((event as CustomEvent).detail);
     const closed = (event: Event) => onClosed((event as CustomEvent).detail);
-    const google = () => handlers.google();
-    window.addEventListener(AI_KEY_EVENT, key); window.addEventListener(AI_GUIDE_CLOSED_EVENT, closed); window.addEventListener(AI_GOOGLE_EVENT, google);
-    return () => { window.removeEventListener(AI_KEY_EVENT, key); window.removeEventListener(AI_GUIDE_CLOSED_EVENT, closed); window.removeEventListener(AI_GOOGLE_EVENT, google); };
+    window.addEventListener(AI_KEY_EVENT, key); window.addEventListener(AI_GUIDE_CLOSED_EVENT, closed);
+    return () => { window.removeEventListener(AI_KEY_EVENT, key); window.removeEventListener(AI_GUIDE_CLOSED_EVENT, closed); };
   }
-  const stops = [listen(AI_KEY_EVENT, event => onKey(event.payload)), listen(AI_GOOGLE_EVENT, () => handlers.google()), listen(AI_GUIDE_CLOSED_EVENT, event => onClosed(event.payload))];
+  const stops = [listen(AI_KEY_EVENT, event => onKey(event.payload)), listen(AI_GUIDE_CLOSED_EVENT, event => onClosed(event.payload))];
   return () => { for (const stop of stops) void stop.then(unlisten => unlisten()); };
 }
 

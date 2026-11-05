@@ -1,20 +1,22 @@
 //! The player's AI connection: a free Ollama Cloud key (Seba, 2026-11-04). The key opens ollama.com/api/chat from
 //! this PC; no Ollama install is needed (docs.ollama.com/cloud). Optional: Game Access works the same without it.
 //!
-//! "Connect AI" (AiConnectWizard.tsx) opens Ollama's key page in a window of our own with a guide over it
-//! (ollama_guide.js): it points at what to press to sign up or sign in and to create the key, and takes the key when
-//! Ollama shows it. The key reaches Rust through a gameaccess-ai:// navigation that the window stops, so it never
-//! leaves the PC and needs no IPC permission for a remote page. Google refuses to sign in inside an app's window, so
-//! choosing it opens the key page in the player's browser (with their accounts) and the wizard asks for the key there.
+//! "Connect AI" (AiConnectWizard.tsx) opens Ollama's key page in the player's own browser, where their Google and GitHub
+//! sessions already are (Google refuses to sign in inside an app's window), and a small window of ours that stays on
+//! top with the steps and the field for the key (src/aiSteps). The key goes from that window to Rust and nowhere else.
 //!
 //! The key is kept in one file that Windows protects (DPAPI) for this account, like the parent's key. It never goes
 //! to the interface: the interface only learns whether there is one and its last four characters.
-use std::{env, fs, io, path::{Path, PathBuf}, sync::{atomic::{AtomicBool, Ordering}, Arc}};
+use std::{env, fs, io, path::{Path, PathBuf}, sync::atomic::{AtomicBool, Ordering}};
 use tauri::{Emitter, Manager};
 
-const GUIDE_LABEL: &str = "ai-connect";
+const STEPS_LABEL: &str = "ai-steps";
+/// Whether the steps window got its key, for the event when it closes.
+static KEY_KEPT: AtomicBool = AtomicBool::new(false);
 const KEYS_PAGE: &str = "https://ollama.com/settings/keys";
 const CHAT_URL: &str = "https://ollama.com/api/chat";
+const STEPS_WIDTH: f64 = 380.0;
+const STEPS_HEIGHT: f64 = 740.0;
 /// The model of the connection test: a free cloud model listed by ollama.com/api/tags (2026-11-04).
 pub const TEST_MODEL: &str = "gemma4:31b";
 
@@ -79,23 +81,21 @@ fn clear_at(path: &Path) -> Result<(), String> {
 /// The key, for the Rust side that calls Ollama. Never sent to the interface.
 pub fn ollama_key() -> Option<String> { store_path().ok().and_then(|path| read_at(&path).ok()).and_then(|stored| stored.ollama_key) }
 
-/// Where the guide window may go: Ollama's pages and the GitHub sign-in it hands over to.
-fn guide_may_visit(url: &tauri::Url) -> bool {
-    let host = url.host_str().unwrap_or("");
-    let under = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
-    url.scheme() == "https" && (under("ollama.com") || under("github.com") || under("workos.com") || under("authkit.app"))
-}
-
 // DPAPI and the network run off the window's thread.
 #[tauri::command]
 pub async fn ai_state() -> Result<AiState, String> {
     tauri::async_runtime::spawn_blocking(|| state_at(&store_path()?)).await.map_err(|e| e.to_string())?
 }
 
-/// Keeps a key pasted by hand (the wizard's fallback).
+/// Keeps the key pasted in the steps window, tells the main window ({ ending }) and closes the steps window.
+/// "bad_key" when it is not a key: the window stays open.
 #[tauri::command]
-pub async fn ai_save_key(key: String) -> Result<AiState, String> {
-    tauri::async_runtime::spawn_blocking(move || save_at(&store_path()?, &key)).await.map_err(|e| e.to_string())?
+pub async fn ai_save_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    let state = tauri::async_runtime::spawn_blocking(move || save_at(&store_path()?, &key)).await.map_err(|e| e.to_string())??;
+    KEY_KEPT.store(true, Ordering::SeqCst);
+    let _ = app.emit_to("main", "gameaccess:ai-key", serde_json::json!({ "ending": state.ending }));
+    if let Some(window) = app.get_webview_window(STEPS_LABEL) { let _ = window.close(); }
+    Ok(())
 }
 
 #[tauri::command]
@@ -150,65 +150,44 @@ pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Va
     }).await.map_err(|e| e.to_string())?
 }
 
-/// Opens Ollama's key page in a Game Access window with the guide over it. Events to the main window:
-/// `gameaccess:ai-key` when the key was kept ({ ending }), `gameaccess:ai-google` when the player chose Google
-/// (it went to their browser) and `gameaccess:ai-guide-closed` when the window closes ({ saved }).
+/// Opens Ollama's key page in the player's browser and the steps window beside it, or brings the steps window back.
+/// Events to the main window: `gameaccess:ai-key` when the key was kept ({ ending }) and `gameaccess:ai-guide-closed`
+/// when the window closes ({ saved }).
 // Async on purpose: a window built inside a synchronous command deadlocks WebView2 on Windows and stays blank.
 #[tauri::command]
 pub async fn ai_guide_open(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(GUIDE_LABEL) { let _ = window.unminimize(); let _ = window.set_focus(); return Ok(()); }
-    let saved = Arc::new(AtomicBool::new(false));
-    let (nav_app, nav_saved) = (app.clone(), saved.clone());
-    let window = tauri::WebviewWindowBuilder::new(&app, GUIDE_LABEL, tauri::WebviewUrl::External(KEYS_PAGE.parse::<tauri::Url>().map_err(|e| e.to_string())?))
+    if let Some(window) = app.get_webview_window(STEPS_LABEL) { let _ = window.unminimize(); let _ = window.set_focus(); return Ok(()); }
+    KEY_KEPT.store(false, Ordering::SeqCst);
+    crate::execution_profiles::open_external(KEYS_PAGE)?;
+    let window = tauri::WebviewWindowBuilder::new(&app, STEPS_LABEL, tauri::WebviewUrl::App("ai-steps.html".into()))
         .title("Game Access · Conectar IA")
-        .inner_size(1100.0, 820.0)
-        .center()
-        .initialization_script(include_str!("ollama_guide.js"))
-        .on_navigation(move |url| {
-            if url.scheme() == "gameaccess-ai" {
-                let key = url.query_pairs().find(|(name, _)| name == "k").map(|(_, value)| value.into_owned());
-                let (app, saved) = (nav_app.clone(), nav_saved.clone());
-                if let Some(key) = key {
-                    tauri::async_runtime::spawn(async move {
-                        let kept = tauri::async_runtime::spawn_blocking(move || store_path().and_then(|path| save_at(&path, &key))).await;
-                        if let Ok(Ok(state)) = kept {
-                            saved.store(true, Ordering::SeqCst);
-                            let _ = app.emit_to("main", "gameaccess:ai-key", serde_json::json!({ "ending": state.ending }));
-                            // A moment to read the guide's "Done" before the window goes.
-                            pause(1200).await;
-                            if let Some(window) = app.get_webview_window(GUIDE_LABEL) { let _ = window.close(); }
-                        }
-                    });
-                }
-                return false;
-            }
-            // Stopping this leaves Ollama's page frozen with its buttons off, so the window goes with it.
-            if url.host_str() == Some("accounts.google.com") {
-                let app = nav_app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = crate::execution_profiles::open_external(KEYS_PAGE);
-                    let _ = app.emit_to("main", "gameaccess:ai-google", ());
-                    if let Some(window) = app.get_webview_window(GUIDE_LABEL) { let _ = window.close(); }
-                });
-                return false;
-            }
-            guide_may_visit(url)
-        })
+        .inner_size(STEPS_WIDTH, STEPS_HEIGHT)
+        .resizable(false)
+        .maximizable(false)
+        .always_on_top(true)
+        .focused(false)
         .build().map_err(|e| e.to_string())?;
+    // Against the right edge, where it covers the least of the browser; shorter on a small screen, and it scrolls.
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area();
+        let height = STEPS_HEIGHT.min(f64::from(area.size.height) / scale - 48.0);
+        let _ = window.set_size(tauri::LogicalSize::new(STEPS_WIDTH, height));
+        let width = window.outer_size().map_or(STEPS_WIDTH * scale, |size| f64::from(size.width));
+        let _ = window.set_position(tauri::PhysicalPosition::new(area.position.x + area.size.width as i32 - width as i32 - 16, area.position.y + 16));
+    }
     let closed_app = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            let _ = closed_app.emit_to("main", "gameaccess:ai-guide-closed", serde_json::json!({ "saved": saved.load(Ordering::SeqCst) }));
+            let _ = closed_app.emit_to("main", "gameaccess:ai-guide-closed", serde_json::json!({ "saved": KEY_KEPT.load(Ordering::SeqCst) }));
         }
     });
     Ok(())
 }
 
-/// Opens Ollama's key page in the player's own browser (for Google, or when the guide window cannot help).
+/// Opens Ollama's key page again, when the player closed that tab.
 #[tauri::command]
 pub fn ai_open_keys_in_browser() -> Result<(), String> { crate::execution_profiles::open_external(KEYS_PAGE) }
-
-async fn pause(ms: u64) { let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_millis(ms))).await; }
 
 #[cfg(test)]
 mod tests {
@@ -220,17 +199,5 @@ mod tests {
         assert!(clean_key("short").is_err());
         assert!(clean_key("abcdef0123456789 with space").is_err());
         assert!(clean_key("abcdef0123456789\nnext").is_err());
-    }
-
-    #[test]
-    fn the_guide_stays_on_ollama_and_its_sign_in() {
-        let ok = |s: &str| guide_may_visit(&s.parse().unwrap());
-        assert!(ok("https://ollama.com/settings/keys"));
-        assert!(ok("https://signin.ollama.com/sign-up"));
-        assert!(ok("https://github.com/login/oauth/authorize"));
-        assert!(!ok("http://ollama.com/settings/keys"));
-        assert!(!ok("https://ollama.com.evil.example/"));
-        assert!(!ok("https://docs.ollama.example/"));
-        assert!(!ok("https://accounts.google.com/o/oauth2"));
     }
 }
