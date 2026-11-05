@@ -306,7 +306,9 @@ class DownloadPipeline:
                 # 2. PHASE: SEGMENTED HTTP DOWNLOADING (direct HTTP links)
                 if download_url:
                     out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
-                    context.temp_files.append(out_filepath)
+                    # Cancelling deletes only what this run created: an earlier download it goes on from stays (Seba, 2026-11-05).
+                    if not os.path.exists(out_filepath):
+                        context.temp_files.append(out_filepath)
                     target_content_path = out_filepath
 
                     context.emit_progress(

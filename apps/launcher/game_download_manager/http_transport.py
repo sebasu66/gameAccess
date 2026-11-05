@@ -228,8 +228,9 @@ class HttpDownloadTransport:
             return True
 
         tracker.parts_path = parts_path
-        if parts_path not in context.temp_files:
-            context.temp_files.append(parts_path)  # a cancelled download leaves no progress record behind
+        # A cancelled download leaves no progress record behind, unless it was resuming an earlier one (that stays).
+        if parts_path not in context.temp_files and saved_parts is None:
+            context.temp_files.append(parts_path)
         if saved_parts is not None:
             tracker.resume_from(saved_parts["segments"])
             context.logger.info("Retomando la descarga: %s de %s bytes ya estaban en disco.", tracker.resumed, total_size)

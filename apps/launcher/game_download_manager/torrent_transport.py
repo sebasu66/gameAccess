@@ -191,7 +191,9 @@ class TorrentDownloadTransport:
         getattr(context, "ensure_room", lambda *_: None)(total_wanted, handle.status().total_wanted_done)
 
         target_path = os.path.join(dest_dir, torrent_name)
-        context.temp_files.append(target_path)
+        # Cancelling deletes only what this run created: an earlier download it goes on from stays (Seba, 2026-11-05).
+        if not os.path.exists(target_path):
+            context.temp_files.append(target_path)
 
         context.emit_progress(
             app_id=app_id,
