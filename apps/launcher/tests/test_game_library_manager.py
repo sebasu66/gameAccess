@@ -1,3 +1,4 @@
+import shutil
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -293,3 +294,43 @@ def test_fixed_by_hand_skips_unpacking_and_needs_the_game_executable(tmp_path):
     game = {g["app_id"]: g for g in lib.list_games()}[2]
     assert game["state"] == "ready" and storage.resume_point(2) == {}
     assert "arreglo manual" in journal.read(storage.folder(2, "Beta"))
+
+
+def test_fixed_by_hand_with_the_folder_in_use_changes_nothing(tmp_path, monkeypatch):
+    # Solasta II (Seba, 2026-11-05): the folder could not be renamed, and the stopped step had already been forgotten,
+    # so the next retry downloaded everything again. Now nothing changes until the folder is marked ready.
+    storage, lib = library(tmp_path)
+    storage.set_status(2, "Beta", "ERROR")
+    storage.set_resume(2, "extract", source="https://example.invalid/beta", error="ninguna contraseña del perfil funcionó")
+    (storage.folder(2, "Beta") / "Beta.exe").write_bytes(b"z" * 100)
+    def in_use(*_args):
+        raise PermissionError(5, "Acceso denegado")
+    monkeypatch.setattr(storage, "set_status", in_use)
+    result = lib.batch("manual_fixed", [2])[0]
+    assert not result["ok"] and "abierta en otro programa" in result["error"]
+    assert storage.resume_point(2) != {} and storage.folder(2, "Beta").name.endswith("-ERROR")
+
+
+def test_automatic_cleanup_never_deletes_what_was_there_before(tmp_path):
+    storage, _ = library(tmp_path)
+    temporary_root = Path(storage.preferences.load()["temporary_root"])
+    assert temporary_root.resolve().is_relative_to(tmp_path.resolve())
+    # A game folder that already works and its old download: a cancelled or failed run keeps both.
+    game = storage.set_status(2, "Beta", "ERROR")
+    (game / "Beta.exe").write_bytes(b"z")
+    old = storage.transfer_folder(2, "Beta"); old.mkdir(parents=True); (old / "part1.rar").write_bytes(b"r")
+    before = storage.present(2, "Beta")
+    assert before == {"game": True, "transfer": True}
+    assert storage.remove_new(2, "Beta", before) == ["game", "transfer"]
+    assert (game / "Beta.exe").is_file() and (old / "part1.rar").is_file()
+    # The game folder was there but the download is new: only the download goes.
+    shutil.rmtree(old)
+    before = storage.present(2, "Beta")
+    new = storage.transfer_folder(2, "Beta"); new.mkdir(parents=True); (new / "part1.rar").write_bytes(b"r")
+    assert storage.remove_new(2, "Beta", before) == ["game"]
+    assert (game / "Beta.exe").is_file() and not new.exists()
+    # Nothing was there: everything this run made goes, as before.
+    before = storage.present(9, "Gamma")
+    made = storage.register(9, "Gamma"); (made / "x.part").write_bytes(b"p")
+    assert storage.remove_new(9, "Gamma", before) == [] and not made.exists()
+

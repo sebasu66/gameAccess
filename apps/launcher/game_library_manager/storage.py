@@ -447,6 +447,39 @@ class DigitalGameStorage:
         (self.data / ".cache" / "digital_downloads" / f"{int(app_id)}.json").unlink(missing_ok=True)
         return folder
 
+    def present(self, app_id: int, name: str) -> dict:
+        """What the game already has on disk: its games folder and its temporary download, each only when it holds a
+        file. A folder that cannot be told apart counts as present (it is then kept)."""
+        def holds(path: Path) -> bool:
+            return path.is_dir() and any(item.is_file() for item in path.rglob("*"))
+        try:
+            game = self.linked.get(app_id) is not None or holds(self.folder(app_id, name))
+        except (OSError, ValueError):
+            game = True
+        temporary_root = Path(self.preferences.load()["temporary_root"])
+        transfer = temporary_root.is_dir() and any(holds(path) for path in temporary_root.glob(f"{int(app_id)}-*"))
+        return {"game": game, "transfer": transfer}
+
+    def remove_new(self, app_id: int, name: str, before: dict) -> list[str]:
+        """Automatic cleanup (a cancelled download, a dead source, a download that held no game) removes only what
+        that run created. A games folder or a download that already held files when it started is never deleted
+        without the player asking (Seba, 2026-11-05: a cancelled download took Solasta II's working folder with it).
+        Returns what was kept."""
+        kept = [part for part in ("game", "transfer") if before.get(part, True)]
+        if not kept:
+            self.uninstall(app_id, name)
+            return kept
+        if "transfer" not in kept:
+            temporary_root = Path(self.preferences.load()["temporary_root"]).resolve()
+            for target in (temporary_root.glob(f"{int(app_id)}-*") if temporary_root.is_dir() else []):
+                resolved = target.resolve()
+                if resolved == temporary_root or not resolved.is_relative_to(temporary_root) or target.is_symlink():
+                    continue
+                if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in target.rglob("*")):
+                    continue
+                shutil.rmtree(target)
+        return kept
+
     def local_games(self):
         found = {}
         if self.registry.is_dir():

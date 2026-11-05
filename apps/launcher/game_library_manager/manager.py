@@ -647,8 +647,14 @@ class GameLibraryManager:
         if not analysis["ready"]:
             journal.note(folder, "arreglo manual", f"la carpeta todavía no está lista: {analysis['warning']}")
             return {"ok": False, "error": analysis["warning"], "analysis": analysis}
+        # The state changes first: if the folder cannot be renamed (open in Explorer or in the game) nothing changed,
+        # and the step the download stopped at is still there for a retry (Seba, 2026-11-05).
+        try:
+            folder = self.storage.set_status(app_id, name, "ready")
+        except (OSError, ValueError) as failure:
+            journal.note(folder, "arreglo manual", f"no se pudo marcar como lista: {failure}")
+            return {"ok": False, "error": "La carpeta del juego está abierta en otro programa (el Explorador, el juego o un instalador). Cerralo y volvé a tocar «Arreglado manualmente».", "analysis": analysis}
         self.storage.clear_resume(app_id)
-        self.storage.set_status(app_id, name, "ready")
         journal.note(folder, "arreglo manual", f"el jugador la arregló a mano; ejecutable {analysis['executable']}")
         self.log.info("AppID %s: fixed by hand, executable %s", app_id, analysis["executable"])
         return {"ok": True, "analysis": analysis}
