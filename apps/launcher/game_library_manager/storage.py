@@ -115,12 +115,13 @@ class DigitalGameStorage:
         self.registry.mkdir(parents=True, exist_ok=True)
         write_json(self.registry / f"{int(app_id)}.json", {**self._record(app_id), "folder": str(folder), "name": name})
 
-    def set_source(self, app_id: int, title: str, provider: str) -> None:
+    def set_source(self, app_id: int, title: str, provider: str, link: str = "") -> None:
         """Which download this install came from, as its source names it ("Elden Ring v1.10 - FitGirl", "SteamRIP"):
         two downloads of the same game can be different versions that cannot play online together."""
         record = self._record(app_id)
         if record:
-            record["source"] = {"title": title.strip(), "provider": provider.strip()}
+            # The link the download used is shown in the game's properties card (Seba, 2026-11-05).
+            record["source"] = {"title": title.strip(), "provider": provider.strip(), **({"link": link.strip()} if link.strip() else {})}
             write_json(self.registry / f"{int(app_id)}.json", record)
 
     def source(self, app_id: int) -> dict:

@@ -8,6 +8,8 @@ import { setAppScreen, useAppScreen } from "./appScreen";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { loadAdminKey, requestParentKey, useAdminKey, usePlusGraceDays, usePlusLapsed } from "./accessRole";
 import { loadKidFamily, useKidState } from "./kidMode";
+import { libraryHasNoGames } from "./libraryScan";
+import { showNotice } from "./notice/notice";
 import KidWizard, { type KidReady } from "./KidWizard";
 import KidReadyDialog from "./KidReadyDialog";
 import KidControlPanel from "./KidControlPanel";
@@ -58,8 +60,14 @@ function KidScreen() {
 export default function KidModePanel({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {
   const { t } = useI18n();
   const screen = useAppScreen();
+  const { applied: kidApplied } = useKidState();
   useEffect(() => { void loadKidFamily(); void loadAdminKey().catch(() => undefined); }, []);
-  const open = () => { if (screen !== "kids") void requestParentKey().then(ok => { if (ok) setAppScreen("kids"); }); };
+  const open = () => {
+    if (screen === "kids") return;
+    // A child's profile picks from the installed games: with none there is nothing to set up (one already made stays reachable).
+    if (!kidApplied && libraryHasNoGames()) { showNotice({ tone: "info", title: t("emptyLibraryTitle"), text: t("emptyLibraryKids"), timer: true }); return; }
+    void requestParentKey().then(ok => { if (ok) setAppScreen("kids"); });
+  };
   const button = <GaIconButton className="ga-kid-fab" icon={<Baby size={20} aria-hidden="true" />} label={t("familyTitle")} pressed={screen === "kids"} onClick={open} />;
   return <>
     {dockTarget ? createPortal(button, dockTarget) : button}

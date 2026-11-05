@@ -1,5 +1,6 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
-import { SCREEN_CHANGE_EVENT } from "./appScreen";
+import { SCREEN_CHANGE_EVENT, getAppScreen, setAppScreen } from "./appScreen";
+import { openLibraryManager } from "./libraryManagerNav";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
@@ -21,10 +22,10 @@ import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
 import { translate, useI18n } from "./i18n";
-import CancelDownloadDialog from "./CancelDownloadDialog";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
+import { libraryHasNoGames } from "./libraryScan";
 import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
 import { hideForBigPicture, labelOut, showAfterBigPicture, closeGate, openGate } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
@@ -54,8 +55,8 @@ import { getCatalogMode } from "./catalogMode";
 import { opensOn, startScreenUsed } from "./startupPreferences";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { TOGGLE_COLLECTION_EVENT } from "./LibraryInputController";
-import DigitalGameContextMenu from "./DigitalGameContextMenu";
-import GameStorageContextMenu from "./GameStorageContextMenu";
+import GameDetailMenu from "./GameDetailMenu";
+import GameInfoCard from "./GameInfoCard";
 import { playUiSound } from "./uiSounds";
 import type { CatalogGame } from "./types";
 import { uiDemo } from "./devDemo/uiDemo";
@@ -127,14 +128,12 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     setDetailMenu(null);
   }, [externalDetailGame?.id]);
   const [detailMenu, setDetailMenu] = useState<{ game: CatalogGame; x: number; y: number; status?: ManagedDownloadStatus } | null>(null);
+  const [infoGame, setInfoGame] = useState<CatalogGame | null>(null);
   const detailCloseRef = useRef<HTMLButtonElement>(null);
   const detailDialogRef = useRef<HTMLDivElement>(null);
   const [showcaseMode, setShowcaseMode] = useState(false);
   const { managedDownloads, setManagedDownloads, trackedAppIds, setTrackedAppIds,
     completionQueue, setCompletionQueue, effectiveDownloads, persistCompletion } = useLibraryDownloads(games, downloads);
-  const [cancelGame, setCancelGame] = useState<CatalogGame | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryView, setLibraryView] = useState<LibraryView>(() => opensOn("library") ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog");
   useEffect(() => startScreenUsed("library"), []);
@@ -150,6 +149,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const toggleBigScreen = async () => {
     if (bigScreenChanging.current) return;
     const next = !bigScreen;
+    if (next && libraryHasNoGames()) {
+      showNotice({ tone: "info", title: t("emptyLibraryTitle"), text: t("emptyLibraryBigPicture"), timer: true });
+      return;
+    }
     if (next && !(await controllerConnected())) {
       showNotice({ tone: "info", title: t("bigPictureNoControllerTitle"), text: t("bigPictureNoControllerText"), timer: true });
       return;
@@ -158,6 +161,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     // One step after the other (motion/bigPictureMotion.ts): the controls slide off, the opening's gate closes while the
     // window and the grid change behind it, then opens on the mode. Leaving runs the same way back.
     if (next) {
+      // From another screen (home, kids, settings) the mode goes to the games grid (Seba, 2026-11-05).
+      if (getAppScreen() !== "games") setAppScreen("games");
       closeAllPanels();
       setDetailMenu(null);
       setDetailOpen(false);
@@ -614,10 +619,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       if (node?.dataset.action === "steam") node.click();
       else void onDownload(selectedGame);
     }
-    else if (action.kind === "cancel") {
-      setCancelError(null);
-      setCancelling(false);
-      setCancelGame(selectedGame);
+    else if (action.kind === "manage") {
+      const appId = selectedGame.app_id ?? undefined;
+      closeGameDetail();
+      openLibraryManager(appId);
     }
   };
   const activateAction = () => onAction(actionIndex);
@@ -715,51 +720,6 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     });
   }, [completionJob]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const confirmCancellation = async () => {
-    if (!cancelGame || cancelling) return;
-    if (getCatalogMode() === "digital") {
-      // The same call as the Cancel button of the downloads screen; the Steam path below is for the local catalog.
-      setCancelling(true);
-      setCancelError(null);
-      try {
-        await digitalDownloadService.cancel(cancelGame.app_id ?? cancelGame.id);
-        setCancelGame(null);
-      } catch (error) {
-        setCancelError(error instanceof Error ? error.message : String(error));
-      } finally {
-        setCancelling(false);
-      }
-      return;
-    }
-    if (!cancelGame.app_id) return;
-    const appId = cancelGame.app_id;
-    const status = effectiveDownloads[appId];
-    setCancelling(true);
-    setCancelError(null);
-    try {
-      const result = await cancelManagedDownload(appId, status?.job_id);
-      if (!result.supported) {
-        setCancelError(result.message ?? t("cancelManagedBySteam"));
-        return;
-      }
-      if (result.status) {
-        const next = result.status as ManagedDownloadStatus;
-        setManagedDownloads((current) => ({ ...current, [appId]: next }));
-        if (next.installed || next.state === "installed") {
-          await persistCompletion(appId);
-        } else if (next.state === "cancelled") {
-          await cancelDownloadLifecycle(appId).catch(() => undefined);
-          setTrackedAppIds((current) => current.filter((id) => id !== appId));
-        }
-      }
-      setCancelGame(null);
-    } catch (error) {
-      setCancelError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setCancelling(false);
-    }
-  };
-
   const windowLayoutClass = isWindowMaximized ? "is-maximized" : "";
   const rootClass = `${libraryRoomClass(focusZone, showcaseMode, Boolean(selectedGame))} ${windowLayoutClass}`.trim();
   const pinnedAppIds = useMemo(() => new Set(trackedAppIds), [trackedAppIds]);
@@ -796,15 +756,13 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
               <button type="button" className="ga-detail-more" aria-label={t("moreOptionsForAria", { name: selectedGame.name })} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button>
               {detailPanel}
             </div>
-            {detailMenu ? (getCatalogMode() === "digital"
-              ? <DigitalGameContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />
-              : <GameStorageContextMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} />) : null}
+            {detailMenu ? <GameDetailMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} onDetails={setInfoGame} onLeave={closeGameDetail} /> : null}
           </div> : null}
+          {infoGame ? <GameInfoCard game={infoGame} onClose={() => setInfoGame(null)} /> : null}
           <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? (aiResult ? aiResult.busy : catalogQuery.loading) : undefined} lead={aiResult ? <AiSearchAnswer busy={aiResult.busy} reply={aiResult.answer?.reply ?? ""} count={aiResult.answer?.picks.length ?? 0} error={aiResult.error} /> : undefined} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>
       ) : <EmptyLibraryContent gridRef={gridRef} loading={loading} />}
       <LibraryHint />
-      {cancelGame ? <CancelDownloadDialog game={cancelGame} cancelling={cancelling} error={cancelError} onKeep={() => { if (!cancelling) setCancelGame(null); }} onConfirm={() => void confirmCancellation()} /> : null}
     </section>
   );
 }

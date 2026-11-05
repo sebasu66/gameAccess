@@ -36,6 +36,9 @@ export function scanLibrary(heal = false): Promise<void> {
 }
 
 export const libraryScanState = () => state;
+/** No installed game at all, as on a new install: big picture and kids mode have nothing to work with. False until
+ *  the first scan answers, so a slow start never blocks them. */
+export const libraryHasNoGames = () => Boolean(state.summary) && !state.games.some(game => game.installed);
 export function useLibraryScan(): LibraryScanState {
   return useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, libraryScanState, libraryScanState);
 }

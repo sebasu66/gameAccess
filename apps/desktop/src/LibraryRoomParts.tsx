@@ -1,6 +1,6 @@
 import SteamCover from "./SteamCover";
 import type { ReactNode, RefObject } from "react";
-import { Download, Gamepad2, Loader2, Play, XCircle } from "lucide-react";
+import { Download, Gamepad2, Loader2, Play, SlidersHorizontal } from "lucide-react";
 
 import { gameStateManager } from "./GameStateManager";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -15,7 +15,7 @@ export type LibraryAction = {
   label: string;
   icon: ReactNode;
   disabled: boolean;
-  kind: "play" | "download" | "cancel" | "verify";
+  kind: "play" | "download" | "manage" | "verify";
   reason?: string | null;
 };
 
@@ -59,14 +59,10 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
     }];
   }
 
+  // While it downloads the detail does not cancel: it opens the game's row in the library manager, where pausing and
+  // cancelling are, with their own confirmation (Seba, 2026-11-05).
   if (state.primaryAction === "cancel") {
-    const cancelling = state.technicalState === "cancelling";
-    return [{
-      label: cancelling ? translate("actionCancelling") : translate("actionCancelDownload"),
-      icon: cancelling ? <Loader2 className="spin" size={23} /> : <XCircle size={23} />,
-      disabled: cancelling,
-      kind: "cancel",
-    }];
+    return [{ label: translate("actionManageDownload"), icon: <SlidersHorizontal size={23} />, disabled: false, kind: "manage" }];
   }
 
   if (state.primaryAction === "verify") {

@@ -156,7 +156,7 @@ def test_the_source_name_is_kept_and_a_download_that_is_not_a_game_is_removed(tm
         done = manager.wait(lambda j: j["state"] == "done", timeout=90)
         assert done["phase"] == "completed", done
         record = json.loads((launcher / ".cache" / "digital_games" / "990002.json").read_text(encoding="utf-8"))
-        assert record["source"] == {"title": "Source Test v1.2 - Repack", "provider": "Fixture feed"}
+        assert record["source"] == {"title": "Source Test v1.2 - Repack", "provider": "Fixture feed", "link": f"http://127.0.0.1:{game.server_address[1]}/Game.zip"}
         manager.call("/jobs/990002/remove", {})
 
         manager.call("/jobs", {"appId": 990003, "name": "Extras Test", "source": f"http://127.0.0.1:{extras.server_address[1]}/Extras.zip"})

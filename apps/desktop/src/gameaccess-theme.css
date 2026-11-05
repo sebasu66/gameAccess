@@ -246,7 +246,6 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-catalog-notice button:hover { color:white; background:#ffffff0c; border-radius:50%; }
 @keyframes ga-notice-arrive { from {opacity:0;transform:translateX(18px)} to {opacity:1;transform:none} }
 @keyframes ga-download-spin { to {transform:rotate(360deg)} }
-.catalog-refresh-button[aria-busy="true"] > span { animation:ga-download-spin 1.5s linear infinite; }
 .catalog-refresh-button:disabled { cursor:wait; opacity:.55; }
 /* Completed downloads use the same prominent orange play action as details. */
 .digital-download-actions .ga-download-play:disabled { opacity:.55; cursor:wait; }

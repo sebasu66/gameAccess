@@ -200,7 +200,8 @@ class GameLibraryManager:
             entry.update(installed=bool(status.get("installed")), needs_repair=bool(status.get("needs_repair")),
                          error=status.get("error", ""), **play_history(folder))
             source = self.storage.source(app_id)
-            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""), label=self.storage.label(app_id))
+            entry.update(source_title=source.get("title", ""), source_provider=source.get("provider", ""),
+                         source_link=source.get("link", "") or self.storage.resume_point(app_id).get("source", ""), label=self.storage.label(app_id))
             frozen = self.freezer.describe(app_id, folder, with_sizes)
             if frozen:
                 # The real size is the game's; what it takes on disk now is frozen_bytes.

@@ -194,7 +194,7 @@ export interface FeaturePanelProps {
 }
 
 function actionClass(action: LibraryAction, selected: boolean): string {
-  const kind = action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download";
+  const kind = action.kind === "play" ? "play" : action.kind === "manage" ? "manage" : "download";
   return `glass-action ${kind} ${selected ? "is-selected" : ""}`.trim();
 }
 
@@ -244,7 +244,7 @@ function ActionButtons(props: FeaturePanelProps) {
         onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
         onClick={() => props.onAction(index)} disabled={action.disabled}>
         <span className="glass-action-icon">{action.icon}</span>
-        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
+        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.label}</span>
       </button>)}
   {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
   </div>;

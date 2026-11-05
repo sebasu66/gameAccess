@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { FRAME_MEASURE_EVENT } from "./motion/bigPictureMotion";
 import { createPortal } from "react-dom";
 import BrandWall from "./BrandWall";
 import { FRAME, frameFillPath, frameInnerPath, frameOuterPath, tabAround, tabMerge, type FrameMetrics, type FrameTab } from "./frameGeometry";
@@ -144,6 +145,7 @@ export default function DeviceFrame() {
     let lastKey = "", settling = false, settleStart = 0;
     const schedule = () => { if (!frame) frame = window.requestAnimationFrame(measure); };
     window.addEventListener("resize", schedule);
+    window.addEventListener(FRAME_MEASURE_EVENT, schedule);
     // The footer controls can mount after the frame and change with the view (the library adds a button): every
     // measure observes the elements present now; DOM changes are coalesced to one measure per frame.
     const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
@@ -160,7 +162,7 @@ export default function DeviceFrame() {
     watch();
     measure();
     return () => {
-      window.removeEventListener("resize", schedule); resize?.disconnect(); mutations.disconnect(); window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule); window.removeEventListener(FRAME_MEASURE_EVENT, schedule); resize?.disconnect(); mutations.disconnect(); window.cancelAnimationFrame(frame);
       for (const name of ["--ga-frame-offset", "--ga-frame-top", "--ga-frame-left", "--ga-frame-right", "--ga-frame-bottom"]) document.documentElement.style.removeProperty(name);
     };
   }, []);
