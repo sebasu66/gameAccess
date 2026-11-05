@@ -353,6 +353,16 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - La palabra de la tapa (`GateWord`, `splash-screen.css`) es tan tenue como la de la columna derecha (`brand-wall.css`): línea de 1 px que no escala (`vector-effect: non-scaling-stroke`), opacidad .26, relleno .03, sombra naranja .12. Es grande (franja de `--gs-lock` × .4, del marco de la hoja hasta el candado o la cerradura) y se dibuja letra por letra antes de que gire la cerradura (`DRAW_MS` 1500). Seba: «apenas legibles, un poco más grandes».
 - Con PLUS (`html.ga-plus`, `plusLook.ts`; recuerda el último estado para que la tapa ya salga dorada): marco, labio de la pantalla, líneas grabadas y nombre de la pestaña en dorado (`--ga-plus-*` en `gameaccess-theme.css`); en la tapa, marco de cada hoja y líneas en dorado y la marca **+ PLUS** arriba a la derecha (`gs-plus-mark`). Solo cambian colores, nada se mueve ni cambia de tamaño.
 
+### 4.31 «Tu perfil» en Configuración › IA `ga-profile` (componente `AiProfileEditor`, Seba 2026-11-05)
+- Debajo de la tarjeta de Ollama: título Bebas 34 px y tarjetas `ga-profile-card` (mismo fondo y borde que la de Ollama, títulos de 16 px en negrita). Sin botón de guardar: cada cambio se guarda solo y va con cada pedido a la IA.
+- Juegos: campo de búsqueda, Todos / Me gustan / No me gustan y orden, a 44 px; grilla de carátulas 2:3 con pulgar arriba a la izquierda (`--ga-ok` o `--ga-danger`) y quitar arriba a la derecha, visible al pasar el mouse o con foco. Los que no gustan van desaturados.
+- Géneros: filas con el nombre y los dos pulgares (`GaIconButton`, 44 px). Cómo jugar: botones `ga-profile-chip` de 44 px; al elegir Multijugador o Los dos aparecen los tipos de multijugador. Lo que buscás y lo que evitás: dos `textarea` lado a lado, 500 caracteres.
+
+### 4.32 Búsqueda con IA en el catálogo (Seba 2026-11-05)
+- Botón «Búsqueda con IA» junto a «Personalizado». Solo PLUS: para el resto queda deshabilitado y, al pasar el mouse o con foco, muestra un globo con el texto y el enlace **Conseguir PLUS**, que abre el mismo diálogo que el botón PLUS del marco (`OPEN_PREMIUM_EVENT`).
+- Encendido: sin filtros, sin orden y sin destacado. Arriba, la sección «La IA te responde» con su mensaje (o **Conectar IA**, que lleva a Configuración › IA, si no hay clave). Debajo solo los juegos de la IA, en su orden.
+- Cada resultado ocupa dos celdas: la tarjeta y, pegado a ella, el motivo sobre una sombra sutil en semicírculo centrada en la carátula, como la del menú contextual (`ga-ai-result-why`): sin línea ni bordes rectos. Al abrir el menú contextual de ese juego, el motivo se oculta hasta que el menú se cierra. Vista previa: `?uiDemo=1&uiDemoPlus`, con `gameaccess:ai-search` en `true`.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

@@ -14,7 +14,9 @@ export const ACTIVATION_CHANGED_EVENT = "gameaccess:activation-changed";
 export type AccessTier = "base" | "plus";
 export interface RegularAccess { key: string | null; expires_at: string; access_tier: AccessTier; }
 let activationTier: AccessTier | null = null;
-export function getActivationTier(): AccessTier | null { return activationTier; }
+// `?uiDemo=1&uiDemoPlus` in a dev build: a browser preview of what Plus players see.
+const demoPlus = () => import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location?.search).has("uiDemoPlus");
+export function getActivationTier(): AccessTier | null { return demoPlus() ? "plus" : activationTier; }
 let currentAccess: RegularAccess | null = null;
 export function getRegularAccess(): RegularAccess | null { return currentAccess; }
 function publishAccess(access: RegularAccess | null): void {

@@ -1,3 +1,4 @@
+import { AiResults } from "./AiPicks";
 import { rememberTasteGame } from "./tasteProfile";
 import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
@@ -9,7 +10,7 @@ import { setCoverCardWidth } from "./coverSize";
 import { useI18n } from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import LibraryFilterDialog from "./LibraryFilterDialog";
-import CatalogFilterToolbar from "./CatalogFilterToolbar";
+import CatalogFilterToolbar, { AiSearchSwitch } from "./CatalogFilterToolbar";
 import { createPortal, flushSync } from "react-dom";
 import LibrarySectionShelf from "./LibrarySectionShelf";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -167,6 +168,8 @@ interface DownloadCatalogPanelProps {
   onSearchQueryChange?: (query: string) => void;
   /** Shown above the grid instead of the spotlight: the AI's answer to a search in words (AiSearchAnswer). */
   lead?: ReactNode;
+  /** With AI search on: the AI's reason for each game shown, in its order. The filters and the sort leave. */
+  aiReasons?: Map<number, string>;
   allGames?: CatalogGame[];
   searchFilters?: LibrarySearchFilters;
   onSearchFiltersChange?: (filters: LibrarySearchFilters) => void;
@@ -529,7 +532,10 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
     onSortChange={onCatalogSortChange}
     onFiltersChange={onSearchFiltersChange}
     onOpenFilters={() => setFiltersOpen(true)}
+    trailing={view === "catalog" ? <AiSearchSwitch /> : null}
   />;
+  const aiReasons = view === "catalog" ? props.aiReasons : undefined;
+  const gameCard = (game: CatalogGame) => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />;
   const backToTop = showBackToTop ? <button type="button" className="library-back-to-top" onClick={returnToTop} aria-label={t("uiVolverArriba")} title={t("uiVolverArriba")}><ArrowUpToLine size={17} /><span>{t("uiVolverArriba")}</span></button> : null;
 
   return (
@@ -539,7 +545,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.lead ?? null}
       {view === "catalog" && !searchQuery.trim() && !props.lead ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{filters}{view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+      {showManager ? null : <div className="ga-grid-toolbar">{aiReasons ? <div className="library-catalog-filter-actions"><AiSearchSwitch /></div> : filters}{aiReasons ? null : view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
       </div> : null}<span className="ga-strip-info" ref={setInfoTarget} /></div>}
@@ -557,7 +563,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
             <GaButton variant="primary" icon={<FolderInput size={16} aria-hidden="true" />} onClick={() => { setImportOnOpen(true); toggleManager(true); }}>{t("libraryEmptyImport")}</GaButton>
             <GaButton icon={<LayoutGrid size={16} aria-hidden="true" />} onClick={() => onViewChange("catalog")}>{t("tabCatalog")}</GaButton>
           </div>
-        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={game => <DownloadGameCard key={game.id} game={game} index={indexes.get(game.id)!} selected={game.id === props.games[props.selectedIndex]?.id} status={(game.app_id ? props.downloads[game.app_id] : undefined) ?? props.downloads[game.id]} pinned={Boolean(game.app_id && props.pinnedAppIds.has(game.app_id))} favorite={props.preferences?.[game.id] === 1} onSelect={props.onSelect} onContextMenu={setContextMenu} />} />}
+        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : aiReasons ? <AiResults games={displaySection.games} reasons={aiReasons} menuGameId={contextMenu?.game.id} renderCard={gameCard} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={gameCard} />}
       </div>
       {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>

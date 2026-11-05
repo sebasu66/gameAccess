@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { setAppScreen } from "./appScreen";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { hasTauriRuntime } from "./native";
@@ -16,6 +17,12 @@ export const AI_KEY_EVENT = "gameaccess:ai-key";
 export const AI_GUIDE_CLOSED_EVENT = "gameaccess:ai-guide-closed";
 /** Asks the screen that owns the wizard to open it (Settings › AI). */
 export const OPEN_AI_CONNECT_EVENT = "gameaccess:open-ai-connect";
+
+let aiTabWanted = false;
+/** Opens Settings on its AI tab (the catalog's AI search, without a key). */
+export function openAiSettings() { aiTabWanted = true; setAppScreen("settings"); }
+export const aiTabRequested = () => aiTabWanted;
+export function clearAiTabRequest() { aiTabWanted = false; }
 
 // Browser preview (`?uiDemo=1`): no Rust, so the state lives here and the guide window is played by a timer.
 const demo = () => import.meta.env.DEV && uiDemo() && !hasTauriRuntime();

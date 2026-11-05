@@ -1,3 +1,4 @@
+import { PREFERENCES_CHANGED_EVENT } from "./aiProfile";
 import { personalOrderState } from "./personalOrder";
 import { buildTasteProfile, rememberTasteGame, tasteProgressText } from "./tasteProfile";
 import AppSettings from "./AppSettings";
@@ -500,6 +501,13 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     setRecentIds(next);
     localStorage.setItem("gameaccess:recent", JSON.stringify(next));
   };
+
+  // A rating removed in Settings › AI › Your profile.
+  useEffect(() => {
+    const reread = () => { try { setPreferences(JSON.parse(localStorage.getItem("gameaccess:preferences") || "{}")); } catch { /* kept as they are */ } };
+    window.addEventListener(PREFERENCES_CHANGED_EVENT, reread);
+    return () => window.removeEventListener(PREFERENCES_CHANGED_EVENT, reread);
+  }, []);
 
   const setPreference = (gameId: number, value: Preference) => {
     const next = { ...preferences, [gameId]: preferences[gameId] === value ? undefined : value } as Record<number, Preference>;

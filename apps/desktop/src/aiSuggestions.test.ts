@@ -8,7 +8,7 @@ const empty: TasteSignals = { liked: [], disliked: [], library: [], played: [] }
 describe("AI suggestions", () => {
   it("reads the player's signals by name", () => {
     const signals = tasteSignals({ 1: 1, 2: -1, 3: 1 }, { 1: "Portal 2", 2: "FIFA 23" }, [game(9, "Hades", 50)], { 50: 10, 77: 5 });
-    expect(signals).toEqual({ liked: ["Portal 2"], disliked: ["FIFA 23"], library: ["Hades"], played: ["Hades"] });
+    expect(signals).toMatchObject({ liked: ["Portal 2"], disliked: ["FIFA 23"], library: ["Hades"], played: ["Hades"] });
     expect(enoughSignals(signals)).toBe(false);
     expect(enoughSignals({ ...signals, library: ["A", "B", "C"] })).toBe(true);
     expect(enoughSignals({ ...empty, disliked: ["A", "B", "C", "D", "E"] })).toBe(false);

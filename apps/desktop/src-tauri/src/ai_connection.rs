@@ -145,7 +145,7 @@ pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Va
     if system.len() + prompt.len() > MAX_PROMPT { return Err("failed:too_long".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let key = ollama_key().ok_or("no_key")?;
-        let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(90)).build().map_err(|e| e.to_string())?;
+        let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(180)).build().map_err(|e| e.to_string())?;
         let body = serde_json::json!({ "model": TEST_MODEL, "stream": false, "think": false, "format": schema,
             "options": { "temperature": 0.4 },
             "messages": [{ "role": "system", "content": system }, { "role": "user", "content": prompt }] });

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame, GameDetails } from "./types";
 import { blockedDescriptorIds, getParentalPolicy, type ParentalPolicy } from "./parentalControl";
-import { queryDemoCatalog, uiDemo } from "./devDemo/uiDemo";
+import { demoCatalog, queryDemoCatalog, uiDemo } from "./devDemo/uiDemo";
 
 export interface CatalogCacheSyncResult {
   updated: boolean;
@@ -140,7 +140,7 @@ export async function queryCatalogCache(params: CatalogQueryParams): Promise<Cat
 }
 
 export async function getCatalogFacets(): Promise<CatalogFacetsResult> {
-  if (!native()) return { genres: [], sources: [] };
+  if (!native()) return { genres: import.meta.env.DEV && uiDemo() ? [...new Set(demoCatalog.flatMap(game => game.genres ?? []))] : [], sources: [] };
   return invoke<CatalogFacetsResult>("catalog_cache_get_facets");
 }
 

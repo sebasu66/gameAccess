@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import AiConnectWizard from "./AiConnectWizard";
+import AiProfileEditor from "./AiProfileEditor";
 import { aiDisconnect, aiState, aiTest, aiTestError, type AiState } from "./aiConnection";
 import "./ai-connect.css";
 
-/** Settings › AI: whether a free Ollama key is connected, "Connect" (the wizard), "Try it" and "Disconnect". */
+/** Settings › AI: whether a free Ollama key is connected, "Connect" (the wizard), "Try it", "Disconnect" and the profile. */
 export default function AiSettings() {
   const { t } = useI18n();
   const [state, setState] = useState<AiState | null>(null);
@@ -41,6 +42,7 @@ export default function AiSettings() {
       </div>
     </div> : null}
     {status ? <p role="status" className={`ga-status is-${status.tone}`}>{status.text}</p> : null}
+    <AiProfileEditor />
     {wizard ? <AiConnectWizard onDone={() => { setWizard(false); void refresh(); }} /> : null}
   </section>;
 }

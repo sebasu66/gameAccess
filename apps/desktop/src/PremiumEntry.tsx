@@ -51,7 +51,7 @@ export default function PremiumEntry() {
   const titleId = useId();
   const input = useRef<HTMLInputElement>(null);
 
-  // Other screens that sell PLUS (kid mode) open this same dialog.
+  // Other screens that sell PLUS (kid mode, AI search) open this same dialog.
   useEffect(() => {
     const show = () => setOpen(true);
     window.addEventListener(OPEN_PREMIUM_EVENT, show);
@@ -75,8 +75,9 @@ export default function PremiumEntry() {
 
   useEffect(() => { if (open) input.current?.focus(); }, [open, source]);
 
-  // Once premium is on there is nothing left to activate: the access pass takes over.
-  if (tier && !done) return null;
+  // On Base or Plus the footer shows the access pass instead; a Base player still gets this dialog when a screen that
+  // sells PLUS asks for it (the AI search button).
+  if (tier && !done && !open) return null;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

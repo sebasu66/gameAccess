@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles, Square, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
-import { aiState } from "./aiConnection";
+import { aiState, openAiSettings } from "./aiConnection";
 import { AI_SUGGESTIONS_EVENT, aiError, aiExplain, aiWhy, enoughSignals, useTasteSignals, MIN_SIGNALS, readPicks, refreshFreshPicks, refreshPicks, signalCount, tasteSignals, type AiError, type AiPick, type AiPicksState } from "./aiSuggestions";
 import { setAppScreen } from "./appScreen";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
@@ -119,12 +119,32 @@ export function AiReasonPanel({ game }: { game: CatalogGame }) {
   </section>;
 }
 
-/** Above the grid while the search is a request to the AI: what Gemma understood, or that she is thinking. */
-export function AiSearchAnswer({ busy, reply, count, error }: { busy: boolean; reply: string; count: number; error: AiError | null }) {
+/**
+ * The message on top of the catalog with AI search on: what the AI understood, that it is thinking, what is missing to
+ * ask it, or that it needs a key (with the way to Settings › AI).
+ */
+export function AiSearchAnswer({ busy, reply, count, error, idle, connected }: { busy: boolean; reply: string; count: number; error: AiError | null; idle: boolean; connected: boolean }) {
   const { t } = useI18n();
-  const text = busy ? t("aiAskThinking") : error ? t(`aiError_${error}`) : count ? reply : t("aiAskNothing");
+  const needsKey = !connected || error === "no_key";
+  const text = needsKey ? t("aiSearchNeedsKey") : busy ? t("aiAskThinking") : idle ? t("aiAskIdle") : error ? t(`aiError_${error}`) : count ? reply || t("aiAskFound") : t("aiAskNothing");
   return <section className="ga-ai-reason ga-ai-search-answer" aria-live="polite" aria-busy={busy}>
-    <div className="ga-ai-reason-head"><h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>{busy || error ? null : <SpeakButton text={text} />}</div>
+    <div className="ga-ai-reason-head"><h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>{busy || error || needsKey ? null : <SpeakButton text={text} />}</div>
     <p>{text}</p>
+    {needsKey ? <div className="ga-actions"><GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={openAiSettings}>{t("aiPicksConnect")}</GaButton></div> : null}
   </section>;
+}
+
+/**
+ * The grid with AI search on (Seba, 2026-11-05): each game takes two cells, its card and, beside it, the AI's reason on
+ * a soft shade like the card's context menu. That menu comes up in the same place, so the reason gives way while it is open.
+ */
+export function AiResults({ games, reasons, menuGameId, renderCard }: { games: CatalogGame[]; reasons: Map<number, string>; menuGameId?: number; renderCard: (game: CatalogGame) => ReactNode }) {
+  return <ul className="ga-ai-results">
+    {games.map(game => <li key={game.id} className="ga-ai-result">
+      {renderCard(game)}
+      <div className={game.id === menuGameId ? "ga-ai-result-why is-hidden" : "ga-ai-result-why"}>
+        <p>{reasons.get(game.id)}</p>
+      </div>
+    </li>)}
+  </ul>;
 }

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAiConnected } from "./aiConnection";
-import { usePersonalOrder } from "./personalOrder";
+import { AI_PROFILE_EVENT, describeProfile, EMPTY_PROFILE, loadAiProfile, profileSignature, type AiProfile } from "./aiProfile";
+import { usePlus } from "./kidMode";
 import { queryCatalogCache, type CatalogQueryParams } from "./catalogCache";
 import { getAppLocale } from "./i18n";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
@@ -19,9 +20,9 @@ import { uiDemo } from "./devDemo/uiDemo";
  *   each name is looked up in the catalog (parental policy applied) and kept only when it is there and new to the
  *   player.
  * - New games: once a day a short list of recent releases goes to Gemma, which may pick up to 3 for the player.
- * - Search (Seba, 2026-11-04): with the magic button on, the player writes what they want in their own words; Gemma
- *   answers with games (name and Steam id) the player does not have. On the detail of a game she suggested, she
- *   explains why (aiExplain), in a glass panel.
+ * - Search (Seba, 2026-11-05, Plus only): with AI search on, the catalog shows only Gemma's answer to what the player
+ *   writes (or, with nothing written, to their profile): at least 30 games if she can, each with its reason, plus a
+ *   message on top. On the detail of a game she suggested, she explains why (aiExplain), in a glass panel.
  * Every answer is checked against what really exists; anything else is dropped. Results are kept (localStorage) so
  * the same question is not asked twice; the "why" of each game is kept for its detail page.
  */
@@ -35,7 +36,7 @@ const FRESH_TTL = 24 * 3600_000;
 const QUERY_TTL = 7 * 24 * 3600_000;
 const LIST_LIMIT = 30;
 
-export interface TasteSignals { liked: string[]; disliked: string[]; library: string[]; played: string[] }
+export interface TasteSignals { liked: string[]; disliked: string[]; library: string[]; played: string[]; profile?: AiProfile }
 export interface AiPick { game: CatalogGame; why: string }
 export interface AiPicksState { at: number; signature: string; picks: AiPick[]; fresh: AiPick[]; freshAt: number }
 export type AiError = "no_key" | "rejected" | "limit" | "offline" | "failed";
@@ -47,7 +48,7 @@ const write = (key: string, value: unknown) => { try { localStorage.setItem(key,
 const unique = (values: string[]) => [...new Map(values.filter(Boolean).map(value => [norm(value), value.trim()])).values()];
 
 /** What the player told us: the thumbs (by name), the library and what they played lately, newest first. */
-export function tasteSignals(ratings: Ratings, names: Record<number, string> = loadTasteNames(), library: CatalogGame[] = libraryMembership.getGames(), history: Record<number, number> = readPlayHistory()): TasteSignals {
+export function tasteSignals(ratings: Ratings, names: Record<number, string> = loadTasteNames(), library: CatalogGame[] = libraryMembership.getGames(), history: Record<number, number> = readPlayHistory(), profile: AiProfile = loadAiProfile()): TasteSignals {
   const byId = new Map(library.map(game => [game.app_id ?? game.id, game.name]));
   const rated = (value: 1 | -1) => Object.entries(ratings).filter(([, rating]) => rating === value).map(([id]) => names[Number(id)]).filter(Boolean);
   const played = Object.entries(history).sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(Number(id)) ?? names[Number(id)]).filter((name): name is string => Boolean(name));
@@ -56,20 +57,22 @@ export function tasteSignals(ratings: Ratings, names: Record<number, string> = l
     disliked: unique(rated(-1)).slice(0, LIST_LIMIT),
     library: unique(library.map(game => game.name)).slice(0, LIST_LIMIT),
     played: unique(played).slice(0, 12),
+    profile,
   };
 }
 
-export const signalCount = (signals: TasteSignals) => signals.liked.length + signals.disliked.length + signals.library.length;
-/** Enough to suggest: MIN_SIGNALS choices, at least one of them a like or a library game. */
-export const enoughSignals = (signals: TasteSignals) => signalCount(signals) >= MIN_SIGNALS && signals.liked.length + signals.library.length > 0;
-export const signalsSignature = (signals: TasteSignals) => JSON.stringify([signals.liked, signals.disliked, signals.library].map(list => list.map(norm).sort()));
+const markedGenres = (signals: TasteSignals, value: 1 | -1) => Object.values(signals.profile?.genres ?? {}).filter(rating => rating === value).length;
+export const signalCount = (signals: TasteSignals) => signals.liked.length + signals.disliked.length + signals.library.length + markedGenres(signals, 1) + markedGenres(signals, -1);
+/** Enough to suggest: MIN_SIGNALS choices, at least one of them something the player likes or has. */
+export const enoughSignals = (signals: TasteSignals) => signalCount(signals) >= MIN_SIGNALS && signals.liked.length + signals.library.length + markedGenres(signals, 1) > 0;
+export const signalsSignature = (signals: TasteSignals) => JSON.stringify([...[signals.liked, signals.disliked, signals.library].map(list => list.map(norm).sort()), profileSignature(signals.profile ?? EMPTY_PROFILE)]);
 
 const language = () => getAppLocale() === "es" ? "Spanish (Rioplatense, using vos)" : "English";
-const systemPrompt = () => `You are the game recommender inside Game Access, a PC game launcher. Answer only with the JSON requested. Write every "why" in ${language()}: one short sentence in the second person that names one or two of the player's own games it relates to and what they share. Recommend real PC games that are on Steam. Never recommend a game the player already rated, owns or played, nor anything like the games they disliked.`;
+const systemPrompt = () => `You are the game recommender inside Game Access, a PC game launcher. Answer only with the JSON requested. Write every "why" and "reply" in ${language()}. A "why" is one short sentence in the second person that names one or two of the player's own games it relates to and what they share. Recommend real PC games that are on Steam. Never recommend a game the player already rated, owns or played, nor anything like the games, genres or characteristics they dislike.`;
 
 function describe(signals: TasteSignals): string {
   const list = (title: string, games: string[]) => games.length ? `${title}: ${games.join("; ")}` : "";
-  return [list("Liked", signals.liked), list("Disliked", signals.disliked), list("In their library", signals.library), list("Played lately", signals.played)].filter(Boolean).join("\n");
+  return [list("Liked", signals.liked), list("Disliked", signals.disliked), list("In their library", signals.library), list("Played lately", signals.played), ...describeProfile(signals.profile ?? EMPTY_PROFILE)].filter(Boolean).join("\n");
 }
 
 async function askGemma<T>(prompt: string, schema: object): Promise<T> {
@@ -95,12 +98,12 @@ export function matchSuggested(name: string, found: CatalogGame[]): CatalogGame 
 const cleanWhy = (why: unknown) => typeof why === "string" ? why.replace(/\s+/g, " ").trim().slice(0, 240) : "";
 
 /** Looks each suggested name up in the catalog; keeps the ones that are there and new to the player. */
-export async function resolveSuggestions(answer: unknown, signals: TasteSignals, query: (params: CatalogQueryParams) => Promise<{ items: CatalogGame[] }> = queryCatalogCache): Promise<AiPick[]> {
+export async function resolveSuggestions(answer: unknown, signals: TasteSignals, query: (params: CatalogQueryParams) => Promise<{ items: CatalogGame[] }> = queryCatalogCache, limit = 20): Promise<AiPick[]> {
   const games = Array.isArray((answer as { games?: unknown })?.games) ? (answer as { games: Array<{ name?: unknown; steam_app_id?: unknown; why?: unknown }> }).games : [];
   const known = new Set([...signals.liked, ...signals.disliked, ...signals.library, ...signals.played].map(norm));
   const picks: AiPick[] = [];
   const seen = new Set<number>();
-  for (const item of games.slice(0, 20)) {
+  for (const item of games.slice(0, limit)) {
     if (typeof item?.name !== "string" || known.has(norm(item.name))) continue;
     const why = cleanWhy(item.why);
     if (!why) continue;
@@ -221,18 +224,38 @@ export async function refreshFreshPicks(signals: TasteSignals): Promise<AiPicksS
 // ---- Asking in the player's own words (Seba, 2026-11-04) ----
 
 export interface AiAnswer { reply: string; picks: AiPick[] }
-const ASK_SCHEMA = { type: "object", properties: { reply: { type: "string" }, games: PICKS_SCHEMA.properties.games }, required: ["reply", "games"] };
+/** More than the 30 shown: names the catalog does not have are dropped. */
+const ASK_ASKED = 40;
+const ASK_SHOWN = 30;
+const MIN_SCORE = 65;
+const ASK_SCHEMA = { type: "object", properties: { reply: { type: "string" }, games: { ...PICKS_SCHEMA.properties.games, maxItems: ASK_ASKED } }, required: ["reply", "games"] };
 const ASK_KEY = "gameaccess:ai-answers";
 
-/** Gemma answers the player's request with up to 12 games (name and Steam id), each checked against the catalog. */
+export function askPrompt(text: string, signals: TasteSignals): string {
+  const wish = text.trim() ? `The player asks: ${JSON.stringify(text.trim().slice(0, 300))}` : "The player asks for nothing in particular: go by their profile.";
+  return `${wish}
+
+Their profile:
+${describe(signals)}
+
+Find at least 30 PC games on Steam if possible, best first: sort by relevance, then by rating, and avoid games rated below ${MIN_SCORE}%. Answer with:
+- "games": each game's name, its Steam app id and a "why" that justifies it. Never name a game the player already rated, has in the library or played.
+- "reply": two or three friendly sentences to the player: what you understood of their profile and request, that you are suggesting these games, and that they can tell you if they like them or want to change something.`;
+}
+
+/** Too badly rated by the catalog's own numbers; a game with no score stays. */
+export const belowMinScore = (game: CatalogGame) => (game.steam_review_score ?? 0) > 0 && game.steam_review_score! < MIN_SCORE;
+
+/** Gemma answers the request (or the profile alone) with up to 30 games; each is checked against the catalog. */
 export async function aiAsk(text: string, signals: TasteSignals): Promise<AiAnswer | null> {
   const key = `${norm(text)}|${signalsSignature(signals)}`;
   const all = read<Record<string, AiAnswer & { at: number }>>(ASK_KEY, {});
   if (all[key] && Date.now() - all[key].at < QUERY_TTL) return all[key];
   if (!native()) return demoAnswer(text);
-  const answer = await askGemma<{ reply?: unknown; games?: unknown }>(`The player asks: "${text.slice(0, 300)}"\nTheir choices:\n${describe(signals)}\n\nAnswer with "reply" (one or two friendly sentences on what you looked for) and "games": up to 12 PC games on Steam that fit the request, best first, each with its name, its Steam app id and a why. Never name a game the player already rated, has in the library or played.`, ASK_SCHEMA);
-  const picks = await resolveSuggestions({ games: answer?.games }, signals);
-  const result = { reply: cleanWhy(answer?.reply) || "", picks: picks.slice(0, 12) };
+  const answer = await askGemma<{ reply?: unknown; games?: unknown }>(askPrompt(text, signals), ASK_SCHEMA);
+  const picks = await resolveSuggestions({ games: answer?.games }, signals, queryCatalogCache, ASK_ASKED);
+  const reply = typeof answer?.reply === "string" ? answer.reply.replace(/\s+/g, " ").trim().slice(0, 600) : "";
+  const result = { reply, picks: picks.filter(pick => !belowMinScore(pick.game)).slice(0, ASK_SHOWN) };
   const why = read<Record<number, { why: string; at: number }>>(WHY_KEY, {});
   for (const pick of result.picks) why[pick.game.id] = { why: pick.why, at: Date.now() };
   write(WHY_KEY, why);
@@ -243,10 +266,11 @@ export async function aiAsk(text: string, signals: TasteSignals): Promise<AiAnsw
 
 async function demoAnswer(text: string): Promise<AiAnswer | null> {
   if (!(import.meta.env.DEV && uiDemo())) return null;
-  const found = await queryCatalogCache({ limit: 6, sort_by: "steam-popularity", sort_direction: "desc" }).catch(() => ({ items: [] as CatalogGame[] }));
+  const found = await queryCatalogCache({ limit: 12, sort_by: "steam-popularity", sort_direction: "desc" }).catch(() => ({ items: [] as CatalogGame[] }));
   const es = getAppLocale() === "es";
+  const asked = text ? (es ? `«${text}» y tu perfil` : `"${text}" and your profile`) : (es ? "tu perfil" : "your profile");
   return {
-    reply: es ? `Busqué juegos que encajen con «${text}» y con lo que te gusta.` : `I looked for games that fit "${text}" and what you like.`,
+    reply: es ? `Dale, tengo claro lo que buscás: ${asked}. Te sugiero estos juegos. Decime si te gustan o si querés cambiar algo.` : `Okay, I have a clear picture: ${asked}. I am suggesting these games. Let me know if you like them or want to change something.`,
     picks: found.items.map(game => ({ game, why: es ? `Tiene ${(game.genres ?? ["lo que pediste"])[0]} y se juega como lo que buscás.` : `It has ${(game.genres ?? ["what you asked"])[0]} and plays like what you want.` })),
   };
 }
@@ -263,20 +287,30 @@ async function demoState(signature: string, kept: AiPicksState | null): Promise<
   return state;
 }
 
-// ---- The magic button with an AI connected ----
+// ---- AI search mode ----
 
 const readRatings = (): Ratings => { try { return JSON.parse(localStorage.getItem("gameaccess:preferences") || "{}") as Ratings; } catch { return {}; } };
 
-/**
- * The magic button (personalOrder.ts) as "search in words": with an AI connected it can be turned on from
- * MIN_SIGNALS choices (thumbs and library), without waiting for the taste profile. `on`: searches go to Gemma.
- */
-export function useAiSearch(): { available: boolean; on: boolean; connected: boolean } {
-  const order = usePersonalOrder();
+const MODE_KEY = "gameaccess:ai-search";
+const MODE_EVENT = "gameaccess:ai-search-mode";
+const readMode = () => read<boolean>(MODE_KEY, false) === true;
+export function setAiSearchMode(on: boolean) {
+  write(MODE_KEY, on);
+  window.dispatchEvent(new Event(MODE_EVENT));
+}
+const subscribeMode = (listener: () => void) => {
+  window.addEventListener(MODE_EVENT, listener);
+  return () => window.removeEventListener(MODE_EVENT, listener);
+};
+
+/** AI search, a Plus feature. `on`: the catalog shows only the AI's answers; `connected`: there is a key to ask with. */
+export function useAiSearch(): { plus: boolean; on: boolean; connected: boolean } {
+  const mode = useSyncExternalStore(subscribeMode, readMode, () => false);
+  const plus = usePlus();
   const connected = useAiConnected();
   // With an AI connected nothing else is asked (Seba, 2026-11-04): the thumbs only make the answers better.
   useEffect(() => { if (connected) void backfillTasteNames(); }, [connected]);
-  return { available: connected, on: order.on && connected, connected };
+  return { plus, on: mode && plus, connected };
 }
 
 let backfilling: Promise<boolean> | null = null;
@@ -309,8 +343,9 @@ export function useTasteSignals(): TasteSignals {
   useEffect(() => {
     const update = () => setTick(value => value + 1);
     window.addEventListener(AI_SUGGESTIONS_EVENT, update);
+    window.addEventListener(AI_PROFILE_EVENT, update);
     void backfillTasteNames();
-    return () => window.removeEventListener(AI_SUGGESTIONS_EVENT, update);
+    return () => { window.removeEventListener(AI_SUGGESTIONS_EVENT, update); window.removeEventListener(AI_PROFILE_EVENT, update); };
   }, []);
   const [signals, setSignals] = useState(() => tasteSignals(readRatings(), loadTasteNames(), members));
   useEffect(() => setSignals(tasteSignals(readRatings(), loadTasteNames(), members)), [members, tick]);

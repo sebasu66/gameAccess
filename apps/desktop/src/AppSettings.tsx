@@ -13,6 +13,7 @@ import BuildStamp from "./BuildStamp";
 import { Settings, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
 import GaScreen from "./components/ga/Screen";
+import { aiTabRequested, clearAiTabRequest } from "./aiConnection";
 import { setAppScreen, useAppScreen } from "./appScreen";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
@@ -26,6 +27,8 @@ function SettingsScreen() {
  const [style, setStyle] = useState(loadPixelStyle);
  // One Plugins tab with a section per plugin; the on-screen list opens it on one of them (pluginNav.ts).
  const [pluginFocus, setPluginFocus] = useState(() => ({ id: pluginSection(), times: 0 }));
+ const [aiFirst] = useState(aiTabRequested);
+ useEffect(clearAiTabRequest, []);
  useEffect(() => {
   void pollPluginRuntime();
   clearPluginSection();
@@ -36,7 +39,7 @@ function SettingsScreen() {
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
  return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
-  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : undefined} label={c.title} tabs={[
+  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={[
    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
    { id: "ai", label: t("aiTab"), content: <AiSettings /> },
