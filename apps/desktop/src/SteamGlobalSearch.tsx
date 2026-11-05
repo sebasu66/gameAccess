@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, Sparkles, X } from "lucide-react";
+import { useAiSearch } from "./aiSuggestions";
 
 import { LIBRARY_SEARCH_EVENT } from "./librarySearch";
 import { useI18n } from "./i18n";
@@ -14,6 +15,8 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(query);
+  // With the magic button on and an AI connected the search is a request in words (LibraryRoom, aiSuggestions.ts).
+  const askAi = useAiSearch().on;
 
   useEffect(() => {
     setDraft(query);
@@ -64,15 +67,15 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   };
 
   return (
-    <div className="global-search">
+    <div className={askAi ? "global-search is-ai" : "global-search"}>
       <label className="search-box global-search-box">
-        <Search className="ga-search-icon" size={28} strokeWidth={2} onClick={commitSearch} style={{ cursor: "pointer" }} />
+        {askAi ? <Sparkles className="ga-search-icon" size={26} strokeWidth={2} onClick={commitSearch} style={{ cursor: "pointer" }} /> : <Search className="ga-search-icon" size={28} strokeWidth={2} onClick={commitSearch} style={{ cursor: "pointer" }} />}
         <input
           ref={inputRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t("uiBuscaTuProximoJuego")}
+          placeholder={askAi ? t("aiAskPlaceholder") : t("uiBuscaTuProximoJuego")}
           autoComplete="off"
           aria-label={t("uiBuscarJuegosPorTitulo")}
         />

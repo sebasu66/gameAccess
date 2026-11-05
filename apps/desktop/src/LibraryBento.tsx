@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import RenameGameDialog from "./RenameGameDialog";
-import { AlertTriangle, ChevronRight, Download, Pencil, Play, SlidersHorizontal, Snowflake } from "lucide-react";
+import GameInfoCard from "./GameInfoCard";
+import { AlertTriangle, ChevronRight, Download, Info, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
 import { useBatchReveal } from "./motion/batchReveal";
 import { bigPictureActive, useBigPicture } from "./bigPicture";
@@ -103,17 +103,17 @@ const DWELL_MS = 1000;
 
 /**
  * The short menu of a library card (docs/TAREA-interfaz-nueva.md T8), in the glass side panel shared with the
- * catalog: Play or Install, Rename and Manage. Advanced actions (freeze, uninstall, remove) live in the library manager.
+ * catalog: Play or Install, Manage and Details. Everything else (rename, freeze, uninstall) lives in the library manager.
  */
-function SideMenu({ card, slot, onClose, onPlay, onInstall, onRename, onManage }: { card: Card; slot: HTMLElement; onClose: () => void; onPlay?: Props["onPlay"]; onInstall?: Props["onInstall"]; onRename: (game: CatalogGame) => void; onManage?: Props["onManage"] }) {
+function SideMenu({ card, slot, onClose, onPlay, onInstall, onDetails, onManage }: { card: Card; slot: HTMLElement; onClose: () => void; onPlay?: Props["onPlay"]; onInstall?: Props["onInstall"]; onDetails: (game: CatalogGame) => void; onManage?: Props["onManage"] }) {
   const { t } = useI18n();
   const deep = card.kind === "deep";
   const items: SideMenuItem[] = [
     card.kind === "pending"
       ? { key: "install", primary: true, label: t(card.steamOwner ? "steamInstallMenu" : "flipInstall"), icon: <Download size={15} aria-hidden="true" />, run: () => void onInstall?.(card.game) }
       : { key: "play", primary: true, disabled: deep, title: deep ? t("flipFrozenHint") : undefined, label: t("flipPlay"), icon: <Play size={15} fill="currentColor" aria-hidden="true" />, run: () => void onPlay?.(card.game) },
-    { key: "rename", label: t("renameMenu"), icon: <Pencil size={15} aria-hidden="true" />, run: () => onRename(card.game) },
     { key: "manage", label: t("flipManage"), icon: <SlidersHorizontal size={15} aria-hidden="true" />, run: () => onManage?.(card.game) },
+    { key: "details", label: t("infoMenu"), icon: <Info size={15} aria-hidden="true" />, run: () => onDetails(card.game) },
   ];
   const owner = steamOwnerLabel(card.steamOwner);
   return <GameSideMenu anchor={slot} label={t("flipMenuLabel", { name: card.game.name })} items={items} note={owner ? t("steamOwnerNote", { account: owner }) : undefined} onClose={onClose} />;
@@ -141,7 +141,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   // The menu dot appears after resting 1 s on a card (or at once with the keyboard); a click turns the card over.
   const [dotFor, setDotFor] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
-  const [renaming, setRenaming] = useState<CatalogGame | null>(null);
+  const [details, setDetails] = useState<CatalogGame | null>(null);
   const dwell = useRef(0);
   // A right click on another card closes the open menu and opens that card's at once; on the same card it stays.
   const openMenu = useCallback((card: Card, slot: HTMLElement) => { if (!bigPictureActive()) setMenuFor(current => (current?.card.key === card.key ? current : { card, slot })); }, []);
@@ -358,9 +358,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
         ))}
       </div>
       {!cards.length ? <p className="ga-bento-empty">{t("bentoEmpty")}</p> : null}
-      {menuFor ? <SideMenu key={menuFor.card.key} card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onRename={setRenaming}
+      {menuFor ? <SideMenu key={menuFor.card.key} card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onDetails={setDetails}
         onClose={() => { setMenuFor(null); setDotFor(null); }} /> : null}
-      {renaming ? <RenameGameDialog game={renaming} current={scan.games.find(entry => entry.app_id === renaming.app_id)?.label ?? ""} onClose={() => setRenaming(null)} /> : null}
+      {details ? <GameInfoCard game={details} onClose={() => setDetails(null)} /> : null}
     </div>
   );
 }

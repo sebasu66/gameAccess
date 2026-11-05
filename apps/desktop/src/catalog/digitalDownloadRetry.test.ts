@@ -31,9 +31,20 @@ describe("a stopped download goes on from the step it reached", () => {
   it("starts over when the Download Manager has nothing to go on with", async () => {
     const queue = new FakeDownloadQueue();
     const service = new DigitalDownloadService(undefined, () => "base", queue);
+    service.confirmStartOver = async () => true;
     await service.retry(game(2));
     expect(queue.orders.map(order => order.action)).toContain("retry");
     expect(queue.orders.filter(order => order.action === "enqueue").map(order => order.appId)).toEqual([2]);
+  });
+
+  it("asks before downloading everything again, and does nothing when the player says no", async () => {
+    const queue = new FakeDownloadQueue();
+    const service = new DigitalDownloadService(undefined, () => "base", queue);
+    const asked = vi.fn().mockResolvedValue(false);
+    service.confirmStartOver = asked;
+    await service.retry(game(3));
+    expect(asked).toHaveBeenCalledOnce();
+    expect(queue.orders.filter(order => order.action === "retry" || order.action === "enqueue")).toEqual([]);
   });
 });
 

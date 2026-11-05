@@ -38,5 +38,7 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: process.env.TAURI_ENV_DEBUG ? false : "esbuild",
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    // The small "Connect AI" window (src/aiSteps) is a page of its own, without the rest of the app.
+    rollupOptions: { input: { main: "index.html", aiSteps: "ai-steps.html" } },
   },
 });

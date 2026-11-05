@@ -12,16 +12,22 @@
  * The table is data (genreConcepts.json), generated-doc friendly and shared with
  * the catalog pipeline. A value that matches no alias is NOT guessed: it becomes
  * its own concept with a slug id and keeps its text as the label, so nothing is
- * silently merged or dropped. docs/CATALOG_GENRE_MAPPING.md lists those leftovers.
+ * silently merged or dropped, but it is not offered as a choice (offeredGenres).
+ * docs/CATALOG_GENRE_MAPPING.md lists those leftovers.
+ *
+ * What is stored is `canonical`: the catalog pipeline and the client's database
+ * (catalog_genres.rs) write only that. What is shown is `genre_<id>` in the
+ * translations, in the app's language, and never the stored text.
  */
 import table from "./genreConcepts.json";
+import { getAppLocale, translate, type TranslationKey } from "./i18n";
 import { normalizeSearchText } from "./libraryText";
 
 interface GenreConcept {
   id: string;
   /** Steam's English name; what the published catalog stores. */
   canonical: string;
-  /** Spanish label shown in the UI. */
+  /** One more Spanish spelling; what the UI shows is the translation `genre_<id>`. */
   label: string;
   aliases: string[];
   software?: boolean;
@@ -78,11 +84,27 @@ export function genreConceptIds(values: readonly string[] | null | undefined): s
   return result;
 }
 
-/** UI label of a concept: Spanish for mapped ones, the catalog's own text otherwise. */
+/** UI label of a concept in the app's language; the catalog's own text for one the table does not know. */
 export function genreLabel(id: string): string {
   // Also accepts an older spelling saved in a filter ("Racing" -> "Carreras").
   const concept = BY_ID.get(id) ?? BY_KEY.get(normalizeSearchText(id));
-  return concept?.label ?? UNMAPPED.get(id) ?? id.replace(/_/g, " ");
+  return concept ? translate(`genre_${concept.id}` as TranslationKey) : UNMAPPED.get(id) ?? id.replace(/_/g, " ");
+}
+
+/** A game's genres as they are shown, whatever language they came in. */
+export function genreLabels(values: readonly string[] | null | undefined): string[] {
+  return genreConceptIds(values).map(genreLabel);
+}
+
+/** The genres a player can choose from: only concepts of the table, games only, in the app's alphabetical order. */
+export function offeredGenres(names: readonly string[]): string[] {
+  return genreConceptIds(names).filter(id => BY_ID.has(id) && !genreIsSoftware(id))
+    .sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), getAppLocale()));
+}
+
+/** The concept's stored English name, the one language-independent text (what the AI is told). */
+export function genreStoredName(id: string): string {
+  return (BY_ID.get(id) ?? BY_KEY.get(normalizeSearchText(id)))?.canonical ?? genreLabel(id);
 }
 
 export function genreIsSoftware(id: string): boolean {

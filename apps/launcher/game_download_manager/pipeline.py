@@ -143,15 +143,18 @@ class DownloadPipeline:
 
         from game_library_manager.storage import DigitalGameStorage
         storage = DigitalGameStorage()
+        # What was on disk before this run: automatic cleanup never deletes it (storage.remove_new).
+        before = storage.present(int(app_id), game_name) if not args.destination_dir else {"game": True, "transfer": True}
+        self.before = before
         game_dir = os.path.abspath(args.destination_dir) if args.destination_dir else str(storage.register(int(app_id), game_name))
         # Explicit destinations keep the established test/CLI contract.
         dest_dir = game_dir if args.destination_dir else str(storage.transfer_folder(int(app_id), game_name))
         context.logger.debug("Resolved storage: game=%s temporary=%s", game_dir, dest_dir)
         if not args.destination_dir and (getattr(args, "source_title", "") or getattr(args, "source_provider", "")):
-            storage.set_source(int(app_id), args.source_title, args.source_provider)
+            storage.set_source(int(app_id), args.source_title, args.source_provider, str(getattr(args, "download_source", "") or ""))
         if not args.destination_dir and not args.extract_only:
-            # Aborting removes the game folder, its record and the partial download.
-            context.cancel_hooks.append(lambda: storage.uninstall(int(app_id), game_name))
+            # Aborting removes what this run created; a game folder or a download that was already there stays.
+            context.cancel_hooks.append(lambda: storage.remove_new(int(app_id), game_name, before))
         os.makedirs(game_dir, exist_ok=True)
         os.makedirs(dest_dir, exist_ok=True)
         journal.note(game_dir, "descarga", f"inicio de '{game_name}' (AppID {app_id})")
@@ -303,7 +306,9 @@ class DownloadPipeline:
                 # 2. PHASE: SEGMENTED HTTP DOWNLOADING (direct HTTP links)
                 if download_url:
                     out_filepath = os.path.join(dest_dir, target_filename or "download.bin")
-                    context.temp_files.append(out_filepath)
+                    # Cancelling deletes only what this run created: an earlier download it goes on from stays (Seba, 2026-11-05).
+                    if not os.path.exists(out_filepath):
+                        context.temp_files.append(out_filepath)
                     target_content_path = out_filepath
 
                     context.emit_progress(
@@ -443,11 +448,11 @@ class DownloadPipeline:
             sys.exit(0)
 
         except NotAGameError as e:
-            # Nothing in it can run: it is removed from the games folder (and the temporary download with it), never
-            # offered as installed or for repair. The app tells the player to look for another source.
-            context.logger.warning("AppID %s: '%s' is not a game (%s); the folder is removed", app_id, game_name, ", ".join(e.kinds))
+            # Nothing in it can run: what this run brought is removed (never what was there before), never offered as
+            # installed or for repair. The app tells the player to look for another source.
+            context.logger.warning("AppID %s: '%s' is not a game (%s); what this download brought is removed", app_id, game_name, ", ".join(e.kinds))
             try:
-                storage.uninstall(int(app_id), game_name)
+                storage.remove_new(int(app_id), game_name, before)
             except Exception as failure:
                 context.logger.warning("AppID %s: could not remove the non-game download: %s", app_id, failure)
             self.report("failed", str(e), wait=True)
@@ -472,12 +477,13 @@ class DownloadPipeline:
     DEAD_SOURCE_HINTS = ("404", "410", "dlsourcenoseeds", "sin semillas", "no seeds", "no hay semillas", "metadata", "enlace caído", "enlace caido", "expir")
 
     def record_failure(self, storage, app_id, game_name, message, dead_source_possible=True):
-        """Dead source: nothing worth keeping, remove the folder. Otherwise keep it as ERROR with error.txt."""
+        """Dead source: what this run brought is removed (a folder that was there before stays, as ERROR). Otherwise
+        keep it as ERROR with error.txt."""
         try:
             if dead_source_possible and any(hint in message.lower() for hint in self.DEAD_SOURCE_HINTS):
-                storage.uninstall(app_id, game_name)
-            else:
-                journal.note(storage.folder(app_id, game_name), "error", message)
-                storage.write_error(app_id, game_name, message)
+                if not storage.remove_new(app_id, game_name, getattr(self, "before", {"game": True, "transfer": True})):
+                    return
+            journal.note(storage.folder(app_id, game_name), "error", message)
+            storage.write_error(app_id, game_name, message)
         except Exception as failure:
             self.context.logger.warning("AppID %s: no se pudo registrar el error: %s", app_id, failure)

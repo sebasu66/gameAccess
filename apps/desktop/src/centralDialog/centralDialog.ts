@@ -8,7 +8,7 @@
  *
  * Anything that needs the player to wait goes through `runTask` (or `beginTask` for code that reports by itself);
  * nothing long runs hidden in the background. A task the app can be used during (syncing the download sources, the
- * later catalog updates) runs with `background`: it is not drawn here but in the Activity panel's "Running" list,
+ * catalog updates) runs with `background`: it is not drawn here but in the Activity panel's "Running" list,
  * like a download, and leaves its end in the history (Seba, 2026-11-03).
  */
 

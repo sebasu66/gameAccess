@@ -3,15 +3,17 @@ import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import LanguageSwitch from "./LanguageSwitch";
 import StartupSettings from "./StartupSettings";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import PluginSettings from "./PluginSettings";
 import AiSettings from "./AiSettings";
-import { getPluginStatuses, pollPluginRuntime, subscribePluginStatuses } from "./catalog/PluginRuntime";
+import { pollPluginRuntime } from "./catalog/PluginRuntime";
+import { clearPluginSection, PLUGIN_SECTION_EVENT, pluginSection } from "./pluginNav";
 import { createPortal } from "react-dom";
 import BuildStamp from "./BuildStamp";
 import { Settings, RotateCcw, Play } from "lucide-react";
 import { useI18n } from "./i18n";
 import GaScreen from "./components/ga/Screen";
+import { aiTabRequested, clearAiTabRequest } from "./aiConnection";
 import { setAppScreen, useAppScreen } from "./appScreen";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
@@ -23,13 +25,21 @@ const copy = {
 function SettingsScreen() {
  const { locale, t } = useI18n(); const c = copy[locale];
  const [style, setStyle] = useState(loadPixelStyle);
- // One tab per connected plugin (its lists, its search, uninstalling it); none when there is no plugin.
- const plugins = useSyncExternalStore(subscribePluginStatuses, getPluginStatuses, getPluginStatuses);
- useEffect(() => { void pollPluginRuntime(); }, []);
+ // One Plugins tab with a section per plugin; the on-screen list opens it on one of them (pluginNav.ts).
+ const [pluginFocus, setPluginFocus] = useState(() => ({ id: pluginSection(), times: 0 }));
+ const [aiFirst] = useState(aiTabRequested);
+ useEffect(clearAiTabRequest, []);
+ useEffect(() => {
+  void pollPluginRuntime();
+  clearPluginSection();
+  const open = () => { const id = pluginSection(); clearPluginSection(); setPluginFocus(current => ({ id, times: current.times + 1 })); };
+  window.addEventListener(PLUGIN_SECTION_EVENT, open);
+  return () => window.removeEventListener(PLUGIN_SECTION_EVENT, open);
+ }, []);
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
  return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
-  <div className="ga-settings-content ga-settings-screen-content"><GaTabs label={c.title} tabs={[
+  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={[
    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
    { id: "ai", label: t("aiTab"), content: <AiSettings /> },
@@ -44,7 +54,7 @@ function SettingsScreen() {
      <GaButton icon={<Play size={16} />} onClick={() => { setAppScreen("games"); window.setTimeout(() => window.dispatchEvent(new Event("gameaccess:replay-logo")), 900); }}>{c.replay}</GaButton>
     </div></div>
    </> },
-   ...plugins.map(plugin => ({ id: `plugin-${plugin.id}`, label: plugin.name, content: <PluginSettings plugin={plugin} /> })),
+   { id: "plugins", label: t("pluginsTab"), content: <PluginSettings focus={pluginFocus.id} /> },
   ]} /><BuildStamp /></div>
  </GaScreen>;
 }

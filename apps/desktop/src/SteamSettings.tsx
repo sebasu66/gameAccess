@@ -4,6 +4,7 @@ import { Checkbox } from "./components/ui/checkbox";
 import { useI18n } from "./i18n";
 import { saveSteamSettings, steamStatus, syncSteamLibrary, type SteamSettings as Settings, type SteamStatus } from "./steamLibrary";
 import { useLibraryGames } from "./libraryMembership";
+import { guideChosen, setGuideForGameAccess } from "./steamGuide";
 
 /** Settings › Steam: the Steam client Game Access found, its remembered accounts and how the Steam library is used. */
 export default function SteamSettings() {
@@ -34,6 +35,16 @@ export default function SteamSettings() {
     } catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); } finally { setBusy(false); }
   };
 
+  // The controller's Xbox button: Game Access's big picture instead of Steam's (steamGuide.ts, steam_guide.rs).
+  const [guide, setGuide] = useState(guideChosen);
+  const [guideNote, setGuideNote] = useState("");
+  const changeGuide = async (on: boolean) => {
+    setGuide(on); setError(""); setGuideNote("");
+    try {
+      const outcome = await setGuideForGameAccess(on);
+      setGuideNote(outcome === "steam_running" ? t(on ? "steamGuideCloseSteam" : "steamGuideCloseSteamBack") : on ? t("steamGuideDone") : "");
+    } catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); }
+  };
   const toggle = (id: string, label: string, hint: string, checked: boolean, name: "auto_import" | "switch_accounts") => (
     <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
       <Checkbox id={id} tabIndex={-1} className="mt-0.5" disabled={!status?.found} checked={checked} onCheckedChange={value => void save({ [name]: value === true })} />
@@ -51,6 +62,12 @@ export default function SteamSettings() {
         <p className="m-0 text-sm text-muted-foreground">{t("steamFound", { path: status.path, games: status.installed_count, libraries: status.libraries.length })}</p>
         {toggle("ga-steam-auto", t("steamAutoImport"), t("steamAutoImportHint"), settings?.auto_import ?? true, "auto_import")}
         {toggle("ga-steam-switch", t("steamSwitch"), t("steamSwitchHint"), settings?.switch_accounts ?? true, "switch_accounts")}
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
+          <Checkbox id="ga-steam-guide" tabIndex={-1} className="mt-0.5" checked={guide} onCheckedChange={value => void changeGuide(value === true)} />
+          <div className="grid gap-1"><label htmlFor="ga-steam-guide" className="text-sm font-semibold">{t("steamGuide")}</label><p className="m-0 text-sm text-muted-foreground">{t("steamGuideHint")}</p>
+            {guideNote ? <p role="status" className="m-0 text-sm">{guideNote}</p> : null}
+            {guide && guideNote === t("steamGuideCloseSteam") ? <div><GaButton onClick={() => void changeGuide(true)}>{t("steamGuideRetry")}</GaButton></div> : null}</div>
+        </div>
         <div><GaButton variant="primary" disabled={busy} onClick={() => void importNow()}>{busy ? t("steamImporting") : t("steamImportNow")}</GaButton></div>
         <details className="ga-settings-group rounded-lg border border-border bg-card/50 p-4">
           <summary className="cursor-pointer text-sm font-bold">{t("steamAccounts", { count: accounts.length })}</summary>

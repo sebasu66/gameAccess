@@ -15,7 +15,9 @@ import {
   type SourceIndexEntry,
 } from "../catalogCache";
 
-export interface PluginManifest { id: string; name: string; endpoint: string; type: string; }
+export interface PluginManifest { id: string; name: string; endpoint: string; type: string;
+  /** In the plugin's own words (Settings › Plugins). */ description?: string | null; homepage?: string | null;
+  /** The player's on/off; a plugin that is off is not started or asked anything. */ enabled?: boolean; }
 export interface PluginSource {
   title: string; url: string; type: string; size: string; score: number;
   pluginName: string; sourceName: string;
@@ -128,7 +130,7 @@ async function plugins(): Promise<PluginManifest[]> {
 export async function sourcePluginReady(): Promise<boolean> {
   try {
     const registered = await invoke<PluginManifest[]>("get_registered_plugins");
-    return registered.some(plugin => plugin.type === "source_provider" && getSavedPluginRevision(plugin.id) !== "");
+    return registered.some(plugin => plugin.type === "source_provider" && plugin.enabled !== false && getSavedPluginRevision(plugin.id) !== "");
   } catch {
     return false;
   }

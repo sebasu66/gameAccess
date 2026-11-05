@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
-import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Link2, Loader2, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Link2, Loader2, Pencil, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
+import RenameGameDialog from "../RenameGameDialog";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan, type RunCheck } from "../catalog/DigitalProcessManager";
@@ -336,6 +337,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   }, [hosted, id]);
   useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
   const [menu, setMenu] = useState<MenuAt>(null);
+  const [renaming, setRenaming] = useState(false);
   const failed = (failure: unknown) => notify(translate("toastActionFailed", { error: String(failure instanceof Error ? failure.message : failure) }), { tone: "error" });
   const openDownloadFolder = act(c.openDownloadFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game), "download"), { disabled: libraryDemo() });
   // What the game offers, by its state (the same list in the open row and in the context menu).
@@ -362,6 +364,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ...(canVerify(game) ? [act(c.verify, verifying === id ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />, () => verify(game), { disabled: busy || verifying != null })] : []),
       ...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []),
       act(c.openFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game)), { disabled: libraryDemo() || isSteamOwned(game) }),
+      ...(id != null ? [act(translate("renameMenu"), <Pencil size={16} />, () => setRenaming(true), { disabled: busy })] : []),
       ...(game.frozen && !game.linked && id != null ? [act(c.thaw, <PhFlame />, () => setThawing(game, "thaw"), { tone: "frost", disabled: busy })] : []),
       ...(!game.frozen && !game.linked && game.installed && id != null ? [
         act(c.freeze, <PhSnowflake />, () => setThawing(game, "freeze"), { tone: "frost", disabled: busy }),
@@ -409,6 +412,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
         {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))} />
     </div></td></tr> : null}
     {menu ? <RowMenu at={menu} title={game.name} actions={busyFreezing || download ? actions : [history, ...actions]} onClose={() => setMenu(null)} /> : null}
+    {renaming ? <RenameGameDialog game={asGame(game)} current={game.label ?? ""} onClose={() => setRenaming(false)} /> : null}
   </>);
 }
 

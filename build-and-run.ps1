@@ -196,8 +196,18 @@ try {
         Write-GameAccessNarration "Local GameAccess backend server is ready at $localApiUrl." "SERVER"
     }
     if (-not $NoRun) {
+        # A file created in the project root inherits the folder's "Low Mandatory Level" label when the folder has one
+        # (a sandboxing tool puts it there). Windows starts such an exe at low integrity: it cannot write the user's
+        # registry and WebView2 never starts, so Game Access stays hidden and every later launch hands over to it.
+        # The release next to Cargo's output is the same file (hash checked above) without the label.
+        $runExe = $outputExe
+        if ((& icacls.exe $outputExe 2>$null) -match 'Low Mandatory Level') {
+            $runExe = $sourceExe
+            Write-Host "The root copy carries the folder's low-integrity label; running $sourceExe (same SHA256) instead."
+            Write-GameAccessNarration "Root executable has a low-integrity label inherited from the folder; started the identical release build from $sourceExe instead." "FRONTEND"
+        }
         Write-GameAccessNarration "Starting the GameAccess desktop front end executable." "FRONTEND"
-        Start-Process -FilePath $outputExe -WorkingDirectory $projectRoot -WindowStyle Hidden
+        Start-Process -FilePath $runExe -WorkingDirectory $projectRoot -WindowStyle Hidden
     }
 } catch {
     Write-Error $_ -ErrorAction Continue

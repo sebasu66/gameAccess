@@ -20,3 +20,17 @@ Changing tiers changes admission of queued jobs. Already running jobs are preser
 Source discovery, provider HTTP outcomes, usable options, queue admission, phase transitions and terminal slot release use the existing narration log. Extraction and executable selection add AppID context to the existing worker logs. These logging additions do not change installation or launch policy, and do not record source URL query tokens or passwords.
 
 Bulk availability is published after each batch so named-source filters and download indicators become useful before the entire metadata catalog has been scanned.
+
+
+## Plugin form (Settings › Plugins)
+
+A plugin may share a form so the player controls it inside Game Access, drawn with the app's own controls. It is data: no plugin code or markup runs in the app, and paths must be on the plugin's own address.
+
+`GET /api/ui?lang=es|en` → `{ schema: 1, description, homepage, sections: [...] }`. `description` and `homepage` (https) may also be in the manifest, which is what shows while the plugin is off. Unknown section types are ignored.
+
+- `{ type: "list", id, title, hint?, path, removeLabel?, add?: { placeholder, label, pattern? }, addFile?: { path, label, accept? } }`. `GET path`, `POST path {value}`, `DELETE path {value}` and `POST addFile.path {name, content}` all answer `{ items: string[], busy?, busyText?, summary? }`.
+- `{ type: "search", id, title, path, placeholder, button, empty?, hint?, linkPath? }`. `GET path?q=` answers `{ results: [{ title, link, meta? }] }`. Each result offers download and copy link; `GET linkPath?url=` answers `{ url }`, the file behind a link.
+
+Errors are `{ error: "text" }` with a non-2xx status. Texts come from the plugin, in the language asked for. Routes that change anything must refuse other origins than the app's.
+
+The player's on/off is kept by the app (`plugins-off.json` in its data folder): a plugin that is off is closed, not started and not asked anything, and its downloads leave the catalog until it syncs again.

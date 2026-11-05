@@ -30,6 +30,22 @@ pub(crate) async fn create_game_shortcut(app_id: u32, name: String) -> Result<St
         Ok(result["path"].as_str().unwrap_or("").to_string())
     }).await.map_err(|e|e.to_string())?
 }
+/// Gives the game's icon to the links already on the desktop (see game_shortcut.repair_icons).
+#[tauri::command]
+pub(crate) async fn repair_game_shortcuts() -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let launcher = find_launcher_dir().ok_or("Could not locate launcher")?;
+        let executable = env::current_exe().map_err(|e|e.to_string())?;
+        let mut command = Command::new(find_launcher_python(&launcher));
+        command.env("PYTHONUTF8","1").env("PYTHONIOENCODING","utf-8").arg(launcher.join("game_shortcut.py"))
+            .args(["--repair-icons","--launcher",&executable.to_string_lossy()]);
+        #[cfg(windows)] command.creation_flags(CREATE_NO_WINDOW);
+        let output = command.output().map_err(|e|e.to_string())?;
+        let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_|"Invalid shortcut result")?;
+        if result["ok"] != true { return Err(result["error"].as_str().unwrap_or("Cannot repair shortcuts").into()); }
+        Ok(result["changed"].as_u64().unwrap_or(0))
+    }).await.map_err(|e|e.to_string())?
+}
 pub(crate) fn start_access_watchdog(app: tauri::AppHandle) {
     use tauri::{Emitter, Manager};
     let foreground = app.clone();

@@ -1,3 +1,4 @@
+import { genreLabels } from "./libraryGenres";
 import { useEffect, useRef, useState } from "react";
 import { gsap, motionOk, SplitText, useGSAP } from "./motion/gsap";
 import { cachedSpotlight, onSpotlightChanged, prefetchSpotlight, type Slide } from "./spotlightSlides";
@@ -79,7 +80,7 @@ export default function CatalogSpotlight({ exclude, onOpen }: { exclude: (game: 
     <section ref={root} className="ga-spotlight" aria-label={t("spotlightLabel")}>
       {layers.map((url, layer) => url ? <img key={layer} className="ga-spotlight-image" data-front={layer === front || undefined} src={url} alt="" /> : null)}
       <div className="ga-spotlight-content">
-        <span className="ga-spotlight-eyebrow">{eyebrow}{game.genres?.length ? ` · ${game.genres.slice(0, 2).join(" · ")}` : ""}</span>
+        <span className="ga-spotlight-eyebrow">{eyebrow}{game.genres?.length ? ` · ${genreLabels(game.genres).slice(0, 2).join(" · ")}` : ""}</span>
         <h2 className="ga-spotlight-title" key={game.id}>{game.name}</h2>
         <div className="ga-spotlight-actions"><GaButton variant="primary" onClick={() => onOpen(game)}>{t("spotlightOpen")}</GaButton></div>
       </div>

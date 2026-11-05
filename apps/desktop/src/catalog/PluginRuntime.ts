@@ -31,11 +31,12 @@ export function resetPluginRuntime(): void {
 }
 
 export function providerAvailable(plugin: PluginManifest): boolean {
-  return statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint)?.alive !== false;
+  return plugin.enabled !== false && statuses.find(item => item.id === plugin.id && item.endpoint === plugin.endpoint)?.alive !== false;
 }
 async function inspect(plugin: PluginManifest): Promise<PluginStatus> {
   const key = `${plugin.id}|${plugin.endpoint}`;
   const offline: PluginStatus = { ...plugin, alive: false, revision: "", instanceId: "", dirty: false };
+  if (plugin.enabled === false) return offline;
   const recordFailure = (): PluginStatus => {
     const failures = (failureCounts.get(key) ?? 0) + 1;
     failureCounts.set(key, failures);

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import AiConnectWizard from "./AiConnectWizard";
+import AiProfileEditor from "./AiProfileEditor";
 import { aiDisconnect, aiState, aiTest, aiTestError, type AiState } from "./aiConnection";
-import "./ai-connect.css";
+import "./ai-settings.css";
 
-/** Settings › AI: whether a free Ollama key is connected, "Connect" (the wizard), "Try it" and "Disconnect". */
+/** Settings › AI: whether a free Ollama key is connected, "Connect" (the wizard), "Try it", "Disconnect" and the profile. */
 export default function AiSettings() {
   const { t } = useI18n();
   const [state, setState] = useState<AiState | null>(null);
@@ -28,9 +29,9 @@ export default function AiSettings() {
 
   return <section className="ga-ai-settings">
     <p className="ga-hint">{t("aiSettingsHint")}</p>
-    {state ? <div className="ga-ai-settings-card">
+    {state ? <div className="ga-settings-group ga-ai-settings-card">
       <div className="ga-ai-settings-text">
-        <span className="ga-ai-settings-title">{t("aiSettingsTitle")}</span>
+        <span className="ga-label">{t("aiSettingsTitle")}</span>
         <p role="status" className={`ga-status ${state.connected ? "is-ok" : "is-warn"}`}>{state.connected ? t("aiSettingsOn", { ending: state.ending }) : t("aiSettingsOff")}</p>
       </div>
       <div className="ga-ai-settings-actions">
@@ -41,6 +42,7 @@ export default function AiSettings() {
       </div>
     </div> : null}
     {status ? <p role="status" className={`ga-status is-${status.tone}`}>{status.text}</p> : null}
+    <AiProfileEditor />
     {wizard ? <AiConnectWizard onDone={() => { setWizard(false); void refresh(); }} /> : null}
   </section>;
 }

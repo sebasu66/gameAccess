@@ -1,3 +1,4 @@
+import { genreLabels } from "./libraryGenres";
 import {Download, Store} from "lucide-react";
 import { installThroughSteam, isSteamOwned } from "./steamLibrary";
 import { useLibraryEntry } from "./libraryScan";
@@ -5,6 +6,7 @@ import { notify } from "./toasts";
 import { openSteamStore } from "./native";
 import { usePluginReady } from "./usePluginReady";
 import CooptimusDetails from "./CooptimusDetails";
+import { AiReasonPanel } from "./AiPicks";
 import PluginDownloadButton from "./PluginDownloadButton";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
@@ -193,7 +195,7 @@ export interface FeaturePanelProps {
 }
 
 function actionClass(action: LibraryAction, selected: boolean): string {
-  const kind = action.kind === "play" ? "play" : action.kind === "cancel" ? "cancel" : "download";
+  const kind = action.kind === "play" ? "play" : action.kind === "manage" ? "manage" : "download";
   return `glass-action ${kind} ${selected ? "is-selected" : ""}`.trim();
 }
 
@@ -243,7 +245,7 @@ function ActionButtons(props: FeaturePanelProps) {
         onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }}
         onClick={() => props.onAction(index)} disabled={action.disabled}>
         <span className="glass-action-icon">{action.icon}</span>
-        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.kind === "cancel" ? t("downloadsCancel") : action.label}</span>
+        <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.label}</span>
       </button>)}
   {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
   </div>;
@@ -492,7 +494,7 @@ function SteamFacts({ details, game }: { details: GameDetails | null; game: Cata
   const recommendations = steam?.recommendation_count ?? game.recommendation_count;
   const facts = [
     [t("factSize"), installSize],
-    [t("factGenre"), compactValue(steam?.genres)],
+    [t("factGenre"), compactValue(steam?.genres && genreLabels(steam.genres))],
     [t("factUserRating"), rating],
     [t("factRecommendations"), typeof recommendations === "number" ? new Intl.NumberFormat(localeTag).format(recommendations) : t("notReported")],
     [t("factLanguages"), plainText(steam?.supported_languages) || t("notReported")],
@@ -545,7 +547,7 @@ function DesktopFeature(props: FeaturePanelProps) {
       <SteamHeaderArtwork game={props.game} details={details} />
       <div className="ga-detail-body">
         <section className="ga-detail-info" aria-label={t("uiInformacionDelJuego")}>
-          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{(steam?.genres ?? props.game.genres)?.join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
+          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{genreLabels(steam?.genres ?? props.game.genres).join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
           <h1>{props.game.name}</h1>
           <div className="ga-detail-facts"><span>{steam?.release_date ?? props.game.release_date ?? "Lanzamiento no informado"}</span><span>{installSize}</span><span>{platforms(details)}</span></div>
           <DetailPlayModes game={props.game} details={details} />
@@ -562,7 +564,7 @@ function DesktopFeature(props: FeaturePanelProps) {
           </div>
           <div ref={actionsRef} className="ga-detail-actions"><ActionButtons {...props} /><button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp size={22} fill={props.preference === 1 ? "currentColor" : "none"} /></button><button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown size={19} /></button></div>
         </section>
-        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} /><CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
+        <section className="ga-detail-gallery" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} />{props.showcaseMode ? null : <AiReasonPanel game={props.game} />}<CooptimusDetails appId={props.game.app_id} name={props.game.name} enabled={!props.showcaseMode} /></section>
       </div>
     </article>
   );

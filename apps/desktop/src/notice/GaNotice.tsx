@@ -85,7 +85,7 @@ export default function GaNotice() {
       ) : null}
       {shown.details ? <NoticeDetailsSection key={shown.id} details={shown.details} /> : null}
       {shown.actions.length ? (
-        <div className="ga-notice-actions">{shown.actions.map(action => <GaButton key={action.label} variant={action.kind ?? "secondary"} onClick={action.run}>{action.label}</GaButton>)}</div>
+        <div className="ga-notice-actions">{shown.actions.map(action => <GaButton key={action.label} variant={action.kind ?? "secondary"} title={action.title} onClick={action.run}>{action.label}</GaButton>)}</div>
       ) : null}
       {shown.progress !== undefined ? <i className="ga-notice-progress" data-indeterminate={shown.progress === null || undefined}><b style={shown.progress === null ? undefined : { transform: `scaleX(${shown.progress})` }} /></i> : null}
     </div>

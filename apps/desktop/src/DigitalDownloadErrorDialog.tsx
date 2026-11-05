@@ -11,6 +11,7 @@ import { findAnotherSource } from "./sourceRescue";
 import { reportBadSource } from "./catalog/gameLessons";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { localizeLauncherText } from "./launcherText";
+import { addReadyGameToLibrary } from "./libraryMembership";
 import type { CatalogGame } from "./types";
 
 /** The game's log: its steps up to the error and, when its installer ran, why that installer stopped. */
@@ -21,6 +22,35 @@ async function failureLog(game: CatalogGame): Promise<string> {
   const parts = [steps || translate("noticeLogEmpty")];
   if (installer) parts.push("", translate("noticeInstallerLog"), installer);
   return parts.join("\n");
+}
+
+/**
+ * «Arreglado manualmente» (Seba, 2026-11-04): the player fixed the folder by hand (unpacked the archive with its
+ * password, ran the installer). Game Access takes the folder as it is now (library action `manual_fixed`: nothing is
+ * unpacked again) and goes on with the next step, the run check (verify-run), telling how it went.
+ */
+async function fixedByHand(game: CatalogGame) {
+  const appId = game.app_id ?? game.id;
+  showNotice({ game: noticeGame(game), tone: "info", title: translate("manualFixChecking", { name: game.name }), activity: false });
+  try {
+    const result = await digitalProcessManager.libraryBatch("manual_fixed", [appId]);
+    const row = ((result as { results?: Array<{ ok: boolean; error?: string }> }).results ?? [])[0];
+    if (!row?.ok) {
+      showNotice({ game: noticeGame(game), tone: "error", title: translate("manualFixNotReady", { name: game.name }), text: localizeLauncherText(row?.error ?? ""),
+        actions: [{ label: translate("noticeOpenFolder"), kind: "primary", run: () => void digitalProcessManager.openFolder(game) }, { label: translate("close"), kind: "secondary", run: () => hideNotice() }] });
+      return;
+    }
+    addReadyGameToLibrary(appId, game.name);
+    void digitalDownloadService.sync();
+    showNotice({ game: noticeGame(game), tone: "info", title: translate("manualFixVerifying", { name: game.name }), activity: false });
+    const verified = await digitalProcessManager.verifyRun(game);
+    const check = verified.check;
+    const ok = check?.state === "checked";
+    showNotice({ game: noticeGame(game), tone: ok ? "ok" : "error", title: translate(ok ? "manualFixDone" : "manualFixCantRun", { name: game.name }),
+      text: ok ? "" : localizeLauncherText(check?.detail || verified.skipped || ""), actions: [{ label: translate("close"), kind: "secondary", run: () => hideNotice() }] });
+  } catch (error) {
+    showNotice({ game: noticeGame(game), tone: "error", title: translate("toastActionFailed", { error: String(error instanceof Error ? error.message : error) }) });
+  }
 }
 
 const KIND_KEYS = { audio: "notAGameKindAudio", images: "notAGameKindImages", video: "notAGameKindVideo", documents: "notAGameKindDocuments", other: "notAGameKindOther" } as const;
@@ -84,6 +114,7 @@ export default function DigitalDownloadErrorDialog() {
         details: game ? { label: translate("noticeShowLog"), load: () => failureLog(game) } : undefined,
         actions: [
           ...(game && installFailed ? [{ label: translate("noticeOpenFolder"), kind: "primary" as const, run: () => void digitalProcessManager.openFolder(game).catch(() => digitalProcessManager.openFolder(game, "download")) }] : []),
+          ...(game && installFailed ? [{ label: translate("manualFixButton"), title: translate("manualFixTip"), kind: "secondary" as const, run: () => void fixedByHand(game) }] : []),
           // The download itself worked: another source is offered only when downloading failed (one row of buttons).
           ...(game && !installFailed ? [{ label: translate("rescueTry"), kind: "primary" as const, run: () => void findAnotherSource(game) }] : []),
           { label: translate("close"), kind: "secondary", run: () => hideNotice() },

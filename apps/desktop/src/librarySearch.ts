@@ -1,7 +1,7 @@
 import type { CatalogGame } from "./types";
 import { translate, type TranslationKey } from "./i18n";
 import { normalizeSearchText } from "./libraryText";
-import { genreConceptId, genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
+import { genreConceptId, genreConceptIds, genreIsSoftware, offeredGenres } from "./libraryGenres";
 import { capabilityNames, gameMatchesLibraryFeature, hasLanCategory } from "./libraryCapabilities";
 import type { LibraryFeatureKey } from "./libraryCapabilities";
 import {
@@ -158,8 +158,7 @@ export function getLibrarySearchFacets(games: CatalogGame[]): LibrarySearchFacet
     // Software classifications are excluded here: they are offered as the
     // Software filter instead of as genres, because "Edición fotográfica" is not
     // a way to find a game.
-    genres: [...new Set(games.flatMap((game) => gameGenres(game)))]
-      .sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), "es")),
+    genres: offeredGenres(games.flatMap((game) => game.genres ?? [])),
     // Steam capability categories are intentionally hidden from the UI.
     categories: [],
     features: LIBRARY_FEATURE_OPTIONS

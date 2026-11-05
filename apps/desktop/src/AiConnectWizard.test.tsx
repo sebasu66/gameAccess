@@ -10,17 +10,15 @@ const testResult: { error: string | null } = { error: null };
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (command: string, args?: Record<string, unknown>) => {
     calls.push([command, args]);
-    if (command === "ai_test") { if (testResult.error) throw testResult.error; return "gemma4:31b"; }
-    if (command === "ai_save_key") return { connected: true, ending: "wxyz" };
+    if (command === "ai_test") { if (testResult.error) throw testResult.error; return "gemma4:31b-cloud"; }
     return null;
   }),
 }));
-const guide: { key?: (event: { payload: unknown }) => void; closed?: (event: { payload: unknown }) => void; google?: () => void } = {};
+const guide: { key?: (event: { payload: unknown }) => void; closed?: (event: { payload: unknown }) => void } = {};
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async (name: string, handler: (event: { payload: unknown }) => void) => {
     if (name === "gameaccess:ai-key") guide.key = handler;
     if (name === "gameaccess:ai-guide-closed") guide.closed = handler;
-    if (name === "gameaccess:ai-google") guide.google = () => handler({ payload: null });
     return () => undefined;
   }),
 }));
@@ -42,7 +40,7 @@ describe("AiConnectWizard", () => {
   });
   afterEach(() => { act(() => root.unmount()); host.remove(); document.body.innerHTML = ""; });
 
-  it("opens Ollama's window with the guide, and the key it takes is tried before Done", async () => {
+  it("opens the browser and the steps, and the key pasted there is tried before Done", async () => {
     expect(document.body.textContent).toContain(t("aiIntroTitle"));
     await act(async () => button(t("aiConnect"))!.click());
     expect(calls.map(([command]) => command)).toContain("ai_guide_open");
@@ -55,29 +53,20 @@ describe("AiConnectWizard", () => {
     expect(done).toHaveBeenCalledWith(true);
   });
 
-  it("keeps the browser and a pasted key for Google, and a refused key asks for another", async () => {
+  it("a refused key opens the steps again", async () => {
     await act(async () => button(t("aiConnect"))!.click());
-    await act(async () => guide.google!());
-    expect(document.body.textContent).toContain(t("aiGoogleNote"));
-    expect(button(t("aiUseKey"))!.disabled).toBe(true);
-    const field = document.querySelector<HTMLInputElement>("input.ga-ai-field")!;
     testResult.error = "rejected";
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "sk-0123456789abcdefWXYZ");
-      field.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    expect(button(t("aiUseKey"))!.disabled).toBe(false);
-    await act(async () => button(t("aiUseKey"))!.click());
+    await act(async () => guide.key!({ payload: { ending: "a91f" } }));
     await flush();
-    expect(calls).toContainEqual(["ai_save_key", { key: "sk-0123456789abcdefWXYZ" }]);
     expect(document.body.textContent).toContain(t("aiError_rejected"));
+    calls.length = 0;
     await act(async () => button(t("aiTryAnother"))!.click());
     await flush();
-    expect(calls.map(([command]) => command)).toContain("ai_disconnect");
+    expect(calls.map(([command]) => command)).toEqual(["ai_disconnect", "ai_guide_open"]);
     expect(document.body.textContent).toContain(t("aiGuideTitle"));
   });
 
-  it("says so when the Ollama window closes without a key", async () => {
+  it("says so when the steps window closes without a key", async () => {
     await act(async () => button(t("aiConnect"))!.click());
     await act(async () => guide.closed!({ payload: { saved: false } }));
     expect(document.body.textContent).toContain(t("aiGuideClosed"));

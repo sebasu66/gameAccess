@@ -1,12 +1,15 @@
-/* A plugin's tab in Settings (PluginSettings.tsx): its state, its download lists, a search among its records and
+/* Settings › Plugins (PluginSettings.tsx, PluginForm.tsx): each plugin's state, source, on/off, the form it shares and
    uninstalling it. Text, stacks and groups come from the dialog template (components/ga/content.css). */
 .ga-plugin-settings { max-width: 960px; }
-.ga-plugin-title { margin: 0; color: var(--ga-white); font: 700 20px/1.3 var(--ga-text-family); }
+.ga-heading.ga-plugin-title { color: var(--ga-white); font: var(--ga-t2-font); letter-spacing: 0; }
 .ga-plugin-state { color: var(--ga-error); font-weight: 700; }
 .ga-plugin-state.is-on { color: var(--ga-ok); }
-.ga-plugin-group { padding: 20px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
-.ga-plugin-group > legend { float: left; width: 100%; margin-bottom: var(--ga-space-1); }
-.ga-plugin-group > legend + * { clear: both; }
+.ga-plugin-state.is-off { color: var(--ga-muted); }
+.ga-plugin-list { display: grid; gap: 28px; padding-top: var(--ga-space-2); }
+.ga-plugin-list > .ga-plugin-settings + .ga-plugin-settings { padding-top: 28px; border-top: 1px solid var(--ga-line); }
+.ga-plugin-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; max-width: 960px; }
+.ga-plugin-switch { margin: 0; }
+.ga-plugin-link { display: inline-flex; align-items: center; gap: 5px; color: var(--ga-orange-ink); overflow-wrap: anywhere; }
 
 /* A field and its buttons in one row, all the same height; the field takes what is left. */
 .ga-plugin-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 0; }
@@ -28,3 +31,14 @@
 .ga-plugin-icon:hover:not(:disabled) { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
 .ga-plugin-icon:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
 .ga-plugin-icon:disabled { opacity: .5; cursor: default; }
+
+/* The installed plugins on the screen, top right inside the frame (PluginIndicator.tsx): one column, one light each. */
+html body .plugin-indicator-group { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px) + 10px); right: calc(var(--ga-frame-right, 0px) + 12px);
+  display: flex; flex-direction: column; align-items: stretch; gap: 0; max-width: 200px; padding: 3px; border: 1px solid var(--ga-tray-line); border-radius: var(--ga-tray-radius); background: var(--ga-tray-bg); backdrop-filter: var(--ga-tray-glass); }
+html body .plugin-indicator-group .plugin-indicator-item { display: flex; align-items: center; gap: 7px; height: 22px; min-width: 0; padding: 0 8px; border: 0; border-radius: 5px; background: none; color: var(--ga-tray-ink); font: var(--ga-tray-font); cursor: pointer; }
+html body .plugin-indicator-group .plugin-indicator-item:is(:hover, :focus-visible) { color: var(--ga-tray-ink-hover); background: var(--ga-tray-hover); }
+html body .plugin-indicator-item[data-connected="true"] i { background: var(--ga-light-on); }
+html body .plugin-indicator-item[data-connected="false"] i { background: var(--ga-light-fail); }
+html body .plugin-indicator-item[data-off] i { background: var(--ga-light-off); }
+.plugin-indicator-item[data-off] { opacity: .6; }
+html body.ga-big-screen .plugin-indicator-group { display: none; }

@@ -3,6 +3,34 @@
   "_help": "What changed in each version, for the card at the top of Home (releaseNotes.ts). Ships inside the app, so the notes always match the installed version. Newest first; one short line per change, in the player's words. Add the new version's entry in the same commit that raises the version.",
   "versions": [
     {
+      "version": "0.1.13",
+      "date": "2026-11-05",
+      "changes": {
+        "es": [
+          "**Tu perfil para la IA** (Configuración › IA): juegos que te gustan, géneros, cómo jugás y lo que buscás o evitás.",
+          "**Búsqueda con IA** (PLUS): pedí en tus palabras y cada juego llega con el motivo al lado.",
+          "**Conectar IA** más simple: abre tu navegador y una ventana chica con los pasos.",
+          "**Géneros ordenados**: una sola lista, en tu idioma, sin repetidos.",
+          "**Abre más rápido**: las novedades del catálogo se buscan en Actividad y podés usar la app mientras tanto.",
+          "**Una sola pestaña de Plugins** y **Actualizar juegos** ahora está en la pantalla de Juegos.",
+          "**Botón Xbox del mando**: podés hacer que abra Game Access en lugar de Steam.",
+          "**Accesos directos con el icono de cada juego**, también los que ya tenías en el escritorio.",
+          "**Juegos más seguros**: los pasos automáticos ya no borran lo que tenías en el disco."
+        ],
+        "en": [
+          "**Your AI profile** (Settings › AI): the games you like, genres, how you play and what you look for or avoid.",
+          "**AI search** (PLUS): ask in your own words and each game comes with its reason beside it.",
+          "**Simpler Connect AI**: it opens your browser and a small window with the steps.",
+          "**Tidy genres**: one list, in your language, with no repeats.",
+          "**Opens faster**: catalog news are checked in Activity and you can use the app meanwhile.",
+          "**One Plugins tab**, and **Update games** is now on the Games screen.",
+          "**Xbox controller button**: you can make it open Game Access instead of Steam.",
+          "**Desktop links with each game's icon**, including the ones you already had.",
+          "**Safer games**: automatic steps no longer delete what you already had on disk."
+        ]
+      }
+    },
+    {
       "version": "0.1.12",
       "date": "2026-11-04",
       "changes": {

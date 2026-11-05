@@ -9,6 +9,10 @@ Antes de tocar estilos o componentes de la interfaz, lee `docs/GUI_DESIGN.md` en
 Es la fuente de verdad (tokens, tipografía, componentes, reglas y lista de comprobación).
 Si esta skill y ese documento se contradicen, manda el documento; avisa al usuario para corregir la skill.
 
+## Plantillas primero (política de Seba, 2026-11-05)
+
+Lo nuevo nace compatible con las capas de `docs/GUI_DESIGN.md` §0c: componentes y clases generales primero, un CSS de pantalla solo con distribución, y ningún color, fuente, radio, margen ni alto a mano. Si falta una variable, se agrega a `templates/base.css` o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`. Ejemplos: `plugin-settings.css`, `ai-settings.css`.
+
 ## Cuándo aplicarla
 
 - Crear o modificar una pantalla, diálogo, panel, menú o botón en `apps/desktop/src`.

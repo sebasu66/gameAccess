@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { ArrowUpDown, Sparkles, X } from "lucide-react";
 import FilledIcon from "./FilledIcon";
 import { activeFilterTags, setCriterionState, type FilterTagGroup } from "./LibraryFilterDialog";
@@ -10,6 +10,8 @@ import type { CatalogGame } from "./types";
 import { useI18n } from "./i18n";
 import { GaIconButton } from "./components/ga/Buttons";
 import { setPersonalOrder, unlockCelebrated, usePersonalOrder } from "./personalOrder";
+import { setAiSearchMode, useAiSearch } from "./aiSuggestions";
+import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { gsap, motionOk } from "./motion/gsap";
 import { playUnlockChime } from "./uiSounds";
 
@@ -52,6 +54,27 @@ function PersonalOrderSwitch() {
 }
 
 /**
+ * AI search on or off (aiSuggestions.useAiSearch). A Plus feature: on Base or the free mode the button stays, disabled,
+ * and hovering or focusing it shows a tooltip with a link to the same dialog as the frame's PLUS button.
+ */
+export function AiSearchSwitch() {
+  const { t } = useI18n();
+  const ai = useAiSearch();
+  const tipId = useId();
+  const label = t("aiSearchLabel");
+  if (!ai.plus) return <span className="ga-ai-gate">
+    <button type="button" className="ga-cube ga-personal-order" aria-disabled="true" aria-label={label} aria-describedby={tipId}><Sparkles size={18} aria-hidden="true" /><span className="ga-cube-label">{label}</span></button>
+    <span id={tipId} role="tooltip" className="ga-ai-gate-tip">
+      <span>{t("aiSearchPlusOnly")}</span>
+      <button type="button" className="ga-ai-gate-link" onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("aiSearchGetPlus")}</button>
+    </span>
+  </span>;
+  const tip = t(ai.on ? "aiSearchOn" : "aiSearchOff");
+  return <button type="button" className={`ga-cube ga-personal-order${ai.on ? " is-on" : ""}`} aria-pressed={ai.on} aria-label={`${label}. ${tip}`} title={tip}
+    onClick={() => setAiSearchMode(!ai.on)}><Sparkles size={18} aria-hidden="true" /><span className="ga-cube-label">{label}</span></button>;
+}
+
+/**
  * The filter bar above the catalog grid: which filters are active, how to remove
  * one, the sort control, and how many games the active filters are hiding.
  *
@@ -59,7 +82,7 @@ function PersonalOrderSwitch() {
  * the virtual window and the context menu, and this is the one part of it that
  * is only about describing the current filter state.
  */
-export default function CatalogFilterToolbar({ games, query, filters, sortOptions, selectedSortLabel, catalogSort, onSortChange, onFiltersChange, onOpenFilters }: {
+export default function CatalogFilterToolbar({ games, query, filters, sortOptions, selectedSortLabel, catalogSort, onSortChange, onFiltersChange, onOpenFilters, trailing }: {
   games: CatalogGame[];
   query: string;
   filters: LibrarySearchFilters;
@@ -69,6 +92,7 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
   onSortChange: (sort: CatalogSort) => void;
   onFiltersChange: (filters: LibrarySearchFilters) => void;
   onOpenFilters: () => void;
+  trailing?: ReactNode;
 }) {
   const { t } = useI18n();
   // Source criteria count only while a source plugin is ready (they do not apply without one).
@@ -102,6 +126,7 @@ export default function CatalogFilterToolbar({ games, query, filters, sortOption
         </div>
       </details>
       <PersonalOrderSwitch />
+      {trailing}
     </div>
   );
 }

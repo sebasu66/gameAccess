@@ -22,7 +22,17 @@ pub struct PluginManifest {
     pub cwd: Option<String>,
     #[serde(default)]
     pub autostart: Option<bool>,
+    /// What the plugin does and where it comes from, in its own words (Settings › Plugins).
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    /// The player's on/off in Settings › Plugins, filled in here: a plugin that is off is not started or asked anything.
+    #[serde(default = "plugin_on")]
+    pub enabled: bool,
 }
+
+fn plugin_on() -> bool { true }
 
 static MANAGED_PLUGIN_PROCESSES: Mutex<Vec<Child>> = Mutex::new(Vec::new());
 
@@ -149,6 +159,22 @@ pub fn get_registered_plugins_with_paths() -> Vec<(PluginManifest, PathBuf)> {
     results
 }
 
+/// Where the plugins turned off are kept: outside their folders, so an update or reinstall keeps the choice.
+fn off_list_path() -> Option<PathBuf> {
+    std::env::var_os("APPDATA").map(|appdata| PathBuf::from(appdata).join("GameAccess").join("plugins-off.json"))
+}
+
+fn plugins_off() -> Vec<String> {
+    off_list_path().and_then(|path| std::fs::read_to_string(path).ok()).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+}
+
+/// The list after turning `id` on or off (kept sorted, no repeats).
+fn with_plugin(mut off: Vec<String>, id: &str, on: bool) -> Vec<String> {
+    off.retain(|item| item != id);
+    if !on { off.push(id.to_string()); off.sort(); }
+    off
+}
+
 fn auto_detect_executable(manifest: &mut PluginManifest, folder: &Path) {
     if manifest.executable.is_some() {
         return;
@@ -169,10 +195,30 @@ fn auto_detect_executable(manifest: &mut PluginManifest, folder: &Path) {
 
 #[tauri::command]
 pub(crate) fn get_registered_plugins() -> Vec<PluginManifest> {
+    let off = plugins_off();
     get_registered_plugins_with_paths()
         .into_iter()
-        .map(|(manifest, _)| manifest)
+        .map(|(manifest, _)| PluginManifest { enabled: !off.contains(&manifest.id), ..manifest })
         .collect()
+}
+
+/// Settings › Plugins, the on/off switch. Off: the plugin's programs are closed and it stays closed on the next start.
+/// On: it starts again. A process started by hand from outside its folder is not closed (it is simply not asked anything).
+#[tauri::command]
+pub(crate) async fn set_plugin_enabled(id: String, on: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = off_list_path().ok_or("No se encontró la carpeta de datos.")?;
+        let list = with_plugin(plugins_off(), &id, on);
+        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+        std::fs::write(&path, serde_json::to_string(&list).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        if on {
+            start_registered_plugins();
+        } else if let Some((_, folder)) = get_registered_plugins_with_paths().into_iter().find(|(manifest, _)| manifest.id == id) {
+            if let Ok(target) = folder.canonicalize() { stop_processes_in(&target); }
+        }
+        let _ = crate::activity_log::append_narration_lines(vec![format!("Plugin '{id}' turned {}.", if on { "on" } else { "off" })], "PLUGINS".into(), "INFO".into());
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 /// Settings, the plugin's tab, "Uninstall": stops it and deletes its folder. Only a plugin installed in the data folder
@@ -241,8 +287,9 @@ pub fn start_registered_plugins() {
         return;
     }
     let plugins = get_registered_plugins_with_paths();
+    let off = plugins_off();
     for (manifest, folder) in plugins {
-        if manifest.autostart == Some(false) {
+        if manifest.autostart == Some(false) || off.contains(&manifest.id) {
             continue;
         }
 
@@ -340,6 +387,14 @@ pub fn stop_all_plugins() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_off_list_keeps_each_plugin_once() {
+        let off = with_plugin(vec!["b".into()], "a", false);
+        assert_eq!(off, vec!["a", "b"]);
+        assert_eq!(with_plugin(off.clone(), "a", false), vec!["a", "b"]);
+        assert_eq!(with_plugin(off, "a", true), vec!["b"]);
+    }
 
     #[test]
     fn the_no_plugins_flag_or_variable_disables_plugins() {

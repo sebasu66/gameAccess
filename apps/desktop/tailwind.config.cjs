@@ -23,6 +23,8 @@ module.exports = {
         info: "rgb(var(--lm-info) / <alpha-value>)",
         frost: "rgb(var(--lm-frost) / <alpha-value>)",
         border: "rgb(var(--lm-foreground) / 0.14)",
+        // The design-template tokens (docs/GUI_DESIGN.md §0c): a utility such as text-ga-orange follows the active template.
+        ga: { orange: "var(--ga-orange)", white: "var(--ga-white)", muted: "var(--ga-muted)", line: "var(--ga-line)", panel: "var(--ga-panel)", surface: "var(--ga-surface)", ok: "var(--ga-ok)", error: "var(--ga-error)" },
       },
       fontFamily: { display: ['"Bebas Neue"', "sans-serif"], sans: ["Manrope", '"Segoe UI"', "sans-serif"] },
       borderRadius: { lg: "12px", md: "8px", sm: "6px" },

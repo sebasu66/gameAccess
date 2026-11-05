@@ -42,8 +42,3 @@
 .ga-ai .ga-ai-foot { justify-content: flex-end; margin-top: 32px; }
 .ga-ai .ga-ai-foot .ga-ai-back { margin-right: auto; }
 /* Settings › AI. */
-.ga-ai-settings { display: grid; gap: 16px; }
-.ga-ai-settings-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
-.ga-ai-settings-text { display: grid; gap: 4px; min-width: 0; }
-.ga-ai-settings-title { color: var(--ga-text-ink); font: 700 16px/1.4 var(--ga-text-family); }
-.ga-ai-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; }

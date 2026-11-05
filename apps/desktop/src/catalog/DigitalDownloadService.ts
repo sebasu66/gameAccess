@@ -1,5 +1,6 @@
 import { libraryMembership } from "../libraryMembership";
 import { translate } from "../i18n";
+import { confirmNotice } from "../notice/notice";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
@@ -51,6 +52,9 @@ function stepsDone(value: unknown): DownloadStepDone[] {
 
 export class DigitalDownloadService implements IDownloadProvider {
   readonly name = "digital-python-downloader";
+  /** Asked before a download starts over from nothing (Seba, 2026-11-05: only safe steps happen on their own). */
+  confirmStartOver = (game: CatalogGame) => confirmNotice({ game: { name: game.name, appId: game.app_id ?? game.id }, kind: "primary",
+    title: translate("startOverTitle", { name: game.name }), text: translate("startOverText"), confirmLabel: translate("startOverConfirm"), cancelLabel: translate("startOverKeep") });
   private activeJobs = new Map<number, DownloadProgressSnapshot>();
   private listeners = new Map<number, Set<(snapshot: DownloadProgressSnapshot) => void>>();
   private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
@@ -286,6 +290,8 @@ export class DigitalDownloadService implements IDownloadProvider {
     const previous = this.activeJobs.get(id);
     if (previous && !isDownloadHistory(previous.phase)) return;
     if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
+    // With no step to go on from, a retry downloads everything again: the player decides that, never the app.
+    if (!previous?.resumeStep && !(await this.confirmStartOver(game))) return;
     this.startedNow.add(id);
     if (!this.jobs.has(id)) this.jobs.set(id, { game });
     const appId = this.appIds.get(id) ?? game.app_id ?? id;

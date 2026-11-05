@@ -386,7 +386,10 @@ fn refresh_normalized_rows(tx: &rusqlite::Transaction<'_>, touched: &[(i64, Stri
         let _ = del_genre.execute(params![id]);
         let _ = del_category.execute(params![id]);
         let _ = del_tag.execute(params![id]);
-        for (field, statement) in [("genres", &mut ins_genre), ("categories", &mut ins_category), ("tags", &mut ins_tag)] {
+        for genre in crate::catalog_genres::canonical_genres(game.get("genres").and_then(Value::as_array)) {
+            let _ = ins_genre.execute(params![id, genre]);
+        }
+        for (field, statement) in [("categories", &mut ins_category), ("tags", &mut ins_tag)] {
             let Some(values) = game.get(field).and_then(Value::as_array) else { continue };
             for value in values {
                 if let Some(text) = value.as_str() {
@@ -440,6 +443,7 @@ fn apply_batch(target: &Path, games: Vec<Value>, details: Vec<DetailChange>,
         ids.insert(incoming_id,id);
         let mut payload = payload;
         payload["id"] = Value::from(id);
+        crate::catalog_genres::normalize_game(&mut payload);
         let serialized = payload.to_string();
         tx.execute("INSERT INTO catalog_game(id,app_id,payload) VALUES(?1,?2,?3)
                     ON CONFLICT(id) DO UPDATE SET app_id=excluded.app_id,payload=excluded.payload",
@@ -769,8 +773,9 @@ pub async fn catalog_cache_read(language: Option<String>) -> Result<Vec<Value>, 
 }
 
 #[tauri::command]
-pub async fn catalog_cache_upsert_game(game: Value) -> Result<(), String> {
+pub async fn catalog_cache_upsert_game(mut game: Value) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
+        crate::catalog_genres::normalize_game(&mut game);
         let id = game
             .get("id")
             .and_then(Value::as_i64)
@@ -911,7 +916,7 @@ pub struct CatalogQueryParams {
     pub min_review_count: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_ids: Option<Vec<i64>>,
-    /// Exact genre names (as stored in game_genre) a game must not carry.
+    /// Genres a game must not carry, in any spelling: they are matched against `game_genre` by `stored_names`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude_genres: Option<Vec<String>>,
     /// Features a game must not have (same keys as `features`).
@@ -1250,14 +1255,8 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
                             }
                         }
 
-                        if let Some(genres) = g.get("genres").and_then(Value::as_array) {
-                            for item in genres {
-                                if let Some(s) = item.as_str() {
-                                    if !s.trim().is_empty() {
-                                        let _ = ins_genre.execute(params![gid, s.trim()]);
-                                    }
-                                }
-                            }
+                        for genre in crate::catalog_genres::canonical_genres(g.get("genres").and_then(Value::as_array)) {
+                            let _ = ins_genre.execute(params![gid, genre]);
                         }
                         if let Some(tags) = g.get("tags").and_then(Value::as_array) {
                             for item in tags {
@@ -1341,6 +1340,7 @@ pub fn ensure_normalized_schema(conn: &Connection) -> Result<(), String> {
             }
         }
     }
+    crate::catalog_genres::apply_vocabulary(conn)?;
     crate::source_index::ensure_source_tables(conn)?;
     crate::game_lessons::ensure_lesson_tables(conn)?;
     Ok(())
@@ -1409,6 +1409,7 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
     }
 
     if let Some(ref genres) = params.genres {
+        let genres = crate::catalog_genres::stored_names(genres);
         if !genres.is_empty() {
             let mut genre_placeholders = Vec::new();
             for g in genres {
@@ -1444,8 +1445,9 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
     }
 
     if let Some(ref genres) = params.exclude_genres {
+        let genres = crate::catalog_genres::stored_names(genres);
         if !genres.is_empty() {
-            let list = push_placeholders(&mut sql_params, genres, SqlValue::Text);
+            let list = push_placeholders(&mut sql_params, &genres, SqlValue::Text);
             where_clauses.push(format!("NOT EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({}))", list));
         }
     }

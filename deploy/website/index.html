@@ -6,7 +6,7 @@
   <title>Game Access — Jugá más y mejor</title>
   <meta name="description" content="Game Access: tu catálogo de juegos de PC. Buscá, filtrá, descargá, instalá y jugá desde un solo lugar. Beta gratuita para Windows.">
   <link rel="icon" href="assets/brand/logo-header-poster.png">
-  <link rel="stylesheet" href="assets/site.css?v=8">
+  <link rel="stylesheet" href="assets/site.css?v=9">
 </head>
 <body>
   <header class="site-header">
@@ -102,31 +102,74 @@
         <h2 class="section-title" id="descargar-title" data-i18n="dlTitle">Descargá la beta</h2>
         <p class="lead" data-i18n="dlText">Gratis para Windows 10 y 11 de 64 bits.</p>
         <div class="actions">
-          <button class="btn led" type="button" id="magic-install"><span data-i18n="dlMagic">Instalar con un clic</span></button>
-          <a class="btn btn-glass" id="installer-link" href="https://github.com/sebasu66/gameAccess/releases/latest" data-i18n="dlButton">Descargar el instalador</a>
+          <a class="btn led" id="installer-link" href="https://github.com/sebasu66/gameAccess/releases/latest"><span data-i18n="dlButton">Descargar el instalador</span></a>
         </div>
         <p class="note" id="release-note" data-i18n="dlNote">Estamos en beta: algunas funciones todavía están en desarrollo.</p>
 
-        <!-- Install from the page (assets/install.js, apps/api/app/web_install.py): the player pastes one command in
-             Win + R and this panel shows each step as the script on their PC reports it. -->
-        <div class="install-flow" id="install-flow" hidden>
-          <div class="install-keys" aria-hidden="true">
-            <span class="install-key-group"><kbd>Win</kbd><b>+</b><kbd>R</kbd></span>
-            <span class="install-arrow">›</span>
-            <span class="install-key-group"><kbd>Ctrl</kbd><b>+</b><kbd>V</kbd></span>
-            <span class="install-arrow">›</span>
-            <span class="install-key-group"><kbd>Enter</kbd></span>
+        <!-- The installer is not signed yet (beta): Windows may warn. A short picture guide of each warning and the one
+             button to press. Each step shows assets/guide/paso-N.png when it exists (a real capture from Seba) and the
+             drawing in HTML otherwise; the drawings are translated like the rest of the page. -->
+        <details class="install-guide" id="install-guide">
+          <summary><span class="guide-badge" aria-hidden="true">!</span><span data-i18n="gdSummary">¿Windows muestra un aviso al instalar? Mirá cómo seguir (30 segundos)</span></summary>
+          <div class="guide-body">
+            <p class="guide-intro" data-i18n="gdIntro">Game Access está en beta y su instalador todavía no tiene firma digital: la vamos a sumar más adelante. Mientras tanto Windows no lo conoce y puede avisarte. Es normal: solo tocá donde está marcado.</p>
+            <ol class="guide-steps">
+              <li class="guide-step">
+                <div class="guide-shot shot-browser" aria-hidden="true">
+                  <img class="guide-img" src="assets/guide/paso-1.png" alt="" loading="lazy" decoding="async" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">
+                  <div class="mock-dl">
+                    <span class="mock-file">gameAccess_setup.exe</span>
+                    <span class="mock-warn" data-i18n="gdM1Warn">No se descarga habitualmente</span>
+                    <span class="mock-row"><span class="mock-dots ga-target">⋯<i class="ga-pin">1</i></span></span>
+                    <span class="mock-menu"><span data-i18n="gdM1Delete">Eliminar</span><span class="ga-target"><span data-i18n="gdM1Keep">Conservar</span><i class="ga-pin">2</i></span></span>
+                  </div>
+                </div>
+                <h3><span class="guide-n">1</span><span data-i18n="gdS1Title">Si el navegador duda</span></h3>
+                <p data-i18n="gdS1Text">Edge o Chrome pueden decir que el archivo no se descarga habitualmente. Tocá los tres puntos y elegí «Conservar».</p>
+              </li>
+              <li class="guide-step">
+                <div class="guide-shot shot-blue" aria-hidden="true">
+                  <img class="guide-img" src="assets/guide/paso-2.png" alt="" loading="lazy" decoding="async" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">
+                  <div class="mock-smart">
+                    <b data-i18n="gdM2Title">Windows protegió tu PC</b>
+                    <span class="mock-lines"><i></i><i></i><i></i></span>
+                    <span class="mock-link ga-target"><span data-i18n="gdM2More">Más información</span><i class="ga-pin is-tap"></i></span>
+                    <span class="mock-btn mock-right" data-i18n="gdM2NoRun">No ejecutar</span>
+                  </div>
+                </div>
+                <h3><span class="guide-n">2</span><span data-i18n="gdS2Title">Abrí el instalador</span></h3>
+                <p data-i18n="gdS2Text">Si aparece la pantalla azul «Windows protegió tu PC», tocá «Más información».</p>
+              </li>
+              <li class="guide-step">
+                <div class="guide-shot shot-blue" aria-hidden="true">
+                  <img class="guide-img" src="assets/guide/paso-3.png" alt="" loading="lazy" decoding="async" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">
+                  <div class="mock-smart">
+                    <b data-i18n="gdM2Title">Windows protegió tu PC</b>
+                    <span class="mock-kv"><span data-i18n="gdM3App">Aplicación:</span> gameAccess_setup.exe</span>
+                    <span class="mock-kv"><span data-i18n="gdM3Pub">Editor:</span> <span data-i18n="gdM3Unknown">Editor desconocido</span></span>
+                    <span class="mock-buttons"><span class="mock-btn ga-target"><span data-i18n="gdM3Run">Ejecutar de todas formas</span><i class="ga-pin is-tap"></i></span><span class="mock-btn" data-i18n="gdM2NoRun">No ejecutar</span></span>
+                  </div>
+                </div>
+                <h3><span class="guide-n">3</span><span data-i18n="gdS3Title">Ejecutar de todas formas</span></h3>
+                <p data-i18n="gdS3Text">Abajo aparece el botón «Ejecutar de todas formas». Tocalo.</p>
+              </li>
+              <li class="guide-step">
+                <div class="guide-shot shot-uac" aria-hidden="true">
+                  <img class="guide-img" src="assets/guide/paso-4.png" alt="" loading="lazy" decoding="async" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">
+                  <div class="mock-uac">
+                    <span class="mock-uac-head" data-i18n="gdM4Head">Control de cuentas de usuario</span>
+                    <b data-i18n="gdM4Title">¿Querés permitir que esta aplicación haga cambios en el dispositivo?</b>
+                    <span class="mock-kv">gameAccess</span>
+                    <span class="mock-buttons"><span class="mock-btn ga-target"><span data-i18n="gdM4Yes">Sí</span><i class="ga-pin is-tap"></i></span><span class="mock-btn" data-i18n="gdM4No">No</span></span>
+                  </div>
+                </div>
+                <h3><span class="guide-n">4</span><span data-i18n="gdS4Title">Dale permiso</span></h3>
+                <p data-i18n="gdS4Text">Windows pide permiso para instalar en tu PC: tocá «Sí». Listo, el instalador sigue solo.</p>
+              </li>
+            </ol>
+            <p class="guide-foot" data-i18n="gdFoot">Instalá Steam antes que Game Access. Cada versión nueva se descarga más y Windows la va a conocer: estos avisos van a ir desapareciendo.</p>
           </div>
-          <p class="install-howto" data-i18n="imHowto">Ya copiamos el comando. Presioná Win + R, pegalo con Ctrl + V y apretá Enter.</p>
-          <div class="install-command">
-            <code id="install-command">…</code>
-            <button class="btn btn-glass btn-small" type="button" id="install-copy" data-i18n="imCopy">Copiar</button>
-          </div>
-          <p class="install-status" id="install-status" aria-live="polite" data-i18n="imPreparing">Preparando tu código…</p>
-          <ol class="install-steps" id="install-steps"></ol>
-          <p class="note"><span data-i18n="imPermission">Windows te va a pedir permiso una o dos veces: tocá «Sí».</span>
-            <a href="https://github.com/sebasu66/gameAccess/blob/dev/apps/api/app/web_install.ps1" target="_blank" rel="noopener" data-i18n="imSource">Ver el script (es abierto)</a></p>
-        </div>
+        </details>
       </div>
     </section>
 
@@ -145,11 +188,10 @@
 
   <footer class="site-footer"><p>© 2026 Game Access · <span data-i18n="footer">Jugá más y mejor.</span></p></footer>
 
-  <script src="assets/i18n.js?v=10"></script>
+  <script src="assets/i18n.js?v=11"></script>
   <script src="assets/pixel.js?v=6"></script>
   <script src="assets/covers.js?v=6"></script>
   <script src="assets/site.js?v=7"></script>
-  <script src="assets/release.js?v=7"></script>
-  <script src="assets/install.js?v=3"></script>
+  <script src="assets/release.js?v=8"></script>
 </body>
 </html>

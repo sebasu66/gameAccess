@@ -35,7 +35,26 @@ Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nue
 
 **Home** (pantalla de inicio): saludo con el nombre del usuario, novedades (reemplazan la campanita), últimas versiones con sus cambios, estado de PLUS o del modo base explicado, y al final ayuda y contacto (Patreon, Mercado Pago). Lo que no tenga otro lugar va en Home.
 
-**Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Refrescar juegos, Library Manager y ayuda **no** van en el marco.
+**Plugins en pantalla** (Seba, 2026-11-05): van dentro de la pantalla, arriba a la derecha, no en el marco: son de terceros y puede haber varios. Una bandeja de una columna (`plugin-indicator-group`), un plugin por fila con su luz (verde conectado, roja sin respuesta, gris apagado); un clic lleva a su sección en Configuración › Plugins.
+
+**Menús de un juego** (tarjeta y `…` de la ficha): solo Jugar o Instalar, Administrar y Ver detalles (tarjeta de propiedades `GameInfoCard`, con cerrar y copiar). Lo demás está en su fila del Library Manager. Mientras descarga, la ficha ofrece Administrar descarga, que lleva a esa fila.
+
+**Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Library Manager y ayuda **no** van en el marco; «Actualizar juegos» vive en la pantalla Catálogo, junto a los filtros (`CatalogRefreshButton.tsx`).
+
+## 0c. Capas de estilo (Seba, 2026-11-05)
+
+El estilo va en tres capas de **variables CSS** (`--ga-*`). Tailwind queda acotado al Library Manager y lee las mismas variables (`text-ga-orange`, `bg-ga-panel`; `tailwind.config.cjs`).
+
+| Capa | Archivo | Qué define | Qué no |
+|---|---|---|---|
+| **1. Plantilla base** | `src/templates/base.css` | escala de texto (T1 título de pantalla, T2 sección, T3 grupo, cuerpo), márgenes `--ga-space-*`, radios, alturas de control | colores, tipografías, vidrio |
+| **2. Sabor de estilo** | `src/templates/flavor-terminal.css` (el actual: **terminal**, futurista y minimalista) | tipografías, colores, vidrio, bordes, luces | distribución de una pantalla |
+| **3. Detalles de pantalla** | el CSS de cada pantalla | distribución y lo propio de esa pantalla, siempre leyendo variables de las capas 1 y 2 | valores de color, fuente o radio escritos a mano |
+
+- **Un sabor nuevo** es un archivo igual al de terminal con `:root[data-ga-flavor="nombre"]`; se activa con `setStyleFlavor("nombre")` (`templates/flavor.ts`). No toca componentes.
+- **Regla para lo nuevo:** si falta una variable para un rol, se agrega a la capa que corresponde y se usa. `npm run check:css` frena colores sueltos; `templates/flavor.test.ts` controla que la base no tenga colores ni tipografías y que las piezas nuevas lean variables definidas.
+- **Política (Seba, 2026-11-05):** toda interfaz nueva o que se toque nace lista para las plantillas: primero lo general (`GaButton`, `ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`), después la capa de pantalla, en su propio CSS y solo con distribución. Ningún color, fuente, radio, margen ni alto escrito a mano: si falta una variable se agrega a la base o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`.
+- **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins, Configuración › Plugins y Configuración › IA (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
 
 ## 1. Tokens
 
@@ -327,13 +346,23 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 ### 4.29 Asistente «Conectar IA» `ga-ai` (componente `AiConnectWizard`, Seba 2026-11-04)
 - Diálogo grande con las medidas de §4.26 (`ai-connect.css`, las mismas de `ga-av`): eyebrow «Conectar IA · paso N de 3», título Bebas 52 px y debajo una barra de tres partes que marca el paso. Un solo `ga-close`.
 - Paso 1: texto de 18 px y dos tarjetas lado a lado: **Qué hace** (`--ga-ok`) y **Qué se manda a Ollama** (`--ga-warn`); botones **Ahora no** y **Conectar** (naranja).
-- Paso 2: la página de claves de Ollama se abre en una ventana de Game Access con una guía encima (`ollama_guide.js`: anillo naranja y globo «paso N de 4» sobre lo que hay que tocar); la clave vuelve sola. Tarjetas **Tu cuenta** (`--ga-violet`) y **Tu clave** (`--ga-warn`), «Esperando tu clave…» con ruedita, y **Con tu navegador**: campo para pegar la clave y **Abrir en mi navegador** (Google no deja entrar en la ventana embebida). Botones: **Atrás** a la izquierda; **Abrir/Mostrar la ventana de Ollama** y **Usar esta clave** (naranja).
+- Paso 2: la página de claves de Ollama se abre en el navegador del jugador (ahí están sus cuentas de Google y GitHub; Google no deja entrar en una ventana embebida) y, siempre encima y contra el borde derecho, la ventana chica de los pasos (`src/aiSteps`, 340 × 980 px como mucho y con scroll en pantallas bajas, una columna): cuatro pasos numerados con títulos de una línea, una captura real de cada pantalla de Ollama con lo que hay que tocar marcado en naranja (`step-N.png`; en la captura de la clave, la clave va tapada) y un campo grande para la clave. Al pegar una clave válida se guarda y la ventana se cierra sola; si no es válida, `ga-status is-error` y queda abierta. El diálogo muestra «Esperando tu clave…» con ruedita; botones **Atrás** a la izquierda y **Abrir/Mostrar los pasos** (naranja).
 - Paso 3: ícono grande (ruedita, ✓ o ✗) y tres comprobaciones; **Listo**, o **Probar otra clave** / **Reintentar**.
 - Configuración › IA: tarjeta «Ollama en la nube» con el estado y **Conectar** (naranja) o **Probar** y **Desconectar**. Vista previa: `?uiDemo=1`, Configuración › IA (la guía se simula).
 
 ### 4.30 Tapa de apertura y aspecto PLUS (Seba 2026-11-04)
 - La palabra de la tapa (`GateWord`, `splash-screen.css`) es tan tenue como la de la columna derecha (`brand-wall.css`): línea de 1 px que no escala (`vector-effect: non-scaling-stroke`), opacidad .26, relleno .03, sombra naranja .12. Es grande (franja de `--gs-lock` × .4, del marco de la hoja hasta el candado o la cerradura) y se dibuja letra por letra antes de que gire la cerradura (`DRAW_MS` 1500). Seba: «apenas legibles, un poco más grandes».
 - Con PLUS (`html.ga-plus`, `plusLook.ts`; recuerda el último estado para que la tapa ya salga dorada): marco, labio de la pantalla, líneas grabadas y nombre de la pestaña en dorado (`--ga-plus-*` en `gameaccess-theme.css`); en la tapa, marco de cada hoja y líneas en dorado y la marca **+ PLUS** arriba a la derecha (`gs-plus-mark`). Solo cambian colores, nada se mueve ni cambia de tamaño.
+
+### 4.31 «Tu perfil» en Configuración › IA `ga-profile` (componente `AiProfileEditor`, Seba 2026-11-05)
+- Debajo de la tarjeta de Ollama: título T2 (`--ga-t2-font`, como un plugin) y grupos `ga-group ga-settings-group` con su `ga-label`; CSS de pantalla en `ai-settings.css`. Sin botón de guardar: cada cambio se guarda solo y va con cada pedido a la IA.
+- Juegos: campo de búsqueda, Todos / Me gustan / No me gustan y orden, a 44 px; grilla de carátulas 2:3 con pulgar arriba a la izquierda (`--ga-ok` o `--ga-danger`) y quitar arriba a la derecha, visible al pasar el mouse o con foco. Los que no gustan van desaturados.
+- Géneros: filas con el nombre y los dos pulgares (`GaIconButton`, 44 px). Cómo jugar: botones `ga-settings-choice` de `--ga-control-h`; al elegir Multijugador o Los dos aparecen los tipos de multijugador. Lo que buscás y lo que evitás: dos `textarea` lado a lado, 500 caracteres.
+
+### 4.32 Búsqueda con IA en el catálogo (Seba 2026-11-05)
+- Botón «Búsqueda con IA» junto a «Personalizado». Solo PLUS: para el resto queda deshabilitado y, al pasar el mouse o con foco, muestra un globo con el texto y el enlace **Conseguir PLUS**, que abre el mismo diálogo que el botón PLUS del marco (`OPEN_PREMIUM_EVENT`).
+- Encendido: sin filtros, sin orden y sin destacado. Arriba, la sección «La IA te responde» con su mensaje (o **Conectar IA**, que lleva a Configuración › IA, si no hay clave). Debajo solo los juegos de la IA, en su orden.
+- Cada resultado ocupa dos celdas: la tarjeta y, pegado a ella, el motivo sobre una sombra sutil en semicírculo centrada en la carátula, como la del menú contextual (`ga-ai-result-why`): sin línea ni bordes rectos. Al abrir el menú contextual de ese juego, el motivo se oculta hasta que el menú se cierra. Vista previa: `?uiDemo=1&uiDemoPlus`, con `gameaccess:ai-search` en `true`.
 
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,

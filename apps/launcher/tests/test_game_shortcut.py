@@ -60,6 +60,29 @@ $link=(New-Object -ComObject WScript.Shell).CreateShortcut($data.path)
             self.assertEqual(Path(data["target"]).resolve(), launcher.resolve())
             self.assertEqual(data["icon"].lower(), f"{game_exe},0".lower())
 
-    def test_no_game_executable_keeps_the_gameaccess_icon(self):
+    def test_without_a_game_executable_there_is_no_icon_to_use(self):
         with tempfile.TemporaryDirectory() as folder:
             self.assertIsNone(shortcuts.game_icon(999999991, "Nothing here", Path(folder)))
+
+    def test_a_link_never_shows_the_gameaccess_icon(self):
+        self.assertEqual(shortcuts.icon_location(None), shortcuts.GENERIC_ICON)
+        self.assertNotIn("gameaccess", shortcuts.GENERIC_ICON.lower())
+
+    def test_only_links_without_a_real_game_icon_are_repaired(self):
+        launcher = Path(r"C:\Program Files\gameAccess\gameaccess-desktop.exe")
+        self.assertTrue(shortcuts.needs_new_icon(r"C:\gameAccess\gameaccess-desktop.exe,0", launcher))
+        self.assertTrue(shortcuts.needs_new_icon(r"C:\Moved\Game\missing.exe,0", launcher))
+        self.assertTrue(shortcuts.needs_new_icon(",0", launcher))
+        self.assertTrue(shortcuts.needs_new_icon(shortcuts.GENERIC_ICON, launcher))
+        self.assertFalse(shortcuts.needs_new_icon(f"{sys.executable},0", launcher))
+
+    @unittest.skipUnless(os.name == "nt", "Windows links")
+    def test_repair_changes_the_icon_and_leaves_the_target(self):
+        with tempfile.TemporaryDirectory(prefix="gameaccess-shortcut-") as folder:
+            desktop, launcher = Path(folder), Path(sys.executable)
+            link = shortcuts.create_shortcut(999999991, "Nothing here", launcher, desktop)
+            shortcuts._powershell(shortcuts._WRITE_ICONS, [{"path": str(link), "icon": f"{launcher},0"}])
+            self.assertEqual(shortcuts.repair_icons(launcher, desktop), 1)
+            stored = json.loads(shortcuts._powershell(shortcuts._READ_ICONS, [str(link)]))
+            self.assertEqual(stored[0]["icon"].lower(), shortcuts.GENERIC_ICON.lower())
+            self.assertEqual(shortcuts.repair_icons(launcher, desktop), 0, "nothing left to change")

@@ -17,6 +17,15 @@ Al cerrar una tarea: tildarla en `Tareas.md`, registrar el commit en `Log.md` y 
 
 Antes de crear o cambiar pantallas, diálogos, paneles o botones de `apps/desktop`, leé `docs/GUI_DESIGN.md` (tokens, componentes y lista de comprobación) y usá la skill `.claude/skills/gameaccess-gui-design`. La ficha de juego es la referencia visual. Un solo botón de cierre (`ga-close`), acciones principales en naranja, botones de una fila con la misma altura, paneles de vidrio con borde degradado.
 
+### Plantillas de diseño (política de Seba, 2026-11-05)
+
+Toda interfaz nueva o que se toque nace compatible con el sistema de plantillas (`docs/GUI_DESIGN.md` §0c), desde el primer commit:
+
+1. **Primero lo general:** componentes de `components/ga` y clases de `components/ga/content.css` (`ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`). Mirá cómo lo resolvió la última pantalla migrada (Configuración › Plugins y › IA) antes de inventar.
+2. **Después lo específico:** un CSS de pantalla solo con distribución.
+3. **Nada a mano:** ni color, fuente, radio, margen ni alto de control; todo con variables de `templates/base.css` (estructura) o del sabor `templates/flavor-terminal.css` (aspecto). Si falta una variable, se agrega a esa capa.
+4. **Se controla:** la pantalla nueva entra en `templates/flavor.test.ts` y pasa `npm run check:css`.
+
 ## Local and remote development workflow
 
 GameAccess uses `dev` for development and `main` for stable releases. Work on the existing `dev` branch; do not create a branch or worktree for each task. Do not delete historical branches or move work into `main` without an explicit request.

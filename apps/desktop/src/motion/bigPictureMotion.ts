@@ -43,6 +43,11 @@ function offscreen(element: Element): { x: number; y: number } {
  *  their own in the style sheet, which would win over GSAP's. */
 const at = (move: { x: number; y: number }) => `${Math.round(move.x)}px ${Math.round(move.y)}px`;
 
+/** The bezel's tabs follow the footer while it slides (DeviceFrame.tsx measures again on this event): a move by
+ *  `translate` is reported by no observer, and a tab measured while the footer was off screen stayed missing. */
+export const FRAME_MEASURE_EVENT = "gameaccess:frame-measure";
+const remeasure = () => { window.dispatchEvent(new Event(FRAME_MEASURE_EVENT)); };
+
 const done = (timeline: gsap.core.Timeline) => new Promise<void>(resolve => timeline.eventCallback("onComplete", () => resolve()));
 /** Resolves once the window's size has not changed for 200 ms (at most 2 s). */
 function settledSize(): Promise<void> {
@@ -66,7 +71,7 @@ export function hideForBigPicture(): Promise<void> {
   if (!motionOk() || !elements.length) return Promise.resolve();
   const moves = elements.map(offscreen);
   const timeline = gsap.timeline();
-  timeline.to(elements, { translate: index => at(moves[index]), duration: 0.45, ease: "power3.in", stagger: 0.02, overwrite: true });
+  timeline.to(elements, { translate: index => at(moves[index]), duration: 0.45, ease: "power3.in", stagger: 0.02, overwrite: true, onUpdate: remeasure });
   return done(timeline);
 }
 
@@ -78,12 +83,12 @@ export function showAfterBigPicture(): Promise<void> {
     const run = () => {
       if (document.body.classList.contains("ga-big-screen") && ++tries < 30) { window.requestAnimationFrame(run); return; }
       const elements = shown();
-      if (!motionOk() || !elements.length) { gsap.set(elements, { clearProps: "translate" }); resolve(); return; }
+      if (!motionOk() || !elements.length) { gsap.set(elements, { clearProps: "translate" }); remeasure(); resolve(); return; }
       // They come back from off screen: measured where they belong, then sent out and brought in.
       gsap.set(elements, { clearProps: "translate" });
       const moves = elements.map(offscreen);
       gsap.fromTo(elements, { translate: index => at(moves[index]) },
-        { translate: "0px 0px", duration: 0.6, ease: "expo.out", stagger: 0.03, overwrite: true, clearProps: "translate", onComplete: resolve });
+        { translate: "0px 0px", duration: 0.6, ease: "expo.out", stagger: 0.03, overwrite: true, clearProps: "translate", onUpdate: remeasure, onComplete: () => { remeasure(); resolve(); } });
     };
     window.requestAnimationFrame(run);
   });

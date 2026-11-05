@@ -18,17 +18,16 @@ import { setAppScreen } from "./appScreen";
 import { opensOn, startScreenUsed } from "./startupPreferences";
 import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
-import { shouldSyncOnOpen } from "./catalogUpdates";
 import { reportFrontendAlive } from "./appAlive";
 import BackendStatus from "./BackendStatus";
 import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
 import { startSingleAccordion } from "./singleAccordion";
 import { startPlusLook } from "./plusLook";
+import { repairShortcutIcons } from "./shortcutIcons";
+import { startSteamGuide } from "./steamGuide";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
-import { RefreshCw } from "lucide-react";
-import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
 import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
@@ -41,7 +40,8 @@ import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { setAppLocale, translate, useI18n } from "./i18n";
-import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
+import "./templates/base.css";
+import "./templates/flavor-terminal.css";
 import "./styles.css";
 
 // The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.
@@ -57,7 +57,6 @@ import "./bootstrap.css";
 
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
-import "./catalog-refresh.css";
 import "./activation.css";
 import "./splash-screen.css";
 import "./library-sections.css";
@@ -102,11 +101,10 @@ function CatalogShell() {
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
-  const [refreshing, setRefreshing] = React.useState(false);
-  // The catalog database is prepared (and brought up to date when due) before the library opens; the central
-  // dialog shows the progress when it takes a while.
+  // The catalog database is in place before the library opens (the central dialog appears only if it has to be
+  // installed); the news arrive afterwards, as a task of the Activity panel.
   const [prepared, setPrepared] = React.useState(false);
-  React.useEffect(() => { void runStartupPreparation({ checkUpdates: shouldSyncOnOpen() }).finally(() => setPrepared(true)); }, []);
+  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); repairShortcutIcons(); }, []);
   useAnnouncements(prepared);
   // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
   // opening has ended: a change of mode under the logo animation would run behind it.
@@ -116,11 +114,6 @@ function CatalogShell() {
     startScreenUsed("home");
     setAppScreen("home");
   }, [prepared, openingSettled]);
-  React.useEffect(() => {
-    const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
-    window.addEventListener(CATALOG_REFRESH_STATUS, status);
-    return () => window.removeEventListener(CATALOG_REFRESH_STATUS, status);
-  }, []);
   const changeMode = React.useCallback((next: CatalogMode) => {
     if (next === mode) return;
     captureLibraryUiState(mode);
@@ -128,14 +121,9 @@ function CatalogShell() {
     setCatalogMode(next);
     setMode(next);
   }, [mode]);
-  const refreshCatalog = React.useCallback(() => {
-    captureLibraryUiState(mode);
-    void narrate(`Manual catalog refresh requested while viewing ${mode}.`, { area: "CATALOG" });
-    window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST));
-  }, [mode]);
   return <>
     <LibraryInputController mode={mode} onModeChange={changeMode} />
-    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
+    <PluginIndicator /><div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")} /></div>
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }
@@ -145,6 +133,7 @@ startDownloadNotifications();
 startModalStack();
 startSingleAccordion();
 startPlusLook();
+startSteamGuide();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");

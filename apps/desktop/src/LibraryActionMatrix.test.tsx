@@ -30,15 +30,15 @@ describe("exclusive primary library action", () => {
   });
 
   it("offers only Cancel while active", () => {
-    expect(buildActions(game, status("preparing"), false).map((action) => action.kind)).toEqual(["cancel"]);
-    expect(buildActions(game, status("downloading"), false).map((action) => action.kind)).toEqual(["cancel"]);
+    expect(buildActions(game, status("preparing"), false).map((action) => action.kind)).toEqual(["manage"]);
+    expect(buildActions(game, status("downloading"), false).map((action) => action.kind)).toEqual(["manage"]);
   });
 
-  it("offers disabled Cancelando while cancellation is pending", () => {
+  it("keeps Manage download while cancellation is pending", () => {
     const actions = buildActions(game, status("cancelling"), false);
     expect(actions).toHaveLength(1);
-    expect(actions[0]?.kind).toBe("cancel");
-    expect(actions[0]?.disabled).toBe(true);
+    expect(actions[0]?.kind).toBe("manage");
+    expect(actions[0]?.disabled).toBe(false);
   });
 
   it("offers only Play for a confirmed install", () => {

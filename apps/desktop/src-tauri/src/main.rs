@@ -8,6 +8,7 @@ mod parental_lock;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
+mod catalog_genres;
 mod source_index;
 mod game_lessons;
 mod download_lifecycle;
@@ -36,6 +37,7 @@ mod kid_mode;
 mod windows_account;
 mod app_shortcuts;
 mod antivirus;
+mod steam_guide;
 
 use std::{env, sync::Mutex};
 
@@ -102,8 +104,13 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
             plugin_registry::uninstall_plugin,
+            plugin_registry::set_plugin_enabled,
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
+            steam_guide::steam_guide_state,
+            steam_guide::steam_guide_release,
+            steam_guide::steam_guide_restore,
+            steam_guide::steam_guide_listen,
             game_focus::game_focus_watch,
             window_fit::window_toggle_maximize,
             window_fit::window_set_big_screen,
@@ -116,6 +123,7 @@ fn main() {
             ai_connection::ai_save_key,
             ai_connection::ai_disconnect,
             ai_connection::ai_test,
+            ai_connection::ai_chat_json,
             ai_connection::ai_guide_open,
             ai_connection::ai_open_keys_in_browser,
             admin_key::admin_key_check,
@@ -127,6 +135,7 @@ fn main() {
             parental_lock::parental_check,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
+            access_commands::repair_game_shortcuts,
             launch_intent::take_launch_request,
             access_commands::activation_read_session,
             access_commands::activation_read_key,

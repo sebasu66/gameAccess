@@ -7,8 +7,6 @@
   position: absolute; right: 22px; top: 50%; transform: translateY(-50%);
   display: flex; align-items: center; justify-content: flex-end; gap: 8px; z-index: 5;
 }
-.ga-dock .catalog-refresh-button[aria-busy="true"] svg { animation: ga-download-spin 1.5s linear infinite; }
-.ga-dock .catalog-refresh-button:disabled { cursor: wait; opacity: .55; }
 /* Visual order, whatever order React mounted them in. */
 .ga-dock .ga-home-fab { order: -5; }
 .ga-dock .ga-games-fab { order: -4; }
@@ -16,10 +14,8 @@
 .ga-dock .ga-settings-fab { order: -2; }
 .ga-dock .ga-kid-fab { order: -1; }
 .ga-dock .digital-download-nav { order: 1; }
-.ga-dock .catalog-refresh-button { order: 3; }
 .ga-dock .ga-news-button { order: 3; }
 .ga-dock .ga-big-screen-toggle { order: 4; }
-@media (prefers-reduced-motion: reduce) { .ga-dock .catalog-refresh-button[aria-busy="true"] svg { animation: none; } }
 
 /* ---------- top right: language + access badge ---------- */
 .ga-global-language {
@@ -66,13 +62,13 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
   padding: 0 10px !important; border-radius: 8px !important; font: 800 12px Manrope, sans-serif !important; letter-spacing: .06em !important;
 }
 .ga-dock .ga-cube > svg, .ga-footer-left .ga-cube > svg { width: 19px !important; height: 19px !important; margin: 0 !important; }
-/* Refresh and big screen carry older rules with a solid fill (utility-controls.css, !important) that made them look
-   pressed: in the dock they look and react like the other cubes. */
-.ga-dock .ga-cube:is(.catalog-refresh-button, .ga-big-screen-toggle) {
+/* Big screen carries older rules with a solid fill (utility-controls.css, !important) that made it look
+   pressed: in the dock it looks and reacts like the other cubes. */
+.ga-dock .ga-cube.ga-big-screen-toggle {
   border: 1px solid #ffffff1c !important; color: #cfd4d8 !important; background: linear-gradient(180deg, #ffffff16, #ffffff05) !important;
   box-shadow: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #0000004d, 0 4px 12px #0006 !important;
 }
-.ga-dock .ga-cube:is(.catalog-refresh-button, .ga-big-screen-toggle):is(:hover, :focus-visible) {
+.ga-dock .ga-cube.ga-big-screen-toggle:is(:hover, :focus-visible) {
   border-color: #d79e60 !important; color: #fff !important; background: linear-gradient(180deg, #cc833338, #cc833312) !important;
   box-shadow: inset 0 1px 0 #ffffff33, 0 0 18px #cc833355, 0 4px 12px #0006 !important;
 }
