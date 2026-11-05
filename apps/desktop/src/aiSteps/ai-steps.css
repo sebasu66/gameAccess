@@ -1,21 +1,15 @@
 /* The small "Connect AI" window that stays on top of the browser (AiStepsWindow.tsx, docs/GUI_DESIGN.md §4.29):
-   one column, numbered steps, a drawing of each Ollama screen with what to press in orange. */
+   one column, numbered steps, a screenshot of each Ollama screen with what to press marked in orange. */
 html { --ga-text-family: Manrope, "Segoe UI", sans-serif; }
 html, body { height: 100%; margin: 0; background: var(--ga-panel); }
-.ga-steps { box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; min-height: 100%; padding: 20px; color: var(--ga-text-ink); font-family: var(--ga-text-family); }
-.ga-steps-title { margin: 0; color: var(--ga-orange); font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
-.ga-steps-list { display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; }
-.ga-step { display: grid; gap: 10px; }
+.ga-steps { box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; min-height: 100%; padding: 20px; color: var(--ga-text-ink); font-family: var(--ga-text-family); }
+.ga-steps-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ga-steps-title { margin: 0; white-space: nowrap; color: var(--ga-orange); font: 400 34px/1 "Bebas Neue", sans-serif; letter-spacing: .02em; }
+.ga-steps-list { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.ga-step { display: grid; gap: 8px; }
 .ga-step-title { display: flex; align-items: center; gap: 10px; margin: 0; font: 700 16px/1.3 var(--ga-text-family); }
 .ga-step-number { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ga-orange); color: var(--ga-shade); font: 800 14px/1 var(--ga-text-family); }
-/* The drawings: a pale page like Ollama's, not controls. */
-.ga-art { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--ga-line); border-radius: 10px; background: var(--ga-surface); color: var(--ga-muted); font: 500 13px/1.3 var(--ga-text-family); user-select: none; }
-.ga-art b { padding: 7px 12px; border-radius: 6px; background: var(--ga-orange); color: var(--ga-shade); font-weight: 700; text-align: center; white-space: nowrap; }
-.ga-art-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.ga-art-address { padding: 5px 10px; border-radius: 12px; background: var(--ga-surface-2); font-size: 13px; }
-.ga-art-line { height: 28px; border-radius: 6px; background: var(--ga-surface-2); }
-.ga-art-field { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--ga-line); border-radius: 6px; color: var(--ga-text-ink); }
-.ga-steps-key { box-sizing: border-box; width: 100%; height: 64px; padding: 0 14px; border: 2px solid var(--ga-orange); border-radius: 10px; background: var(--ga-field-bg); color: var(--ga-text-ink); font: 500 16px/1.4 Consolas, "Cascadia Mono", monospace; }
+.ga-step-shot { display: block; width: 100%; border: 1px solid var(--ga-line); border-radius: 10px; }
+.ga-steps-key { box-sizing: border-box; width: 100%; height: 60px; padding: 0 14px; border: 2px solid var(--ga-orange); border-radius: 10px; background: var(--ga-field-bg); color: var(--ga-text-ink); font: 500 16px/1.4 Consolas, "Cascadia Mono", monospace; }
 .ga-steps-key:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 3px; }
 .ga-steps-key:disabled { opacity: .6; }
-.ga-steps-reopen { align-self: stretch; justify-content: center; margin-top: auto; }

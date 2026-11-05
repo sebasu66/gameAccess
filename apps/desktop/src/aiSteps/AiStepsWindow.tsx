@@ -4,12 +4,14 @@ import { GaButton } from "../components/ga/Buttons";
 import { aiOpenKeysInBrowser, aiSaveKey, looksLikeKey } from "../aiConnection";
 import { useI18n } from "../i18n";
 
-// What Ollama's own pages say: the drawings show it as it is there, in every language.
-const OLLAMA = { google: "Google", github: "GitHub", address: "ollama.com/settings/keys", keys: "API keys", create: "Create API key", name: "GameAccess", confirm: "Create" };
+import step1 from "./step-1.png";
+import step2 from "./step-2.png";
+import step3 from "./step-3.png";
+import step4 from "./step-4.png";
 
 /**
  * The small window that stays on top while the player is in their browser (ai_connection.rs, docs/GUI_DESIGN.md §4.29):
- * the steps with a drawing of each Ollama screen, and the field for the key. A pasted key that looks right is sent at
+ * the steps with a screenshot of each Ollama screen, and the field for the key. A pasted key that looks right is sent at
  * once; Rust keeps it, tells the main window and closes this one.
  */
 export default function AiStepsWindow() {
@@ -30,34 +32,28 @@ export default function AiStepsWindow() {
   };
 
   return <main className="ga-steps">
-    <h1 className="ga-steps-title">{t("aiStepsTitle")}</h1>
+    <header className="ga-steps-head">
+      <h1 className="ga-steps-title">{t("aiStepsTitle")}</h1>
+      <GaButton icon={<ExternalLink size={18} aria-hidden="true" />} onClick={() => void aiOpenKeysInBrowser()}>{t("aiStepsReopen")}</GaButton>
+    </header>
     <ol className="ga-steps-list">
-      <Step number={1} title={t("aiStep1")}>
-        <div className="ga-art ga-art-login"><span className="ga-art-line" /><b>{OLLAMA.google}</b><b>{OLLAMA.github}</b></div>
-      </Step>
-      <Step number={2} title={t("aiStep2")}>
-        <div className="ga-art">
-          <span className="ga-art-address">{OLLAMA.address}</span>
-          <div className="ga-art-row"><span>{OLLAMA.keys}</span><b>{OLLAMA.create}</b></div>
-        </div>
-      </Step>
-      <Step number={3} title={t("aiStep3")}>
-        <div className="ga-art ga-art-row"><span className="ga-art-field">{OLLAMA.name}</span><b>{OLLAMA.confirm}</b></div>
-      </Step>
-      <Step number={4} title={t("aiStep4")}>
+      <Step number={1} title={t("aiStep1")} image={step1} />
+      <Step number={2} title={t("aiStep2")} image={step2} />
+      <Step number={3} title={t("aiStep3")} image={step3} />
+      <Step number={4} title={t("aiStep4")} image={step4}>
         <input className="ga-steps-key" aria-label={t("aiPasteLabel")} placeholder={t("aiStepsPaste")} value={key} disabled={busy} autoComplete="off" spellCheck={false}
           onPaste={onPaste} onChange={event => { setKey(event.target.value); setBad(false); }}
           onKeyDown={event => { if (event.key === "Enter") void send(key); }} />
         {bad ? <p role="alert" className="ga-status is-error">{t("aiBadKey")}</p> : null}
       </Step>
     </ol>
-    <GaButton className="ga-steps-reopen" icon={<ExternalLink size={18} aria-hidden="true" />} onClick={() => void aiOpenKeysInBrowser()}>{t("aiStepsReopen")}</GaButton>
   </main>;
 }
 
-function Step({ number, title, children }: { number: number; title: string; children: ReactNode }) {
+function Step({ number, title, image, children }: { number: number; title: string; image: string; children?: ReactNode }) {
   return <li className="ga-step">
     <h2 className="ga-step-title"><span className="ga-step-number" aria-hidden="true">{number}</span>{title}</h2>
+    <img className="ga-step-shot" src={image} alt="" />
     {children}
   </li>;
 }
