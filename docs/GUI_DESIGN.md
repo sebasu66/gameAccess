@@ -35,7 +35,25 @@ Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nue
 
 **Home** (pantalla de inicio): saludo con el nombre del usuario, novedades (reemplazan la campanita), últimas versiones con sus cambios, estado de PLUS o del modo base explicado, y al final ayuda y contacto (Patreon, Mercado Pago). Lo que no tenga otro lugar va en Home.
 
+**Plugins en pantalla** (Seba, 2026-11-05): van dentro de la pantalla, arriba a la derecha, no en el marco: son de terceros y puede haber varios. Una bandeja de una columna (`plugin-indicator-group`), un plugin por fila con su luz (verde conectado, roja sin respuesta, gris apagado); un clic lleva a su sección en Configuración › Plugins.
+
+**Menús de un juego** (tarjeta y `…` de la ficha): solo Jugar o Instalar, Administrar y Ver detalles (tarjeta de propiedades `GameInfoCard`, con cerrar y copiar). Lo demás está en su fila del Library Manager. Mientras descarga, la ficha ofrece Administrar descarga, que lleva a esa fila.
+
 **Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Refrescar juegos, Library Manager y ayuda **no** van en el marco.
+
+## 0c. Capas de estilo (Seba, 2026-11-05)
+
+El estilo va en tres capas de **variables CSS** (`--ga-*`). Tailwind queda acotado al Library Manager y lee las mismas variables (`text-ga-orange`, `bg-ga-panel`; `tailwind.config.cjs`).
+
+| Capa | Archivo | Qué define | Qué no |
+|---|---|---|---|
+| **1. Plantilla base** | `src/templates/base.css` | escala de texto (T1 título de pantalla, T2 sección, T3 grupo, cuerpo), márgenes `--ga-space-*`, radios, alturas de control | colores, tipografías, vidrio |
+| **2. Sabor de estilo** | `src/templates/flavor-terminal.css` (el actual: **terminal**, futurista y minimalista) | tipografías, colores, vidrio, bordes, luces | distribución de una pantalla |
+| **3. Detalles de pantalla** | el CSS de cada pantalla | distribución y lo propio de esa pantalla, siempre leyendo variables de las capas 1 y 2 | valores de color, fuente o radio escritos a mano |
+
+- **Un sabor nuevo** es un archivo igual al de terminal con `:root[data-ga-flavor="nombre"]`; se activa con `setStyleFlavor("nombre")` (`templates/flavor.ts`). No toca componentes.
+- **Regla para lo nuevo:** si falta una variable para un rol, se agrega a la capa que corresponde y se usa. `npm run check:css` frena colores sueltos; `templates/flavor.test.ts` controla que la base no tenga colores ni tipografías y que las piezas nuevas lean variables definidas.
+- **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins y Configuración › Plugins (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
 
 ## 1. Tokens
 

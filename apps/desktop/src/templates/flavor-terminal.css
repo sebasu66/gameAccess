@@ -1,0 +1,19 @@
+/* Layer 2, a style flavor (docs/GUI_DESIGN.md §0c): "terminal", futuristic and minimal, the app's current look. A flavor
+   sets the personality: type faces, colours, glass, edges and lights. Another flavor is another file like this one with
+   `:root[data-ga-flavor="name"]` as its selector; it never touches components.
+   The older tokens of this flavor still live in gameaccess-theme.css and move here as screens are migrated. */
+:root {
+  --ga-text-family: Manrope, "Segoe UI", sans-serif; --ga-display-family: "Bebas Neue", sans-serif;
+  --ga-t2-weight: 700; --ga-label-weight: 800; --ga-status-weight: 700;
+  --ga-t2-font: var(--ga-t2-weight) var(--ga-t2-size)/var(--ga-t2-leading) var(--ga-text-family);
+  --ga-hint-font: 400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
+  --ga-label-font: var(--ga-label-weight) var(--ga-label-size)/var(--ga-label-leading) var(--ga-text-family);
+  --ga-status-font: var(--ga-status-weight) var(--ga-status-size)/var(--ga-status-leading) var(--ga-text-family);
+
+  /* Small floating cards and the on-screen tray (properties card, plugin list). */
+  --ga-card-bg: var(--ga-dialog-bg); --ga-card-glass: blur(24px); --ga-card-ring: var(--ga-dialog-ring); --ga-card-radius: var(--ga-radius-l); --ga-card-shadow: var(--ga-dialog-shadow);
+  --ga-card-eyebrow: var(--ga-orange); --ga-card-label: var(--ga-muted); --ga-card-ink: var(--ga-white); --ga-tool-line: var(--ga-line); --ga-tool-accent: var(--ga-orange);
+  --ga-tray-bg: var(--ga-panel); --ga-tray-glass: blur(10px); --ga-tray-line: var(--ga-line); --ga-tray-radius: var(--ga-radius-m); --ga-tray-ink: var(--ga-muted); --ga-tray-ink-hover: var(--ga-white); --ga-tray-hover: var(--ga-surface-2);
+  --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
+  --ga-card-label-font: 700 11px var(--ga-text-family); --ga-card-value-font: 600 14px var(--ga-text-family); --ga-card-eyebrow-font: 800 11px var(--ga-text-family); --ga-tray-font: 650 10px var(--ga-text-family);
+}

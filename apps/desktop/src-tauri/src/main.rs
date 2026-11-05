@@ -103,6 +103,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             plugin_registry::get_registered_plugins,
             plugin_registry::uninstall_plugin,
+            plugin_registry::set_plugin_enabled,
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
             steam_guide::steam_guide_state,

@@ -1,16 +1,16 @@
 /* The game's properties card (GameInfoCard.tsx): a small glass panel with a gradient edge, over the game detail too. */
 .ga-info-card { position: relative; box-sizing: border-box; width: min(520px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 22px 24px 20px;
-  border-radius: var(--ga-dialog-radius); background: var(--ga-dialog-bg); backdrop-filter: blur(24px); box-shadow: var(--ga-dialog-shadow); color: var(--ga-white); }
-.ga-info-card::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--ga-dialog-ring); pointer-events: none;
+  border-radius: var(--ga-card-radius); background: var(--ga-card-bg); backdrop-filter: var(--ga-card-glass); box-shadow: var(--ga-card-shadow); color: var(--ga-card-ink); }
+.ga-info-card::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--ga-card-ring); pointer-events: none;
   -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .ga-info-tools { position: absolute; top: 14px; right: 14px; display: flex; gap: 8px; align-items: center; }
 /* Minimal: both controls are 30 px circles; close keeps its red (ga-close), copy is a quiet glass circle. */
-.ga-info-card .ga-info-tools .ga-close { width: 30px !important; height: 30px !important; min-width: 30px; min-height: 30px; position: static; }
-.ga-info-copy { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--ga-line); background: transparent; color: var(--ga-white); cursor: pointer; }
-.ga-info-copy:hover, .ga-info-copy:focus-visible { border-color: var(--ga-orange); color: var(--ga-orange); }
-.ga-info-eyebrow { display: block; margin-bottom: 14px; color: var(--ga-orange); font: 800 11px Manrope, "Segoe UI", sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+.ga-info-card .ga-info-tools .ga-close { width: var(--ga-tool-size) !important; height: var(--ga-tool-size) !important; min-width: var(--ga-tool-size); min-height: var(--ga-tool-size); position: static; }
+.ga-info-copy { display: grid; place-items: center; width: var(--ga-tool-size); height: var(--ga-tool-size); padding: 0; border-radius: 50%; border: 1px solid var(--ga-tool-line); background: transparent; color: var(--ga-card-ink); cursor: pointer; }
+.ga-info-copy:hover, .ga-info-copy:focus-visible { border-color: var(--ga-tool-accent); color: var(--ga-tool-accent); }
+.ga-info-eyebrow { display: block; margin-bottom: 14px; color: var(--ga-card-eyebrow); font: var(--ga-card-eyebrow-font); letter-spacing: .18em; text-transform: uppercase; }
 .ga-info-rows { display: grid; gap: 12px; margin: 0; }
 .ga-info-rows > div { display: grid; gap: 3px; min-width: 0; }
-.ga-info-rows dt { color: var(--ga-muted); font: 700 11px Manrope, "Segoe UI", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
-.ga-info-rows dd { margin: 0; font: 600 14px Manrope, "Segoe UI", sans-serif; overflow-wrap: anywhere; user-select: text; }
-.ga-info-note { display: block; margin-top: 14px; color: var(--ga-muted); font-size: 12px; }
+.ga-info-rows dt { color: var(--ga-card-label); font: var(--ga-card-label-font); letter-spacing: .06em; text-transform: uppercase; }
+.ga-info-rows dd { margin: 0; font: var(--ga-card-value-font); overflow-wrap: anywhere; user-select: text; }
+.ga-info-note { display: block; margin-top: 14px; color: var(--ga-card-label); font-size: 12px; }

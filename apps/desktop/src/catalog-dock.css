@@ -80,8 +80,6 @@ html body .ga-footer-left > * + * { display: inline-flex; align-items: center; m
 /* No inner padding: the status has no box of its own, so padding would only widen the space before the separator.
    Every item then sits the same distance from the separators around it. */
 html body .ga-footer-left .ga-backend-status { min-width: 0; padding-inline: 0; }
-html body .ga-footer-left .plugin-indicator-group { max-width: 220px; gap: 10px; }
-html body .ga-footer-left .plugin-indicator-item { height: auto; padding: 0; border: 0; background: none; font: 650 10px Manrope, "Segoe UI", sans-serif; color: #bcc3c8; gap: 8px; }
 html body .ga-footer-left .ga-access-pass { position: relative; inset: auto; }
 html body .ga-footer-left .ga-access-pass-toggle { height: 30px; padding: 0 10px; border-radius: 8px; gap: 7px; font: 800 11px Manrope, sans-serif; letter-spacing: .06em; }
 html body .ga-footer-left .ga-access-pass-toggle svg { width: 15px; height: 15px; }

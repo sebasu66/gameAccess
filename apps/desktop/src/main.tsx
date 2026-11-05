@@ -43,6 +43,8 @@ import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode"
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { setAppLocale, translate, useI18n } from "./i18n";
 import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
+import "./templates/base.css";
+import "./templates/flavor-terminal.css";
 import "./styles.css";
 
 // The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.
@@ -136,7 +138,7 @@ function CatalogShell() {
   }, [mode]);
   return <>
     <LibraryInputController mode={mode} onModeChange={changeMode} />
-    <div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><PluginIndicator /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
+    <PluginIndicator /><div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }
