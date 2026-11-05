@@ -36,6 +36,7 @@ mod kid_mode;
 mod windows_account;
 mod app_shortcuts;
 mod antivirus;
+mod steam_guide;
 
 use std::{env, sync::Mutex};
 
@@ -104,6 +105,10 @@ fn main() {
             plugin_registry::uninstall_plugin,
             app_update::app_frontend_alive,
             game_controllers::game_controllers_connected,
+            steam_guide::steam_guide_state,
+            steam_guide::steam_guide_release,
+            steam_guide::steam_guide_restore,
+            steam_guide::steam_guide_listen,
             game_focus::game_focus_watch,
             window_fit::window_toggle_maximize,
             window_fit::window_set_big_screen,

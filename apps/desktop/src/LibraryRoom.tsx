@@ -45,6 +45,7 @@ import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { GUIDE_BUTTON_EVENT } from "./steamGuide";
 import { GAME_ENDED_EVENT } from "./gameFocus";
 import type { LibrarySearchEventDetail, LibrarySearchFilters } from "./librarySearch";
 import { steamDownloadStatus } from "./native";
@@ -176,6 +177,17 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     if (!next) await showAfterBigPicture();
     bigScreenChanging.current = false;
   };
+  // The controller's Xbox button (steamGuide.ts): Game Access comes to the front and opens big picture mode.
+  const toggleBigScreenRef = useRef(toggleBigScreen);
+  toggleBigScreenRef.current = toggleBigScreen;
+  const bigScreenRef = useRef(bigScreen);
+  bigScreenRef.current = bigScreen;
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    let live = true, stop: (() => void) | undefined;
+    void listen(GUIDE_BUTTON_EVENT, () => { if (!bigScreenRef.current) void toggleBigScreenRef.current(); }).then(unlisten => { if (live) stop = unlisten; else unlisten(); }).catch(() => undefined);
+    return () => { live = false; stop?.(); };
+  }, []);
   useEffect(() => {
     document.body.classList.toggle("ga-big-screen", bigScreen);
     // The cleanup runs on every change too, so the current value is set here again after it.

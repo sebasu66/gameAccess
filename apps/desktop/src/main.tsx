@@ -25,6 +25,7 @@ import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
 import { startSingleAccordion } from "./singleAccordion";
 import { startPlusLook } from "./plusLook";
+import { startSteamGuide } from "./steamGuide";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
 import { RefreshCw } from "lucide-react";
@@ -145,6 +146,7 @@ startDownloadNotifications();
 startModalStack();
 startSingleAccordion();
 startPlusLook();
+startSteamGuide();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");
