@@ -122,6 +122,18 @@ pub async fn ai_test() -> Result<String, String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+fn log(level: &str, message: String) { let _ = crate::activity_log::append_narration_lines(vec![message], "AI".to_string(), level.to_string()); }
+
+/// The start of an answer, for the log. Ollama's answers carry no key.
+fn brief(text: &str) -> String { text.chars().take(400).collect() }
+
+/// The JSON in a model's answer: all of it, or the object inside when the model wrapped it in text or a code fence.
+fn json_in(content: &str) -> Option<serde_json::Value> {
+    if let Ok(value) = serde_json::from_str(content) { return Some(value); }
+    let (start, end) = (content.find('{')?, content.rfind('}')?);
+    serde_json::from_str(content.get(start..=end)?).ok()
+}
+
 /// Longest prompt the app sends: a short list of games and the player's tastes, never the whole catalog.
 const MAX_PROMPT: usize = 24_000;
 
@@ -137,16 +149,21 @@ pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Va
         let body = serde_json::json!({ "model": TEST_MODEL, "stream": false, "think": false, "format": schema,
             "options": { "temperature": 0.4 },
             "messages": [{ "role": "system", "content": system }, { "role": "user", "content": prompt }] });
-        let response = client.post(CHAT_URL).bearer_auth(key).json(&body).send().map_err(|_| "offline".to_string())?;
-        match response.status().as_u16() {
+        let response = client.post(CHAT_URL).bearer_auth(key).json(&body).send().map_err(|err| {
+            log("WARN", format!("Ollama did not answer: {err}"));
+            "offline".to_string()
+        })?;
+        let status = response.status().as_u16();
+        let text = response.text().map_err(|err| { log("WARN", format!("Ollama's answer ({status}) could not be read: {err}")); "failed:body".to_string() })?;
+        match status {
             200 => {}
-            401 | 403 => return Err("rejected".into()),
-            429 => return Err("limit".into()),
-            status => return Err(format!("failed:{status}")),
+            401 | 403 => { log("WARN", format!("Ollama refused the key ({status}): {}", brief(&text))); return Err("rejected".into()); }
+            429 => { log("WARN", format!("Ollama's limit ({status}): {}", brief(&text))); return Err("limit".into()); }
+            status => { log("ERROR", format!("Ollama answered {status}: {}", brief(&text))); return Err(format!("failed:{status}")); }
         }
-        let reply: serde_json::Value = response.json().map_err(|_| "failed:body".to_string())?;
-        let content = reply["message"]["content"].as_str().ok_or("failed:empty")?;
-        serde_json::from_str(content).map_err(|_| "failed:json".to_string())
+        let reply: serde_json::Value = serde_json::from_str(&text).map_err(|_| { log("ERROR", format!("Ollama's answer is not JSON: {}", brief(&text))); "failed:body".to_string() })?;
+        let Some(content) = reply["message"]["content"].as_str() else { log("ERROR", format!("Ollama's answer has no content: {}", brief(&text))); return Err("failed:empty".into()); };
+        json_in(content).ok_or_else(|| { log("ERROR", format!("{TEST_MODEL} did not answer the JSON asked for: {}", brief(content))); "failed:json".to_string() })
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -192,6 +209,17 @@ pub fn ai_open_keys_in_browser() -> Result<(), String> { crate::execution_profil
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_json_is_found_inside_what_the_model_wrote() {
+        assert_eq!(json_in("{\"a\":1}").unwrap()["a"], 1);
+        assert_eq!(json_in("```json
+{\"a\":1}
+```").unwrap()["a"], 1);
+        assert_eq!(json_in("Here it is: {\"a\":{\"b\":2}} done").unwrap()["a"]["b"], 2);
+        assert!(json_in("no json here").is_none());
+        assert!(json_in("{broken").is_none());
+    }
 
     #[test]
     fn keys_must_be_one_clean_token() {
