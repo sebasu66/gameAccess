@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import AiVoiceSettings from "./AiVoiceSettings";
 import { Check, Eye, Sparkles, X } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "./components/ui/alert-dialog";
 import { GaButton, GaClose } from "./components/ga/Buttons";
@@ -82,7 +83,7 @@ export default function AiConnectWizard({ onDone }: { onDone: (connected: boolea
               <li className={test.kind === "running" ? "is-pending" : undefined}><Check size={16} aria-hidden="true" />{t("aiCheckSaved")}</li>
             </ul>}
             {test.kind === "error" && test.error === "limit" ? <p role="status" className="ga-status is-warn">{t("aiError_limit")}</p> : null}
-            {connected ? <p className="ga-hint">{t("aiDoneHint")}</p> : null}
+            {connected ? <><p className="ga-hint">{t("aiDoneHint")}</p><AiVoiceSettings /></> : null}
           </div>
         </div> : null}
       </div>

@@ -53,7 +53,8 @@ El estilo va en tres capas de **variables CSS** (`--ga-*`). Tailwind queda acota
 
 - **Un sabor nuevo** es un archivo igual al de terminal con `:root[data-ga-flavor="nombre"]`; se activa con `setStyleFlavor("nombre")` (`templates/flavor.ts`). No toca componentes.
 - **Regla para lo nuevo:** si falta una variable para un rol, se agrega a la capa que corresponde y se usa. `npm run check:css` frena colores sueltos; `templates/flavor.test.ts` controla que la base no tenga colores ni tipografías y que las piezas nuevas lean variables definidas.
-- **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins y Configuración › Plugins (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
+- **Política (Seba, 2026-11-05):** toda interfaz nueva o que se toque nace lista para las plantillas: primero lo general (`GaButton`, `ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`), después la capa de pantalla, en su propio CSS y solo con distribución. Ningún color, fuente, radio, margen ni alto escrito a mano: si falta una variable se agrega a la base o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`.
+- **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins, Configuración › Plugins y Configuración › IA (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
 
 ## 1. Tokens
 
@@ -354,14 +355,17 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Con PLUS (`html.ga-plus`, `plusLook.ts`; recuerda el último estado para que la tapa ya salga dorada): marco, labio de la pantalla, líneas grabadas y nombre de la pestaña en dorado (`--ga-plus-*` en `gameaccess-theme.css`); en la tapa, marco de cada hoja y líneas en dorado y la marca **+ PLUS** arriba a la derecha (`gs-plus-mark`). Solo cambian colores, nada se mueve ni cambia de tamaño.
 
 ### 4.31 «Tu perfil» en Configuración › IA `ga-profile` (componente `AiProfileEditor`, Seba 2026-11-05)
-- Debajo de la tarjeta de Ollama: título Bebas 34 px y tarjetas `ga-profile-card` (mismo fondo y borde que la de Ollama, títulos de 16 px en negrita). Sin botón de guardar: cada cambio se guarda solo y va con cada pedido a la IA.
+- Debajo de la voz: título T2 (`--ga-t2-font`, como un plugin) y grupos `ga-group ga-settings-group` con su `ga-label`; CSS de pantalla en `ai-settings.css`. Sin botón de guardar: cada cambio se guarda solo y va con cada pedido a la IA.
 - Juegos: campo de búsqueda, Todos / Me gustan / No me gustan y orden, a 44 px; grilla de carátulas 2:3 con pulgar arriba a la izquierda (`--ga-ok` o `--ga-danger`) y quitar arriba a la derecha, visible al pasar el mouse o con foco. Los que no gustan van desaturados.
-- Géneros: filas con el nombre y los dos pulgares (`GaIconButton`, 44 px). Cómo jugar: botones `ga-profile-chip` de 44 px; al elegir Multijugador o Los dos aparecen los tipos de multijugador. Lo que buscás y lo que evitás: dos `textarea` lado a lado, 500 caracteres.
+- Géneros: filas con el nombre y los dos pulgares (`GaIconButton`, 44 px). Cómo jugar: botones `ga-settings-choice` de `--ga-control-h`; al elegir Multijugador o Los dos aparecen los tipos de multijugador. Lo que buscás y lo que evitás: dos `textarea` lado a lado, 500 caracteres.
 
 ### 4.32 Búsqueda con IA en el catálogo (Seba 2026-11-05)
 - Botón «Búsqueda con IA» junto a «Personalizado». Solo PLUS: para el resto queda deshabilitado y, al pasar el mouse o con foco, muestra un globo con el texto y el enlace **Conseguir PLUS**, que abre el mismo diálogo que el botón PLUS del marco (`OPEN_PREMIUM_EVENT`).
 - Encendido: sin filtros, sin orden y sin destacado. Arriba, la sección «La IA te responde» con su mensaje (o **Conectar IA**, que lleva a Configuración › IA, si no hay clave). Debajo solo los juegos de la IA, en su orden.
 - Cada resultado ocupa dos celdas: la tarjeta y, pegado a ella, el motivo sobre una sombra sutil en semicírculo centrada en la carátula, como la del menú contextual (`ga-ai-result-why`): sin línea ni bordes rectos. Al abrir el menú contextual de ese juego, el motivo se oculta hasta que el menú se cierra. Vista previa: `?uiDemo=1&uiDemoPlus`, con `gameaccess:ai-search` en `true`.
+
+### 4.33 Voz de la IA (componente `AiVoiceSettings`, Seba 2026-11-05)
+- Tarjeta en Configuración › IA y al final de la guía «Conectar IA»: voz instalada en Windows (por defecto, la mejor disponible), **Probar voz** y **Leer siempre** o **Solo con el botón**, todo a 44 px. Se guarda solo. Por defecto: solo con el botón.
 
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,

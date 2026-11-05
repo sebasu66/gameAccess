@@ -2,11 +2,21 @@ import { useEffect, useState } from "react";
 import { getAppLocale } from "./i18n";
 
 /**
- * Gemma's voice (Seba, 2026-11-04): the AI panels read their text aloud with the WebView's own speech
- * (speechSynthesis), so no library and almost no work for the PC. It prefers Edge's online natural voices when the
- * WebView offers them, then a voice of the app's language and country (es-AR first), then any of the language.
- * A cloud voice (edge-tts style) can replace `pickVoice` later without touching the panels.
+ * Gemma's voice (Seba, 2026-11-05): the AI panels read their text aloud with the WebView's speech (speechSynthesis),
+ * which offers the voices installed in Windows. The player picks one (or leaves the best one found, pickVoice) and
+ * whether answers are read on their own or only with the button.
  */
+export interface VoiceSettings { voice: string; auto: boolean }
+const SETTINGS_KEY = "gameaccess:ai-voice";
+const DEFAULTS: VoiceSettings = { voice: "", auto: false };
+export function loadVoiceSettings(): VoiceSettings {
+  try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "null") as Partial<VoiceSettings> | null) }; }
+  catch { return DEFAULTS; }
+}
+export function saveVoiceSettings(settings: VoiceSettings) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* the defaults keep working */ }
+}
+
 export const voiceAvailable = () => typeof window !== "undefined" && "speechSynthesis" in window;
 
 export function pickVoice(voices: SpeechSynthesisVoice[], locale = getAppLocale()): SpeechSynthesisVoice | null {
@@ -31,7 +41,9 @@ export function speak(text: string): void {
   const synth = window.speechSynthesis;
   synth.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  const voice = pickVoice(synth.getVoices());
+  const voices = synth.getVoices();
+  const chosen = loadVoiceSettings().voice;
+  const voice = voices.find(item => item.name === chosen) ?? pickVoice(voices);
   if (voice) { utterance.voice = voice; utterance.lang = voice.lang; } else utterance.lang = getAppLocale() === "es" ? "es-AR" : "en-US";
   utterance.rate = 1.02;
   utterance.onend = utterance.onerror = () => { if (speaking === text) publish(null); };
@@ -42,6 +54,20 @@ export function speak(text: string): void {
 export function stopSpeaking(): void {
   if (voiceAvailable()) window.speechSynthesis.cancel();
   publish(null);
+}
+
+/** The voices of the app's language; Windows hands them over a moment after the page opens. */
+export function useVoices(): SpeechSynthesisVoice[] {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  useEffect(() => {
+    if (!voiceAvailable()) return;
+    const synth = window.speechSynthesis;
+    const update = () => setVoices(synth.getVoices().filter(voice => voice.lang.toLowerCase().startsWith(getAppLocale() === "es" ? "es" : "en")));
+    update();
+    synth.addEventListener("voiceschanged", update);
+    return () => synth.removeEventListener("voiceschanged", update);
+  }, []);
+  return voices;
 }
 
 /** Whether this text is being read now; reading stops when the panel goes away. */

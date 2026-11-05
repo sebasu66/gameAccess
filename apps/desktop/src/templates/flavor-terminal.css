@@ -14,6 +14,8 @@
   --ga-card-bg: var(--ga-dialog-bg); --ga-card-glass: blur(24px); --ga-card-ring: var(--ga-dialog-ring); --ga-card-radius: var(--ga-radius-l); --ga-card-shadow: var(--ga-dialog-shadow);
   --ga-card-eyebrow: var(--ga-orange); --ga-card-label: var(--ga-muted); --ga-card-ink: var(--ga-white); --ga-tool-line: var(--ga-line); --ga-tool-accent: var(--ga-orange);
   --ga-tray-bg: var(--ga-panel); --ga-tray-glass: blur(10px); --ga-tray-line: var(--ga-line); --ga-tray-radius: var(--ga-radius-m); --ga-tray-ink: var(--ga-muted); --ga-tray-ink-hover: var(--ga-white); --ga-tray-hover: var(--ga-surface-2);
+  /* Fields and choices of a settings screen. */
+  --ga-field-line: var(--ga-line); --ga-field-ink: var(--ga-text-ink); --ga-field-font: 500 var(--ga-t3-size)/1.4 var(--ga-text-family);
   --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
   --ga-card-label-font: 700 11px var(--ga-text-family); --ga-card-value-font: 600 14px var(--ga-text-family); --ga-card-eyebrow-font: 800 11px var(--ga-text-family); --ga-tray-font: 650 10px var(--ga-text-family);
 }

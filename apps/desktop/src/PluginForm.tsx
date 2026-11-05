@@ -32,7 +32,7 @@ function ListSection({ plugin, section }: { plugin: PluginStatus; section: Plugi
   const allowed = (() => { try { return !section.add?.pattern || new RegExp(section.add.pattern, "i").test(value.trim()); } catch { return true; } })();
   const load = async (chosen?: File) => { if (chosen) { const content = await chosen.text(); await run(() => pluginListAddFile(plugin, section, chosen.name, content)); } };
   const removeLabel = section.removeLabel ?? t("pluginRemove");
-  return <fieldset className="ga-group ga-plugin-group">
+  return <fieldset className="ga-group ga-settings-group">
     <legend className="ga-label">{section.title}</legend>
     {section.hint ? <p className="ga-hint">{section.hint}</p> : null}
     {data?.summary ? <p className="ga-hint">{data.summary}</p> : null}
@@ -72,7 +72,7 @@ function SearchSection({ plugin, section }: { plugin: PluginStatus; section: Plu
   };
   const search = () => query.trim() && run(async () => { setResults(await pluginSearch(plugin, section, query.trim())); });
   const start = (result: PluginResult) => run(async () => { setDownload({ url: await pluginLink(plugin, section, result.link), query: titleQuery(result.title) }); });
-  return <fieldset className="ga-group ga-plugin-group">
+  return <fieldset className="ga-group ga-settings-group">
     <legend className="ga-label">{section.title}</legend>
     <form className="ga-plugin-row" role="search" onSubmit={event => { event.preventDefault(); void search(); }}>
       <input aria-label={section.title} placeholder={section.placeholder} value={query} disabled={busy} onChange={event => setQuery(event.target.value)} />

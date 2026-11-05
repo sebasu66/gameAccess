@@ -20,7 +20,7 @@ const SORTS: Sort[] = ["name", "name-desc", "score", "liked"];
 const PLAY: PlayStyle[] = ["single", "multi", "both"];
 
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
-  return <button type="button" className="ga-profile-chip" aria-pressed={on} onClick={onClick}>{children}</button>;
+  return <button type="button" className="ga-settings-choice" aria-pressed={on} onClick={onClick}>{children}</button>;
 }
 
 /** The liked and disliked games: looked for, sorted and taken off the list. */
@@ -70,10 +70,10 @@ function RatedGames() {
       <label className="ga-profile-search"><Search size={18} aria-hidden="true" />
         <input type="search" value={text} placeholder={t("aiProfileSearch")} aria-label={t("aiProfileSearch")} onChange={event => setText(event.target.value)} />
       </label>
-      <div className="ga-profile-chips" role="group" aria-label={t("aiProfileShow")}>
+      <div className="ga-settings-choices" role="group" aria-label={t("aiProfileShow")}>
         {SHOWN.map(option => <Chip key={option} on={shown === option} onClick={() => setShown(option)}>{t(`aiProfileShow_${option}`)}</Chip>)}
       </div>
-      <select className="ga-field ga-profile-sort" aria-label={t("aiProfileSort")} value={sort} onChange={event => setSort(event.target.value as Sort)}>
+      <select className="ga-settings-select" aria-label={t("aiProfileSort")} value={sort} onChange={event => setSort(event.target.value as Sort)}>
         {SORTS.map(option => <option key={option} value={option}>{t(`aiProfileSort_${option}`)}</option>)}
       </select>
     </div>
@@ -106,15 +106,15 @@ export default function AiProfileEditor() {
 
   return <section className="ga-profile" aria-labelledby="ga-profile-title">
     <div className="ga-stack">
-      <h2 id="ga-profile-title" className="ga-profile-title">{t("aiProfileTitle")}</h2>
+      <h2 id="ga-profile-title" className="ga-heading ga-profile-title">{t("aiProfileTitle")}</h2>
       <p>{t("aiProfileIntro")}</p>
     </div>
-    <section className="ga-profile-card" aria-labelledby="ga-profile-games">
-      <h3 id="ga-profile-games" className="ga-profile-label">{t("aiProfileGames")}</h3>
+    <fieldset className="ga-group ga-settings-group">
+      <legend id="ga-profile-games" className="ga-label">{t("aiProfileGames")}</legend>
       <RatedGames />
-    </section>
-    <section className="ga-profile-card" aria-labelledby="ga-profile-genres">
-      <h3 id="ga-profile-genres" className="ga-profile-label">{t("aiProfileGenres")}</h3>
+    </fieldset>
+    <fieldset className="ga-group ga-settings-group">
+      <legend id="ga-profile-genres" className="ga-label">{t("aiProfileGenres")}</legend>
       <ul className="ga-profile-genres">
         {genres.map(id => { const name = genreLabel(id); const rating = profile.genres[id]; return <li key={id} className={rating === 1 ? "is-liked" : rating === -1 ? "is-disliked" : undefined}>
           <span>{name}</span>
@@ -122,24 +122,24 @@ export default function AiProfileEditor() {
           <GaIconButton icon={<ThumbsDown size={16} aria-hidden="true" />} label={t("aiProfileDislikeGenre", { name })} pressed={rating === -1} onClick={() => rate(id, -1)} />
         </li>; })}
       </ul>
-    </section>
-    <section className="ga-profile-card" aria-labelledby="ga-profile-play">
-      <h3 id="ga-profile-play" className="ga-profile-label">{t("aiProfilePlay")}</h3>
-      <div className="ga-profile-chips" role="group" aria-labelledby="ga-profile-play">
+    </fieldset>
+    <fieldset className="ga-group ga-settings-group">
+      <legend id="ga-profile-play" className="ga-label">{t("aiProfilePlay")}</legend>
+      <div className="ga-settings-choices" role="group" aria-labelledby="ga-profile-play">
         {PLAY.map(option => <Chip key={option} on={profile.play === option} onClick={() => update({ play: profile.play === option ? null : option })}>{t(`aiProfilePlay_${option}`)}</Chip>)}
       </div>
       {multiplayer ? <div className="ga-stack">
-        <span id="ga-profile-modes" className="ga-profile-label">{t("aiProfileModes")}</span>
-        <div className="ga-profile-chips" role="group" aria-labelledby="ga-profile-modes">
+        <span id="ga-profile-modes" className="ga-label">{t("aiProfileModes")}</span>
+        <div className="ga-settings-choices" role="group" aria-labelledby="ga-profile-modes">
           {MULTIPLAYER_MODES.map(mode => <Chip key={mode} on={profile.modes.includes(mode)} onClick={() => toggleMode(mode)}>{t(`aiProfileMode_${mode}`)}</Chip>)}
         </div>
       </div> : null}
-    </section>
+    </fieldset>
     <div className="ga-profile-words">
-      <label className="ga-profile-card"><span className="ga-profile-label">{t("aiProfilePositive")}</span>
+      <label className="ga-group ga-settings-group"><span className="ga-label">{t("aiProfilePositive")}</span>
         <textarea className="ga-field" maxLength={PROFILE_TEXT_LIMIT} value={profile.positive} placeholder={t("aiProfilePositiveHint")} onChange={event => update({ positive: event.target.value })} />
       </label>
-      <label className="ga-profile-card"><span className="ga-profile-label">{t("aiProfileNegative")}</span>
+      <label className="ga-group ga-settings-group"><span className="ga-label">{t("aiProfileNegative")}</span>
         <textarea className="ga-field" maxLength={PROFILE_TEXT_LIMIT} value={profile.negative} placeholder={t("aiProfileNegativeHint")} onChange={event => update({ negative: event.target.value })} />
       </label>
     </div>

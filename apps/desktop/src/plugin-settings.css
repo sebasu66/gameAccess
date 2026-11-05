@@ -10,9 +10,6 @@
 .ga-plugin-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; max-width: 960px; }
 .ga-plugin-switch { margin: 0; }
 .ga-plugin-link { display: inline-flex; align-items: center; gap: 5px; color: var(--ga-orange-ink); overflow-wrap: anywhere; }
-.ga-plugin-group { padding: 20px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
-.ga-plugin-group > legend { float: left; width: 100%; margin-bottom: var(--ga-space-1); }
-.ga-plugin-group > legend + * { clear: both; }
 
 /* A field and its buttons in one row, all the same height; the field takes what is left. */
 .ga-plugin-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 0; }

@@ -59,6 +59,10 @@
 .ga-group > :where(*) { margin: 0; }
 .ga-group > :where(legend) { margin-bottom: var(--ga-space-1); padding: 0; }
 .ga-group > :where(button) { justify-self: start; }
+/* A group as a card on a screen (Settings): the same group with its surface. */
+.ga-settings-group { padding: var(--ga-space-2) var(--ga-space-3); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-l); background: var(--ga-surface); }
+.ga-settings-group > legend { float: left; width: 100%; margin-bottom: var(--ga-space-1); }
+.ga-settings-group > legend + * { clear: both; }
 .ga-group-danger > :where(.ga-label) { color: var(--ga-danger-ink); }
 
 /* Button row: 10 px apart, every button as tall as the tallest, wraps when narrow. */
