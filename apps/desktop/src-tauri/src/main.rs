@@ -135,6 +135,7 @@ fn main() {
             parental_lock::parental_check,
             access_commands::activation_check_access,
             access_commands::create_game_shortcut,
+            access_commands::repair_game_shortcuts,
             launch_intent::take_launch_request,
             access_commands::activation_read_session,
             access_commands::activation_read_key,
