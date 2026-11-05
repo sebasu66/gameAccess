@@ -43,7 +43,7 @@ export async function aiDisconnect(): Promise<void> {
 
 /** Asks the free model one word with the kept key; resolves to the model's name. */
 export async function aiTest(): Promise<string> {
-  if (demo()) { await new Promise(resolve => window.setTimeout(resolve, 900)); return "gemma4:31b"; }
+  if (demo()) { await new Promise(resolve => window.setTimeout(resolve, 900)); return "gemma4:31b-cloud"; }
   return invoke<string>("ai_test");
 }
 

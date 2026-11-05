@@ -10,7 +10,7 @@ const testResult: { error: string | null } = { error: null };
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (command: string, args?: Record<string, unknown>) => {
     calls.push([command, args]);
-    if (command === "ai_test") { if (testResult.error) throw testResult.error; return "gemma4:31b"; }
+    if (command === "ai_test") { if (testResult.error) throw testResult.error; return "gemma4:31b-cloud"; }
     return null;
   }),
 }));
