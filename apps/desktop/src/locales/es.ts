@@ -1608,7 +1608,7 @@ export const es = {
   aiGuideTitle: "Seguí los pasos",
   aiGuideLead: "Abrimos Ollama en tu navegador y una ventana chica con los pasos. Cuando pegues la clave ahí, seguimos acá.",
   aiStepsTitle: "Conectar IA",
-  aiStep1: "Entrá o creá tu cuenta",
+  aiStep1: "Registrate o iniciá sesión",
   aiStep2: "Tocá Create API key",
   aiStep3: "Poné un nombre y tocá Create",
   aiStep4: "Copiá la clave y pegala abajo",

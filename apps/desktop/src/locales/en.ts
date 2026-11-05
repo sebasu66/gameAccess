@@ -1610,7 +1610,7 @@ export const en: Record<keyof typeof es, string> = {
   aiGuideTitle: "Follow the steps",
   aiGuideLead: "We opened Ollama in your browser and a small window with the steps. Paste the key there and we continue here.",
   aiStepsTitle: "Connect AI",
-  aiStep1: "Sign in or create your account",
+  aiStep1: "Register or log in",
   aiStep2: "Press Create API key",
   aiStep3: "Enter a name and press Create",
   aiStep4: "Copy the key and paste it below",
