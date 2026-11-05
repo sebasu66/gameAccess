@@ -1,10 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Sparkles, Square, ThumbsDown, ThumbsUp, Volume2 } from "lucide-react";
+import { Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { aiState, openAiSettings } from "./aiConnection";
 import { AI_SUGGESTIONS_EVENT, aiError, aiExplain, aiWhy, enoughSignals, useTasteSignals, MIN_SIGNALS, readPicks, refreshFreshPicks, refreshPicks, signalCount, tasteSignals, type AiError, type AiPick, type AiPicksState } from "./aiSuggestions";
 import { setAppScreen } from "./appScreen";
-import { GaButton, GaIconButton } from "./components/ga/Buttons";
-import { loadVoiceSettings, speak, stopSpeaking, useSpeaking, voiceAvailable } from "./aiVoice";
+import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import SteamCover from "./SteamCover";
 import type { Ratings } from "./tasteProfile";
@@ -87,19 +86,6 @@ export default function AiPicks({ onOpenGame }: { onOpenGame: (game: CatalogGame
   </section>;
 }
 
-/** Reads the panel's text aloud in Gemma's voice (aiVoice.ts), or stops it. */
-function SpeakButton({ text }: { text: string }) {
-  const { t } = useI18n();
-  const now = useSpeaking(text);
-  if (!voiceAvailable() || !text) return null;
-  return <GaIconButton className="ga-ai-speak" icon={now ? <Square size={14} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />} label={t(now ? "aiVoiceStop" : "aiVoiceListen")} pressed={now} onClick={() => now ? stopSpeaking() : speak(text)} />;
-}
-
-/** Reads the text as soon as it is there, when the player chose that over the button. */
-function useAutoSpeak(text: string | null | undefined) {
-  useEffect(() => { if (text && loadVoiceSettings().auto) speak(text); }, [text]);
-}
-
 /**
  * The detail's glass panel for a game Gemma suggested (Seba, 2026-11-04): her short reason right away, then her
  * longer explanation, asked once when the detail opens (aiExplain). Games she did not suggest show nothing.
@@ -116,10 +102,9 @@ export function AiReasonPanel({ game }: { game: CatalogGame }) {
     void aiExplain(game, tasteSignals(readRatings())).then(text => { if (alive && text) setLong(text); }).catch(() => undefined).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
   }, [game, short]);
-  useAutoSpeak(long);
   if (!short) return null;
   return <section className="ga-ai-reason" aria-labelledby={`ga-ai-reason-${game.id}`} aria-busy={busy}>
-    <div className="ga-ai-reason-head"><h4 id={`ga-ai-reason-${game.id}`}><Sparkles size={16} aria-hidden="true" />{t("aiReasonTitle")}</h4><SpeakButton text={long ?? short} /></div>
+    <h4 id={`ga-ai-reason-${game.id}`}><Sparkles size={16} aria-hidden="true" />{t("aiReasonTitle")}</h4>
     <p>{long ?? short}</p>
     {busy && !long ? <p className="ga-ai-reason-more" role="status">{t("aiReasonMore")}</p> : null}
   </section>;
@@ -133,9 +118,8 @@ export function AiSearchAnswer({ busy, reply, count, error, idle, connected }: {
   const { t } = useI18n();
   const needsKey = !connected || error === "no_key";
   const text = needsKey ? t("aiSearchNeedsKey") : busy ? t("aiAskThinking") : idle ? t("aiAskIdle") : error ? t(`aiError_${error}`) : count ? reply || t("aiAskFound") : t("aiAskNothing");
-  useAutoSpeak(!needsKey && !busy && !idle && !error && count ? text : null);
   return <section className="ga-ai-reason ga-ai-search-answer" aria-live="polite" aria-busy={busy}>
-    <div className="ga-ai-reason-head"><h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>{busy || error || needsKey ? null : <SpeakButton text={text} />}</div>
+    <h4><Sparkles size={16} aria-hidden="true" />{t("aiAskTitle")}</h4>
     <p>{text}</p>
     {needsKey ? <div className="ga-actions"><GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={openAiSettings}>{t("aiPicksConnect")}</GaButton></div> : null}
   </section>;

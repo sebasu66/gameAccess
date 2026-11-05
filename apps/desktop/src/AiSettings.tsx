@@ -3,7 +3,6 @@ import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import AiConnectWizard from "./AiConnectWizard";
 import AiProfileEditor from "./AiProfileEditor";
-import AiVoiceSettings from "./AiVoiceSettings";
 import { aiDisconnect, aiState, aiTest, aiTestError, type AiState } from "./aiConnection";
 import "./ai-settings.css";
 
@@ -43,7 +42,6 @@ export default function AiSettings() {
       </div>
     </div> : null}
     {status ? <p role="status" className={`ga-status is-${status.tone}`}>{status.text}</p> : null}
-    <AiVoiceSettings />
     <AiProfileEditor />
     {wizard ? <AiConnectWizard onDone={() => { setWizard(false); void refresh(); }} /> : null}
   </section>;

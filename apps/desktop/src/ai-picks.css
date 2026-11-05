@@ -29,15 +29,11 @@
 /* The AI's answer above the catalog grid (LibraryRoom.tsx, a search in words). */
 .ga-ai-search-answer { margin: 0 0 var(--ga-space-2); }
 .global-search.is-ai .ga-search-icon { color: var(--ga-orange); }
-/* The header of an AI panel: the title and, at the end, "Listen to Gemma" (aiVoice.ts). */
-.ga-ai-reason-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
 
 /* The catalog with AI search on (docs/GUI_DESIGN.md §4.32): each game takes two cells, its card and, beside it, the
    reason on a soft half circle of shade, as subtle as the card's context menu, which it gives way to while that is open. */
 .ga-ai-search-answer { margin: 0 0 var(--ga-space-2); }
 .global-search.is-ai .ga-search-icon { color: var(--ga-orange); }
-/* The header of an AI panel: the title and, at the end, "Listen to Gemma" (aiVoice.ts). */
-.ga-ai-reason-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
 
 /* The catalog with AI search on (docs/GUI_DESIGN.md §4.32): each game takes two cells, its card and, beside it, the
    reason in the glass of the card's context menu (.ga-side-menu-glass), which gives way while that menu is open. */

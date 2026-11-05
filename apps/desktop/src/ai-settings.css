@@ -1,10 +1,10 @@
-/* Settings › AI (AiSettings.tsx, AiVoiceSettings.tsx, AiProfileEditor.tsx; docs/GUI_DESIGN.md §0c, §4.31, §4.33). The
+/* Settings › AI (AiSettings.tsx, AiProfileEditor.tsx; docs/GUI_DESIGN.md §0c, §4.31). The
    screen layer: only how the parts are placed. Text, stacks and groups come from the general template
    (components/ga/content.css); sizes from the base and looks from the flavor, always through variables. */
 .ga-ai-settings { display: grid; gap: var(--ga-space-2); }
 .ga-ai-settings-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
 .ga-ai-settings-text { display: grid; gap: var(--ga-space-1); min-width: 0; }
-.ga-ai-settings-actions, .ga-ai-voice-row, .ga-profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-row-gap); }
+.ga-ai-settings-actions, .ga-profile-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-row-gap); }
 
 .ga-profile { display: grid; gap: var(--ga-space-2); padding-top: var(--ga-space-3); }
 .ga-heading.ga-profile-title { color: var(--ga-white); font: var(--ga-t2-font); letter-spacing: 0; }
