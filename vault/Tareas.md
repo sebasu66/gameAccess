@@ -299,6 +299,8 @@ Ordenadas a partir de las notas sueltas de Seba y de lo conversado ese día.
 - [x] Asistente para conectar una IA gratis de Ollama (en la nube): Ollama en el navegador del jugador y ventana chica de pasos siempre encima, donde se pega la clave; clave guardada con DPAPI, prueba con `gemma4:31b`, Configuración › IA. Falta probarlo en la app compilada.
 - [ ] Usar la IA: recomendaciones del catálogo con el perfil de gustos, ayuda cuando un juego no arranca, aviso de juegos que ocupan lugar sin usarse.
 - [x] Perfil para la IA en Configuración › IA y búsqueda con IA solo PLUS en el catálogo (Claude, 2026-11-05; §4.31 y §4.32 de `docs/GUI_DESIGN.md`). Falta probarlo en la app compilada con Ollama de verdad.
+- [x] Voz de la IA: elegir voz de Windows y leer siempre o solo con el botón (Claude, 2026-11-05, `32c0332`).
+- [ ] Voz mejor para la IA: decidir el servicio con Seba (Azure Speech o Gemini TTS con clave propia). Edge TTS no se integra: exige hacerse pasar por el navegador.
 - [ ] Integrar la clave de Ollama (ya guardada por el asistente «Conectar IA») en la búsqueda: sugerencias mejores a partir de lo que escribe el jugador, y otros usos de la IA (Seba 2026-11-04: pendiente, no crítico).
 - [ ] **IA1 · `ai_chat`** con Gemma por Ollama, respuesta en JSON con esquema y validación ([[IA en la app]]).
 - [ ] **IA2 · Botón mágico con IA**: la frase del jugador → filtros válidos y un «por qué».
