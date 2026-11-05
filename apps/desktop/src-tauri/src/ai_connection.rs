@@ -4,8 +4,8 @@
 //! "Connect AI" (AiConnectWizard.tsx) opens Ollama's key page in a window of our own with a guide over it
 //! (ollama_guide.js): it points at what to press to sign up or sign in and to create the key, and takes the key when
 //! Ollama shows it. The key reaches Rust through a gameaccess-ai:// navigation that the window stops, so it never
-//! leaves the PC and needs no IPC permission for a remote page. Google refuses to sign in inside an app's window:
-//! its button is hidden there, and the wizard keeps "open it in my browser" and pasting the key by hand.
+//! leaves the PC and needs no IPC permission for a remote page. Google refuses to sign in inside an app's window, so
+//! choosing it opens the key page in the player's browser (with their accounts) and the wizard asks for the key there.
 //!
 //! The key is kept in one file that Windows protects (DPAPI) for this account, like the parent's key. It never goes
 //! to the interface: the interface only learns whether there is one and its last four characters.
@@ -152,7 +152,7 @@ pub async fn ai_chat_json(system: String, prompt: String, schema: serde_json::Va
 
 /// Opens Ollama's key page in a Game Access window with the guide over it. Events to the main window:
 /// `gameaccess:ai-key` when the key was kept ({ ending }), `gameaccess:ai-google` when the player chose Google
-/// (it does not work here) and `gameaccess:ai-guide-closed` when the window closes ({ saved }).
+/// (it went to their browser) and `gameaccess:ai-guide-closed` when the window closes ({ saved }).
 // Async on purpose: a window built inside a synchronous command deadlocks WebView2 on Windows and stays blank.
 #[tauri::command]
 pub async fn ai_guide_open(app: tauri::AppHandle) -> Result<(), String> {
@@ -182,8 +182,14 @@ pub async fn ai_guide_open(app: tauri::AppHandle) -> Result<(), String> {
                 }
                 return false;
             }
+            // Stopping this leaves Ollama's page frozen with its buttons off, so the window goes with it.
             if url.host_str() == Some("accounts.google.com") {
-                let _ = nav_app.emit_to("main", "gameaccess:ai-google", ());
+                let app = nav_app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = crate::execution_profiles::open_external(KEYS_PAGE);
+                    let _ = app.emit_to("main", "gameaccess:ai-google", ());
+                    if let Some(window) = app.get_webview_window(GUIDE_LABEL) { let _ = window.close(); }
+                });
                 return false;
             }
             guide_may_visit(url)

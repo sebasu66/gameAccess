@@ -14,7 +14,7 @@ type Note = { tone: "warn" | "error"; text: string };
  * "Connect AI" (Seba, 2026-11-04; docs/GUI_DESIGN.md §4.29): three steps in one large dialog.
  * 1. What it does and what goes to Ollama. 2. Ollama's key page opens in a Game Access window with a guide over it
  * (ollama_guide.js): it points at what to press to sign up or sign in and to create the key, and takes the key itself.
- * Google does not sign in inside an app's window, so the player's own browser and pasting the key stay as a fallback.
+ * Google does not sign in inside an app's window: choosing it there opens the player's browser, and the key is pasted.
  * 3. The key is tried with the free model; "Done" closes. `onDone` gets whether a key is now kept.
  */
 export default function AiConnectWizard({ onDone }: { onDone: (connected: boolean) => void }) {

@@ -1,8 +1,10 @@
 // The guide over Ollama's own pages, in the "Connect AI" window (ai_connection.rs). It points at what to press on the
 // sign-in, sign-up and key pages; it never types the player's email or password. When Ollama shows the new key, it
 // hands it to Game Access through a gameaccess-ai:// navigation that the window stops before it leaves the PC.
+// The window runs this before the page is parsed and in every frame: only the top page gets the guide, once it has a
+// root element. Google opens in the player's browser (ai_connection.rs), so its button stays.
 (() => {
-  if (window.__gaGuide) return; window.__gaGuide = true;
+  if (window.__gaGuide || window.top !== window) return; window.__gaGuide = true;
   const css = `
   #ga-guide-ring{position:fixed;z-index:2147483646;border-radius:10px;pointer-events:none;transition:all .25s ease;
     box-shadow:0 0 0 3px #cc8333,0 0 0 9999px #05080cb3,0 0 24px 6px #cc833388}
@@ -12,9 +14,8 @@
   #ga-guide-tip .t{font:700 17px Manrope,"Segoe UI",sans-serif;margin:4px 0}
   #ga-guide-tip .h{color:#c8ced2;margin:0}
   #ga-guide-tip .ok{color:#a0d2b4}
-  #ga-guide-tip .bar{display:flex;gap:4px;margin-top:12px}#ga-guide-tip .bar i{flex:1;height:3px;border-radius:2px;background:#ffffff22}#ga-guide-tip .bar i.on{background:#cc8333}
-  a[href*="provider=GoogleOAuth"]{display:none!important}`;
-  const style = document.createElement('style'); style.textContent = css; document.documentElement.appendChild(style);
+  #ga-guide-tip .bar{display:flex;gap:4px;margin-top:12px}#ga-guide-tip .bar i{flex:1;height:3px;border-radius:2px;background:#ffffff22}#ga-guide-tip .bar i.on{background:#cc8333}`;
+  const style = document.createElement('style'); style.textContent = css;
   const ring = document.createElement('div'); ring.id = 'ga-guide-ring';
   const tip = document.createElement('div'); tip.id = 'ga-guide-tip'; tip.setAttribute('role', 'status');
   // An open <dialog> sits in the browser's top layer, above any z-index: the guide moves inside it while it is open.
@@ -45,9 +46,9 @@
     { n: 2, when: () => q('input[type="password"]'), at: () => q('input[type="password"]'),
       title: 'Tu contraseña', text: 'Escribila acá y tocá <b>Continuar</b>. La contraseña queda en Ollama: Game Access no la ve.' },
     { n: 1, when: () => q('input[name="email"]') && location.pathname.includes('sign-up'), at: () => q('input[name="email"]'),
-      title: 'Creá tu cuenta', text: 'Escribí tu correo y tocá <b>Continuar</b>, o usá <b>Continuar con GitHub</b>.' },
+      title: 'Creá tu cuenta', text: 'Escribí tu correo y tocá <b>Continuar</b>, o usá <b>GitHub</b>. <b>Google</b> se abre en tu navegador.' },
     { n: 1, when: () => q('input[name="email"]'), at: () => q('input[name="email"]'),
-      title: 'Entrá a Ollama', text: () => 'Escribí tu correo y tocá <b>Continuar</b>, o usá <b>Continuar con GitHub</b>.'
+      title: 'Entrá a Ollama', text: () => 'Escribí tu correo y tocá <b>Continuar</b>, o usá <b>GitHub</b>. <b>Google</b> se abre en tu navegador.'
         + (byText('a', /^(Registrarse|Sign up)$/) ? ' ¿No tenés cuenta? Tocá <b>Registrarse</b>, abajo.' : '') },
   ];
 
@@ -71,6 +72,11 @@
   }
   // The guide's own changes (its position, its text) must not wake it again.
   const ours = node => node === ring || node === tip || tip.contains(node);
-  new MutationObserver(list => { if (list.some(m => !ours(m.target))) tick(); }).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
-  addEventListener('resize', tick); addEventListener('scroll', tick, true); setInterval(tick, 500); tick();
+  const start = () => {
+    document.documentElement.appendChild(style);
+    new MutationObserver(list => { if (list.some(m => !ours(m.target))) tick(); }).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+    addEventListener('resize', tick); addEventListener('scroll', tick, true); setInterval(tick, 500); tick();
+  };
+  if (document.documentElement) start();
+  else new MutationObserver((_, watch) => { if (document.documentElement) { watch.disconnect(); start(); } }).observe(document, { childList: true });
 })();

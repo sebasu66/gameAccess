@@ -63,7 +63,7 @@ export async function aiOpenKeysInBrowser(): Promise<void> {
   await invoke("ai_open_keys_in_browser");
 }
 
-/** Listens to the guide window: the key kept, Google chosen (it does not work there), the window closed. */
+/** Listens to the guide window: the key kept, Google chosen (it went to the player's browser), the window closed. */
 export function listenAiGuide(handlers: { key: (ending: string) => void; google: () => void; closed: (saved: boolean) => void }): () => void {
   const onKey = (detail: unknown) => handlers.key(String((detail as { ending?: string } | null)?.ending ?? ""));
   const onClosed = (detail: unknown) => handlers.closed(Boolean((detail as { saved?: boolean } | null)?.saved));
