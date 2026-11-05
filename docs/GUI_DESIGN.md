@@ -39,7 +39,7 @@ Todo lo que se muestra es de uno de estos cinco niveles. Antes de crear algo nue
 
 **Menús de un juego** (tarjeta y `…` de la ficha): solo Jugar o Instalar, Administrar y Ver detalles (tarjeta de propiedades `GameInfoCard`, con cerrar y copiar). Lo demás está en su fila del Library Manager. Mientras descarga, la ficha ofrece Administrar descarga, que lleva a esa fila.
 
-**Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Refrescar juegos, Library Manager y ayuda **no** van en el marco.
+**Marco** (abajo a la derecha): Home, Juegos, Configuración, Niños en casa, Procesos y descargas (con luz mientras haya algo activo), Big Picture (siempre visible y diferenciado) y PLUS (siempre: "Activar PLUS" o el estado de la suscripción). Library Manager y ayuda **no** van en el marco; «Actualizar juegos» vive en la pantalla Catálogo, junto a los filtros (`CatalogRefreshButton.tsx`).
 
 ## 0c. Capas de estilo (Seba, 2026-11-05)
 

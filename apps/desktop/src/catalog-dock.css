@@ -135,3 +135,8 @@ html:not(.ga-desk-right-open) .library-room:not(.surface-display):not(.surface-t
 .ga-manager-view .lm-grid-wrap::-webkit-scrollbar { display: none; }
 .ga-manager-view .lm-grid th { position: sticky; top: 0; z-index: 2; }
 .ga-manager-view .lm-grid th.lm-cell-acts { z-index: 3; }
+/* Refresh, on the catalog only: it sits with the filters and turns while the catalog is being asked. */
+.ga-grid-toolbar .ga-catalog-refresh { margin-right: auto; }
+.ga-catalog-refresh:disabled { cursor: wait; opacity: .55; }
+.ga-catalog-refresh[aria-busy="true"] svg { animation: ga-download-spin 1.5s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .ga-catalog-refresh[aria-busy="true"] svg { animation: none; } }

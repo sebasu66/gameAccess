@@ -28,8 +28,6 @@ import { startPlusLook } from "./plusLook";
 import { startSteamGuide } from "./steamGuide";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
-import { RefreshCw } from "lucide-react";
-import { GaIconButton } from "./components/ga/Buttons";
 import PixelAppearance from "./PixelAppearance";
 import AmbientBackground from "./AmbientBackground";
 import GameLibraryManager from "./library-manager/GameLibraryManager";
@@ -42,7 +40,6 @@ import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { setAppLocale, translate, useI18n } from "./i18n";
-import { CATALOG_REFRESH_REQUEST, CATALOG_REFRESH_STATUS } from "./catalogUpdates";
 import "./templates/base.css";
 import "./templates/flavor-terminal.css";
 import "./styles.css";
@@ -60,7 +57,6 @@ import "./bootstrap.css";
 
 import "./catalog-tabs.css";
 import "./library-input-controller.css";
-import "./catalog-refresh.css";
 import "./activation.css";
 import "./splash-screen.css";
 import "./library-sections.css";
@@ -105,7 +101,6 @@ function CatalogShell() {
   const [actionsTarget, setActionsTarget] = React.useState<HTMLDivElement | null>(null);
   const [dockTarget, setDockTarget] = React.useState<HTMLDivElement | null>(null);
   const [mode, setMode] = React.useState<CatalogMode>(() => getCatalogMode());
-  const [refreshing, setRefreshing] = React.useState(false);
   // The catalog database is prepared (and brought up to date when due) before the library opens; the central
   // dialog shows the progress when it takes a while.
   const [prepared, setPrepared] = React.useState(false);
@@ -119,11 +114,6 @@ function CatalogShell() {
     startScreenUsed("home");
     setAppScreen("home");
   }, [prepared, openingSettled]);
-  React.useEffect(() => {
-    const status = (event: Event) => setRefreshing((event as CustomEvent<{busy:boolean}>).detail.busy);
-    window.addEventListener(CATALOG_REFRESH_STATUS, status);
-    return () => window.removeEventListener(CATALOG_REFRESH_STATUS, status);
-  }, []);
   const changeMode = React.useCallback((next: CatalogMode) => {
     if (next === mode) return;
     captureLibraryUiState(mode);
@@ -131,14 +121,9 @@ function CatalogShell() {
     setCatalogMode(next);
     setMode(next);
   }, [mode]);
-  const refreshCatalog = React.useCallback(() => {
-    captureLibraryUiState(mode);
-    void narrate(`Manual catalog refresh requested while viewing ${mode}.`, { area: "CATALOG" });
-    window.dispatchEvent(new Event(CATALOG_REFRESH_REQUEST));
-  }, [mode]);
   return <>
     <LibraryInputController mode={mode} onModeChange={changeMode} />
-    <PluginIndicator /><div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")}><GaIconButton className="catalog-refresh-button" icon={<RefreshCw size={20} aria-hidden="true" />} label={t("refreshGames")} title={t("refreshGamesTitle")} onClick={refreshCatalog} disabled={refreshing} aria-busy={refreshing} /></div></div>
+    <PluginIndicator /><div className="catalog-bottom-actions" role="toolbar" aria-label={t("catalogActions")}><div className="ga-footer-left"><BackendStatus /><AccessPass /><PremiumEntry /></div><div className="catalog-scroll-action" ref={setActionsTarget} /><div className="ga-dock" ref={setDockTarget} role="group" aria-label={t("catalogActions")} /></div>
     {prepared ? <RenderProbe id="App"><App key={mode} actionsTarget={actionsTarget} dockTarget={dockTarget} catalogNavigation={<CatalogTabs mode={mode} onChange={changeMode} />} /></RenderProbe> : null}
   </>;
 }

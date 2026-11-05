@@ -39,6 +39,7 @@ import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
+import CatalogRefreshButton from "./CatalogRefreshButton";
 import { CLOSE_LIBRARY_MANAGER_EVENT, OPEN_LIBRARY_MANAGER_EVENT, setLibraryManagerShown } from "./libraryManagerNav";
 import { setAppScreen } from "./appScreen";
 import CatalogSpotlight from "./CatalogSpotlight";
@@ -538,7 +539,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.lead ?? null}
       {view === "catalog" && !searchQuery.trim() && !props.lead ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{filters}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+      {showManager ? null : <div className="ga-grid-toolbar">{filters}{view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
       </div> : null}<span className="ga-strip-info" ref={setInfoTarget} /></div>}
