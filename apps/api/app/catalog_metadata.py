@@ -8,6 +8,8 @@ from typing import Any
 
 from sqlalchemy import Engine, inspect, text
 
+from .genre_normalization import canonical_genres
+
 
 CATALOG_SCHEMA_VERSION = 2
 CATALOG_ALLOWED_PRODUCT_TYPES = frozenset({"game"})
@@ -295,7 +297,7 @@ def upsert_steam_metadata(engine: Engine, game_id: int, metadata: dict[str, Any]
     app_id = int(metadata.get("app_id") or 0)
     if app_id <= 0:
         raise ValueError("Steam metadata requires a positive app_id")
-    genres = [str(item) for item in metadata.get("genres") or []]
+    genres = canonical_genres(str(item) for item in metadata.get("genres") or [])
     categories = [str(item) for item in metadata.get("categories") or []]
     developers = [str(item) for item in metadata.get("developers") or []]
     publishers = [str(item) for item in metadata.get("publishers") or []]

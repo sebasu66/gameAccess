@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, ThumbsDown, ThumbsUp, X } from "lucide-react";
-import { genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
+import { genreLabel, offeredGenres } from "./libraryGenres";
 import { GaIconButton } from "./components/ga/Buttons";
 import { loadAiProfile, MULTIPLAYER_MODES, PREFERENCES_CHANGED_EVENT, PROFILE_TEXT_LIMIT, removeRating, saveAiProfile, type AiProfile, type MultiplayerMode, type PlayStyle } from "./aiProfile";
 import { queryCatalogCache } from "./catalogCache";
@@ -94,8 +94,7 @@ export default function AiProfileEditor() {
   const [profile, setProfile] = useState<AiProfile>(loadAiProfile);
   const update = (patch: Partial<AiProfile>) => { const next = { ...profile, ...patch }; setProfile(next); saveAiProfile(next); };
   const genreNames = useCatalogGenreNames();
-  const genres = useMemo(() => [...new Set(genreConceptIds(genreNames))].filter(id => !genreIsSoftware(id))
-    .sort((a, b) => genreLabel(a).localeCompare(genreLabel(b))), [genreNames]);
+  const genres = useMemo(() => offeredGenres(genreNames), [genreNames]);
   const rate = (id: string, value: 1 | -1) => {
     const next = { ...profile.genres };
     if (next[id] === value) delete next[id]; else next[id] = value;

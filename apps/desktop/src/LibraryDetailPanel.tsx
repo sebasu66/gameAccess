@@ -1,3 +1,4 @@
+import { genreLabels } from "./libraryGenres";
 import {Download, Store} from "lucide-react";
 import { installThroughSteam, isSteamOwned } from "./steamLibrary";
 import { useLibraryEntry } from "./libraryScan";
@@ -493,7 +494,7 @@ function SteamFacts({ details, game }: { details: GameDetails | null; game: Cata
   const recommendations = steam?.recommendation_count ?? game.recommendation_count;
   const facts = [
     [t("factSize"), installSize],
-    [t("factGenre"), compactValue(steam?.genres)],
+    [t("factGenre"), compactValue(steam?.genres && genreLabels(steam.genres))],
     [t("factUserRating"), rating],
     [t("factRecommendations"), typeof recommendations === "number" ? new Intl.NumberFormat(localeTag).format(recommendations) : t("notReported")],
     [t("factLanguages"), plainText(steam?.supported_languages) || t("notReported")],
@@ -546,7 +547,7 @@ function DesktopFeature(props: FeaturePanelProps) {
       <SteamHeaderArtwork game={props.game} details={details} />
       <div className="ga-detail-body">
         <section className="ga-detail-info" aria-label={t("uiInformacionDelJuego")}>
-          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{(steam?.genres ?? props.game.genres)?.join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
+          <div className="ga-detail-heading-tools"><p className="ga-detail-eyebrow">{genreLabels(steam?.genres ?? props.game.genres).join(" · ")}</p>{hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw size={16} className={detailState.refreshingSteam ? "is-refreshing" : undefined} /></button> : null}</div>
           <h1>{props.game.name}</h1>
           <div className="ga-detail-facts"><span>{steam?.release_date ?? props.game.release_date ?? "Lanzamiento no informado"}</span><span>{installSize}</span><span>{platforms(details)}</span></div>
           <DetailPlayModes game={props.game} details={details} />

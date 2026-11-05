@@ -1,4 +1,4 @@
-import { genreLabel } from "./libraryGenres";
+import { genreConceptId, genreStoredName } from "./libraryGenres";
 
 /**
  * What the player says about themselves for the AI (Settings › AI › Your profile; Seba, 2026-11-05): the genres they
@@ -29,7 +29,11 @@ export const EMPTY_PROFILE: AiProfile = { genres: {}, play: null, modes: [], pos
 export function loadAiProfile(): AiProfile {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) || "null") as Partial<AiProfile> | null;
-    return stored ? { ...EMPTY_PROFILE, ...stored } : EMPTY_PROFILE;
+    if (!stored) return EMPTY_PROFILE;
+    // Ratings saved under a spelling or a value the table has since merged or dropped.
+    const genres: AiProfile["genres"] = {};
+    for (const [value, rating] of Object.entries(stored.genres ?? {})) { const id = genreConceptId(value); if (id) genres[id] = rating; }
+    return { ...EMPTY_PROFILE, ...stored, genres };
   } catch { return EMPTY_PROFILE; }
 }
 
@@ -53,7 +57,7 @@ const PLAY_NAMES: Record<PlayStyle, string> = { single: "single player", multi: 
 
 /** The profile as lines of the prompt; only what the player filled in. */
 export function describeProfile(profile: AiProfile): string[] {
-  const genres = (value: 1 | -1) => Object.entries(profile.genres).filter(([, rating]) => rating === value).map(([id]) => genreLabel(id));
+  const genres = (value: 1 | -1) => Object.entries(profile.genres).filter(([, rating]) => rating === value).map(([id]) => genreStoredName(id));
   const multiplayer = profile.play === "multi" || profile.play === "both";
   const words = (title: string, text: string) => text.trim() ? `${title}: ${JSON.stringify(text.trim().slice(0, PROFILE_TEXT_LIMIT))}` : "";
   return [

@@ -24,7 +24,7 @@ import { gameStateManager } from "./GameStateManager";
 import { formatBytes, getDownloadStatusLabel } from "./GenericDownloadProgress";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogSort, LibrarySection, LibraryView } from "./librarySections";
-import { genreConceptIds, genreIsSoftware, genreLabel } from "./libraryGenres";
+import { genreConceptIds, genreLabel, offeredGenres } from "./libraryGenres";
 import { DEFAULT_LIBRARY_FILTERS, filterLibraryGamesDetailed, getLibrarySearchFacets, hasNoActiveFilters, LIBRARY_FEATURE_OPTIONS, SOFTWARE_GENRES } from "./librarySearch";
 import type { LibrarySearchFilters } from "./librarySearch";
 import { getCatalogMode } from "./catalogMode";
@@ -356,8 +356,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const facets = useMemo(() => {
     if (view === "installed" || !catalogGenreNames.length) return memoryFacets;
     const softwareIds = new Set(genreConceptIds(SOFTWARE_GENRES));
-    const concepts = [...new Set(genreConceptIds(catalogGenreNames))].filter(id => !genreIsSoftware(id) && !softwareIds.has(id));
-    return { ...memoryFacets, genres: concepts.sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), "es")) };
+    return { ...memoryFacets, genres: offeredGenres(catalogGenreNames).filter(id => !softwareIds.has(id)) };
   }, [memoryFacets, catalogGenreNames, view]);
   const favoritesCount = useMemo(() => displaySection.games.filter(game => props.preferences?.[game.id] === 1).length, [displaySection.games, props.preferences]);
   useEffect(() => {

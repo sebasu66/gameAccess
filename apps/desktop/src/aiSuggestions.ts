@@ -1,3 +1,4 @@
+import { canonicalGenres, genreLabels } from "./libraryGenres";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAiConnected } from "./aiConnection";
@@ -204,7 +205,7 @@ export function pickOffered(answer: unknown, offered: CatalogGame[], max: number
   return picks;
 }
 
-const compact = (game: CatalogGame) => ({ id: game.id, name: game.name, genres: (game.genres ?? []).slice(0, 3), tags: (game.tags ?? []).slice(0, 5), released: game.release_date ?? undefined });
+const compact = (game: CatalogGame) => ({ id: game.id, name: game.name, genres: canonicalGenres(game.genres).slice(0, 3), tags: (game.tags ?? []).slice(0, 5), released: game.release_date ?? undefined });
 
 /** Once a day: the popular releases of the last 30 days go to Gemma, which may pick up to 3 for this player. */
 export async function refreshFreshPicks(signals: TasteSignals): Promise<AiPicksState | null> {
@@ -271,7 +272,7 @@ async function demoAnswer(text: string): Promise<AiAnswer | null> {
   const asked = text ? (es ? `«${text}» y tu perfil` : `"${text}" and your profile`) : (es ? "tu perfil" : "your profile");
   return {
     reply: es ? `Dale, tengo claro lo que buscás: ${asked}. Te sugiero estos juegos. Decime si te gustan o si querés cambiar algo.` : `Okay, I have a clear picture: ${asked}. I am suggesting these games. Let me know if you like them or want to change something.`,
-    picks: found.items.map(game => ({ game, why: es ? `Tiene ${(game.genres ?? ["lo que pediste"])[0]} y se juega como lo que buscás.` : `It has ${(game.genres ?? ["what you asked"])[0]} and plays like what you want.` })),
+    picks: found.items.map(game => ({ game, why: es ? `Tiene ${genreLabels(game.genres)[0] ?? "lo que pediste"} y se juega como lo que buscás.` : `It has ${genreLabels(game.genres)[0] ?? "what you asked"} and plays like what you want.` })),
   };
 }
 

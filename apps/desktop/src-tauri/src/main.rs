@@ -8,6 +8,7 @@ mod parental_lock;
 mod access_policy;
 mod launch_intent;
 mod catalog_cache;
+mod catalog_genres;
 mod source_index;
 mod game_lessons;
 mod download_lifecycle;

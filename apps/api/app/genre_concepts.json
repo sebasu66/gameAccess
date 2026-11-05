@@ -1,10 +1,27 @@
 {
-  "_comment": "Genre concepts shared by the client (apps/desktop/src/genreConcepts.json) and the catalog pipeline (apps/api/app/genre_concepts.json). The two files must stay identical; a test enforces it. Values in the catalog that match no alias keep their own text and get a slug id. Regenerate docs/CATALOG_GENRE_MAPPING.md after editing.",
+  "_comment": "Genre concepts shared by the client (apps/desktop/src/genreConcepts.json) and the catalog pipeline (apps/api/app/genre_concepts.json). The two files must stay identical; a test enforces it. `version` goes up with any change: the client rewrites its stored genres when it changes. `canonical` is what is stored; `label` is one more Spanish spelling, the texts shown come from the translations (genre_<id>). `not_a_genre` lists content warnings, perspectives and settings, which never reach the catalog as genres. Regenerate docs/CATALOG_GENRE_MAPPING.md after editing.",
+  "version": 2,
   "not_a_genre": [
     "Violent",
     "Gore",
     "Sexual Content",
-    "Nudity"
+    "Nudity",
+    "Violento",
+    "Violencia",
+    "Sangriento",
+    "Sangrientos",
+    "Contenido sexual",
+    "Desnudos",
+    "Desnudez",
+    "FPP",
+    "TPP",
+    "Modern",
+    "Historical",
+    "Comedy",
+    "Movie",
+    "Turn-based",
+    "Real-time",
+    "Educational"
   ],
   "concepts": [
     {
@@ -13,7 +30,8 @@
       "label": "Acción",
       "aliases": [
         "Action",
-        "Acción"
+        "Acción",
+        "Combat"
       ]
     },
     {
@@ -22,7 +40,9 @@
       "label": "Aventura",
       "aliases": [
         "Adventure",
-        "Aventura"
+        "Aventura",
+        "Exploration",
+        "Narrative"
       ]
     },
     {
@@ -49,7 +69,10 @@
         "Simulation",
         "Simulator",
         "Simuladores",
-        "Simulación"
+        "Simulación",
+        "Managerial",
+        "Economic",
+        "Virtual life"
       ]
     },
     {
@@ -70,7 +93,8 @@
         "Role-playing (RPG)",
         "Role-playing",
         "Role playing",
-        "Rol"
+        "Rol",
+        "JRPG"
       ]
     },
     {
@@ -108,7 +132,8 @@
       "label": "Carreras",
       "aliases": [
         "Racing",
-        "Carreras"
+        "Carreras",
+        "Off-road"
       ]
     },
     {
@@ -127,7 +152,9 @@
       "aliases": [
         "Puzzle",
         "Puzle",
-        "Puzles"
+        "Puzles",
+        "Hidden Object",
+        "Quiz/Trivia"
       ]
     },
     {
@@ -136,7 +163,8 @@
       "label": "Disparos",
       "aliases": [
         "Shooter",
-        "Disparos"
+        "Disparos",
+        "Shoot 'em Up"
       ]
     },
     {
@@ -163,7 +191,8 @@
       "canonical": "Arcade",
       "label": "Arcade",
       "aliases": [
-        "Arcade"
+        "Arcade",
+        "Pinball"
       ]
     },
     {
@@ -243,6 +272,100 @@
       "aliases": [
         "Horror",
         "Terror"
+      ]
+    },
+    {
+      "id": "roguelike",
+      "canonical": "Roguelike",
+      "label": "Roguelike",
+      "aliases": [
+        "Roguelike",
+        "Roguelite",
+        "Rogue-like"
+      ]
+    },
+    {
+      "id": "survival",
+      "canonical": "Survival",
+      "label": "Supervivencia",
+      "aliases": [
+        "Survival",
+        "Supervivencia"
+      ]
+    },
+    {
+      "id": "sandbox",
+      "canonical": "Sandbox",
+      "label": "Sandbox",
+      "aliases": [
+        "Sandbox",
+        "Building",
+        "Construcción"
+      ]
+    },
+    {
+      "id": "open_world",
+      "canonical": "Open World",
+      "label": "Mundo abierto",
+      "aliases": [
+        "Open World",
+        "Mundo abierto"
+      ]
+    },
+    {
+      "id": "stealth",
+      "canonical": "Stealth",
+      "label": "Sigilo",
+      "aliases": [
+        "Stealth",
+        "Sigilo",
+        "Espionage",
+        "Espionaje"
+      ]
+    },
+    {
+      "id": "moba",
+      "canonical": "MOBA",
+      "label": "MOBA",
+      "aliases": [
+        "MOBA"
+      ]
+    },
+    {
+      "id": "metroidvania",
+      "canonical": "Metroidvania",
+      "label": "Metroidvania",
+      "aliases": [
+        "Metroidvania"
+      ]
+    },
+    {
+      "id": "fantasy",
+      "canonical": "Fantasy",
+      "label": "Fantasía",
+      "aliases": [
+        "Fantasy",
+        "Fantasía"
+      ]
+    },
+    {
+      "id": "sci_fi",
+      "canonical": "Sci-fi",
+      "label": "Ciencia ficción",
+      "aliases": [
+        "Sci-fi",
+        "Science Fiction",
+        "Ciencia ficción"
+      ]
+    },
+    {
+      "id": "mystery",
+      "canonical": "Mystery",
+      "label": "Misterio",
+      "aliases": [
+        "Mystery",
+        "Detective-mystery",
+        "Misterio"
       ]
     },
     {
