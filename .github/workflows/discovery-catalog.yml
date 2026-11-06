@@ -37,4 +37,11 @@ jobs:
           git config user.name "gameAccess catalog updater"
           git config user.email "catalog-updater@users.noreply.github.com"
           git commit -m "Refresh Steam discovery installer database"
-          git push origin HEAD:dev
+          # The refresh takes about an hour and dev usually moves meanwhile. Only this job writes deploy/catalog-cache,
+          # so the new seed goes on top of whatever arrived.
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase --autostash origin dev && git push origin HEAD:dev && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep 20
+          done
+          exit 1
