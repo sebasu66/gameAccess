@@ -10,5 +10,7 @@
   /* Sizes. */
   --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
   /* Cards of a list of notices (Activity). */
+  /* Mode rail: its default width, its margin inside the frame and the gap to the screen beside it. */
+  --ga-mode-rail-w: 112px; --ga-rail-inset: 12px; --ga-rail-gutter: 16px;
   --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
 }

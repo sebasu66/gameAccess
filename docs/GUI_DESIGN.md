@@ -365,6 +365,12 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Encendido: sin filtros, sin orden y sin destacado. Arriba, la sección «La IA te responde» con su mensaje (o **Conectar IA**, que lleva a Configuración › IA, si no hay clave). Debajo solo los juegos de la IA, en su orden.
 - Cada resultado ocupa dos celdas: la tarjeta y, pegado a ella, el motivo sobre una sombra sutil en semicírculo centrada en la carátula, como la del menú contextual (`ga-ai-result-why`): sin línea ni bordes rectos. Al abrir el menú contextual de ese juego, el motivo se oculta hasta que el menú se cierra. Vista previa: `?uiDemo=1&uiDemoPlus`, con `gameaccess:ai-search` en `true`.
 
+### 4.33 Barra de modo `ga-mode-rail` (componente `ModeRail`, Seba 2026-11-06)
+
+Primera columna de los cinco modos básicos (Home, Juegos, Library Manager, Control parental, Ajustes): fina, a todo el alto de la ventana dentro del marco, con un margen. No está en Big Picture ni en la pantalla del chico. Es una sola barra, que cambia su contenido al cambiar de modo, con una animación por cambio. Medidas en `templates/base.css` (`--ga-mode-rail-w`, `--ga-rail-inset`, `--ga-rail-gutter`); disposición en `mode-rail.css`.
+
+Sus estilos internos van en hojas construidas (`adoptedStyleSheets`): la política de seguridad de la app bloquea los `<style>` creados en ejecución, y eso solo se ve en la app compilada, no en la vista previa de Vite. Lo mismo vale para cualquier componente nuevo con Shadow DOM: probalo en la ventana real.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,

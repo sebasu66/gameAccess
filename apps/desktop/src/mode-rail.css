@@ -1,0 +1,36 @@
+/* The mode rail (ModeRail.tsx, docs/GUI_DESIGN.md): the first column of every basic mode, inside the frame, above the
+   screens and below dialogs. Screen layer: only its layout; sizes come from templates/base.css. Stage: prototype. */
+:root { --ga-mode-rail-space: calc(var(--ga-mode-rail-w) + var(--ga-rail-inset) + var(--ga-rail-gutter)); }
+.ga-mode-rail-slot { display: contents; }
+/* Placed by the window, whatever global rules say about the page's children (hence the weight and !important). */
+html body ga-mode-rail.ga-mode-rail { position: fixed !important; z-index: 111; display: block !important; margin: 0 !important; padding: 0 !important;
+  width: var(--ga-mode-rail-w) !important; height: auto !important; min-width: 0 !important; max-width: none !important; transform: none;
+  left: calc(var(--ga-desk-left, 0px) + var(--ga-rail-inset)) !important; right: auto !important;
+  top: calc(var(--window-chrome-height, 34px) + var(--ga-rail-inset)) !important; bottom: calc(var(--ga-footer, 0px) + var(--ga-rail-inset)) !important; }
+html body.ga-device-frame ga-mode-rail.ga-mode-rail { z-index: 41;
+  left: calc(var(--ga-frame-left, 0px) + var(--ga-desk-left, 0px) + var(--ga-rail-inset)) !important;
+  top: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px) + var(--ga-rail-inset)) !important; bottom: calc(var(--ga-frame-bottom, 0px) + var(--ga-rail-inset)) !important; }
+/* Screens start after the rail. */
+html.ga-mode-rail-on .ga-screen { left: calc(var(--ga-desk-left, 0px) + var(--ga-mode-rail-space)); }
+html.ga-mode-rail-on body.ga-device-frame .ga-screen { left: calc(var(--ga-frame-left, 0px) + var(--ga-desk-left, 0px) + var(--ga-mode-rail-space)) !important; }
+/* The games' top bar too. */
+html.ga-mode-rail-on header.topbar { padding-left: var(--ga-mode-rail-space); box-sizing: border-box; }
+/* Big Picture (and the child's screen, built on it) has no rail, and nothing keeps clear of one. */
+html body.ga-big-screen ga-mode-rail.ga-mode-rail { display: none !important; }
+html.ga-mode-rail-on body.ga-big-screen { --ga-mode-rail-space: 0px; --ga-rail-clear: 0px; }
+
+/* Settings > Appearance > mode rail */
+.ga-rail-settings .ga-rail-wide { grid-column: 1 / -1; }
+.ga-rail-seg { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); }
+.ga-rail-seg button { min-height: var(--ga-control-h); padding: 0 var(--ga-space-2); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-m); background: var(--ga-surface); color: inherit; font: inherit; font-size: var(--ga-t4-size); cursor: pointer; }
+.ga-rail-seg button[aria-pressed="true"] { border-color: var(--ga-orange); color: var(--ga-orange); }
+.ga-rail-field { display: grid; gap: var(--ga-space-1); align-content: start; font-size: var(--ga-label-size); }
+.ga-rail-field > span { font-weight: 700; }
+.ga-rail-field select, .ga-rail-field input[type="text"] { min-height: var(--ga-control-h); padding: 0 var(--ga-space-1); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-m); background: var(--ga-surface); color: inherit; font: inherit; }
+.ga-rail-color { display: flex; align-items: center; gap: var(--ga-row-gap); }
+.ga-rail-color input[type="color"] { width: var(--ga-control-h); height: var(--ga-tool-size); padding: 2px; border: 1px solid var(--ga-line); background: var(--ga-surface); cursor: pointer; }
+.ga-rail-css textarea { width: 100%; min-height: 140px; box-sizing: border-box; padding: var(--ga-row-gap); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-m); background: var(--ga-surface); color: inherit; font: 400 var(--ga-t4-size)/1.5 ui-monospace, Consolas, monospace; resize: vertical; }
+.ga-rail-css-actions { display: flex; flex-wrap: wrap; gap: var(--ga-row-gap); align-items: center; margin-top: var(--ga-row-gap); }
+.ga-rail-error { margin: var(--ga-space-1) 0 0; color: var(--ga-danger-ink); font-size: var(--ga-status-size); line-height: 1.45; white-space: pre-line; }
+.ga-rail-ok { margin: var(--ga-space-1) 0 0; color: var(--ga-kind-ok); font-size: var(--ga-status-size); }
+.ga-rail-status { font-size: var(--ga-label-size); color: var(--ga-muted); }

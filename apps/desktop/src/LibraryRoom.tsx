@@ -62,6 +62,7 @@ import { playUiSound } from "./uiSounds";
 import type { CatalogGame } from "./types";
 import { uiDemo } from "./devDemo/uiDemo";
 import ViewRail from "./ViewRail";
+import { useModeRail } from "./modeRailPreferences";
 import { gsap, motionOk } from "./motion/gsap";
 
 interface LibraryRoomProps {
@@ -108,6 +109,7 @@ function catalogScreenEnd(last: CatalogGame[]): number {
 }
 
 export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
+  const modeRailOn = useModeRail().enabled;
   const { locale, t } = useI18n();
   const rootRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -749,7 +751,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
-      <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} />
+      {modeRailOn ? null : <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} />}
       <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={markActivity} onAccept={gameId => { markActivity(); const game = games.find(item => item.id === gameId); if (game) void playGame(game); }} />
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
