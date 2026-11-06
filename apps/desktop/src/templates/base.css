@@ -9,4 +9,6 @@
   --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
   /* Sizes. */
   --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
+  /* Cards of a list of notices (Activity). */
+  --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
 }

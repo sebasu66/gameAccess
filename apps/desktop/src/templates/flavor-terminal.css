@@ -16,6 +16,11 @@
   --ga-tray-bg: var(--ga-panel); --ga-tray-glass: blur(10px); --ga-tray-line: var(--ga-line); --ga-tray-radius: var(--ga-radius-m); --ga-tray-ink: var(--ga-muted); --ga-tray-ink-hover: var(--ga-white); --ga-tray-hover: var(--ga-surface-2);
   /* Fields and choices of a settings screen. */
   --ga-field-line: var(--ga-line); --ga-field-ink: var(--ga-text-ink); --ga-field-font: 500 var(--ga-t3-size)/1.4 var(--ga-text-family);
+  /* Cards of a list of notices (Activity): each kind's colour and how strongly a card takes it. */
+  --ga-kind-news: var(--ga-orange); --ga-kind-taste: var(--ga-violet); --ga-kind-ok: var(--ga-ok); --ga-kind-warn: var(--ga-warn); --ga-kind-frost: var(--ga-frost); --ga-kind-fail: var(--ga-danger); --ga-kind-other: var(--ga-muted);
+  --ga-feed-tint: 20%; --ga-feed-tint-end: 4%; --ga-feed-tile: 24%; --ga-feed-edge: 30%; --ga-feed-edge-hot: 70%; --ga-feed-radius: var(--ga-radius-l);
+  --ga-feed-title-font: 700 15px/1.3 var(--ga-text-family); --ga-feed-body-font: 400 14px/1.4 var(--ga-text-family); --ga-feed-small-font: 400 13px var(--ga-text-family);
+  --ga-feed-time-font: 700 12px/1.2 var(--ga-text-family); --ga-feed-eyebrow-font: 700 12px var(--ga-text-family); --ga-feed-eyebrow-track: .08em;
   --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
   --ga-card-label-font: 700 11px var(--ga-text-family); --ga-card-value-font: 600 14px var(--ga-text-family); --ga-card-eyebrow-font: 800 11px var(--ga-text-family); --ga-tray-font: 650 10px var(--ga-text-family);
 }

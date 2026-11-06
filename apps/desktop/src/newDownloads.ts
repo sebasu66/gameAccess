@@ -65,8 +65,8 @@ export function recordNewDownloads(appIds: number[], origin: "catalog" | "plugin
     // Who found them (Seba, 2026-11-02): the plugin by its name, or the catalog update.
     text: downloadNewsText(fresh.length, item),
     timer: true,
-    // One entry for the new downloads: a later batch adds its line under the same title (activity.ts).
-    activity: { news: item.id, kind: "news", merge: "lines", text: downloadNewsLine(fresh.length, item) },
+    // Each batch is an entry of its group in Activity and opens its own news item.
+    activity: { news: item.id, kind: "news", category: origin === "catalog" ? "catalog" : "news", text: downloadNewsLine(fresh.length, item) },
     actions: [
       { label: translate("noticeOk"), kind: "secondary", run: () => hideNotice(notice) },
       { label: translate("newDownloadsMore"), kind: "primary", run: () => { hideNotice(notice); openNews(item.id); } },
@@ -75,7 +75,7 @@ export function recordNewDownloads(appIds: number[], origin: "catalog" | "plugin
   return item;
 }
 
-/** The short line of a batch in the history's one entry for new downloads: "22 games · plugin X". */
+/** The short line of a batch in the history: "22 games · plugin X". */
 export function downloadNewsLine(count: number, from: Pick<DownloadNews, "origin" | "source">): string {
   return translate("newDownloadsLine", { count, from: from.origin === "plugin" ? translate("newDownloadsLinePlugin", { name: from.source || "?" }) : translate("newDownloadsLineCatalog") });
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { activitySnapshot, clearActivity, markActivitySeen, MERGE_WINDOW_MS, recordActivity } from "./activity";
+import { activityCategory, activityGroups, activitySnapshot, clearActivity, markActivitySeen, recordActivity } from "./activity";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 
 describe("activity history (docs/GUI_DESIGN.md §4.9)", () => {
@@ -34,27 +34,40 @@ describe("activity history (docs/GUI_DESIGN.md §4.9)", () => {
     recordActivity({ key: "job:1", title: "Congelado", tone: "frost", state: "done" });
   });
 
-  it("joins a notice into the last one of its kind: one more line, or the new text in place of the old", () => {
-    const at = Date.now();
-    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 383 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at);
-    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 22 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at + 60_000);
-    expect(activitySnapshot()).toHaveLength(1);
-    expect(activitySnapshot()[0].lines?.map(line => line.text)).toEqual(["Ya se pueden descargar 383 juegos más.", "Ya se pueden descargar 22 juegos más."]);
-    recordActivity({ title: "Tu perfil de gustos", text: "Perfil: 0 %.", tone: "info", state: "info", kind: "taste", merge: "replace" }, at + 120_000);
-    recordActivity({ title: "Tu perfil de gustos", text: "Perfil: 27 %.", tone: "info", state: "info", kind: "taste", merge: "replace" }, at + 180_000);
-    expect(activitySnapshot()).toHaveLength(2);
-    expect(activitySnapshot()[0]).toMatchObject({ kind: "taste", text: "Perfil: 27 %." });
-    // The news entry is not the newest any more but still recent: a new batch joins it and brings it to the top.
-    recordActivity({ title: "Nuevos juegos para descargar", text: "Ya se pueden descargar 5 juegos más.", tone: "ok", state: "done", kind: "news", merge: "lines" }, at + 240_000);
-    expect(activitySnapshot().map(entry => entry.kind)).toEqual(["news", "taste"]);
-    expect(activitySnapshot()[0].lines).toHaveLength(3);
-  });
-
-  it("an old entry of the kind that is not the newest gets a new entry instead", () => {
-    const at = Date.now() - 3 * MERGE_WINDOW_MS;
+  it("a replacing notice takes the place of the last one of its kind, however old", () => {
+    const at = Date.now() - 86_400_000;
     recordActivity({ title: "Verificación de juegos", text: "65 corren", tone: "ok", state: "done", kind: "verify", merge: "replace" }, at);
     recordActivity({ title: "Otra cosa", tone: "info", state: "info" }, at + 1000);
     recordActivity({ title: "Verificación de juegos", text: "1 corre", tone: "ok", state: "done", kind: "verify", merge: "replace" });
-    expect(activitySnapshot().filter(entry => entry.kind === "verify")).toHaveLength(2);
+    const verify = activitySnapshot().filter(entry => entry.kind === "verify");
+    expect(verify).toHaveLength(1);
+    expect(verify[0].text).toBe("1 corre");
+  });
+
+  it("groups by category at any distance in time, and the group with the newest entry goes last", () => {
+    const at = Date.now() - 3 * 86_400_000;
+    recordActivity({ title: "Nuevos juegos", text: "383", tone: "ok", state: "done", kind: "news" }, at);
+    recordActivity({ key: "job:7", title: "Hades comprimido", tone: "frost", state: "done", appId: 7 }, at + 1000);
+    recordActivity({ key: "download:8", title: "Celeste listo", tone: "ok", state: "done", appId: 8 }, at + 2000);
+    expect(activityGroups(activitySnapshot()).map(group => group.category)).toEqual(["news", "library", "downloads"]);
+    recordActivity({ title: "Nuevos juegos", text: "22", tone: "ok", state: "done", kind: "news" }, at + 86_400_000);
+    const groups = activityGroups(activitySnapshot());
+    expect(groups.map(group => group.category)).toEqual(["library", "downloads", "news"]);
+    expect(groups.at(-1)!.entries.map(entry => entry.text)).toEqual(["383", "22"]);
+  });
+
+  it("a process still running is in no group, and a failure stays in its category", () => {
+    recordActivity({ key: "download:1", title: "Descargando", tone: "info", state: "running", appId: 1 });
+    expect(activityGroups(activitySnapshot())).toHaveLength(0);
+    recordActivity({ key: "download:1", title: "Falló", tone: "error", state: "failed", appId: 1 });
+    expect(activityGroups(activitySnapshot())[0].category).toBe("downloads");
+  });
+
+  it("an entry saved before categories existed finds its group", () => {
+    const old = { id: "a", key: "notice:1", title: "x", tone: "info", state: "info", startedAt: 1, seen: true } as const;
+    expect(activityCategory({ ...old, kind: "news" })).toBe("news");
+    expect(activityCategory({ ...old, appId: 5 })).toBe("library");
+    expect(activityCategory(old)).toBe("other");
+    expect(activityCategory({ ...old, kind: "task", category: "catalog" })).toBe("catalog");
   });
 });

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { recordActivity } from "./activity/activity";
+import { setAppScreen } from "./appScreen";
+import { translate } from "./i18n";
 import { hasTauriRuntime } from "./native";
 
 /**
@@ -33,6 +36,38 @@ export function notesFor(data: unknown, version: string, locale: string): Releas
   const lang = locale === "es" ? "es" : "en";
   const changes = (entry.changes[lang] || entry.changes.es || entry.changes.en || []).filter(line => typeof line === "string" && line.trim());
   return changes.length ? { version: entry.version, date: entry.date, changes } : null;
+}
+
+const VERSION_KEY = "gameaccess:app-version";
+/** Shows the version's notes on Home (HomeScreen.tsx). Home may not be drawn yet: it asks when it is. */
+export const OPEN_RELEASE_NOTES_EVENT = "gameaccess:open-release-notes";
+let pendingNotes = false;
+
+export function openReleaseNotes(): void {
+  pendingNotes = true;
+  setAppScreen("home");
+  window.dispatchEvent(new Event(OPEN_RELEASE_NOTES_EVENT));
+}
+
+export function takePendingReleaseNotes(): boolean {
+  const pending = pendingNotes;
+  pendingNotes = false;
+  return pending;
+}
+
+/** Tells the Activity panel that the app was updated, once per version. A new install has nothing to tell. */
+export function noteAppVersion(version: string, now = Date.now()): void {
+  try {
+    const last = localStorage.getItem(VERSION_KEY);
+    if (last === version) return;
+    localStorage.setItem(VERSION_KEY, version);
+    if (last) recordActivity({ key: `app:${version}`, kind: "app", category: "app", title: translate("activityAppUpdated", { version }), tone: "ok", state: "done" }, now);
+  } catch { /* storage may be blocked */ }
+}
+
+/** The start of the app: compares the running version with the one seen last. */
+export function trackAppVersion(): void {
+  if (hasTauriRuntime()) void getVersion().then(version => noteAppVersion(version)).catch(() => undefined);
 }
 
 export function useReleaseNotes(locale: string): ReleaseNotes | null {

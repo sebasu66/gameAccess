@@ -1,57 +1,74 @@
-/* The Activity panel (ActivityPanel.tsx, docs/GUI_DESIGN.md §4.17). Running: a name, a bar and cancel per process. */
-.ga-process-tasks { display: grid; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--ga-line); }
-.ga-process-tasks ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.ga-process-task { display: flex; align-items: center; gap: 8px; }
-.ga-process-task-open { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: 650 14px var(--ga-text-family); text-align: start; cursor: pointer; }
+/* The Activity panel (ActivityPanel.tsx, docs/GUI_DESIGN.md §4.17). Screen layer: only its layout. Sizes come from
+   templates/base.css, its look from templates/flavor-terminal.css. */
+.ga-activity { display: grid; gap: var(--ga-space-3); }
+
+/* Running: a name, a bar and cancel per process. */
+.ga-process-tasks { display: grid; gap: var(--ga-row-gap); margin-top: var(--ga-space-3); padding-top: var(--ga-space-2); border-top: 1px solid var(--ga-line); }
+.ga-activity .ga-process-tasks { margin-top: 0; padding-top: 0; border-top: 0; }
+.ga-process-tasks ul { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.ga-process-task { display: flex; align-items: center; gap: var(--ga-space-1); }
+.ga-process-task-open { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ga-feed-tight) var(--ga-feed-gap); padding: var(--ga-feed-pad); border-radius: var(--ga-radius-m); border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); font: var(--ga-feed-body-font); text-align: start; cursor: pointer; }
 .ga-process-task-open:hover { border-color: var(--ga-orange-line); }
 .ga-process-task-open:focus-visible, .ga-process-task-cancel:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
 .ga-process-task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-process-task-state { color: var(--ga-muted); font-variant-numeric: tabular-nums; }
 /* What the process is, over its name, and a download's size under its bar. */
-.ga-process-task-kind { grid-column: 1 / -1; font: 700 12px var(--ga-text-family); letter-spacing: .08em; text-transform: uppercase; color: var(--ga-orange); }
-.ga-process-task-detail { grid-column: 1 / -1; font: 400 13px var(--ga-text-family); color: var(--ga-muted); font-variant-numeric: tabular-nums; }
-.ga-process-task-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-process-task-kind { grid-column: 1 / -1; font: var(--ga-feed-eyebrow-font); letter-spacing: var(--ga-feed-eyebrow-track); text-transform: uppercase; color: var(--ga-orange); }
+.ga-process-task-detail { grid-column: 1 / -1; font: var(--ga-feed-small-font); color: var(--ga-muted); font-variant-numeric: tabular-nums; }
+.ga-process-task-bar { grid-column: 1 / -1; height: var(--ga-feed-bar); border-radius: var(--ga-radius-s); background: var(--ga-surface-2); overflow: hidden; }
 .ga-process-task-bar > i { display: block; height: 100%; background: var(--ga-orange); transition: width .4s; }
-.ga-process-task-cancel { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-white); cursor: pointer; }
+.ga-process-task-cancel { flex: none; width: var(--ga-control-h); height: var(--ga-control-h); display: grid; place-items: center; border-radius: var(--ga-radius-m); border: 1px solid var(--ga-line); background: var(--ga-surface); color: var(--ga-danger-ink); cursor: pointer; }
 .ga-process-task-cancel:hover:not(:disabled) { border-color: var(--ga-danger); }
 .ga-process-task-cancel:disabled { opacity: .5; cursor: default; }
-
-/* History: grouped by day, newest first; an entry with a game is a link to its row in the Library Manager. */
-.ga-activity { display: grid; gap: 20px; }
-.ga-activity .ga-process-tasks { margin-top: 0; padding-top: 0; border-top: 0; }
-.ga-activity-history { display: grid; gap: 12px; }
-.ga-activity-day { display: grid; gap: 6px; }
-.ga-activity-day-label { margin: 6px 0 0; font: 700 13px var(--ga-text-family); color: var(--ga-muted); }
-.ga-activity-day ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-/* Each kind has its colour (--kind): a gradient from it across the card, its edge and its icon (Seba, 2026-11-02). */
-.ga-activity-entry { --kind: var(--ga-muted); }
-.ga-activity-entry[data-kind="news"] { --kind: var(--ga-orange); }
-.ga-activity-entry[data-kind="taste"] { --kind: var(--ga-violet); }
-.ga-activity-entry[data-kind="verify"], .ga-activity-entry[data-kind="download"], .ga-activity-entry[data-kind="done"] { --kind: var(--ga-ok); }
-.ga-activity-entry[data-kind="verify"][data-tone="danger"] { --kind: var(--ga-warn); }
-.ga-activity-entry[data-kind="freeze"] { --kind: var(--ga-frost); }
-.ga-activity-entry[data-kind="failed"] { --kind: var(--ga-danger); }
-.ga-activity-link { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 14px; padding: 14px 16px; box-sizing: border-box; border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--kind) 30%, transparent);
-  background: linear-gradient(105deg, color-mix(in srgb, var(--kind) 20%, transparent), color-mix(in srgb, var(--kind) 4%, transparent) 65%), var(--ga-surface);
-  color: var(--ga-white); font: inherit; text-align: start; }
-button.ga-activity-link { cursor: pointer; transition: border-color .15s, filter .15s; }
-button.ga-activity-link:hover { border-color: color-mix(in srgb, var(--kind) 70%, transparent); filter: brightness(1.08); }
-button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
-.ga-activity-entry[data-unseen] .ga-activity-link { border-color: color-mix(in srgb, var(--kind) 60%, transparent); }
-/* The kind's icon in the card's corner: a tile in its colour; over the game's cover, a badge at its corner. */
-.ga-activity-mark { position: relative; display: grid; }
-.ga-activity-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--kind) 24%, transparent); color: var(--kind);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kind) 45%, transparent); }
-.ga-activity-art { width: 40px; height: 56px; border-radius: 6px; object-fit: cover; }
-.ga-activity-art + .ga-activity-icon { position: absolute; right: -8px; bottom: -6px; width: 24px; height: 24px; border-radius: 7px; background: var(--ga-panel); }
-.ga-activity-text { display: grid; gap: 4px; min-width: 0; padding-top: 2px; }
-.ga-activity-text strong { font: 700 15px/1.3 var(--ga-text-family); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ga-activity-text > span { font: 400 14px/1.4 var(--ga-text-family); color: var(--ga-text-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* The lines of the notices joined into one entry, each with its time. */
-.ga-activity-lines { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font: 400 14px/1.4 var(--ga-text-family); color: var(--ga-text-ink); }
-.ga-activity-lines time { margin-right: 8px; font-weight: 700; color: var(--kind); font-variant-numeric: tabular-nums; }
-.ga-activity-time { font: 700 12px/1.2 var(--ga-text-family); letter-spacing: .02em; color: color-mix(in srgb, var(--kind) 75%, var(--ga-white)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The app's own tasks (download sources, catalog updates) have no game to open and cannot be cancelled. */
 .ga-process-task[data-app-task] .ga-process-task-open { cursor: default; }
 .ga-process-task[data-app-task] .ga-process-task-open:hover { border-color: var(--ga-line); }
+
+/* History: one card per category, the newest at the bottom. */
+.ga-activity-history { display: grid; gap: var(--ga-row-gap); }
+.ga-activity-history-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.ga-activity-groups, .ga-activity-items { display: grid; gap: var(--ga-feed-gap); margin: 0; padding: 0; list-style: none; }
+.ga-activity-group { display: grid; gap: var(--ga-feed-gap); }
+.ga-activity-items { padding-inline-start: var(--ga-space-2); }
+
+/* Each kind has its colour (--kind): a gradient from it across the card, its edge and its icon. */
+.ga-activity-entry { --kind: var(--ga-kind-other); }
+[data-kind="news"], [data-kind="catalog"], [data-kind="app"] { --kind: var(--ga-kind-news); }
+[data-kind="taste"] { --kind: var(--ga-kind-taste); }
+[data-kind="verify"], [data-kind="download"], [data-kind="downloads"], [data-kind="done"] { --kind: var(--ga-kind-ok); }
+[data-kind="verify"][data-tone="danger"] { --kind: var(--ga-kind-warn); }
+[data-kind="freeze"], [data-kind="library"] { --kind: var(--ga-kind-frost); }
+[data-kind="failed"], .ga-activity-entry[data-state="failed"] { --kind: var(--ga-kind-fail); }
+
+.ga-activity-link { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--ga-feed-gap); padding: var(--ga-feed-pad); box-sizing: border-box; border-radius: var(--ga-feed-radius);
+  border: 1px solid color-mix(in srgb, var(--kind) var(--ga-feed-edge), transparent);
+  background: linear-gradient(105deg, color-mix(in srgb, var(--kind) var(--ga-feed-tint), transparent), color-mix(in srgb, var(--kind) var(--ga-feed-tint-end), transparent) 65%), var(--ga-surface);
+  color: var(--ga-white); font: inherit; text-align: start; }
+.ga-activity-group > button.ga-activity-link { grid-template-columns: auto minmax(0, 1fr) auto; }
+button.ga-activity-link { cursor: pointer; transition: border-color .15s, filter .15s; }
+button.ga-activity-link:hover { border-color: color-mix(in srgb, var(--kind) var(--ga-feed-edge-hot), transparent); filter: brightness(1.08); }
+button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+/* A category that got something new since the player looked at it: stronger edge and a mark, until it is opened. */
+.ga-activity-group[data-fresh] > .ga-activity-link { border-color: color-mix(in srgb, var(--kind) var(--ga-feed-edge-hot), transparent); animation: ga-activity-fresh .6s ease-out; }
+@keyframes ga-activity-fresh { from { filter: brightness(1.5); } }
+.ga-activity-new { width: var(--ga-feed-dot); height: var(--ga-feed-dot); margin-inline-start: var(--ga-space-1); border-radius: 50%; display: inline-block; background: var(--kind); vertical-align: middle; }
+.ga-activity-chevron { align-self: center; color: var(--kind); transition: transform .15s; }
+.ga-activity-link[aria-expanded="true"] .ga-activity-chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ga-activity-group[data-fresh] > .ga-activity-link { animation: none; }
+  .ga-activity-chevron, button.ga-activity-link { transition: none; }
+}
+
+/* The kind's icon in the card's corner: a tile in its colour; over the game's cover, a badge at its corner. */
+.ga-activity-mark { position: relative; display: grid; }
+.ga-activity-icon { width: var(--ga-feed-icon); height: var(--ga-feed-icon); display: grid; place-items: center; border-radius: var(--ga-feed-radius); background: color-mix(in srgb, var(--kind) var(--ga-feed-tile), transparent); color: var(--kind);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kind) var(--ga-feed-edge), transparent); }
+.ga-activity-art { width: var(--ga-feed-icon); height: var(--ga-feed-art); border-radius: var(--ga-radius-s); object-fit: cover; }
+.ga-activity-art + .ga-activity-icon { position: absolute; right: calc(var(--ga-space-1) * -1); bottom: calc(var(--ga-feed-tight) * -1); width: var(--ga-feed-badge); height: var(--ga-feed-badge); border-radius: var(--ga-radius-s); background: var(--ga-panel); }
+.ga-activity-text { display: grid; gap: var(--ga-feed-tight); min-width: 0; }
+.ga-activity-text strong { font: var(--ga-feed-title-font); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ga-activity-text > span { font: var(--ga-feed-body-font); color: var(--ga-text-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The lines of an older entry that joined several notices, each with its time. */
+.ga-activity-lines { display: grid; gap: var(--ga-feed-tight); margin: 0; padding: 0; list-style: none; font: var(--ga-feed-body-font); color: var(--ga-text-ink); }
+.ga-activity-lines time { margin-inline-end: var(--ga-space-1); font-weight: 700; color: var(--kind); font-variant-numeric: tabular-nums; }
+.ga-activity-time { font: var(--ga-feed-time-font); color: color-mix(in srgb, var(--kind) 75%, var(--ga-white)); font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { House, Sparkles } from "lucide-react";
 import AccountCard from "./AccountCard";
@@ -13,7 +13,7 @@ import GaScreen from "./components/ga/Screen";
 import { useI18n } from "./i18n";
 import NewsPanel from "./NewsPanel";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
-import { useReleaseNotes } from "./releaseNotes";
+import { OPEN_RELEASE_NOTES_EVENT, takePendingReleaseNotes, useReleaseNotes } from "./releaseNotes";
 import type { CatalogGame } from "./types";
 import "./home-screen.css";
 
@@ -36,6 +36,13 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
   const tier = useSyncExternalStore(subscribeTier, getActivationTier, () => null);
   const { welcome } = useNews();
   const notes = useReleaseNotes(locale);
+  useEffect(() => {
+    if (!notes) return;
+    const show = () => { if (takePendingReleaseNotes()) document.getElementById("ga-home-changes-title")?.scrollIntoView({ block: "start", behavior: "smooth" }); };
+    show();
+    window.addEventListener(OPEN_RELEASE_NOTES_EVENT, show);
+    return () => window.removeEventListener(OPEN_RELEASE_NOTES_EVENT, show);
+  }, [notes]);
   return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
     <div className="ga-home-content ga-stack ga-stack-lg">
       {welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>

@@ -24,6 +24,7 @@ import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
 import { startSingleAccordion } from "./singleAccordion";
 import { startPlusLook } from "./plusLook";
+import { trackAppVersion } from "./releaseNotes";
 import { repairShortcutIcons } from "./shortcutIcons";
 import { startSteamGuide } from "./steamGuide";
 import AccessPass from "./AccessPass";
@@ -104,7 +105,7 @@ function CatalogShell() {
   // The catalog database is in place before the library opens (the central dialog appears only if it has to be
   // installed); the news arrive afterwards, as a task of the Activity panel.
   const [prepared, setPrepared] = React.useState(false);
-  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); repairShortcutIcons(); }, []);
+  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); repairShortcutIcons(); trackAppVersion(); }, []);
   useAnnouncements(prepared);
   // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
   // opening has ended: a change of mode under the logo animation would run behind it.

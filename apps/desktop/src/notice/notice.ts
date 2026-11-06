@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { recordActivity, type ActivityState } from "../activity/activity";
+import { type ActivityCategory, recordActivity, type ActivityState } from "../activity/activity";
 
 /**
  * The app's single notice (docs/GUI_DESIGN.md §4.9): results, steps and simple confirmations, bottom right.
@@ -33,7 +33,7 @@ export interface Notice {
   /** Called once when this notice leaves the screen (closed, timed out or replaced). */
   onDismiss?: () => void;
   /** Its entry in the activity history: a process gives its key (one entry that changes state); false leaves none. */
-  activity?: { key?: string; state?: ActivityState; news?: string; kind?: string; merge?: "lines" | "replace"; title?: string; text?: string } | false;
+  activity?: { key?: string; state?: ActivityState; news?: string; kind?: string; category?: ActivityCategory; merge?: "replace"; title?: string; text?: string } | false;
   /** A question waiting for an answer (confirmNotice): no history entry, what follows the answer has its own. */
   question?: boolean;
 }
@@ -65,7 +65,7 @@ export function showNotice(input: NoticeInput): number {
     const state: ActivityState = input.activity?.state ?? (input.tone === "error" ? "failed" : working ? "running" : input.tone === "ok" || input.tone === "frost" ? "done" : "info");
     // A notice may word its history entry apart from itself (a short title for every notice of its kind).
     recordActivity({ key: input.activity?.key, title: input.activity?.title ?? input.title, text: input.activity?.text ?? input.text, tone: input.tone, state,
-      news: input.activity?.news, kind: input.activity?.kind, merge: input.activity?.merge, appId: input.game?.appId ?? undefined, name: input.game?.name, image: input.game?.image });
+      news: input.activity?.news, kind: input.activity?.kind, category: input.activity?.category, merge: input.activity?.merge, appId: input.game?.appId ?? undefined, name: input.game?.name, image: input.game?.image });
   }
   settle(previous);
   emit();

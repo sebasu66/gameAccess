@@ -93,6 +93,6 @@ describe("new downloads: notice, news item and bell", () => {
     const session = await app();
     const item = session.recordNewDownloads([30], "plugin", "Fuentes X");
     expect(session.getNotice()?.text).toContain("Fuentes X");
-    expect(session.getNotice()?.activity).toMatchObject({ news: item!.id, kind: "news", merge: "lines" });
+    expect(session.getNotice()?.activity).toMatchObject({ news: item!.id, kind: "news", category: "news" });
   });
 });
