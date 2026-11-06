@@ -1,0 +1,94 @@
+"""Real local peer transfer: metadata, magnet parsing and bytes without public trackers."""
+import threading
+import time
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import libtorrent as lt
+import pytest
+from game_download_manager.route_decision import SwitchToServer
+from game_download_manager import worker as downloader
+
+
+def _local_magnet(tmp_path, monkeypatch):
+    """A fixture torrent seeded on localhost; returns (magnet, output dir, payload, stop the seed)."""
+    seed_dir = tmp_path / "seed"
+    output_dir = tmp_path / "download"
+    seed_dir.mkdir()
+    output_dir.mkdir()
+    payload = b"GameAccess local torrent fixture\n" * 8192
+    (seed_dir / "fixture.bin").write_bytes(payload)
+    files = lt.file_storage()
+    files.add_file("fixture.bin", len(payload))
+    torrent = lt.create_torrent(files, 16384, lt.create_torrent.v1_only)
+    lt.set_piece_hashes(torrent, str(seed_dir))
+    info = lt.torrent_info(lt.bencode(torrent.generate()))
+    create_session = lt.session
+    settings = {"listen_interfaces": "127.0.0.1:0", "enable_dht": False,
+                "enable_lsd": False, "enable_upnp": False, "enable_natpmp": False,
+                "enable_outgoing_utp": False, "enable_incoming_utp": False}
+    seed = create_session(settings)
+    seed_params = lt.add_torrent_params()
+    seed_params.ti = info
+    seed_params.save_path = str(seed_dir)
+    seed_params.flags &= ~(lt.torrent_flags.paused | lt.torrent_flags.auto_managed)
+    seed_handle = seed.add_torrent(seed_params)
+    deadline = time.monotonic() + 15
+    while not seed_handle.status().is_seeding:
+        assert time.monotonic() < deadline, "Local seed did not become ready"
+        time.sleep(0.05)
+    # Torrent checking and asynchronous socket binding have separate readiness.
+    deadline = time.monotonic() + 15
+    while seed.listen_port() == 0:
+        assert time.monotonic() < deadline, [alert.message() for alert in seed.pop_alerts()]
+        time.sleep(0.05)
+    peer_port = seed.listen_port()
+
+    class LocalSession:
+        def __init__(self, ignored_settings):
+            self.session = create_session(settings)
+        def add_dht_node(self, ignored_node):
+            pass
+        def add_torrent(self, params):
+            params.trackers = []
+            params.flags &= ~(lt.torrent_flags.paused | lt.torrent_flags.auto_managed)
+            handle = self.session.add_torrent(params)
+            handle.connect_peer(("127.0.0.1", peer_port), 0, 0)
+            return handle
+        def pop_alerts(self):
+            return self.session.pop_alerts()
+        def remove_torrent(self, handle, *flags):
+            self.session.remove_torrent(handle, *flags)
+
+    monkeypatch.setattr(lt, "session", LocalSession)
+    monkeypatch.setattr(downloader, "g_cancelled", threading.Event())
+    monkeypatch.setattr(downloader, "g_paused", threading.Event())
+    monkeypatch.setattr(downloader, "g_temp_files", [])
+    monkeypatch.setattr(downloader, "emit_progress", lambda *args, **kwargs: None)
+    magnet = downloader.normalize_download_source(lt.make_magnet_uri(info))
+    return magnet, output_dir, payload, lambda: seed.remove_torrent(seed_handle)
+
+
+def test_magnet_transfers_fixture_from_local_peer(tmp_path, monkeypatch):
+    magnet, output_dir, payload, stop = _local_magnet(tmp_path, monkeypatch)
+    result = downloader.download_direct_torrent(magnet, str(output_dir), "987654322", "Local fixture")
+    assert Path(result).read_bytes() == payload
+    stop()
+
+
+def test_a_torrent_handed_to_the_server_stops_and_leaves_no_files(tmp_path, monkeypatch):
+    magnet, output_dir, _, stop = _local_magnet(tmp_path, monkeypatch)
+    samples = []
+
+    def probe(elapsed, total, seeds, done):
+        samples.append((total, seeds))
+        return "server"
+
+    with pytest.raises(SwitchToServer):
+        downloader.download_direct_torrent(magnet, str(output_dir), "987654323", "Local fixture", probe=probe)
+    stop()
+    assert samples and samples[0][0] > 0  # the probe saw the size once the metadata arrived
+    deadline = time.monotonic() + 10
+    while list(output_dir.rglob("*.bin")) and time.monotonic() < deadline:
+        time.sleep(0.1)  # libtorrent deletes files in the background
+    assert not list(output_dir.rglob("*.bin"))

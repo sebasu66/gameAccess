@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "install-and-play-example",
+  "stop_on_error": true,
+  "close_when_done": false,
+  "tasks": [
+    { "action": "select", "game": "Baldur's Gate 3" },
+    { "action": "screenshot", "label": "01-before-install" },
+    { "action": "install", "game": "Baldur's Gate 3", "wait_for": "accepted", "timeout_seconds": 180, "screenshot_after": true },
+    { "action": "assert", "game": "Baldur's Gate 3", "selector": ".detail-panel" },
+    { "action": "play", "game": "Baldur's Gate 3", "ms": 2500 },
+    { "action": "screenshot", "label": "03-after-play-request" }
+  ]
+}

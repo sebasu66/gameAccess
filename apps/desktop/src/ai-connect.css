@@ -1,0 +1,44 @@
+/* "Connect AI" (AiConnectWizard.tsx, docs/GUI_DESIGN.md §4.29). A large dialog by §4.26, with the measures of the
+   antivirus dialog (antivirus-dialog.css): standard header with a line under it, an 18 px lead, cards side by side and
+   of the same height, header and buttons fixed. Under the title, a three-part bar shows the step. */
+.ga-overlay-dialog.ga-ai { width: min(1040px, calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * clamp(24px, 4vw, 64px))) !important; max-height: calc(100vh - 48px) !important; padding: 40px 44px 36px !important; gap: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column; }
+.ga-ai-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--ga-line); }
+.ga-ai-titles { display: grid; gap: 10px; flex: 1; }
+.ga-ai .ga-ai-title { margin: 0 !important; color: var(--ga-orange) !important; font: 400 52px/1 "Bebas Neue", sans-serif !important; letter-spacing: .02em !important; }
+.ga-ai-steps { display: flex; gap: 6px; margin-top: 6px; }
+.ga-ai-steps i { flex: 1; height: 4px; border-radius: 2px; background: var(--ga-surface-2); }
+.ga-ai-steps i.is-done { background: var(--ga-orange); }
+.ga-ai-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-right: -12px; padding: 24px 12px 0 0; }
+.ga-ai .ga-ai-lead { --ga-p-size: 18px; max-width: 80ch; color: var(--ga-text-ink) !important; }
+.ga-ai-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: stretch; gap: 16px; margin-top: 32px; }
+.ga-ai-note { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 22px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
+.ga-ai-note-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; }
+.ga-ai-note.is-warn :is(.ga-ai-note-icon, .ga-ai-note-title) { color: var(--ga-warn); }
+.ga-ai-note.is-ok :is(.ga-ai-note-icon, .ga-ai-note-title) { color: var(--ga-ok); }
+.ga-ai-note.is-violet :is(.ga-ai-note-icon, .ga-ai-note-title) { color: var(--ga-violet); }
+.ga-ai-note-body { display: grid; gap: 10px; align-content: start; min-width: 0; --ga-p-size: 16px; }
+.ga-ai-note-title { margin: 0; font: 700 20px/1.25 var(--ga-text-family); }
+.ga-ai-note-body ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; color: var(--ga-text-ink); font: 400 16px/1.5 var(--ga-text-family); }
+.ga-ai .ga-ai-gap { margin-top: 24px !important; }
+.ga-ai-wait { display: flex; align-items: center; gap: 14px; margin: 0; color: var(--ga-text-ink); font: 400 16px/1.5 var(--ga-text-family); }
+.ga-ai-spin { flex: none; width: 22px; height: 22px; border: 3px solid var(--ga-surface-2); border-top-color: var(--ga-orange); border-radius: 50%; animation: ga-ai-spin 1s linear infinite; }
+.ga-ai-spin.is-big { width: 40px; height: 40px; border-width: 4px; }
+@keyframes ga-ai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ga-ai-spin { animation-duration: 3s; } }
+.ga-ai-section { display: grid; gap: 12px; margin-top: 32px; }
+.ga-ai-paste { display: flex; gap: 10px; align-items: center; }
+.ga-ai-paste .ga-ai-field { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-field-bg); color: var(--ga-text-ink); font: 500 15px/1.4 Consolas, "Cascadia Mono", monospace; }
+.ga-ai-paste .ga-ai-field:focus-visible { border-color: var(--ga-orange); outline: 2px solid var(--ga-orange); outline-offset: 3px; }
+.ga-ai-result { display: flex; align-items: flex-start; gap: 24px; }
+.ga-ai-big { flex: none; display: grid; place-items: center; width: 72px; height: 72px; border: 2px solid currentColor; border-radius: 50%; }
+.ga-ai-big.is-running { color: var(--ga-line); }
+.ga-ai-big.is-ok { color: var(--ga-ok); background: var(--ga-surface); }
+.ga-ai-big.is-error { color: var(--ga-error); background: var(--ga-surface); }
+.ga-ai-checks { display: grid; gap: 16px; align-content: start; padding-top: 6px; }
+.ga-ai-checks ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ga-ai-checks li { display: flex; align-items: center; gap: 10px; color: var(--ga-ok); font: 700 16px/1.4 var(--ga-text-family); }
+.ga-ai-checks li.is-pending { color: var(--ga-muted); font-weight: 500; }
+/* `.ga-ai` in front: `.ga-actions` (content.css) sets margin 0 and may load later. */
+.ga-ai .ga-ai-foot { justify-content: flex-end; margin-top: 32px; }
+.ga-ai .ga-ai-foot .ga-ai-back { margin-right: auto; }
+/* Settings › AI. */

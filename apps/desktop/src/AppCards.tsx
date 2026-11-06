@@ -5,6 +5,7 @@ import { type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails } from "./types";
 
 import { wait, Preference, DownloadMap, availabilityLabel, heavinessLabel } from "./AppPresentation";
+import { useI18n } from "./i18n";
 function GameCard({
   game,
   details,
@@ -24,13 +25,14 @@ function GameCard({
   onOpen: (game: CatalogGame) => void;
   onPreference: (gameId: number, value: Preference) => void;
 }) {
+  const { t } = useI18n();
   const activeDownload = download && ["requested", "preparing", "downloading"].includes(download.state);
   const progress = Math.max(0, Math.min(100, download?.progress ?? 0));
   const weight = heavinessLabel(details?.steam, machine);
 
   return (
     <article className={`game-card ${activeDownload ? "is-downloading" : ""}`} style={{ "--download-progress": `${progress}%` } as React.CSSProperties}>
-      <button type="button" className="game-card-main" onClick={() => onOpen(game)} aria-label={`Abrir ${game.name}`}>
+      <button type="button" className="game-card-main" onClick={() => onOpen(game)} aria-label={t("openGameAria", { name: game.name })}>
         <div className="game-card-art">
           {game.capsule_image ? (
             <>
@@ -48,24 +50,24 @@ function GameCard({
           {activeDownload ? (
             <div className="download-card-status">
               <Download size={15} />
-              <strong>{download?.progress != null ? `${Math.round(download.progress)}%` : "Preparando…"}</strong>
+              <strong>{download?.progress != null ? `${Math.round(download.progress)}%` : t("cardPreparing")}</strong>
             </div>
           ) : null}
-          {download?.state === "installed" ? <span className="installed-chip"><Check size={12} /> Listo</span> : null}
+          {download?.state === "installed" ? <span className="installed-chip"><Check size={12} /> {t("uiListo")}</span> : null}
           <div className="game-card-hover">
             <span className="round-play"><Play size={18} fill="currentColor" /></span>
-            <span className="card-price">GRATIS</span>
+            <span className="card-price">{t("uiGratis")}</span>
           </div>
         </div>
         <div className="game-card-copy">
           <strong>{game.name}</strong>
-          {download?.state === "installed" ? <span>Instalado · listo para jugar</span> : null}
+          {download?.state === "installed" ? <span>{t("uiInstaladoListoParaJugar")}</span> : null}
         </div>
       </button>
       {showPreference ? (
-        <section  className="preference-controls" aria-label={`Preferencia para ${game.name}`}>
-          <button type="button" className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label="Me gusta"><ThumbsUp size={16} /></button>
-          <button type="button" className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label="No me gusta"><ThumbsDown size={16} /></button>
+        <section  className="preference-controls" aria-label={t("cardPreferenceAria", { name: game.name })}>
+          <button type="button" className={preference === 1 ? "selected" : ""} onClick={() => onPreference(game.id, 1)} aria-label={t("uiMeGusta")}><ThumbsUp size={16} /></button>
+          <button type="button" className={preference === -1 ? "selected negative" : ""} onClick={() => onPreference(game.id, -1)} aria-label={t("uiNoMeGusta")}><ThumbsDown size={16} /></button>
         </section>
       ) : null}
     </article>
@@ -97,6 +99,7 @@ export function Shelf({
   onPreference: (gameId: number, value: Preference) => void;
   onViewAll?: () => void;
 }) {
+  const { t } = useI18n();
   if (!games.length) return null;
   return (
     <section className="shelf">
@@ -105,7 +108,7 @@ export function Shelf({
           <h2>{title}</h2>
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
-        {onViewAll ? <button type="button" className="text-action" onClick={onViewAll}>Ver más <ChevronRight size={16} /></button> : null}
+        {onViewAll ? <button type="button" className="text-action" onClick={onViewAll}>{t("uiVerMas")} <ChevronRight size={16} /></button> : null}
       </div>
       <div className="cards-row">
         {games.map((game) => (

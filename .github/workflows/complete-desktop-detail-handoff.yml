@@ -76,7 +76,7 @@ jobs:
         working-directory: apps/desktop
         run: npm run build
       - name: Install launcher test dependencies
-        run: pip install -r apps/launcher/requirements.txt pytest ruff
+        run: pip install -r apps/launcher/requirements.txt pytest==9.1.1 ruff==0.17.3
       - name: Validate launcher import change
         run: |
           ruff check --select F apps/launcher/steam_switch.py

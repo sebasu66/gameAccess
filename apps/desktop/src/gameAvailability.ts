@@ -1,14 +1,18 @@
 import type { CatalogGame } from "./types";
+import { translate } from "./i18n";
 
 export interface PlayAvailability {
-  licensed: boolean;
   allowed: boolean;
   reason: string | null;
 }
 
-export function playAvailability(game: CatalogGame, busy = false): PlayAvailability {
-  const licensed = game.copies_available > 0 || Boolean(game.local_primary_account_label);
-  if (busy) return { licensed, allowed: false, reason: "GameAccess está preparando otra sesión." };
-  if (!licensed) return { licensed: false, allowed: false, reason: "El juego está instalado, pero no hay una licencia disponible en este momento." };
-  return { licensed: true, allowed: true, reason: null };
+/** Installation readiness determines the Play action; startup only serializes launches. */
+export function playAvailability(_game: CatalogGame, busy = false): PlayAvailability {
+  if (busy) {
+    return {
+      allowed: false,
+      reason: translate("availabilityBusyReason"),
+    };
+  }
+  return { allowed: true, reason: null };
 }

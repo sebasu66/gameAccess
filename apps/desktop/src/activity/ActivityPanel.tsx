@@ -1,0 +1,182 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, Check, Download, Heart, Info, RefreshCw, ShieldCheck, Snowflake, Sparkles, X, type LucideIcon } from "lucide-react";
+import { isDownloadHistory } from "../catalog/DigitalDownloadService";
+import { centralDialog, type TaskView } from "../centralDialog/centralDialog";
+import { activeDownloadService } from "../downloads/activeService";
+import { GaButton } from "../components/ga/Buttons";
+import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
+import { useI18n } from "../i18n";
+import { openLibraryManager } from "../libraryManagerNav";
+import { openNews } from "../newDownloads";
+import { confirmNotice } from "../notice/notice";
+import { noticeGame } from "../notice/noticeGame";
+import { GameThumb } from "../GameArt";
+import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
+import type { DownloadProgressSnapshot } from "../downloadProvider";
+import { formatDownloadBytes, sourceDownloadSize } from "../downloadSize";
+import type { CatalogGame } from "../types";
+import { clearActivity, markActivitySeen, useActivity, type ActivityEntry } from "./activity";
+import "./activity.css";
+
+type Running = {
+  key: string; appId?: number; title: string; percent: number | null; waiting?: string; cancelling?: boolean; cancel?: () => void;
+  /** What it is, over its name ("Download"). */
+  kind?: string;
+  /** In place of the percent, which the bar already shows: a download's speed, or its step when it is not transferring. */
+  state?: string;
+  /** Under the bar: how much a download has of its size. */
+  detail?: string;
+};
+
+/** The downloads that have not ended, kept up to date. */
+function useActiveDownloads() {
+  const pending = () => activeDownloadService().getDownloads().filter(entry => !isDownloadHistory(entry.snapshot.phase));
+  const [downloads, setDownloads] = useState(pending);
+  useEffect(() => activeDownloadService().onGlobalUpdate(() => setDownloads(pending())), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return downloads;
+}
+
+/** The app's own task running in the background (download sources, catalog updates), kept up to date. */
+function useBackgroundTask(): TaskView | null {
+  const [task, setTask] = useState<TaskView | null>(null);
+  useEffect(() => centralDialog.subscribe(state => setTask(state.task?.background ? state.task : null)), []);
+  return task;
+}
+
+/** One running process: its name, its bar, cancel; a click takes to its game's row in the Library Manager. The app's
+ *  own tasks have no game and cannot be cancelled. */
+function RunningRow({ item, onOpen }: { item: Running; onOpen?: () => void }) {
+  const { t } = useI18n();
+  const content = <>
+    {item.kind ? <span className="ga-process-task-kind">{item.kind}</span> : null}
+    <span className="ga-process-task-name">{item.title}</span>
+    <span className="ga-process-task-state">{item.waiting ?? item.state ?? `${Math.round(item.percent ?? 0)}%`}</span>
+    <span className="ga-process-task-bar" aria-hidden="true"><i style={{ width: `${item.waiting ? 0 : item.percent ?? 0}%` }} /></span>
+    {item.detail ? <span className="ga-process-task-detail">{item.detail}</span> : null}
+  </>;
+  return <li className="ga-process-task" data-app-task={item.appId === undefined || undefined}>
+    {item.appId !== undefined
+      ? <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: item.title })} onClick={() => { onOpen?.(); openLibraryManager(item.appId); }}>{content}</button>
+      : <div className="ga-process-task-open" role="status">{content}</div>}
+    {item.cancel ? <button type="button" className="ga-process-task-cancel" disabled={item.cancelling} aria-label={t("downloadsCancel")} title={t("downloadsCancel")} onClick={item.cancel}><X size={16} aria-hidden="true" /></button> : null}
+  </li>;
+}
+
+/** "1,2 GB de 8,4 GB": what a download has of its size (the source's size until the transfer knows it). */
+function downloadSizeText(game: CatalogGame, snapshot: DownloadProgressSnapshot, locale: ReturnType<typeof useI18n>["locale"], t: ReturnType<typeof useI18n>["t"]): string | undefined {
+  const total = (snapshot.bytesTotal ?? 0) > 0 ? formatDownloadBytes(snapshot.bytesTotal, locale) : sourceDownloadSize(game, locale);
+  if (!total) return undefined;
+  return (snapshot.bytesDownloaded ?? 0) > 0 ? t("activityDownloadSize", { done: formatDownloadBytes(snapshot.bytesDownloaded, locale), total }) : total;
+}
+
+/** The kinds of entries, each with its icon; its colour and gradient are in activity.css (`data-kind`). */
+const KIND_ICON: Record<string, LucideIcon> = { news: Sparkles, taste: Heart, verify: ShieldCheck, download: Download, freeze: Snowflake, task: RefreshCw, failed: AlertTriangle, done: Check, info: Info };
+
+/** What an entry is about: its own kind, or its process (by its key), or how it ended. */
+export function entryKind(entry: ActivityEntry): string {
+  if (entry.state === "failed") return "failed";
+  if (entry.kind) return entry.kind;
+  if (entry.key.startsWith("download:")) return "download";
+  if (entry.tone === "frost" || /^(freeze|job):/.test(entry.key)) return "freeze";
+  return entry.state === "done" ? "done" : "info";
+}
+
+/** One entry of the history: its kind's icon in its corner (with the game's cover when it has one), title, text (or
+ *  the lines of the notices joined into it, each with its time), when, and the way to its detail. */
+function HistoryRow({ entry, onOpen }: { entry: ActivityEntry; onOpen?: () => void }) {
+  const { t, locale } = useI18n();
+  const kind = entryKind(entry);
+  const Icon = KIND_ICON[kind] ?? Info;
+  const time = (at: number) => new Date(at).toLocaleTimeString(locale === "es" ? "es-AR" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  const span = entry.endedAt && entry.endedAt - entry.startedAt > 60_000 ? `${time(entry.startedAt)} – ${time(entry.endedAt)}` : time(entry.endedAt ?? entry.startedAt);
+  const lines = entry.lines && entry.lines.length > 1 ? entry.lines : null;
+  // Joined notices show their own times in their lines: the entry says only when the last one came.
+  const when = lines ? time(entry.endedAt ?? entry.startedAt) : span;
+  const body: ReactNode = <>
+    <span className="ga-activity-mark">
+      {entry.image || entry.appId ? <GameThumb appId={entry.appId} image={entry.image} className="ga-activity-art" /> : null}
+      <span className="ga-activity-icon"><Icon size={entry.image ? 14 : 20} aria-hidden="true" /></span>
+    </span>
+    <span className="ga-activity-text">
+      {/* The time goes over the title, not in a column of its own (Seba, 2026-11-02). */}
+      <time className="ga-activity-time">{when}</time>
+      <strong>{entry.title}</strong>
+      {lines ? <ul className="ga-activity-lines">{lines.map(line => <li key={line.at}><time>{time(line.at)}</time>{line.text}</li>)}</ul>
+        : entry.text ? <span>{entry.text}</span> : null}
+    </span>
+  </>;
+  return <li className="ga-activity-entry" data-kind={kind} data-state={entry.state} data-tone={entry.tone} data-unseen={!entry.seen || undefined}>
+    {entry.news
+      ? <button type="button" className="ga-activity-link" aria-label={t("activityOpenNews", { name: entry.title })} onClick={() => { onOpen?.(); openNews(entry.news!); }}>{body}</button>
+      // Downloads and freezes have their detail in the Library Manager: on the game's row, or the manager itself when
+      // the entry is about several games ("2 downloads left unfinished").
+      : entry.appId || ["download", "failed", "freeze"].includes(kind)
+      ? <button type="button" className="ga-activity-link" aria-label={entry.appId ? t("tasksOpen", { name: entry.name ?? entry.title }) : t("activityOpenManager")} onClick={() => { onOpen?.(); openLibraryManager(entry.appId); }}>{body}</button>
+      : <div className="ga-activity-link">{body}</div>}
+  </li>;
+}
+
+/** "Today", "Yesterday" or the date: the history's groups. */
+function dayLabel(at: number, t: ReturnType<typeof useI18n>["t"], locale: string): string {
+  const day = new Date(at); day.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  return days === 0 ? t("activityToday") : days === 1 ? t("activityYesterday") : day.toLocaleDateString(locale === "es" ? "es-AR" : "en-US", { day: "numeric", month: "long" });
+}
+
+/**
+ * The Activity panel (docs/GUI_DESIGN.md §4.9 and §4.17): what is running on top (downloads and long tasks, with
+ * their bar and cancel), then the history of every notice and process, newest first, grouped by day; each entry with
+ * a game takes to its row in the Library Manager, where each download and task keeps its detail. Stage: prototype.
+ */
+export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
+  const { t, locale } = useI18n();
+  const downloads = useActiveDownloads();
+  const jobs = useFreezeConsole().jobs.filter(job => !job.outcome);
+  const task = useBackgroundTask();
+  const step = task?.steps.find(item => item.state === "running");
+  const history = useActivity().filter(entry => entry.state !== "running");
+  useEffect(() => { markActivitySeen(); }, [history.length]);
+
+  const running: Running[] = [
+    // A download says it is one, its speed and how much it has of its size: the bar already shows the percent (Seba, 2026-11-03).
+    ...downloads.map(({ game, snapshot }) => ({
+      key: `download:${snapshot.gameId}`, appId: game.app_id ?? snapshot.gameId, title: game.name, percent: snapshot.progress ?? 0, kind: t("activityDownload"),
+      waiting: snapshot.phase === "queued" ? t("downloadQueued") : snapshot.phase === "paused" ? t("downloadPaused") : undefined,
+      state: snapshot.phase === "downloading" ? `${formatDownloadBytes(snapshot.speedBps ?? 0, locale)}/s` : downloadPhaseLabel(snapshot.phase, locale),
+      detail: downloadSizeText(game, snapshot, locale, t),
+      cancel: () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
+        .then(ok => { if (ok) void activeDownloadService().cancel(snapshot.gameId); }),
+    })),
+    ...jobs.map(job => ({
+      key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name), percent: job.progress?.percent ?? 0,
+      waiting: job.queued ? t("tasksWaiting") : undefined, cancelling: job.cancelling, cancel: () => cancelFreezeJob(job.appId),
+    })),
+    // Without a count the step says what it is doing (starting the plugin, reading the sources) in place of a percent.
+    ...(task && step ? [{
+      key: `task:${task.id}`, title: task.title, percent: step.total ? Math.min(100, (step.done ?? 0) / step.total * 100) : null,
+      waiting: step.total ? undefined : step.detail ?? step.label,
+    }] : []),
+  ];
+
+  const groups: Array<{ label: string; entries: ActivityEntry[] }> = [];
+  for (const entry of history) {
+    const label = dayLabel(entry.endedAt ?? entry.startedAt, t, locale);
+    if (groups.at(-1)?.label === label) groups.at(-1)!.entries.push(entry); else groups.push({ label, entries: [entry] });
+  }
+
+  return <div className="ga-activity">
+    {running.length ? <section className="ga-process-tasks" aria-labelledby="ga-activity-running">
+      <h3 id="ga-activity-running" className="ga-label">{t("activityRunning")}</h3>
+      <ul>{running.map(item => <RunningRow key={item.key} item={item} onOpen={onOpen} />)}</ul>
+    </section> : null}
+    <section className="ga-activity-history" aria-labelledby="ga-activity-history">
+      <h3 id="ga-activity-history" className="ga-label">{t("activityHistory")}</h3>
+      {groups.length ? groups.map(group => <div key={group.label} className="ga-activity-day">
+        <h4 className="ga-activity-day-label">{group.label}</h4>
+        <ul>{group.entries.map(entry => <HistoryRow key={entry.id} entry={entry} onOpen={onOpen} />)}</ul>
+      </div>) : <p className="ga-hint">{t("activityEmpty")}</p>}
+      {groups.length ? <div className="ga-actions"><GaButton onClick={clearActivity}>{t("activityClear")}</GaButton></div> : null}
+    </section>
+  </div>;
+}

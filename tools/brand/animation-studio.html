@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Animaciones transparentes</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111416;color:#f4f4f2;font:14px system-ui,sans-serif}main{max-width:1100px;margin:0 auto;padding:24px}h1{font-size:18px;font-weight:500;margin:0 0 16px}.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}button,a{font:inherit;color:inherit;background:#202629;border:1px solid #ffffff20;padding:10px 14px;border-radius:5px;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}button[aria-pressed=true]{border-color:#ff6a00}#stage{width:100%;height:570px;background:repeating-conic-gradient(#22272a 0% 25%,#181e21 0% 50%) 0 / 24px 24px;display:flex;align-items:center;justify-content:center;overflow:hidden}canvas{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}#status{min-height:22px;color:#bac2c7;margin:16px 0}progress{width:100%;accent-color:#ff6a00;height:6px}a[hidden]{display:none}@media(max-width:600px){main{padding:14px}#stage{height:380px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head><body><main id="animation-studio"><h1>GameAccess · Animaciones transparentes</h1><div class="tools"><button data-mode="loop" aria-pressed="true">Giro</button><button data-mode="intro" aria-pressed="false">Entrada</button><button data-mode="dock" aria-pressed="false">Grande → chico</button><button id="replay">Repetir</button><button id="export" disabled>Grabar las tres animaciones</button><a id="download" hidden download="gameaccess-animation-frames.tar">Descargar fotogramas</a></div><div id="stage" aria-label="Vista de las animaciones sobre un damero de transparencia"></div><p id="status" role="status">Cargando el logo…</p><progress id="progress" max="1" value="0" aria-label="Progreso de grabación"></progress></main>
+<script type="module">
+const root=document.getElementById('animation-studio'),stage=document.getElementById('stage');
+const status=root.querySelector('#status'),progress=root.querySelector('#progress');
+const exportButton=root.querySelector('#export'),download=root.querySelector('#download');
+try {
+const [THREE,{RoundedBoxGeometry},{RoomEnvironment}]=await Promise.all([import('three'),import('three/addons/geometries/RoundedBoxGeometry.js'),import('three/addons/environments/RoomEnvironment.js')]);
+// GEOMETRY START: a fixed spatial constellation with two exact projections.
+function createVoxelModel() {
+  const n = 27;
+  const insideRect = (x,y,x0,y0,x1,y1) => x>=x0 && x<=x1 && y>=y0 && y<=y1;
+  const g = (x,y) =>
+    insideRect(x,y,5,1,23,5) || insideRect(x,y,3,3,8,8) ||
+    insideRect(x,y,2,5,7,21) || insideRect(x,y,3,19,8,23) ||
+    insideRect(x,y,5,21,23,25) || insideRect(x,y,19,13,24,23) ||
+    insideRect(x,y,14,13,24,15);
+  const a = (x,y) => {
+    if(y<1 || y>25) return false;
+    const half = 1.65 + (y-1)*.455;
+    const d = Math.abs(x-13);
+    const thickness = y<16 ? 3.05 : 3.65;
+    return d <= half && (d >= half-thickness || (y>=16 && y<=18));
+  };
+  const gCore=Array.from({length:n},(_,y)=>Array.from({length:n},(_,x)=>g(x,y)));
+  const aCore=Array.from({length:n},(_,y)=>Array.from({length:n},(_,x)=>a(x,y)));
+  const dilate = mask => mask.map((row,y)=>row.map((_,x)=>{
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++)
+      if(mask[y+dy]?.[x+dx]) return true;
+    return false;
+  }));
+  const front=dilate(gCore), side=dilate(aCore), voxels=[];
+  const projectionG=Array.from({length:n},()=>Array(n).fill(false));
+  const projectionA=Array.from({length:n},()=>Array(n).fill(false));
+  function shuffle(values,seed) {
+    const out=values.slice(); let state=seed>>>0;
+    for(let i=out.length-1;i>0;i--) {
+      state=(Math.imul(state,1664525)+1013904223)>>>0;
+      const j=state%(i+1); [out[i],out[j]]=[out[j],out[i]];
+    }
+    return out;
+  }
+  // One shared cube per paired ray: the minimum count that covers both masks
+  // at each height. Neighboring pixels still sit at different depths.
+  for(let y=0;y<n;y++) {
+    const xs=Array.from({length:n},(_,x)=>x).filter(x=>front[y][x]);
+    const zs=Array.from({length:n},(_,z)=>z).filter(z=>side[y][n-1-z]);
+    if(!xs.length || !zs.length) continue;
+    const xx=shuffle(xs,1397+y*97);
+    const zz=shuffle(zs,8183+y*199);
+    for(let k=0;k<Math.max(xx.length,zz.length);k++) {
+      const x=xx[k%xx.length],z=zz[k%zz.length];
+      voxels.push({x,y,z});
+      projectionG[y][x]=true; projectionA[y][n-1-z]=true;
+    }
+  }
+  let mismatchG=0,mismatchA=0;
+  for(let y=0;y<n;y++) for(let x=0;x<n;x++) {
+    if(front[y][x]!==projectionG[y][x]) mismatchG++;
+    if(side[y][x]!==projectionA[y][x]) mismatchA++;
+  }
+  if(mismatchG || mismatchA) throw new Error('Las proyecciones del volumen no coinciden con GA.');
+  const depths=new Set(voxels.map(v=>v.z));
+  const widths=new Set(voxels.map(v=>v.x));
+  if(depths.size<15 || widths.size<15)throw new Error('La constelación necesita profundidad real.');
+  return {n,voxels,front,side,diagnostics:{mismatchG,mismatchA,count:voxels.length,depthLevels:depths.size,widthLevels:widths.size}};
+}
+
+  const model=createVoxelModel();
+  const scene=new THREE.Scene();
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(1);
+  renderer.setClearColor(0x000000,0);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=.9;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.domElement.setAttribute('aria-hidden','true');
+  stage.append(renderer.domElement);
+
+  const pmrem=new THREE.PMREMGenerator(renderer);
+  const room=new RoomEnvironment();
+  const environmentTarget=pmrem.fromScene(room,.04);
+  scene.environment=environmentTarget.texture;
+  scene.environmentIntensity=.08;
+  room.dispose(); pmrem.dispose();
+  // A low indirect fill preserves occlusion; direct lights reveal the finish.
+  scene.add(new THREE.HemisphereLight(0xf9fbff,0x241910,.10));
+  const frontLight=new THREE.DirectionalLight(0xffffff,2.2);
+  frontLight.position.set(-1.5,1,15); frontLight.castShadow=true;
+  frontLight.shadow.mapSize.set(2048,2048);
+  Object.assign(frontLight.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:30});
+  frontLight.shadow.camera.updateProjectionMatrix();
+  frontLight.shadow.bias=-.00002; frontLight.shadow.normalBias=.003;
+  scene.add(frontLight);
+  const key=new THREE.DirectionalLight(0xfff7ee,2.2);
+  key.position.set(-6,8,11); key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);
+  Object.assign(key.shadow.camera,{left:-4.5,right:4.5,top:4.5,bottom:-4.5,near:1,far:35});
+  key.shadow.camera.updateProjectionMatrix();
+  key.shadow.bias=-.00002; key.shadow.normalBias=.003;
+  scene.add(key);
+  const fill=new THREE.DirectionalLight(0xd7e8ff,.18);
+  fill.position.set(7,2,6); scene.add(fill);
+  const rim=new THREE.DirectionalLight(0xff852e,.55);
+  rim.position.set(4,5,-7); scene.add(rim);
+  const sculpture=new THREE.Group(); scene.add(sculpture);
+  const geometry=new RoundedBoxGeometry(1,1,1,2,.035);
+  const material=new THREE.MeshPhysicalMaterial({color:0xffffff,envMap:environmentTarget.texture,emissive:0x000000,emissiveIntensity:0,metalness:.12,roughness:.20,clearcoat:.85,clearcoatRoughness:.18,envMapIntensity:.065});
+  const orangeMaterial=new THREE.MeshPhysicalMaterial({color:0xffffff,envMap:environmentTarget.texture,emissive:0x000000,emissiveIntensity:0,metalness:.08,roughness:.25,clearcoat:.70,clearcoatRoughness:.23,envMapIntensity:.045});
+  // Every cube has ONE permanent material color on all six faces. The letters
+  // come entirely from spatial alignment, never painted facets or swapped art.
+  const whites=['#f4f4f2','#e9ebeb','#fbfbf8'];
+  const oranges=['#ff6a00','#f65d00','#e74c00','#cf420d','#ff7b14','#ee5808'];
+  const dummy=new THREE.Object3D();
+  const white=new THREE.Color(),orange=new THREE.Color();
+  const cell=.205, size=cell*.955, center=(model.n-1)/2;
+  const outer=model.voxels.filter(v=>Math.max(Math.abs(v.x-center),Math.abs(v.y-center),Math.abs(v.z-center))>=center-2);
+  const inner=model.voxels.filter(v=>Math.max(Math.abs(v.x-center),Math.abs(v.y-center),Math.abs(v.z-center))<center-2);
+  const meshes=[];
+  function makeCubes(records,finish,isWhite) {
+    const cubes=new THREE.InstancedMesh(geometry,finish,records.length);
+    cubes.castShadow=true; cubes.receiveShadow=true;
+    records.forEach((v,i)=>{
+    const hash=Math.abs(((v.x*73856093)^(v.y*19349663)^(v.z*83492791))>>>0);
+    white.set(whites[hash%whites.length]); orange.set(oranges[hash%oranges.length]);
+    dummy.position.set((v.x-center)*cell,(center-v.y)*cell,(v.z-center)*cell);
+    dummy.scale.setScalar(size); dummy.updateMatrix();
+    cubes.setMatrixAt(i,dummy.matrix);
+    cubes.setColorAt(i,isWhite?white:orange);
+  });
+  cubes.instanceMatrix.needsUpdate=true; cubes.instanceColor.needsUpdate=true;
+  cubes.computeBoundingSphere(); sculpture.add(cubes);
+    cubes.frustumCulled=false; cubes.userData.records=records; meshes.push(cubes);
+  }
+  makeCubes(outer,material,true); makeCubes(inner,orangeMaterial,false);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.ShadowMaterial({opacity:.23}));
+  ground.rotation.x=-Math.PI/2; ground.position.y=-3.25;
+  ground.receiveShadow=true; ground.visible=false; scene.add(ground);
+
+
+const FPS=30;
+const clips={loop:{width:768,height:768,frames:858,label:'Giro'},intro:{width:1920,height:1080,frames:108,label:'Entrada'},dock:{width:1920,height:1080,frames:90,label:'Grande → chico'}};
+const camera=new THREE.PerspectiveCamera(18,1,.1,3500);
+let mode='loop',started=performance.now(),recording=false;
+const clamp=x=>Math.max(0,Math.min(1,x));
+const ease=x=>{x=clamp(x);return x*x*(3-2*x);};
+const random=(v,salt)=>{let n=((v.x*73856093)^(v.y*19349663)^(v.z*83492791)^salt)>>>0;n=Math.imul(n^(n>>>16),2246822507)>>>0;return (n>>>0)/4294967296;};
+const records=meshes.flatMap(mesh=>mesh.userData.records.map((v,i)=>({mesh,i,v,base:new THREE.Vector3((v.x-center)*cell,(center-v.y)*cell,(v.z-center)*cell),delay:random(v,1931),speed:random(v,4711),angle:random(v,9127)*Math.PI*2,depth:random(v,6599)*8-4})));
+function configure(name) {
+  mode=name;const clip=clips[name];renderer.setSize(clip.width,clip.height,false);
+  const limits=name==='dock'?{left:-14,right:14,top:9,bottom:-9}:{left:-4.5,right:4.5,top:4.5,bottom:-4.5};
+  for(const light of [frontLight,key]){Object.assign(light.shadow.camera,limits);light.shadow.camera.updateProjectionMatrix();}
+  for(const button of root.querySelectorAll('[data-mode]'))button.setAttribute('aria-pressed',String(button.dataset.mode===name));
+}
+function renderFrame(name,frame) {
+  const clip=clips[name],t=frame/FPS,aspect=clip.width/clip.height;
+  let yaw=0,pitch=0,strength=.03;
+  const halfHeight=name==='loop'?4.15:6;
+  if(name==='loop'){
+    const phase=frame/clip.frames*Math.PI*2;
+    yaw=-Math.PI/4*(1-Math.cos(phase));
+    const between=Math.sin(2*yaw)**2;
+    pitch=.13*between;strength=.03+.97*between;
+  }
+  camera.position.set(0,0,30/strength);camera.lookAt(0,0,0);camera.aspect=aspect;
+  // Follow the subject instead of wasting almost all depth precision between .1 and 3500.
+  // Cubes span about six world units; scattered intro voxels remain inside this margin.
+  camera.near=Math.max(.1,camera.position.z-15);camera.far=camera.position.z+15;
+  camera.fov=2*Math.atan(halfHeight/camera.position.z)*180/Math.PI;camera.updateProjectionMatrix();
+  const pxPerUnit=clip.height/(2*halfHeight),smallScale=48/(model.n*cell*pxPerUnit);
+  const destination=new THREE.Vector3((64-clip.width/2)/pxPerUnit,(clip.height/2-54)/pxPerUnit,0);
+  for(const record of records){
+    const {mesh,i,base,v}=record;let scale=1;dummy.position.copy(base);
+    if(name==='intro'){
+      const q=clamp((t-record.delay*.55)/(1.35+record.speed*1.45));
+      const arrive=1-(1-q)**3;
+      const cx=Math.cos(record.angle),cy=Math.sin(record.angle);
+      const radius=1.25*Math.min(halfHeight*aspect/Math.max(Math.abs(cx),.0001),halfHeight/Math.max(Math.abs(cy),.0001));
+      dummy.position.set(cx*radius,cy*radius,record.depth).lerp(base,arrive);
+      scale=.45+.55*arrive;
+    } else if(name==='dock'){
+      const q=ease((t-record.delay*.3)/(1.2+record.speed*1.15));
+      const target=base.clone().multiplyScalar(smallScale).add(destination);
+      dummy.position.lerp(target,q);scale=1+(smallScale-1)*q;
+    }
+    dummy.rotation.set(0,0,0);dummy.scale.setScalar(size*scale);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+  }
+  for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
+  const opacity=name==='intro'?ease(t/.65):1;
+  for(const finish of [material,orangeMaterial]){finish.transparent=true;finish.opacity=opacity;}
+  sculpture.rotation.set(pitch,yaw,0,'YXZ');
+  renderer.render(scene,camera);
+  root.dataset.mode=name;root.dataset.frame=String(frame);root.dataset.near=String(camera.near);root.dataset.far=String(camera.far);
+}
+function preview(now){if(recording)return;const clip=clips[mode];let frame=(now-started)/1000*FPS;if(mode==='loop')frame%=clip.frames;else frame=Math.min(frame,clip.frames-1);renderFrame(mode,frame);}
+renderer.setAnimationLoop(preview);
+function show(name){configure(name);started=performance.now();status.textContent=clips[name].label+' · fondo transparente';}
+root.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>show(button.dataset.mode)));
+root.querySelector('#replay').addEventListener('click',()=>show(mode));
+const encoder=new TextEncoder();
+function tarHeader(name,length){
+  const out=new Uint8Array(512);
+  const text=(at,value,max)=>out.set(encoder.encode(value).subarray(0,max),at);
+  text(0,name,100);text(100,'0000644\0',8);text(108,'0000000\0',8);text(116,'0000000\0',8);text(124,length.toString(8).padStart(11,'0')+'\0',12);text(136,'00000000000\0',12);out.fill(32,148,156);out[156]=48;text(257,'ustar\0',6);text(263,'00',2);
+  const sum=out.reduce((s,v)=>s+v,0);text(148,sum.toString(8).padStart(6,'0')+'\0 ',8);return out;
+}
+exportButton.addEventListener('click',async()=>{
+  recording=true;root.dataset.recording='true';renderer.setAnimationLoop(null);
+  const buttons=[...root.querySelectorAll('button')];buttons.forEach(button=>button.disabled=true);
+  try{
+    const parts=[];const append=(name,blob)=>{parts.push(tarHeader(name,blob.size),blob);const pad=(512-blob.size%512)%512;if(pad)parts.push(new Uint8Array(pad));};
+    const manifest={fps:FPS,alpha:true,voxelCount:model.voxels.length,corner:'top-left',reference:{width:1920,height:1080,largeCenter:[960,540],smallCenter:[64,54],smallHeight:48},clips};
+    append('manifest.json',new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}));
+    const total=Object.values(clips).reduce((sum,c)=>sum+c.frames,0);let complete=0;
+    for(const [name,clip] of Object.entries(clips)){
+      configure(name);
+      for(let frame=0;frame<clip.frames;frame++){
+        renderFrame(name,frame);
+        const blob=await new Promise(resolve=>renderer.domElement.toBlob(resolve,'image/png'));
+        if(!blob)throw Error('PNG export failed');
+        append(name+'/frame_'+String(frame).padStart(5,'0')+'.png',blob);
+        complete++;progress.value=complete/total;
+        if(frame%12===0){status.textContent='Grabando '+clip.label+': '+(frame+1)+' / '+clip.frames;await new Promise(resolve=>requestAnimationFrame(resolve));}
+      }
+    }
+    parts.push(new Uint8Array(1024));
+    const archive=new Blob(parts,{type:'application/x-tar'});
+    download.href=URL.createObjectURL(archive);download.hidden=false;
+    status.textContent='Guardando los fotogramas transparentes…';
+    const saved=await fetch('/save-animation-frames',{method:'POST',body:archive});
+    if(!saved.ok)throw Error('No se pudo guardar la grabación: '+saved.status);
+    root.dataset.recording='complete';root.dataset.archiveBytes=String(archive.size);
+    status.textContent='Tres animaciones grabadas · PNG con canal alfa · '+Math.round(archive.size/1048576)+' MB';
+  }catch(error){root.dataset.recording='error';status.textContent=error.message;console.error(error);}
+  recording=false;buttons.forEach(button=>button.disabled=false);show('loop');renderer.setAnimationLoop(preview);
+});
+show('loop');exportButton.disabled=false;root.dataset.ready='true';
+}catch(error){status.textContent=error.message;root.dataset.ready='error';console.error(error);}
+</script></body></html>

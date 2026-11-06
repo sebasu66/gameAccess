@@ -19,8 +19,8 @@
   z-index: 115;
   overflow-y: auto;
   background:
-    radial-gradient(circle at 78% -5%, rgba(57,255,20,.08), transparent 28%),
-    radial-gradient(circle at 18% 8%, rgba(80,140,255,.08), transparent 30%),
+    radial-gradient(circle at 78% -5%, rgba(89,208,67,.08), transparent 28%),
+    radial-gradient(circle at 18% 8%, rgba(115,151,220,.08), transparent 30%),
     #07090d;
   border-top: 1px solid rgba(255,255,255,.06);
 }
@@ -59,7 +59,7 @@
 .global-search-eyebrow {
   display: block;
   margin-bottom: 7px;
-  color: #65f0b2;
+  color: #81d4af;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .14em;
@@ -111,8 +111,8 @@
 
 .global-search-result-card.in-pool:hover,
 .global-search-result-card.in-pool:focus-visible {
-  border-color: rgba(57,255,20,.28);
-  background: rgba(57,255,20,.055);
+  border-color: rgba(89,208,67,.28);
+  background: rgba(89,208,67,.055);
 }
 
 .global-search-card-art {
@@ -153,7 +153,7 @@
 }
 
 .global-search-card-copy .pool-state {
-  color: #65f0b2;
+  color: #81d4af;
 }
 
 .global-search-card-copy .steam-state {
@@ -169,7 +169,7 @@
 }
 
 .global-search-card-side strong {
-  color: #ffb000;
+  color: #cc8f33;
   font-size: .86rem;
 }
 

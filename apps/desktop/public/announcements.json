@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "_help": "Announcements shown in the app's central dialog. The app reads this file from the main branch on GitHub (so news can be published without a new version) and keeps a bundled copy for offline first runs. Each announcement is shown once per player, newest last; 'welcome' ones come first. Body: paragraphs separated by a blank line, lines starting with '- ' are bullets, **bold**. Optional: minVersion / maxVersion (app version range).",
+  "announcements": [
+    {
+      "id": "welcome-2026-10",
+      "kind": "welcome",
+      "draft": true,
+      "date": "2026-10-19",
+      "title": {
+        "es": "Bienvenido a Game Access",
+        "en": "Welcome to Game Access"
+      },
+      "body": {
+        "es": "**Jugá más y mejor.** Game Access reúne en un solo lugar el catálogo de juegos de PC, su descarga, instalación y ejecución.\n\n- **Explorá** más de 40.000 juegos con búsqueda, géneros, etiquetas y modos de juego.\n- **Descargá e instalá** con un clic, y jugá con el botón Jugar.\n- **Administrá tu biblioteca**: juegos instalados, favoritos, carpetas y desinstalación.\n\n## Planes\n\n- **BASE**: gratis. Descarga por torrent, una a la vez.\n- **PLUS**: con llave. Hasta 4 descargas a la vez, y las descargas lentas se aceleran a través de nuestro servidor.\n\n## Fuentes de descarga\n\nLas fuentes de cada juego llegan por un plugin opcional que instalás desde su página. Sin plugin igual podés explorar el catálogo y cargar enlaces a mano.\n\n## Lo que viene\n\n- Registro de tiempo de juego.\n- Congelado de juegos que no usás para ahorrar espacio.\n- Varios usuarios y límite de tiempo para chicos.",
+        "en": "**Play more, play better.** Game Access brings the PC game catalog, its download, installation and launch together in one place.\n\n- **Explore** more than 40,000 games by search, genres, tags and game modes.\n- **Download and install** with one click, and play with the Play button.\n- **Manage your library**: installed games, favorites, folders and uninstalling.\n\n## Plans\n\n- **BASE**: free. Downloads by torrent, one at a time.\n- **PLUS**: with a key. Up to 4 downloads at once, and slow downloads are accelerated through our server.\n\n## Download sources\n\nEach game's sources come from an optional plugin you install from its page. Without it you can still explore the catalog and add links by hand.\n\n## Coming next\n\n- Play time tracking.\n- Freezing games you do not use to save space.\n- Several users and time limits for children."
+      }
+    }
+  ]
+}

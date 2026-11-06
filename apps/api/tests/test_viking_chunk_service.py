@@ -1,0 +1,382 @@
+import asyncio
+import json
+import hashlib
+from pathlib import Path
+
+import pytest
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
+
+from app.download_events import DownloadEvent
+from app import viking_chunk_service as svc
+from app.viking_cache_service import ProviderFailure
+from app.viking_chunk_models import VikingChunkJob, VikingChunkPiece
+from app.viking_chunk_plan import MB, PlannedPiece
+
+DATA = bytes(range(256)) * 4096  # 1 MiB
+
+
+@pytest.fixture()
+def engine():
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(eng, tables=[VikingChunkJob.__table__, VikingChunkPiece.__table__, DownloadEvent.__table__])
+    return eng
+
+
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch):
+    async def fast(_seconds):
+        return None
+
+    monkeypatch.setattr(svc, "_sleep", fast)
+
+
+def new_job(engine) -> str:
+    with Session(engine) as session:
+        return svc.create_job(session, fingerprint="fp1", kind="torrent", item_name="Game").job_id
+
+
+class FakeSource:
+    def __init__(self, fail_first: dict[int, int] | None = None):
+        self.calls: list[int] = []
+        self.fail_first = dict(fail_first or {})
+        self.on_disk = 0
+        self.peak = 0
+
+    async def fetch(self, piece: PlannedPiece, dest: Path) -> str:
+        self.calls.append(piece.index)
+        if self.fail_first.get(piece.index, 0) > 0:
+            self.fail_first[piece.index] -= 1
+            raise RuntimeError("boom")
+        dest.write_bytes(DATA[: min(piece.size, len(DATA))])
+        return hashlib.sha256(dest.read_bytes()).hexdigest()
+
+
+class FakeSink:
+    def __init__(self, fail_names: set[str] | None = None, work_dir: Path | None = None):
+        self.names: list[str] = []
+        self.folders: set[str] = set()
+        self.fail_names = fail_names or set()
+        self.work_dir = work_dir
+        self.peak_files = 0
+
+    async def upload(self, path: Path, name: str, folder: str = "") -> str:
+        self.folders.add(folder)
+        if self.work_dir is not None:
+            self.peak_files = max(self.peak_files, len(list(self.work_dir.glob("*.part"))))
+        await asyncio.sleep(0)
+        if name in self.fail_names:
+            raise RuntimeError("upload failed")
+        self.names.append(name)
+        return f"hash-{name}"
+
+
+def files_for(*sizes: int) -> list[dict]:
+    return [{"id": i, "name": f"f{i}.bin", "size": s} for i, s in enumerate(sizes)]
+
+
+def run(engine, job_id, source, sink, files, work_dir, skip=()):
+    async def prepare():
+        return source, files
+
+    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=sink, work_dir=work_dir, skip=skip))
+
+
+def test_pieces_the_player_already_has_are_not_uploaded_and_the_job_ends_partial(engine, tmp_path):
+    job_id = new_job(engine)
+    source, sink = FakeSource(), FakeSink()
+    run(engine, job_id, source, sink, files_for(400 * MB), tmp_path, skip={0, 1})
+    assert sorted(source.calls) == [2, 3]
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        assert job.status == "partial"
+        assert not svc.missing_for(session, job, {0, 1})
+        assert svc.missing_for(session, job, {0})  # a player without piece 1 makes the job run again
+    run(engine, job_id, FakeSource(), sink, files_for(400 * MB), tmp_path)  # that run uploads only what is missing
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"
+
+
+def test_job_uploads_every_piece_and_builds_the_manifest(engine, tmp_path):
+    job_id = new_job(engine)
+    source, sink = FakeSource(), FakeSink(work_dir=tmp_path)
+    run(engine, job_id, source, sink, files_for(3000 * MB), tmp_path)
+
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        manifest = svc.build_manifest(session, job)
+        assert job.status == "ready" and job.completed_at is not None
+        assert manifest["total_bytes"] == 3000 * MB
+        assert manifest["piece_count"] == manifest["ready_count"] == len(sink.names)
+        assert all(p["ready"] and p["sha256"] for p in manifest["pieces"])
+        sizes = [p["size"] for p in manifest["pieces"]]
+        assert sum(sizes) == 3000 * MB
+        assert sizes[0] == 100 * MB  # the first pieces are small so the player starts soon
+        assert svc.get_ready_piece(session, job_id, 0).viking_hash.startswith("hash-ga-")
+        assert svc.get_ready_piece(session, job_id, 999) is None
+    assert not list(tmp_path.glob("*.part"))
+    assert sink.peak_files <= svc.MAX_PIECES_ON_DISK
+    assert sink.folders == {"GameAccess/fp1"}
+
+
+def test_pieces_on_disk_are_limited(engine, tmp_path):
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(work_dir=tmp_path), files_for(3000 * MB), tmp_path)
+    # the sink peeks at the disk on every upload
+    sink = FakeSink(work_dir=tmp_path)
+    job2 = new_job(engine)
+    run(engine, job2, FakeSource(), sink, files_for(3000 * MB), tmp_path)
+    assert 0 < sink.peak_files <= svc.MAX_PIECES_ON_DISK
+
+
+def test_a_failed_piece_is_retried(engine, tmp_path):
+    job_id = new_job(engine)
+    source = FakeSource(fail_first={0: 2})
+    run(engine, job_id, source, FakeSink(), files_for(50 * MB), tmp_path)
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"
+    assert source.calls.count(0) == 3
+
+
+def test_a_piece_that_keeps_failing_fails_the_job_and_keeps_ready_pieces(engine, tmp_path):
+    job_id = new_job(engine)
+    sink = FakeSink(fail_names={"ga-fp1.p0001"})
+    run(engine, job_id, FakeSource(), sink, files_for(3000 * MB), tmp_path)
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        assert job.status == "failed" and job.error_code == "unexpected_error"
+        assert svc.get_ready_piece(session, job_id, 0) is not None
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_resume_skips_pieces_that_are_already_ready(engine, tmp_path):
+    job_id = new_job(engine)
+    sink = FakeSink(fail_names={"ga-fp1.p0001"})
+    run(engine, job_id, FakeSource(), sink, files_for(3000 * MB), tmp_path)
+
+    source = FakeSource()
+    run(engine, job_id, source, FakeSink(), files_for(3000 * MB), tmp_path)
+    assert 0 not in source.calls
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        assert job.status == "ready" and job.error_code == ""
+        assert svc.build_manifest(session, job)["ready_count"] == svc.build_manifest(session, job)["piece_count"]
+
+
+def test_a_changed_plan_discards_old_pieces(engine, tmp_path):
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(), files_for(50 * MB), tmp_path)
+    source = FakeSource()
+    run(engine, job_id, source, FakeSink(), files_for(60 * MB), tmp_path)
+    assert source.calls == [0]
+
+
+def test_source_without_files_fails_cleanly(engine, tmp_path):
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(), files_for(0), tmp_path)
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).error_code == "torbox_no_files"
+
+
+def test_too_many_files_is_refused(engine, tmp_path):
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(), files_for(*([MB] * (svc.MAX_FILES + 1))), tmp_path)
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).error_code == "too_many_files"
+
+
+def test_provider_failure_while_preparing_marks_the_job_failed(engine, tmp_path):
+    job_id = new_job(engine)
+
+    async def prepare():
+        raise ProviderFailure("torbox_not_configured", 503, "x")
+
+    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=FakeSink(), work_dir=tmp_path))
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        assert job.status == "failed" and job.error_code == "torbox_not_configured"
+
+
+def test_recovery_fails_active_jobs_only(engine):
+    with Session(engine) as session:
+        a = svc.create_job(session, fingerprint="a", kind="torrent", item_name="a")
+        b = svc.create_job(session, fingerprint="b", kind="torrent", item_name="b")
+        b.status = "ready"
+        session.add(b)
+        session.commit()
+        a_id, b_id = a.job_id, b.job_id
+    assert svc.recover_interrupted_chunk_jobs(engine) == 1
+    with Session(engine) as session:
+        assert svc.get_job(session, a_id).error_code == "server_restarted"
+        assert svc.get_job(session, b_id).status == "ready"
+
+def test_restart_only_fails_jobs_of_this_server(engine):
+    with Session(engine) as session:
+        mine = svc.create_job(session, fingerprint="m", kind="torrent", item_name="mine")
+        other = svc.create_job(session, fingerprint="o", kind="torrent", item_name="other")
+        other.owner = "render:srv-other"
+        session.add(other)
+        session.commit()
+        mine_id, other_id = mine.job_id, other.job_id
+    assert svc.recover_interrupted_chunk_jobs(engine) == 1
+    with Session(engine) as session:
+        assert svc.get_job(session, mine_id).error_code == "server_restarted"
+        assert svc.get_job(session, other_id).status == "preparing"
+
+
+def test_instance_id_is_stable_and_tells_render_from_local(monkeypatch):
+    monkeypatch.delenv("GAMEACCESS_INSTANCE_ID", raising=False)
+    monkeypatch.delenv("RENDER_SERVICE_ID", raising=False)
+    assert svc.instance_id().startswith("local:") and svc.instance_id() == svc.instance_id()
+    monkeypatch.setenv("RENDER_SERVICE_ID", "srv-1")
+    assert svc.instance_id() == "render:srv-1"
+
+
+def test_torbox_detail_and_manifest_carry_what_the_server_is_doing(engine):
+    detail = svc.torbox_detail({"download_state": "downloading", "progress": 0.256, "download_speed": 1000, "seeds": 7, "eta": 60})
+    assert detail["progress"] == 25.6 and detail["seeds"] == 7 and detail["stage"] == "torbox"
+    with Session(engine) as session:
+        job = svc.create_job(session, fingerprint="d", kind="torrent", item_name="x")
+        job.detail = json.dumps(detail)
+        session.add(job)
+        session.commit()
+        assert svc.build_manifest(session, job)["detail"]["seeds"] == 7
+
+
+def test_find_job_for_source_returns_the_newest(engine):
+    with Session(engine) as session:
+        svc.create_job(session, fingerprint="x", kind="torrent", item_name="old")
+        newest = svc.create_job(session, fingerprint="x", kind="torrent", item_name="new")
+        assert svc.find_job_for_source(session, "x").job_id == newest.job_id
+        assert svc.find_job_for_source(session, "nope") is None
+
+
+def test_uploads_run_in_parallel_and_pieces_may_finish_out_of_order(engine, tmp_path):
+    class SlowFirst(FakeSink):
+        def __init__(self):
+            super().__init__()
+            self.active = 0
+            self.peak_active = 0
+
+        async def upload(self, path, name, folder=""):
+            self.active += 1
+            self.peak_active = max(self.peak_active, self.active)
+            await asyncio.sleep(0.05 if name.endswith("p0000") else 0.01)
+            self.active -= 1
+            return await super().upload(path, name, folder)
+
+    job_id = new_job(engine)
+    sink = SlowFirst()
+    run(engine, job_id, FakeSource(), sink, files_for(1500 * MB), tmp_path)
+    assert sink.peak_active >= 2
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        manifest = svc.build_manifest(session, job)
+        assert job.status == "ready" and manifest["ready_count"] == manifest["piece_count"]
+
+
+class SlowSource(FakeSource):
+    """TorBox taking a while per piece; counts the reads running at once."""
+
+    def __init__(self):
+        super().__init__()
+        self.active = self.peak = 0
+
+    async def fetch(self, piece, dest):
+        self.active += 1
+        self.peak = max(self.peak, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            return await super().fetch(piece, dest)
+        finally:
+            self.active -= 1
+
+
+def test_several_pieces_are_read_from_torbox_at_once(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_FETCHES", "3")
+    source, sink = SlowSource(), FakeSink(work_dir=tmp_path)
+    run(engine, new_job(engine), source, sink, files_for(3000 * MB), tmp_path)
+    assert source.peak == 3
+    assert sorted(source.calls) == list(range(len(sink.names)))  # every piece once
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_the_disk_budget_holds_back_reads(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_FETCHES", "4")
+    monkeypatch.setenv("GAMEACCESS_CHUNK_DISK_MB", "150")  # one 100 MB piece at a time
+    source = SlowSource()
+    run(engine, new_job(engine), source, FakeSink(), files_for(400 * MB), tmp_path)
+    assert source.peak == 1
+
+
+def test_a_piece_bigger_than_the_disk_budget_still_goes(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_DISK_MB", "10")
+    job_id = new_job(engine)
+    run(engine, job_id, FakeSource(), FakeSink(), files_for(250 * MB), tmp_path)
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"
+
+
+class FakeImporter:
+    """ViKiNG importing TorBox files by itself; counts the imports running at once."""
+
+    def __init__(self, fail_first: dict[int, int] | None = None):
+        self.calls: list[tuple[int, str, str, bool]] = []
+        self.fail_first = dict(fail_first or {})
+        self.active = self.peak = 0
+
+    async def import_file(self, piece, name, folder="", refresh=False):
+        self.calls.append((piece.index, name, folder, refresh))
+        self.active += 1
+        self.peak = max(self.peak, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            if self.fail_first.get(piece.index, 0) > 0:
+                self.fail_first[piece.index] -= 1
+                raise RuntimeError("viking hiccup")
+            return f"hash-{name}"
+        finally:
+            self.active -= 1
+
+
+def run_remote(engine, job_id, importer, files, work_dir):
+    source = FakeSource()
+
+    async def prepare():
+        return source, files
+
+    asyncio.run(svc.run_chunk_job(engine, job_id, prepare=prepare, sink=FakeSink(), work_dir=work_dir,
+                                  importer=lambda _source: importer))
+    return source
+
+
+def test_remote_mode_has_viking_import_every_file_without_touching_its_bytes(engine, tmp_path):
+    job_id = new_job(engine)
+    importer = FakeImporter()
+    source = run_remote(engine, job_id, importer, files_for(3000 * MB, 0, 700 * MB), tmp_path)
+    assert source.calls == []  # this server never read a byte
+    assert sorted(c[0] for c in importer.calls) == [0, 1]  # the empty file needs no piece
+    assert {c[2] for c in importer.calls} == {"GameAccess/fp1"}
+    with Session(engine) as session:
+        job = svc.get_job(session, job_id)
+        manifest = svc.build_manifest(session, job)
+        assert job.status == "ready"
+        assert [(p["file_index"], p["start"], p["size"]) for p in manifest["pieces"]] == [(0, 0, 3000 * MB), (2, 0, 700 * MB)]
+        assert all(p["ready"] and p["sha256"] == "" for p in manifest["pieces"])
+        assert svc.get_ready_piece(session, job_id, 1).viking_hash == "hash-ga-fp1.p0001"
+
+
+def test_remote_imports_run_several_at_once(engine, tmp_path, monkeypatch):
+    monkeypatch.setenv("GAMEACCESS_CHUNK_IMPORTS", "3")
+    importer = FakeImporter()
+    run_remote(engine, new_job(engine), importer, files_for(*([500 * MB] * 7)), tmp_path)
+    assert importer.peak == 3 and len(importer.calls) == 7
+
+
+def test_a_failed_import_is_retried_with_a_new_torbox_link(engine, tmp_path):
+    job_id = new_job(engine)
+    importer = FakeImporter(fail_first={0: 1})
+    run_remote(engine, job_id, importer, files_for(500 * MB), tmp_path)
+    assert [c[3] for c in importer.calls] == [False, True]  # the retry refreshes the link
+    with Session(engine) as session:
+        assert svc.get_job(session, job_id).status == "ready"

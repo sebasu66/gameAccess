@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Tareas en ejecución</title>
+<style>
+body{margin:0;background:#111416;color:#f5f5f5;font:15px system-ui}main{max-width:1100px;margin:48px auto;padding:24px}h1{margin-bottom:8px}p{color:#adb5bd}a{color:#ff8a3d}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin:24px 0}.stat{background:#191d20;padding:16px 20px;border-radius:12px;min-width:140px}.stat b{display:block;font-size:30px;color:#ff8a3d;font-variant-numeric:tabular-nums}.stat span{color:#adb5bd;font-size:13px}
+.wrap{background:#191d20;border-radius:12px;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px 16px;border-bottom:1px solid #ffffff14;font-size:14px}th{color:#adb5bd;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+td.num{font-variant-numeric:tabular-nums}.empty{padding:28px;color:#adb5bd;text-align:center}.warn{color:#ffb15c}.err{color:#ff7a6b;padding:12px 0}
+tr.main{cursor:pointer}tr.main:hover{background:#ffffff08}tr.logrow td{background:#13161800;padding:4px 16px 14px}
+.log{margin:0;padding:10px 14px;background:#111416;border-radius:8px;list-style:none;font-size:13px;line-height:1.7}.log li{display:flex;gap:10px}.log time{color:#6c757d;font-variant-numeric:tabular-nums;white-space:nowrap}.log .st{font-weight:600;white-space:nowrap}
+.log .error{color:#ff7a6b}.log .ok{color:#7bd88f}.chip{display:inline-block;padding:2px 8px;border-radius:999px;background:#ffffff14;font-size:12px}.chip.ok{color:#7bd88f}.chip.error{color:#ff7a6b}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff8a3d;margin-right:8px;animation:pulse 1.2s ease-in-out infinite}@keyframes pulse{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.dot{animation:none}}
+</style>
+<main>
+<h1>Tareas en ejecución</h1>
+<p>Juegos que el servidor está preparando ahora: Torbox los baja y Viking los copia directo desde Torbox; el cliente baja desde Torbox mientras tanto. Se actualiza solo cada 5 segundos. <a href="/admin">Volver</a></p>
+<div class="stats">
+<div class="stat"><b id="total">–</b><span>en ejecución</span></div>
+<div class="stat"><b id="direct">–</b><span>enlaces directos</span></div>
+<div class="stat"><b id="torrent">–</b><span>magnets</span></div>
+<div class="stat"><b id="done">–</b><span>completadas (24 h)</span></div>
+<div class="stat"><b id="failed">–</b><span>con error (24 h)</span></div>
+</div>
+<div id="error" class="err" role="alert"></div>
+<div class="wrap"><table><thead><tr><th>Juego o archivo</th><th>Tipo</th><th>Origen</th><th>Cliente</th><th>Iniciada</th><th>Tiempo</th><th>Estado</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>No hay tareas en ejecución.</div></div>
+<h2 style="margin-top:28px;font-size:16px">Terminadas hace poco (6 h)</h2>
+<div class="wrap"><table><thead><tr><th>Juego o archivo</th><th>Cliente</th><th>Hora</th><th>Resultado</th></tr></thead><tbody id="recent"></tbody></table><div id="norecent" class="empty" hidden>Nada terminó en las últimas 6 horas.</div></div>
+<h2 style="margin-top:28px;font-size:16px">Errores (24 h)</h2>
+<div class="wrap"><table><thead><tr><th>Hora</th><th>Juego o archivo</th><th>Flujo</th><th>Qué pasó</th><th>Origen</th></tr></thead><tbody id="fails"></tbody></table><div id="nofails" class="empty" hidden>Sin errores en las últimas 24 horas.</div></div>
+</main>
+<script>
+const q=id=>document.getElementById(id);
+let tasks=[],fails=[],recent=[],fetchedAt=0;const open=new Set();
+const REASONS={server_restarted:"El servidor se reinició mientras trabajaba (se retoma solo)",torbox_wait_timeout:"Torbox no terminó a tiempo",torbox_download_failed:"Torbox no pudo bajar el origen",torbox_no_files:"Torbox no encontró archivos",torbox_not_configured:"Torbox no está configurado",torbox_invalid_response:"Torbox respondió algo inesperado",viking_upload_failed:"Falló la subida a Viking",rate_limited:"Demasiados pedidos"};
+const why=c=>c?(REASONS[c]||c):"Sin detalle";
+const wait=d=>{if(!d||d.stage!=="torbox")return"";const bits=[];if(d.state)bits.push(d.state);if(d.progress)bits.push(Math.round(d.progress)+"%");if(d.seeds)bits.push(d.seeds+" fuentes");return bits.join(" · ")};
+const fmt=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60;return(h?h+" h ":"")+(h||m?m+" min ":"")+r+" s"};
+function cell(tr,text,cls){const td=document.createElement("td");td.textContent=text;if(cls)td.className=cls;tr.appendChild(td);return td}
+const STEPS={request:"Pedido",cache:"Ya estaba en Viking",resume:"Retoma",torbox:"Paso 1 · Torbox",viking:"Paso 2 · Viking",send:"Enviado al cliente",client:"Cliente",ready:"Listo",error:"Error"};
+function logRow(host,id,events,span){
+  const tr=document.createElement("tr");tr.className="logrow";const td=document.createElement("td");td.colSpan=span;
+  const ul=document.createElement("ul");ul.className="log";
+  if(!events||!events.length){const li=document.createElement("li");li.textContent="Todavía no hay pasos registrados.";ul.appendChild(li)}
+  for(const e of events||[]){const li=document.createElement("li");if(e.status!=="info")li.className=e.status;
+    const t=document.createElement("time");t.textContent=new Date(e.at).toLocaleTimeString("es-AR");
+    const s=document.createElement("span");s.className="st";s.textContent=STEPS[e.step]||e.step;
+    const m=document.createElement("span");m.textContent=e.message;li.append(t,s,m);ul.appendChild(li)}
+  td.appendChild(ul);tr.appendChild(td);host.appendChild(tr);
+}
+function toggle(tr,id){tr.onclick=()=>{open.has(id)?open.delete(id):open.add(id);draw()}}
+function draw(){
+  const rows=q("rows");rows.replaceChildren();
+  const extra=(Date.now()-fetchedAt)/1000;
+  for(const t of tasks){
+    const tr=document.createElement("tr");tr.className="main";toggle(tr,t.request_id);
+    cell(tr,(open.has(t.request_id)?"▾ ":"▸ ")+(t.item_name||"(sin nombre)"));
+    cell(tr,t.source_kind==="torrent"?"Magnet":"Enlace directo");
+    cell(tr,t.source_host||"–");
+    cell(tr,(t.installation_id||"").slice(0,8)||"–","num");
+    cell(tr,new Date(t.requested_at).toLocaleTimeString("es-AR"),"num");
+    cell(tr,fmt(t.elapsed_seconds+extra),"num");
+    const st=document.createElement("td");const dot=document.createElement("span");dot.className="dot";st.appendChild(dot);
+    st.appendChild(document.createTextNode(t.possibly_stuck?"Posiblemente trabada":(t.last_message||(wait(t.detail)?"Torbox: "+wait(t.detail):"Procesando"))));if(t.possibly_stuck)st.className="warn";tr.appendChild(st);
+    rows.appendChild(tr);
+    if(open.has(t.request_id))logRow(rows,t.request_id,t.events,7);
+  }
+  q("empty").hidden=tasks.length>0;
+  const rc=q("recent");rc.replaceChildren();
+  for(const j of recent){const tr=document.createElement("tr");tr.className="main";toggle(tr,j.request_id);
+    cell(tr,(open.has(j.request_id)?"▾ ":"▸ ")+(j.item_name||"(sin nombre)"));cell(tr,(j.installation_id||"").slice(0,8)||"–","num");
+    cell(tr,j.at?new Date(j.at).toLocaleTimeString("es-AR"):"–","num");
+    const td=cell(tr,"");const c=document.createElement("span");c.className="chip "+(j.status==="ready"?"ok":"error");c.textContent=j.status==="ready"?"Completada":"Con error";td.appendChild(c);
+    rc.appendChild(tr);if(open.has(j.request_id))logRow(rc,j.request_id,j.events,4)}
+  q("norecent").hidden=recent.length>0;
+  const fr=q("fails");fr.replaceChildren();
+  for(const f of fails){const tr=document.createElement("tr");
+    cell(tr,f.at?new Date(f.at).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"–","num");
+    cell(tr,f.item_name||"(sin nombre)");cell(tr,f.flow==="fragmentos"?"Por fragmentos":"Enlace");
+    cell(tr,(f.message||why(f.error_code))+(f.status==="rejected"?" (rechazada)":"")+(f.installation_id?" · cliente "+f.installation_id.slice(0,8):""),"warn");cell(tr,f.source_host||"–");fr.appendChild(tr)}
+  q("nofails").hidden=fails.length>0;
+}
+async function load(){
+  try{
+    const r=await fetch("/admin/viking-running-tasks",{cache:"no-store"});
+    const data=await r.json();
+    if(!r.ok)throw Error(typeof data.detail==="string"?data.detail:"No se pudo leer el estado.");
+    tasks=data.tasks;fails=data.failures||[];recent=data.finished||[];fetchedAt=Date.now();
+    q("total").textContent=data.running_total;q("direct").textContent=data.running_direct;q("torrent").textContent=data.running_torrents;
+    q("done").textContent=data.last_24h.completed;q("failed").textContent=data.last_24h.failed;
+    q("error").textContent="";draw();
+  }catch(e){q("error").textContent=e.message}
+}
+load();setInterval(load,5000);setInterval(draw,1000);
+</script>
+</html>

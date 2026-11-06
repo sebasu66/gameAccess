@@ -1,0 +1,270 @@
+//! Focus around a game session: the game's window takes the focus when it appears, and when the game ends Game Access
+//! comes back to the front (the front end then puts the focus on the game grid, ready for the controller).
+//!
+//! A game is followed by its install folder, not by one process id: launchers start the real game and exit, and Steam
+//! games are started by Steam. Every process whose executable lives under the folder counts as the game; once one was
+//! seen and none is left, the session is over. Windows only lets the foreground app hand the focus over, so the
+//! focus moves by attaching to the input of the window that has it now. Windows APIs are called directly from their
+//! system DLLs, with no extra crate.
+
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager};
+
+/// Each new session stops the watcher of the previous one.
+static SESSION: AtomicU64 = AtomicU64::new(0);
+const POLL: Duration = Duration::from_millis(1000);
+/// How long a game may take to show up (thawing, a Steam account switch, a launcher).
+const APPEAR_TIMEOUT: Duration = Duration::from_secs(240);
+/// While this long after it appeared, a new game window (the launcher gave way to the game) takes the focus again.
+const FOCUS_WINDOW: Duration = Duration::from_secs(60);
+
+/// Whether `image` (an executable's full path) is inside `folder`, ignoring case and slash style.
+fn inside(folder: &str, image: &str) -> bool {
+    let norm = |value: &str| value.replace('/', "\\").trim_end_matches('\\').to_lowercase();
+    let (folder, image) = (norm(folder), norm(image));
+    !folder.is_empty() && image.starts_with(&folder) && image[folder.len()..].starts_with('\\')
+}
+
+#[cfg(windows)]
+#[allow(non_snake_case, clippy::upper_case_acronyms)]
+mod win {
+    use std::ffi::c_void;
+    pub type HWND = isize;
+    pub type HANDLE = *mut c_void;
+
+    #[repr(C)]
+    pub struct PROCESSENTRY32W {
+        pub dwSize: u32, pub cntUsage: u32, pub th32ProcessID: u32, pub th32DefaultHeapID: usize, pub th32ModuleID: u32,
+        pub cntThreads: u32, pub th32ParentProcessID: u32, pub pcPriClassBase: i32, pub dwFlags: u32, pub szExeFile: [u16; 260],
+    }
+
+    #[link(name = "kernel32", kind = "raw-dylib")]
+    extern "system" {
+        pub fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> HANDLE;
+        pub fn Process32FirstW(snapshot: HANDLE, entry: *mut PROCESSENTRY32W) -> i32;
+        pub fn Process32NextW(snapshot: HANDLE, entry: *mut PROCESSENTRY32W) -> i32;
+        pub fn OpenProcess(access: u32, inherit: i32, pid: u32) -> HANDLE;
+        pub fn QueryFullProcessImageNameW(process: HANDLE, flags: u32, name: *mut u16, size: *mut u32) -> i32;
+        pub fn CloseHandle(handle: HANDLE) -> i32;
+        pub fn GetCurrentThreadId() -> u32;
+    }
+    #[link(name = "user32", kind = "raw-dylib")]
+    extern "system" {
+        pub fn EnumWindows(callback: extern "system" fn(HWND, isize) -> i32, param: isize) -> i32;
+        pub fn GetWindowThreadProcessId(window: HWND, pid: *mut u32) -> u32;
+        pub fn IsWindowVisible(window: HWND) -> i32;
+        pub fn GetWindow(window: HWND, command: u32) -> HWND;
+        pub fn GetForegroundWindow() -> HWND;
+        pub fn SetForegroundWindow(window: HWND) -> i32;
+        pub fn BringWindowToTop(window: HWND) -> i32;
+        pub fn ShowWindow(window: HWND, command: i32) -> i32;
+        pub fn IsIconic(window: HWND) -> i32;
+        pub fn AttachThreadInput(attach: u32, to: u32, on: i32) -> i32;
+    }
+    pub const TH32CS_SNAPPROCESS: u32 = 0x2;
+    pub const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    pub const GW_OWNER: u32 = 4;
+    pub const SW_RESTORE: i32 = 9;
+    pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+}
+
+/// A running process this account can see: its id, the process that started it and its executable's full path.
+#[derive(Clone, Debug)]
+pub(crate) struct ProcessImage { pub pid: u32, pub parent: u32, pub image: String }
+
+/// Every process whose executable path can be read (kid mode's guard, kid_mode.rs, and the game's folder below).
+#[cfg(windows)]
+pub(crate) fn process_images() -> Vec<ProcessImage> {
+    use win::*;
+    let mut found = Vec::new();
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot.is_null() || snapshot == INVALID_HANDLE_VALUE { return found; }
+        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut more = Process32FirstW(snapshot, &mut entry) != 0;
+        while more {
+            let pid = entry.th32ProcessID;
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if !process.is_null() {
+                let mut buffer = [0u16; 1024];
+                let mut size = buffer.len() as u32;
+                if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0 {
+                    found.push(ProcessImage { pid, parent: entry.th32ParentProcessID, image: String::from_utf16_lossy(&buffer[..size as usize]) });
+                }
+                CloseHandle(process);
+            }
+            more = Process32NextW(snapshot, &mut entry) != 0;
+        }
+        CloseHandle(snapshot);
+    }
+    found
+}
+
+/// Whether `image` (an executable's full path) is inside `folder`, for other modules.
+pub(crate) fn is_inside(folder: &str, image: &str) -> bool { inside(folder, image) }
+
+/// The processes running from `folder`.
+#[cfg(windows)]
+pub(crate) fn game_processes(folder: &str) -> Vec<u32> {
+    process_images().into_iter().filter(|process| inside(folder, &process.image)).map(|process| process.pid).collect()
+}
+
+/// A visible top-level window (not owned by another one) of these processes.
+#[cfg(windows)]
+fn game_window(pids: &[u32]) -> Option<win::HWND> {
+    use win::*;
+    struct Search<'a> { pids: &'a [u32], found: HWND }
+    extern "system" fn visit(window: HWND, param: isize) -> i32 {
+        let search = unsafe { &mut *(param as *mut Search) };
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(window, &mut pid) };
+        if search.pids.contains(&pid) && unsafe { IsWindowVisible(window) } != 0 && unsafe { GetWindow(window, GW_OWNER) } == 0 {
+            search.found = window;
+            return 0;
+        }
+        1
+    }
+    let mut search = Search { pids, found: 0 };
+    unsafe { EnumWindows(visit, &mut search as *mut Search as isize) };
+    (search.found != 0).then_some(search.found)
+}
+
+/// Brings `window` to the front even from the background: attached to the input of the window that has the focus,
+/// Windows lets this thread move it.
+#[cfg(windows)]
+fn force_foreground(window: win::HWND) {
+    use win::*;
+    unsafe {
+        let current = GetForegroundWindow();
+        if current == window { return; }
+        let theirs = GetWindowThreadProcessId(current, std::ptr::null_mut());
+        let ours = GetCurrentThreadId();
+        let attached = theirs != 0 && theirs != ours && AttachThreadInput(ours, theirs, 1) != 0;
+        if IsIconic(window) != 0 { ShowWindow(window, SW_RESTORE); }
+        BringWindowToTop(window);
+        SetForegroundWindow(window);
+        if attached { AttachThreadInput(ours, theirs, 0); }
+    }
+}
+
+#[cfg(windows)]
+fn foreground_pid() -> u32 {
+    let mut pid = 0u32;
+    unsafe { win::GetWindowThreadProcessId(win::GetForegroundWindow(), &mut pid) };
+    pid
+}
+
+#[cfg(windows)]
+fn watch(app: AppHandle, folder: String, app_id: Option<i64>, session: u64) {
+    let started = Instant::now();
+    let mut appeared: Option<Instant> = None;
+    let mut focused: Option<win::HWND> = None;
+    let mut empty_polls = 0;
+    let ours = std::process::id();
+    while SESSION.load(Ordering::SeqCst) == session {
+        std::thread::sleep(POLL);
+        // A Steam game runs where Steam installed it, which may not be the folder Game Access recorded (an old copy in
+        // a library Steam no longer lists): every folder with its manifest counts, read again on each poll, as for the
+        // child's guard (kid_mode.rs).
+        let pids: Vec<u32> = watched_folders(&folder, app_id).iter().flat_map(|dir| game_processes(dir)).collect();
+        if pids.is_empty() {
+            match appeared {
+                None if started.elapsed() > APPEAR_TIMEOUT => return,
+                None => continue,
+                Some(_) => {
+                    // Two polls in a row with nothing left: the game is over (a launcher handing over to the game
+                    // leaves no gap that long).
+                    empty_polls += 1;
+                    if empty_polls < 2 { continue; }
+                    if SESSION.load(Ordering::SeqCst) != session { return; }
+                    crate::webview_rest::set_game_running(&app, false);
+                    if let Some(main) = app.get_webview_window("main") {
+                        let _ = main.unminimize();
+                        let _ = main.show();
+                        if let Ok(handle) = main.hwnd() { force_foreground(handle.0 as win::HWND); }
+                        let _ = main.set_focus();
+                        // Back to how the window was before the game, filling the screen; once more a moment later,
+                        // in case the resolution comes back after the game's processes are gone (window_fit.rs).
+                        crate::window_fit::restore(&main);
+                    }
+                    let _ = app.emit("gameaccess:game-ended", folder.clone());
+                    std::thread::sleep(Duration::from_millis(1500));
+                    if let Some(main) = app.get_webview_window("main") { crate::window_fit::refit(&main); }
+                    return;
+                }
+            }
+        }
+        empty_polls = 0;
+        if appeared.is_none() { crate::webview_rest::set_game_running(&app, true); }
+        let first_seen = *appeared.get_or_insert_with(Instant::now);
+        // Give the game's window the focus, again when a new one shows (launcher -> game), as long as the player has
+        // not moved somewhere else: the front window is still Game Access or the game.
+        if first_seen.elapsed() <= FOCUS_WINDOW {
+            if let Some(window) = game_window(&pids) {
+                let front = foreground_pid();
+                if focused != Some(window) && (front == ours || pids.contains(&front) || front == 0) {
+                    force_foreground(window);
+                    focused = Some(window);
+                }
+            }
+        }
+    }
+}
+
+/// The recorded folder and, for a Steam game, every folder where Steam has it.
+fn watched_folders(folder: &str, app_id: Option<i64>) -> Vec<String> {
+    let mut folders = vec![folder.to_string()];
+    if let Some(app_id) = app_id.filter(|id| *id > 0) { folders.extend(crate::kid_mode::steam_game_dirs(app_id, &crate::kid_mode::steam_roots())); }
+    folders.retain(|dir| !dir.trim().is_empty());
+    folders.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    folders
+}
+
+/// Follows the game started from `folder`: its window gets the focus, and when it ends Game Access comes back to the
+/// front and emits `gameaccess:game-ended`. A new call replaces the previous session.
+#[tauri::command]
+pub fn game_focus_watch(app: AppHandle, folder: String, app_id: Option<i64>) -> bool {
+    let session = SESSION.fetch_add(1, Ordering::SeqCst) + 1;
+    // A new session replaces the previous one, which may have left the view resting.
+    crate::webview_rest::set_game_running(&app, false);
+    if !watched_folders(&folder, app_id).iter().any(|dir| Path::new(dir).is_dir()) { return false; }
+    // How the window is now, to put it back the same way when the game ends.
+    if let Some(main) = app.get_webview_window("main") { crate::window_fit::remember(&main); }
+    #[cfg(windows)]
+    std::thread::spawn(move || watch(app, folder, app_id, session));
+    #[cfg(not(windows))]
+    let _ = (app, session, app_id);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{inside, watched_folders};
+
+    #[test]
+    fn a_game_without_an_app_id_is_followed_in_its_own_folder_only() {
+        assert_eq!(watched_folders(r"D:\Games\Hades", None), vec![r"D:\Games\Hades".to_string()]);
+        assert!(watched_folders("", Some(0)).is_empty());
+    }
+
+    #[test]
+    fn a_process_belongs_to_the_game_by_its_folder() {
+        assert!(inside(r"D:\Games\Hades", r"d:\games\hades\x64\Hades.exe"));
+        assert!(inside("D:/Games/Hades/", r"D:\Games\Hades\Hades.exe"));
+        assert!(!inside(r"D:\Games\Hades", r"D:\Games\Hades II\Hades2.exe"));
+        assert!(!inside("", r"C:\Windows\explorer.exe"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn lists_processes_and_windows_without_crashing() {
+        // The real calls, against this machine: a wrong struct layout or signature would fail here, not in the app.
+        let windows_dir = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        let pids = super::game_processes(&windows_dir);
+        assert!(!pids.is_empty(), "Windows' own processes run from its folder");
+        let _ = super::game_window(&pids);
+    }
+}

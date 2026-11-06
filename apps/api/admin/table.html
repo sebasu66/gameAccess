@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Tabla</title>
+<style>
+body{margin:0;background:#111416;color:#f5f5f5;font:15px system-ui}main{max-width:1280px;margin:32px auto;padding:24px}h1{margin:0 0 6px}p{color:#adb5bd;margin:4px 0}a{color:#ff8a3d}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 12px}.bar input,.bar select,.bar button{font:inherit;background:#191d20;color:#fff;border:1px solid #3a4146;border-radius:8px;padding:7px 10px}.bar input{flex:1;min-width:220px}.bar button{cursor:pointer}
+.wrap{background:#191d20;border-radius:12px;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px 14px;border-bottom:1px solid #ffffff14;font-size:13.5px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+th{color:#adb5bd;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;user-select:none;position:sticky;top:0;background:#191d20}th.on{color:#ff8a3d}td.num{font-variant-numeric:tabular-nums;text-align:right}
+td:hover{white-space:normal;word-break:break-word}.empty{padding:28px;color:#adb5bd;text-align:center}.err{color:#ff7a6b}.muted{color:#adb5bd}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:#2a3034;color:#adb5bd}.ok{background:#1f3d2a;color:#7be09a}.bad{background:#4a1f1b;color:#ff7a6b}
+</style>
+<main>
+<h1 id="title">Tabla</h1><p id="desc"></p><p><a href="/admin">Volver</a></p>
+<div id="error" class="err" role="alert"></div>
+<div class="bar"><input id="search" type="search" placeholder="Buscar…" aria-label="Buscar"><select id="filter-col" aria-label="Columna a filtrar"></select><select id="filter-val" aria-label="Valor"></select><button id="reload">Actualizar</button><button id="csv">Bajar CSV</button></div>
+<div class="wrap"><table><thead id="head"></thead><tbody id="body"></tbody></table><div id="empty" class="empty" hidden>Sin resultados.</div></div>
+<p id="count" class="muted"></p>
+</main>
+<script>
+const q=id=>document.getElementById(id);
+const cfg=window.__TABLE__;
+let rows=[],cols=[],sortCol=null,sortDir=1;
+const LABELS=window.__LABELS__||{};
+const isDate=v=>typeof v==="string"&&/^\d{4}-\d\d-\d\dT/.test(v);
+const flat=(o,p="",out={})=>{for(const [k,v] of Object.entries(o||{})){const key=p?p+"."+k:k;if(v&&typeof v==="object"&&!Array.isArray(v))flat(v,key,out);else out[key]=Array.isArray(v)?JSON.stringify(v):v}return out};
+const show=v=>v==null?"":isDate(v)?new Date(v).toLocaleString("es-AR"):typeof v==="boolean"?(v?"sí":"no"):String(v);
+const label=c=>(LABELS[c]||c.replace(/[._]/g," "));
+function extract(d){
+  if(cfg.key&&Array.isArray(d[cfg.key]))return d[cfg.key].map(r=>flat(r));
+  if(Array.isArray(d))return d.map(r=>typeof r==="object"?flat(r):{valor:r});
+  const arr=Object.entries(d).find(([,v])=>Array.isArray(v)&&v.length&&typeof v[0]==="object");
+  if(arr)return arr[1].map(r=>flat(r));
+  return Object.entries(flat(d)).map(([clave,valor])=>({clave,valor}));
+}
+function visible(){
+  const t=q("search").value.trim().toLowerCase(),fc=q("filter-col").value,fv=q("filter-val").value;
+  let list=rows.filter(r=>(!fc||!fv||show(r[fc])===fv)&&(!t||cols.some(c=>show(r[c]).toLowerCase().includes(t))));
+  if(sortCol)list=list.slice().sort((a,b)=>{const x=a[sortCol],y=b[sortCol];if(typeof x==="number"&&typeof y==="number")return(x-y)*sortDir;return show(x).localeCompare(show(y),"es",{numeric:true})*sortDir});
+  return list;
+}
+function draw(){
+  const head=q("head");head.replaceChildren();const tr=document.createElement("tr");
+  for(const c of cols){const th=document.createElement("th");th.textContent=label(c)+(sortCol===c?(sortDir>0?" ▲":" ▼"):"");if(sortCol===c)th.className="on";th.onclick=()=>{sortDir=sortCol===c?-sortDir:1;sortCol=c;draw()};tr.appendChild(th)}
+  head.appendChild(tr);const body=q("body");body.replaceChildren();const list=visible();
+  for(const r of list){const row=document.createElement("tr");for(const c of cols){const td=document.createElement("td");const v=r[c];td.textContent=show(v);if(typeof v==="number")td.className="num";
+      if(/outcome|status|estado/i.test(c)&&v){td.textContent="";const s=document.createElement("span");s.className="pill "+(/allow|ok|ready|permit/i.test(v)?"ok":/den|fail|error|rej/i.test(v)?"bad":"");s.textContent=v;td.appendChild(s)}
+      row.appendChild(td)}body.appendChild(row)}
+  q("empty").hidden=list.length>0;q("count").textContent=list.length+" de "+rows.length+" filas";
+}
+function fillFilter(){
+  const sel=q("filter-col");sel.replaceChildren(new Option("Filtrar por…",""));
+  for(const c of cols){const vals=new Set(rows.map(r=>show(r[c])));if(vals.size>1&&vals.size<=25)sel.appendChild(new Option(label(c),c))}
+  fillValues();
+}
+function fillValues(){
+  const c=q("filter-col").value,sel=q("filter-val");sel.replaceChildren(new Option("Todos",""));sel.hidden=!c;
+  if(c)for(const v of [...new Set(rows.map(r=>show(r[c])))].sort())sel.appendChild(new Option(v||"(vacío)",v));
+}
+async function load(){
+  try{
+    const r=await fetch(cfg.src,{cache:"no-store"});const d=await r.json();
+    if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"No se pudo leer.");
+    rows=extract(d);cols=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+    if(cfg.hide)cols=cols.filter(c=>!cfg.hide.includes(c));
+    if(!sortCol&&cols.find(c=>/created_at|at$|_at/.test(c))){sortCol=cols.find(c=>/created_at|at$|_at/.test(c));sortDir=-1}
+    fillFilter();draw();q("error").textContent="";
+  }catch(e){q("error").textContent=e.message}
+}
+q("search").addEventListener("input",draw);q("filter-col").addEventListener("change",()=>{fillValues();draw()});q("filter-val").addEventListener("change",draw);q("reload").onclick=load;
+q("csv").onclick=()=>{const esc=v=>'"'+show(v).replace(/"/g,'""')+'"';const text=[cols.map(esc).join(","),...visible().map(r=>cols.map(c=>esc(r[c])).join(","))].join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+text],{type:"text/csv"}));a.download=(cfg.slug||"tabla")+".csv";a.click()};
+q("title").textContent=cfg.title;q("desc").textContent=cfg.description||"";document.title="GameAccess · "+cfg.title;
+load();
+</script>
+</html>

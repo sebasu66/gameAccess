@@ -1,7 +1,7 @@
-/* Desktop library layout contract: bounded detail panel + flexible catalog. */
+/* Desktop library layout contract: equal detail and catalog space. */
 @media (min-width: 761px) {
   .library-room:not(.surface-tablet):not(.surface-display) {
-    grid-template-columns: clamp(420px, 48vw, 980px) minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
     gap: clamp(14px, 1.4vw, 22px) !important;
   }
 
@@ -18,8 +18,8 @@
   }
 
   .library-room:not(.surface-tablet):not(.surface-display) .library-detail-essential {
-    flex: 0 0 80% !important;
-    min-height: 80% !important;
+    flex: 0 0 auto !important;
+    min-height: 100% !important;
     max-height: none !important;
   }
 }

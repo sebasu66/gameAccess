@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "_help": "What changed in each version, for the card at the top of Home (releaseNotes.ts). Ships inside the app, so the notes always match the installed version. Newest first; one short line per change, in the player's words. Add the new version's entry in the same commit that raises the version.",
+  "versions": [
+    {
+      "version": "0.1.13",
+      "date": "2026-11-05",
+      "changes": {
+        "es": [
+          "**Tu perfil para la IA** (Configuración › IA): juegos que te gustan, géneros, cómo jugás y lo que buscás o evitás.",
+          "**Búsqueda con IA** (PLUS): pedí en tus palabras y cada juego llega con el motivo al lado.",
+          "**Conectar IA** más simple: abre tu navegador y una ventana chica con los pasos.",
+          "**Géneros ordenados**: una sola lista, en tu idioma, sin repetidos.",
+          "**Abre más rápido**: las novedades del catálogo se buscan en Actividad y podés usar la app mientras tanto.",
+          "**Una sola pestaña de Plugins** y **Actualizar juegos** ahora está en la pantalla de Juegos.",
+          "**Botón Xbox del mando**: podés hacer que abra Game Access en lugar de Steam.",
+          "**Accesos directos con el icono de cada juego**, también los que ya tenías en el escritorio.",
+          "**Juegos más seguros**: los pasos automáticos ya no borran lo que tenías en el disco."
+        ],
+        "en": [
+          "**Your AI profile** (Settings › AI): the games you like, genres, how you play and what you look for or avoid.",
+          "**AI search** (PLUS): ask in your own words and each game comes with its reason beside it.",
+          "**Simpler Connect AI**: it opens your browser and a small window with the steps.",
+          "**Tidy genres**: one list, in your language, with no repeats.",
+          "**Opens faster**: catalog news are checked in Activity and you can use the app meanwhile.",
+          "**One Plugins tab**, and **Update games** is now on the Games screen.",
+          "**Xbox controller button**: you can make it open Game Access instead of Steam.",
+          "**Desktop links with each game's icon**, including the ones you already had.",
+          "**Safer games**: automatic steps no longer delete what you already had on disk."
+        ]
+      }
+    },
+    {
+      "version": "0.1.12",
+      "date": "2026-11-04",
+      "changes": {
+        "es": [
+          "**Inicio nuevo**: Game Access abre acá, con la bienvenida, tu cuenta, las novedades y ayuda y contacto.",
+          "**Modo niño**: cada chico con su propia cuenta de Windows, sus juegos, horarios y horas por día; el control parental se cuida con tu clave.",
+          "**Administrador de biblioteca**: una fila por juego con su registro y el avance de cada tarea (descarga, congelado, mover); verificá que un juego abre y reintentá lo que falló.",
+          "**Jugar más seguro**: antes de abrir un juego revisa Steam, las librerías que faltan y el driver de video, y lo arregla cuando puede.",
+          "**Juegos vinculados** (Steam o carpeta) con su comando de inicio editable; Jugar encuentra el juego en todas tus bibliotecas de Steam.",
+          "**Catálogo**: reseñas, etiquetas y juegos gratis de Steam, los juegos importantes de los últimos 10 años y lo destacado de la tienda arriba.",
+          "**Cuenta y contacto**: creá tu cuenta desde Inicio y escribinos desde Ayuda y contacto.",
+          "**Conectar IA** (Configuración › IA) y aviso si el antivirus revisa las carpetas de juegos.",
+          "**La tapa de apertura** muestra GAME ACCESS más grande, dibujado letra por letra; con **PLUS** el equipo lleva bordes y líneas doradas y la marca PLUS."
+        ],
+        "en": [
+          "**New Home**: Game Access opens here, with the welcome, your account, the news and help and contact.",
+          "**Kid mode**: each child gets their own Windows account, games, schedule and hours per day; parental control is guarded by your key.",
+          "**Library manager**: one row per game with its log and the progress of each task (download, freeze, move); check that a game starts and retry what failed.",
+          "**Safer play**: before a game starts it checks Steam, missing libraries and the video driver, and fixes them when it can.",
+          "**Linked games** (Steam or a folder) with an editable launch command; Play finds the game in every Steam library you have.",
+          "**Catalog**: Steam reviews, tags and free games, the important games of the last 10 years and the store's highlights on top.",
+          "**Account and contact**: create your account from Home and write to us from Help and contact.",
+          "**Connect AI** (Settings › AI) and a warning when the antivirus scans the games folders.",
+          "**The opening cover** shows GAME ACCESS larger, drawn letter by letter; with **PLUS** the device wears gold edges and lines and the PLUS mark."
+        ]
+      }
+    }
+  ]
+}

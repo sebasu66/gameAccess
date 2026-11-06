@@ -2,6 +2,7 @@
 
 import { type MachineProfile, type SteamDownloadStatus } from "./native";
 import type { CatalogGame, GameDetails, SteamMetadata } from "./types";
+import { translate } from "./i18n";
 
 export const stripHtml = (value?: string) =>
   (value ?? "")
@@ -43,9 +44,9 @@ export type SessionView = {
 };
 
 export function availabilityLabel(game: CatalogGame) {
-  if (game.copies_available > 0) return `${game.copies_available} disponible${game.copies_available === 1 ? "" : "s"}`;
-  if (game.copies_total > 0) return "Ocupado";
-  return "Sin stock";
+  if (game.copies_available > 0) return translate(game.copies_available === 1 ? "copiesAvailableOne" : "copiesAvailableMany", { count: game.copies_available });
+  if (game.copies_total > 0) return translate("copiesBusy");
+  return translate("copiesOutOfStock");
 }
 
 function minRamGb(steam?: SteamMetadata | null): number | null {
@@ -59,15 +60,15 @@ export function heavinessLabel(steam?: SteamMetadata | null, machine?: MachinePr
   if (!steam) return null;
   const requiredRam = minRamGb(steam);
   if (requiredRam && machine?.memory_gb && requiredRam > machine.memory_gb + 0.25) {
-    return { tone: "bad", text: `Muy pesado · pide ${requiredRam} GB RAM` };
+    return { tone: "bad", text: translate("heavyRamNeeded", { gb: requiredRam }) };
   }
 
   const req = stripHtml(steam.minimum_requirements).toLowerCase();
   const demandingGpu = /(rtx\s*(20|30|40|50)|rx\s*(57|66|67|68|69|76|77|78|79)|gtx\s*1080)/i.test(req);
   if ((requiredRam && requiredRam >= 16) || demandingGpu) {
-    return { tone: "warn", text: "Requisitos altos" };
+    return { tone: "warn", text: translate("heavyHighRequirements") };
   }
-  if (machine && requiredRam) return { tone: "good", text: "Tu RAM cumple el mínimo" };
+  if (machine && requiredRam) return { tone: "good", text: translate("heavyRamOk") };
   return null;
 }
 

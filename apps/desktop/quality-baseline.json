@@ -3,14 +3,19 @@
   "maxClassLines": 600,
   "maxFunctionComplexity": 15,
   "legacyBlobShas": {
-    "src/App.tsx": "2e1d5bef87324e0d9c34d154d82da3a3ff365ba3",
-    "src/LibraryInputController.tsx": "15f56f4dd779f38784f572d2033ae5a7d9cc9f72",
-    "src/LibraryRoom.tsx": "118da5e3787718b05fd9e6c58b17a1e0f87d9851",
-    "src/LibraryRoomParts.tsx": "ceebf2a74c0d224f0a555bc194ab68bf18b99fff",
-    "src/RuntimeGate.tsx": "f1f09eed1d90e28d9e9860f24e624135c0d7afba",
+    "src/App.tsx": "2f7ad5df5fdd0408e76ad5e01bfb4514e7f7efe2",
     "src/SteamStoreDetail.tsx": "241562b27d184837e7b97f9b47fab425148cfcfd",
-    "src/api.ts": "30cf98bcece8e6631caa331c4826f2e551bddd86",
-    "src/downloadState.ts": "70a881f46578bc08352c68fa5ceaaba937f64c19",
-    "src/native.ts": "53404d1d6291942ed501c2144b7fbe178587ca56"
+    "src/automation.ts": "1915ff3a1d3334804f14e5f42a0b79f57b2414ae",
+    "src/catalog/DigitalCatalog.ts": "28731efcb272e8c86ffd5925455540c402f83473",
+    "src/DownloadCatalogPanel.tsx": "71c91b02d71a6af6df8b39b43c7b70bffa5d2624",
+    "src/downloadProvider.ts": "f9425e032f4763f1756bc15917c7c2e90e6362c6",
+    "src/GenericDownloadProgress.tsx": "12ecd403217c3b41273fd76ef9ac152ea5952a51",
+    "src/LibraryInputController.tsx": "ab8ebe407eb25be7e9643fe088a5d604d2b1fc9d",
+    "src/LibraryRoom.tsx": "e22cbfca259f23474e028b659e4b1763d5f3f801",
+    "src/LibraryRoomParts.tsx": "d470a9925e502376a0df638f1893e2d05c163960",
+    "src/RuntimeGate.tsx": "426411cb043fa835bc2e0a28d24cbb6d054f4956",
+    "src/api.ts": "b5181c8cf0e53f31757f6dcbcd45fe30ade3ac3f",
+    "src/librarySections.ts": "b9eb2ffacc07006a9f4c0027bc73243211c149ff",
+    "src/native.ts": "fbac6b50d090e9cee393d3617afaad331b27dc65"
   }
 }

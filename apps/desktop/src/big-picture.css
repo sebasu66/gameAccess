@@ -1,0 +1,68 @@
+/* Big picture mode (bigPicture.ts, BigScreenControls.tsx): the library's ready games and a controller, nothing else.
+   What would open something (search, filters, view switch, the footer's other buttons, card menus) is hidden; the
+   footer keeps only the button that leaves the mode. */
+body.ga-big-screen .ga-search-dock,
+body.ga-big-screen .ga-grid-toolbar,
+body.ga-big-screen .ga-spotlight,
+body.ga-big-screen .library-catalog-tabs,
+body.ga-big-screen .ga-library-pills,
+body.ga-big-screen .ga-footer-left,
+body.ga-big-screen .ga-dock > :not(.ga-big-screen-toggle),
+body.ga-big-screen .ga-bento-menu,
+body.ga-big-screen .ga-view-rail,
+body.ga-big-screen .ga-brand-wall { display: none !important; }
+
+/* Real fullscreen: Windows already gives the window the whole screen (window_fit.rs); the app's own title bar
+   (minimize, maximize, close) goes too, and what sat under it moves up into its place. */
+body.ga-big-screen .window-chrome { display: none !important; }
+body.ga-big-screen { --window-chrome-height: 0px; }
+
+/* The label sits where the old footer bar was, at the bottom centre between the bezel's tabs; the grid ends above it. */
+html body.ga-device-frame.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) { padding-bottom: 64px !important; }
+.ga-big-picture-label {
+  /* Centred with margins, not a transform: GSAP moves it in and out (motion/bigPictureMotion.ts). */
+  position: fixed; z-index: 60; left: 0; right: 0; bottom: 12px; width: fit-content; margin-inline: auto;
+  display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 520px); margin-block: 0; padding: 8px 18px;
+  border: 1px solid #d79e6066; border-radius: 8px; background: #111416e6; color: var(--ga-white);
+  font: 600 14px Manrope, "Segoe UI", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 6px 18px #0008;
+}
+.ga-big-picture-label svg { flex: none; color: var(--ga-orange); }
+.ga-big-picture-label strong { font: 400 20px "Bebas Neue", sans-serif; letter-spacing: .04em; color: var(--ga-orange); }
+.ga-big-picture-label span { overflow: hidden; text-overflow: ellipsis; }
+/* The focused card is the one A plays: it stands out clearly. */
+body.ga-big-screen .ga-bento-card:focus-visible, body.ga-big-screen .ga-bento-card:focus { outline: 3px solid var(--ga-orange); outline-offset: 4px; }
+@media (max-width: 1100px) { .ga-big-picture-label { max-width: calc(100vw - 32px); bottom: 64px; } }
+
+/* The legend: the mode's name, then what A, the stick and Menu do (leaving the mode always in view). */
+.ga-big-picture-label { gap: 18px; padding: 10px 22px; font-size: 15px; border-color: #d79e60aa; max-width: calc(100vw - 260px); }
+.ga-pad-legend { display: inline-flex; align-items: center; gap: 8px; color: #dfe3e6; }
+.ga-pad-legend.is-exit { color: var(--ga-white); font-weight: 800; }
+.ga-pad-key { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 28px; height: 28px; padding: 0 7px; box-sizing: border-box;
+  border-radius: 14px; border: 1px solid #ffffff59; background: #ffffff14; color: var(--ga-white); font: 800 13px Manrope, "Segoe UI", sans-serif; }
+.ga-pad-key.is-a { border-color: #7fcf8f; color: #9be0a8; }
+.ga-pad-key.is-menu { border-color: var(--ga-orange); background: #cc833326; color: #ffd0a0; border-radius: 8px; }
+.ga-big-picture-label .ga-pad-key svg { color: inherit; }
+
+/* Entering the mode (BigPictureIntro.tsx): a card in the middle of the screen over a dimmed library. */
+/* Hidden until the change runs; GSAP shows it (autoAlpha). Under the gate (z-index 510). */
+.ga-big-intro { position: fixed; inset: 0; z-index: 505; display: grid; place-items: center; pointer-events: none; visibility: hidden; opacity: 0; background: radial-gradient(ellipse at center, #07090de0, #07090dfa 70%); }
+.ga-big-intro-card { display: grid; justify-items: center; gap: 10px; max-width: min(760px, calc(100vw - 48px)); padding: 44px 56px; text-align: center;
+  border-radius: 14px; border: 1px solid #d79e6080; background: linear-gradient(150deg, #2a1d14e6, #121518f2 60%); box-shadow: 0 30px 80px #000c, inset 0 1px 0 #ffffff1f; }
+.ga-big-intro-icon { color: var(--ga-orange); filter: drop-shadow(0 0 18px #ff6a0055); }
+.ga-big-intro-eyebrow { margin: 6px 0 0; color: var(--ga-muted); font: 800 12px Manrope, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
+.ga-big-intro-title { margin: 0; color: var(--ga-orange); font: 400 clamp(64px, 9vw, 120px)/.9 "Bebas Neue", sans-serif; letter-spacing: .02em; text-transform: uppercase; }
+.ga-big-intro-text { margin: 4px 0 0; color: #dfe3e6; font: 600 18px Manrope, sans-serif; }
+.ga-big-intro-exit { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 14px 0 0; padding: 12px 18px; border-radius: 10px;
+  background: #ffffff0d; border: 1px solid #ffffff24; color: var(--ga-white); font: 700 16px Manrope, sans-serif; }
+
+/* The whole width for the games: no big words at the sides and only a small margin, so more covers fit. */
+html body.ga-big-screen .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: clamp(16px, 2vw, 40px) !important; }
+/* The gate of the change (BigPictureIntro.tsx): hidden and open until it runs; above the card, below nothing. */
+.ga-big-gate { visibility: hidden; }
+.ga-big-gate .gs-leaf.is-left { transform: translateX(-101%); }
+.ga-big-gate .gs-leaf.is-right { transform: translateX(101%); }
+
+/* Its padlock is lit, as on the opening's closed cover (the still lock would show it already gone out). */
+.ga-big-gate.gs-gate.is-still .gs-padlock-body { fill: #f2f6fb; filter: drop-shadow(0 0 4px #dce9ffcc) drop-shadow(0 0 12px #a9c8ff66); }
+.ga-big-gate.gs-gate.is-still .gs-padlock-shackle { stroke: #f2f6fb; filter: drop-shadow(0 0 4px #dce9ffcc); transform: none; }

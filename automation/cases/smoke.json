@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "library-ui-smoke-v3-server",
+  "stop_on_error": true,
+  "close_when_done": true,
+  "tasks": [
+    { "action": "wait", "ms": 1200 },
+    { "action": "assert", "selector": ".app-shell" },
+    { "action": "screenshot", "label": "01-library-loaded" },
+    { "action": "search", "term": "" },
+    { "action": "assert", "selector": ".global-search input[aria-label=\"Buscar en tu biblioteca\"]" },
+    { "action": "screenshot", "label": "02-search-ready" }
+  ]
+}

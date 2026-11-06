@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationTitle>Game Access Torrent Plugin Installer</ApplicationTitle>
+    <Product>Game Access Torrent Plugin</Product>
+    <Company>Game Access</Company>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('plugin-payload.zip')">
+    <EmbeddedResource Include="plugin-payload.zip" />
+  </ItemGroup>
+</Project>

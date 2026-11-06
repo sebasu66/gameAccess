@@ -1,0 +1,18 @@
+{
+  "repo_root": "C:/DEV/Game Access Dev",
+  "branch": "dev",
+  "poll_seconds": 15,
+  "run_on_start": true,
+  "automation_case": "automation/cases/smoke.json",
+  "automation_timeout_seconds": 600,
+  "retain_runs": 5,
+  "upload": true,
+  "github_repo": "sebasu66/gameAccess",
+  "release_tag": "dev-lab",
+  "tests": {
+    "frontend": true,
+    "api": true,
+    "rust": true,
+    "release_build": true
+  }
+}
