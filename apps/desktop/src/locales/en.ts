@@ -1155,7 +1155,7 @@ export const en: Record<keyof typeof es, string> = {
   steamGuide: "The controller's Xbox button opens Game Access",
   steamGuideHint: "Steam stops opening Big Picture with that button and Game Access goes to big picture mode. Turn it off to go back.",
   steamGuideDone: "Done: Steam no longer uses the Xbox button. If it still opens Big Picture, turn off \"Guide Button Focuses Steam\" in Steam › Settings › Controller.",
-  steamGuideCloseSteam: "Steam is open and would save the button back when it closes. Close it (Steam › Exit) and press Apply; it is also applied the next time Game Access opens with Steam closed.",
+  steamGuideCloseSteam: "It already works: if Steam opens its Big Picture with the button, Game Access closes it and stays in front. To stop Steam from opening it at all, close Steam (Steam › Exit) and press Apply; it is also applied the next time Game Access opens with Steam closed.",
   steamGuideCloseSteamBack: "To give the button back to Steam, close it (Steam › Exit) and turn this option off again.",
   steamGuideRetry: "Apply",
   steamSwitchHint: "When playing, Steam restarts with the remembered account that owns the game.",

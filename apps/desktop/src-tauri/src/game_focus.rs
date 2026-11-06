@@ -62,6 +62,7 @@ mod win {
         pub fn ShowWindow(window: HWND, command: i32) -> i32;
         pub fn IsIconic(window: HWND) -> i32;
         pub fn AttachThreadInput(attach: u32, to: u32, on: i32) -> i32;
+        pub fn GetWindowTextW(window: HWND, text: *mut u16, size: i32) -> i32;
     }
     pub const TH32CS_SNAPPROCESS: u32 = 0x2;
     pub const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
@@ -132,10 +133,32 @@ fn game_window(pids: &[u32]) -> Option<win::HWND> {
     (search.found != 0).then_some(search.found)
 }
 
+/// The titles of the visible top-level windows of processes whose executable ends in `image_suffix` (lowercase).
+#[cfg(windows)]
+pub(crate) fn window_titles(image_suffix: &str) -> Vec<String> {
+    use win::*;
+    struct Search { pids: Vec<u32>, titles: Vec<String> }
+    extern "system" fn visit(window: HWND, param: isize) -> i32 {
+        let search = unsafe { &mut *(param as *mut Search) };
+        let mut pid = 0u32;
+        unsafe { GetWindowThreadProcessId(window, &mut pid) };
+        if search.pids.contains(&pid) && unsafe { IsWindowVisible(window) } != 0 && unsafe { GetWindow(window, GW_OWNER) } == 0 {
+            let mut text = [0u16; 256];
+            let length = unsafe { GetWindowTextW(window, text.as_mut_ptr(), text.len() as i32) };
+            if length > 0 { search.titles.push(String::from_utf16_lossy(&text[..length as usize])); }
+        }
+        1
+    }
+    let pids = process_images().into_iter().filter(|process| process.image.to_lowercase().ends_with(image_suffix)).map(|process| process.pid).collect();
+    let mut search = Search { pids, titles: Vec::new() };
+    unsafe { EnumWindows(visit, &mut search as *mut Search as isize) };
+    search.titles
+}
+
 /// Brings `window` to the front even from the background: attached to the input of the window that has the focus,
 /// Windows lets this thread move it.
 #[cfg(windows)]
-fn force_foreground(window: win::HWND) {
+pub(crate) fn force_foreground(window: isize) {
     use win::*;
     unsafe {
         let current = GetForegroundWindow();

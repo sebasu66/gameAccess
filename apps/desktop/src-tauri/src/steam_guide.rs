@@ -11,6 +11,11 @@
 //! Game Access reads the button itself with XInputGetStateEx (xinput1_4 ordinal 100: XInputGetState does not report
 //! it). Reading does not take the button from other programs. A press brings Game Access to the front and tells the
 //! interface (`gameaccess:guide-button`), which opens big picture mode.
+//!
+//! The mapping lines cannot always be changed (Steam open, usually from Windows' start; a controller without a line), so
+//! the file is not enough: Steam may still open its Big Picture over ours. When that window shows up after a press it is
+//! closed with Steam's own link, `steam://close/bigpicture`, and Game Access comes back to the front. While a Steam game
+//! is running the button is left alone: it belongs to the game.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,6 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 const BACKUP_NAME: &str = "config.vdf.gameaccess-guide.bak";
 static LISTENING: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
+static WATCHING: AtomicBool = AtomicBool::new(false);
 
 /// Removes every `guide:bN` entry from the SDL mapping lines; returns the new text and how many it removed.
 pub(crate) fn strip_guide(text: &str) -> (String, usize) {
@@ -115,6 +121,48 @@ fn mapping_value(text: &str) -> Option<&str> {
     Some(&text[open..close])
 }
 
+/// Steam's Big Picture window, by its title ("Steam Big Picture Mode", "Modo Big Picture de Steam"): Windows' title can
+/// carry a non-breaking space between the words.
+fn is_big_picture_title(title: &str) -> bool {
+    title.to_lowercase().replace('\u{a0}', " ").contains("big picture")
+}
+
+/// A running game's id in `reg query` output: the last word of the RunningAppID line, in hexadecimal; 0 is no game.
+fn running_app(output: &str) -> bool {
+    output.lines().find(|line| line.contains("RunningAppID")).and_then(|line| line.split_whitespace().last()).and_then(|value| u32::from_str_radix(value.trim_start_matches("0x"), 16).ok()).is_some_and(|id| id != 0)
+}
+
+#[cfg(windows)]
+fn steam_game_running() -> bool {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg.exe").args(["query", r"HKCU\Software\Valve\Steam\ActiveProcess", "/v", "RunningAppID"]).creation_flags(0x0800_0000).output().is_ok_and(|output| running_app(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// For a few seconds after a press: if Steam's Big Picture appears, closes it and puts Game Access back in front.
+#[cfg(windows)]
+fn close_steam_big_picture(app: tauri::AppHandle) {
+    use std::os::windows::process::CommandExt;
+    use tauri::Manager;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    if WATCHING.swap(true, Ordering::SeqCst) { return; }
+    std::thread::spawn(move || {
+        for _ in 0..24 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            if !crate::game_focus::window_titles("\\steamwebhelper.exe").iter().any(|title| is_big_picture_title(title)) { continue; }
+            let closed = std::process::Command::new("explorer.exe").arg("steam://close/bigpicture").creation_flags(CREATE_NO_WINDOW).spawn().is_ok();
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                if let Ok(handle) = window.hwnd() { crate::game_focus::force_foreground(handle.0 as isize); }
+            }
+            crate::activity_log::append_narration_lines(vec![format!("Steam: Big Picture opened with the Guide button; closed: {closed}.")], "STEAM".into(), "INFO".into()).ok();
+            break;
+        }
+        WATCHING.store(false, Ordering::SeqCst);
+    });
+}
+
 /// Turns Game Access's own reading of the Guide button on or off (the player's setting).
 #[tauri::command]
 pub fn steam_guide_listen(app: tauri::AppHandle, on: bool) {
@@ -149,7 +197,8 @@ fn start_listener(app: tauri::AppHandle) {
             for slot in 0..4u32 {
                 let mut state = xinput::State::default();
                 let pressed = unsafe { xinput::XInputGetStateEx(slot, &mut state) } == 0 && state.gamepad.buttons & xinput::GUIDE != 0;
-                if pressed && !held[slot as usize] {
+                if pressed && !held[slot as usize] && !steam_game_running() {
+                    close_steam_big_picture(app.clone());
                     if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus(); }
                     crate::webview_rest::wake(&app);
                     let _ = app.emit_to("main", "gameaccess:guide-button", ());
@@ -173,6 +222,20 @@ mod tests {
         assert_eq!(removed, 2);
         assert!(stripped.contains("back:b4,start:b6,") && stripped.contains("Pad,x:b2,") && stripped.ends_with("\"guide:b9\""));
         assert_eq!(strip_guide(&stripped).1, 0);
+    }
+
+    #[test]
+    fn reads_the_running_game() {
+        assert!(running_app("    RunningAppID    REG_DWORD    0x1234"));
+        assert!(!running_app("    RunningAppID    REG_DWORD    0x0"));
+        assert!(!running_app(""));
+    }
+
+    #[test]
+    fn knows_the_big_picture_window_by_its_title() {
+        assert!(is_big_picture_title("Modo Big\u{a0}Picture de Steam"));
+        assert!(is_big_picture_title("Steam Big Picture Mode"));
+        assert!(!is_big_picture_title("Steam"));
     }
 
     #[test]

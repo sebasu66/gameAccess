@@ -1153,7 +1153,7 @@ export const es = {
   steamGuide: "El botón Xbox del mando abre Game Access",
   steamGuideHint: "Steam deja de abrir Big Picture con ese botón y Game Access pasa a pantalla grande. Se puede volver atrás desactivándolo.",
   steamGuideDone: "Listo: Steam ya no usa el botón Xbox. Si igual abre Big Picture, desactivá «El botón Guía enfoca Steam» en Steam › Configuración › Mando.",
-  steamGuideCloseSteam: "Steam está abierto y volvería a guardar el botón al cerrarse. Cerralo (Steam › Salir) y tocá Aplicar; también se aplica solo la próxima vez que abras Game Access con Steam cerrado.",
+  steamGuideCloseSteam: "Ya funciona: si Steam abre su Big Picture con el botón, Game Access lo cierra y queda adelante. Para que Steam ni llegue a abrirlo, cerralo (Steam › Salir) y tocá Aplicar; también se aplica solo la próxima vez que abras Game Access con Steam cerrado.",
   steamGuideCloseSteamBack: "Para devolverle el botón a Steam, cerralo (Steam › Salir) y volvé a desactivar esta opción.",
   steamGuideRetry: "Aplicar",
   steamSwitchHint: "Al jugar, Steam se reinicia con la cuenta recordada que tiene el juego.",
