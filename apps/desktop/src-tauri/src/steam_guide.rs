@@ -1,29 +1,39 @@
 //! The controller's Xbox (Guide) button for Game Access instead of Steam (Seba, 2026-11-04).
 //!
-//! Steam opens Big Picture when the Guide button is pressed. It reads the button through the SDL mappings it keeps in
-//! `<Steam>\config\config.vdf` ("SDL_GamepadBind": one line per controller set up in Steam, with `guide:bN`). Taking
-//! `guide:bN` out of those lines makes Steam ignore the button for those controllers (documented by players in
-//! https://gist.github.com/rosswd/c0c8b46d1ae5bb4f02207b6195392f93). Steam rewrites config.vdf when it exits, so the
-//! file is only changed while Steam is closed, and the original is kept next to it for "restore".
-//! A controller Steam knows from its own database has no line there: for it Steam's setting "Guide Button Focuses
-//! Steam" (Settings › Controller) is the way, which the interface explains.
+//! Steam opens Big Picture when the Guide button is pressed. What stops it is Steam's own setting "Guide Button Focuses
+//! Steam" (Settings › Controller › Advanced): `"Controller_CheckGuideButton" "0"` at the top of each account's
+//! `userdata\<id>\config\localconfig.vdf`, seen by turning it off in Steam (2026-11-06; on by default, so the key is
+//! missing until then). Steam keeps it in memory and writes the file itself, so the file is only changed while Steam is
+//! closed: `steam_guide_restart` closes it, writes and starts it again. FOCUS_MARK lists the accounts changed here, for
+//! "restore"; while it exists, the launcher's account switch does the same (steam_account_manager/switch.py).
+//! The SDL mappings in `config.vdf` ("SDL_GamepadBind", with `guide:bN`) also come out, as players do it
+//! (https://gist.github.com/rosswd/c0c8b46d1ae5bb4f02207b6195392f93), with the original kept next to the file.
 //!
 //! Game Access reads the button itself with XInputGetStateEx (xinput1_4 ordinal 100: XInputGetState does not report
 //! it). Reading does not take the button from other programs. A press brings Game Access to the front and tells the
 //! interface (`gameaccess:guide-button`), which opens big picture mode.
 //!
-//! The mapping lines cannot always be changed (Steam open, usually from Windows' start; a controller without a line), so
-//! the file is not enough: Steam may still open its Big Picture over ours. When that window shows up after a press it is
-//! closed with Steam's own link, `steam://close/bigpicture`, and Game Access comes back to the front. While a Steam game
-//! is running the button is left alone: it belongs to the game.
+//! With Game Access closed the button still opens it: `--guide-watch` is this same program without a window, started at
+//! sign-in (HKCU Run, RUN_VALUE) only to read the button; a press starts the app with `--big-picture`. It sees the
+//! choice is gone (the Run value) on the next press and leaves; the installer stops it before replacing the program.
+//!
+//! Until Steam has been restarted once, or on an account signing in for the first time, Steam may still open its Big
+//! Picture over ours. When that window shows up after a press it is closed with Steam's own link,
+//! `steam://close/bigpicture`, and Game Access comes back to the front. While a game is running the button is left
+//! alone: it belongs to the game.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const BACKUP_NAME: &str = "config.vdf.gameaccess-guide.bak";
+const FOCUS_KEY: &str = "\"Controller_CheckGuideButton\"";
+const FOCUS_MARK: &str = "gameaccess-guide-focus.off";
 static LISTENING: AtomicBool = AtomicBool::new(false);
 static STARTED: AtomicBool = AtomicBool::new(false);
 static WATCHING: AtomicBool = AtomicBool::new(false);
+static OPENED_BY_BUTTON: AtomicBool = AtomicBool::new(false);
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const RUN_VALUE: &str = "GameAccessGuideButton";
 
 /// Removes every `guide:bN` entry from the SDL mapping lines; returns the new text and how many it removed.
 pub(crate) fn strip_guide(text: &str) -> (String, usize) {
@@ -61,13 +71,98 @@ fn steam_running() -> bool { false }
 
 fn count_bound(text: &str) -> usize { strip_guide(text).1 }
 
-/// {found, steam_running, bound: Guide entries Steam still has, released: Game Access took them out (backup kept)}.
+/// `localconfig.vdf` with Steam's Guide setting off; None when it already is, or the text is not that file.
+pub(crate) fn focus_off(text: &str) -> Option<String> {
+    if !text.trim_start().starts_with("\"UserLocalConfigStore\"") { return None; }
+    if let Some(at) = top_level_key(text) {
+        let line = text[at..].lines().next().unwrap_or("");
+        return (!line.ends_with("\"0\"")).then(|| format!("{}{FOCUS_KEY}\t\t\"0\"{}", &text[..at], &text[at + line.len()..]));
+    }
+    let close = text.rfind('}')?;
+    Some(format!("{}\t{FOCUS_KEY}\t\t\"0\"\n{}", &text[..close], &text[close..]))
+}
+
+/// The same file back on Steam's default: without the key.
+pub(crate) fn focus_default(text: &str) -> Option<String> {
+    let at = top_level_key(text)?;
+    let start = text[..at].rfind('\n').map_or(0, |line| line + 1);
+    let end = text[at..].find('\n').map_or(text.len(), |line| at + line + 1);
+    Some(format!("{}{}", &text[..start], &text[end..]))
+}
+
+/// Where the key is, only at the top level of the file (one tab in).
+fn top_level_key(text: &str) -> Option<usize> {
+    text.match_indices(FOCUS_KEY).map(|(at, _)| at).find(|&at| text[..at].rsplit('\n').next() == Some("\t"))
+}
+
+fn local_configs(root: &std::path::Path) -> Vec<(String, PathBuf)> {
+    let Ok(folders) = std::fs::read_dir(root.join("userdata")) else { return Vec::new() };
+    folders.flatten().map(|folder| (folder.file_name().to_string_lossy().into_owned(), folder.path().join("config").join("localconfig.vdf"))).filter(|(_, path)| path.is_file()).collect()
+}
+
+fn focus_pending(root: &std::path::Path) -> usize {
+    local_configs(root).iter().filter(|(_, path)| std::fs::read_to_string(path).is_ok_and(|text| focus_off(&text).is_some())).count()
+}
+
+fn steam_root(config: &std::path::Path) -> Option<PathBuf> { config.parent()?.parent().map(PathBuf::from) }
+
+fn replace_file(path: &std::path::Path, text: String) -> Result<(), String> {
+    let temporary = path.with_extension("vdf.gameaccess-tmp");
+    std::fs::write(&temporary, text).map_err(|e| e.to_string())?;
+    std::fs::rename(&temporary, path).map_err(|e| e.to_string())
+}
+
+/// Steam closed: the setting off in every account here. The mark stays even when nothing changed: it says the choice is on.
+fn release_focus(config: &std::path::Path) -> Result<usize, String> {
+    let mark = config.with_file_name(FOCUS_MARK);
+    let mut changed: Vec<String> = std::fs::read_to_string(&mark).unwrap_or_default().lines().map(String::from).collect();
+    let before = changed.len();
+    for (account, path) in local_configs(&steam_root(config).ok_or("not_found")?) {
+        let Some(next) = std::fs::read_to_string(&path).ok().and_then(|text| focus_off(&text)) else { continue };
+        replace_file(&path, next)?;
+        if !changed.contains(&account) { changed.push(account); }
+    }
+    std::fs::write(&mark, changed.join("\n")).map_err(|e| e.to_string())?;
+    Ok(changed.len() - before)
+}
+
+/// Steam closed: the accounts changed here go back; one that had it off by itself stays as it was.
+fn restore_focus(config: &std::path::Path) -> Result<(), String> {
+    let mark = config.with_file_name(FOCUS_MARK);
+    let root = steam_root(config).ok_or("not_found")?;
+    for account in std::fs::read_to_string(&mark).unwrap_or_default().lines() {
+        let path = root.join("userdata").join(account).join("config").join("localconfig.vdf");
+        if let Some(next) = std::fs::read_to_string(&path).ok().and_then(|text| focus_default(&text)) { replace_file(&path, next)?; }
+    }
+    if mark.is_file() { std::fs::remove_file(&mark).map_err(|e| e.to_string())?; }
+    Ok(())
+}
+
+/// Steam closed: the setting off everywhere and the SDL mappings out; how many of those it removed.
+fn release_all(config: &std::path::Path) -> Result<usize, String> {
+    let accounts = release_focus(config)?;
+    let text = std::fs::read_to_string(config).map_err(|e| e.to_string())?;
+    let (stripped, removed) = strip_guide(&text);
+    if removed > 0 {
+        let backup = config.with_file_name(BACKUP_NAME);
+        // The first original is the one to go back to: a later release keeps it.
+        if !backup.is_file() { std::fs::copy(config, &backup).map_err(|e| e.to_string())?; }
+        replace_file(config, stripped)?;
+    }
+    crate::activity_log::append_narration_lines(vec![format!("Steam: Guide button off in {accounts} account(s), {removed} mapping(s) out of config.vdf.")], "STEAM".into(), "INFO".into()).ok();
+    Ok(removed)
+}
+
+/// {found, steam_running, bound: Guide entries Steam still has, focus_pending: accounts where Steam still reacts to the
+/// button, released: Game Access changed something (backup or mark kept)}.
 #[tauri::command]
 pub async fn steam_guide_state() -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let Some(config) = steam_config() else { return Ok(serde_json::json!({ "found": false })) };
         let text = std::fs::read_to_string(&config).map_err(|e| e.to_string())?;
-        Ok(serde_json::json!({ "found": true, "steam_running": steam_running(), "bound": count_bound(&text), "released": config.with_file_name(BACKUP_NAME).is_file() }))
+        let root = steam_root(&config).ok_or("not_found")?;
+        let released = config.with_file_name(BACKUP_NAME).is_file() || config.with_file_name(FOCUS_MARK).is_file();
+        Ok(serde_json::json!({ "found": true, "steam_running": steam_running(), "bound": count_bound(&text), "focus_pending": focus_pending(&root), "released": released }))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -76,18 +171,36 @@ pub async fn steam_guide_state() -> Result<serde_json::Value, String> {
 pub async fn steam_guide_release() -> Result<usize, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let config = steam_config().ok_or("not_found")?;
-        if steam_running() { return Err("steam_running".into()); }
-        let text = std::fs::read_to_string(&config).map_err(|e| e.to_string())?;
-        let (stripped, removed) = strip_guide(&text);
-        if removed == 0 { return Ok(0); }
-        let backup = config.with_file_name(BACKUP_NAME);
-        // The first original is the one to go back to: a later release keeps it.
-        if !backup.is_file() { std::fs::copy(&config, &backup).map_err(|e| e.to_string())?; }
-        let temporary = config.with_extension("vdf.gameaccess-tmp");
-        std::fs::write(&temporary, stripped).map_err(|e| e.to_string())?;
-        std::fs::rename(&temporary, &config).map_err(|e| e.to_string())?;
-        crate::activity_log::append_narration_lines(vec![format!("Steam: took {removed} Guide-button mapping(s) out of config.vdf (backup {BACKUP_NAME}).")], "STEAM".into(), "INFO".into()).ok();
-        Ok(removed)
+        if steam_running() {
+            // An open Steam overwrites the files; with every account already off only the choice is left to note.
+            if focus_pending(&steam_root(&config).ok_or("not_found")?) > 0 { return Err("steam_running".into()); }
+            if !config.with_file_name(FOCUS_MARK).is_file() { std::fs::write(config.with_file_name(FOCUS_MARK), "").map_err(|e| e.to_string())?; }
+            return Ok(0);
+        }
+        release_all(&config)
+    }).await.map_err(|e| e.to_string())?
+}
+
+/// Closes Steam, turns its Guide button off and starts it again (minimised). Errors: "not_found", "game_running",
+/// "steam_slow" (it did not close in time).
+#[tauri::command]
+pub async fn steam_guide_restart() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let config = steam_config().ok_or("not_found")?;
+        if crate::webview_rest::game_running() || steam_game_running() { return Err("game_running".into()); }
+        let steam = steam_root(&config).ok_or("not_found")?.join("steam.exe");
+        if steam_running() {
+            std::process::Command::new(&steam).arg("-shutdown").spawn().map_err(|e| e.to_string())?;
+            let mut waited = 0;
+            while steam_running() {
+                if waited >= 160 { return Err("steam_slow".into()); }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                waited += 1;
+            }
+        }
+        let released = release_all(&config);
+        std::process::Command::new(&steam).arg("-silent").spawn().map_err(|e| e.to_string())?;
+        released.map(|_| ())
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -97,8 +210,10 @@ pub async fn steam_guide_restore() -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(|| {
         let config = steam_config().ok_or("not_found")?;
         if steam_running() { return Err("steam_running".into()); }
+        let mark = config.with_file_name(FOCUS_MARK).is_file();
+        restore_focus(&config)?;
         let backup = config.with_file_name(BACKUP_NAME);
-        if !backup.is_file() { return Err("no_backup".into()); }
+        if !backup.is_file() { return if mark { Ok(()) } else { Err("no_backup".into()) }; }
         // Only the mapping lines come back: whatever Steam saved since then (other settings) stays.
         let original = std::fs::read_to_string(&backup).map_err(|e| e.to_string())?;
         let now = std::fs::read_to_string(&config).map_err(|e| e.to_string())?;
@@ -138,6 +253,9 @@ fn steam_game_running() -> bool {
     std::process::Command::new("reg.exe").args(["query", r"HKCU\Software\Valve\Steam\ActiveProcess", "/v", "RunningAppID"]).creation_flags(0x0800_0000).output().is_ok_and(|output| running_app(&String::from_utf8_lossy(&output.stdout)))
 }
 
+#[cfg(not(windows))]
+fn steam_game_running() -> bool { false }
+
 /// For a few seconds after a press: if Steam's Big Picture appears, closes it and puts Game Access back in front.
 #[cfg(windows)]
 fn close_steam_big_picture(app: tauri::AppHandle) {
@@ -163,11 +281,102 @@ fn close_steam_big_picture(app: tauri::AppHandle) {
     });
 }
 
-/// Turns Game Access's own reading of the Guide button on or off (the player's setting).
+/// Turns Game Access's own reading of the Guide button on or off (the player's setting). `closed`: also with the app closed.
 #[tauri::command]
-pub fn steam_guide_listen(app: tauri::AppHandle, on: bool) {
+pub fn steam_guide_listen(app: tauri::AppHandle, on: bool, closed: Option<bool>) {
     LISTENING.store(on, Ordering::SeqCst);
     if on && !STARTED.swap(true, Ordering::SeqCst) { start_listener(app); }
+    if !cfg!(debug_assertions) { set_resident(on && closed.unwrap_or(true)); }
+}
+
+/// What the installer chose (`HKLM\Software\gameAccess\GuideRedirect`): on unless it is "0".
+#[tauri::command]
+pub fn steam_guide_default() -> bool { installer_value().as_deref() != Some("0") }
+
+/// True once when the button is what started the app: it opens in big picture mode.
+#[tauri::command]
+pub fn steam_guide_opened_by_button() -> bool { OPENED_BY_BUTTON.swap(false, Ordering::SeqCst) }
+
+#[cfg(windows)]
+fn quiet_reg(args: &[&str]) -> Option<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg.exe").args(args).creation_flags(0x0800_0000).output().ok()
+}
+
+#[cfg(windows)]
+fn installer_value() -> Option<String> {
+    let output = quiet_reg(&["query", r"HKLM\Software\gameAccess", "/v", "GuideRedirect", "/reg:64"])?;
+    String::from_utf8_lossy(&output.stdout).lines().find(|line| line.trim_start().starts_with("GuideRedirect"))?.split_whitespace().last().map(str::to_string)
+}
+#[cfg(not(windows))]
+fn installer_value() -> Option<String> { None }
+
+#[cfg(windows)]
+fn resident_on() -> bool { quiet_reg(&["query", RUN_KEY, "/v", RUN_VALUE]).is_some_and(|output| output.status.success()) }
+
+/// The sign-in entry, and the watcher now so it works before the next sign-in.
+#[cfg(windows)]
+fn set_resident(on: bool) {
+    use std::os::windows::process::CommandExt;
+    if !on { quiet_reg(&["delete", RUN_KEY, "/v", RUN_VALUE, "/f"]); return; }
+    let Ok(exe) = std::env::current_exe() else { return };
+    let command = format!("\"{}\" --guide-watch", exe.display());
+    quiet_reg(&["add", RUN_KEY, "/v", RUN_VALUE, "/t", "REG_SZ", "/d", &command, "/f"]);
+    let _ = std::process::Command::new(exe).arg("--guide-watch").creation_flags(0x0800_0000).spawn();
+}
+#[cfg(not(windows))]
+fn set_resident(_on: bool) {}
+
+/// main(): this process is the watcher. Also notes that the button started the app.
+pub fn run_watcher_if_requested() -> bool {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--big-picture") { OPENED_BY_BUTTON.store(true, Ordering::SeqCst); }
+    if !args.iter().any(|arg| arg == "--guide-watch") { return false; }
+    #[cfg(windows)]
+    watch_with_the_app_closed();
+    true
+}
+
+/// One watcher per Windows session; the mutex lives as long as the process.
+#[cfg(windows)]
+fn first_watcher() -> bool {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateMutexW(attributes: *const std::ffi::c_void, owner: i32, name: *const u16) -> *mut std::ffi::c_void;
+        fn GetLastError() -> u32;
+    }
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+    let name: Vec<u16> = "Local\\GameAccessGuideWatch\0".encode_utf16().collect();
+    let mutex = unsafe { CreateMutexW(std::ptr::null(), 0, name.as_ptr()) };
+    !mutex.is_null() && unsafe { GetLastError() } != ERROR_ALREADY_EXISTS
+}
+
+/// The app is open when this program runs twice: the watcher and the app. Then the app answers the button by itself.
+#[cfg(windows)]
+fn app_open(exe: &str) -> bool {
+    crate::game_focus::process_images().iter().filter(|process| process.image.eq_ignore_ascii_case(exe)).count() > 1
+}
+
+#[cfg(windows)]
+fn watch_with_the_app_closed() {
+    use std::os::windows::process::CommandExt;
+    if !first_watcher() { return; }
+    let Ok(exe) = std::env::current_exe() else { return };
+    let path = exe.to_string_lossy().into_owned();
+    let mut held = [false; 4];
+    loop {
+        let mut connected = false;
+        for slot in 0..4usize {
+            let Some(pressed) = guide_pressed(slot as u32) else { held[slot] = false; continue };
+            connected = true;
+            if pressed && !held[slot] && !app_open(&path) && !steam_game_running() {
+                if !resident_on() { return; }
+                let _ = std::process::Command::new(&exe).arg("--big-picture").creation_flags(0x0800_0000).spawn();
+            }
+            held[slot] = pressed;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(if connected { 60 } else { 1500 }));
+    }
 }
 
 #[cfg(windows)]
@@ -186,6 +395,13 @@ mod xinput {
     }
 }
 
+/// None: no controller in that slot.
+#[cfg(windows)]
+fn guide_pressed(slot: u32) -> Option<bool> {
+    let mut state = xinput::State::default();
+    (unsafe { xinput::XInputGetStateEx(slot, &mut state) } == 0).then_some(state.gamepad.buttons & xinput::GUIDE != 0)
+}
+
 #[cfg(windows)]
 fn start_listener(app: tauri::AppHandle) {
     use tauri::{Emitter, Manager};
@@ -195,9 +411,8 @@ fn start_listener(app: tauri::AppHandle) {
             std::thread::sleep(std::time::Duration::from_millis(if LISTENING.load(Ordering::SeqCst) { 60 } else { 500 }));
             if !LISTENING.load(Ordering::SeqCst) { held = [false; 4]; continue; }
             for slot in 0..4u32 {
-                let mut state = xinput::State::default();
-                let pressed = unsafe { xinput::XInputGetStateEx(slot, &mut state) } == 0 && state.gamepad.buttons & xinput::GUIDE != 0;
-                if pressed && !held[slot as usize] && !steam_game_running() {
+                let pressed = guide_pressed(slot) == Some(true);
+                if pressed && !held[slot as usize] && !crate::webview_rest::game_running() && !steam_game_running() {
                     close_steam_big_picture(app.clone());
                     if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus(); }
                     crate::webview_rest::wake(&app);
@@ -222,6 +437,18 @@ mod tests {
         assert_eq!(removed, 2);
         assert!(stripped.contains("back:b4,start:b6,") && stripped.contains("Pad,x:b2,") && stripped.ends_with("\"guide:b9\""));
         assert_eq!(strip_guide(&stripped).1, 0);
+    }
+
+    #[test]
+    fn turns_the_steam_setting_off_at_the_top_of_the_file() {
+        let text = "\"UserLocalConfigStore\"\n{\n\t\"system\"\n\t{\n\t\t\"Controller_CheckGuideButton\"\t\t\"1\"\n\t}\n}\n";
+        let off = focus_off(text).unwrap();
+        assert!(off.ends_with("\t}\n\t\"Controller_CheckGuideButton\"\t\t\"0\"\n}\n"));
+        assert_eq!(focus_off(&off), None);
+        assert_eq!(focus_default(&off).as_deref(), Some(text));
+        let on = off.replace("\t\"Controller_CheckGuideButton\"\t\t\"0\"\n}", "\t\"Controller_CheckGuideButton\"\t\t\"1\"\n}");
+        assert_eq!(focus_off(&on).as_deref(), Some(off.as_str()));
+        assert_eq!(focus_off("\"Other\"\n{\n}\n"), None);
     }
 
     #[test]

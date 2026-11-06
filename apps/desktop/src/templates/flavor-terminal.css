@@ -5,10 +5,16 @@
 :root {
   --ga-text-family: Manrope, "Segoe UI", sans-serif; --ga-display-family: "Bebas Neue", sans-serif;
   --ga-t2-weight: 700; --ga-label-weight: 800; --ga-status-weight: 700;
+  --ga-t1-font: 400 var(--ga-t1-size)/1 var(--ga-display-family);
   --ga-t2-font: var(--ga-t2-weight) var(--ga-t2-size)/var(--ga-t2-leading) var(--ga-text-family);
   --ga-hint-font: 400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
   --ga-label-font: var(--ga-label-weight) var(--ga-label-size)/var(--ga-label-leading) var(--ga-text-family);
   --ga-status-font: var(--ga-status-weight) var(--ga-status-size)/var(--ga-status-leading) var(--ga-text-family);
+
+  /* The smoke layer: glass over the window, darker in the middle, fading out to nothing before the corners. */
+  --ga-smoke-glass: blur(18px) saturate(.75);
+  --ga-smoke-bg: radial-gradient(ellipse 58% 62% at center, rgba(8, 10, 12, .9) 0%, rgba(8, 10, 12, .84) 45%, rgba(8, 10, 12, .55) 75%, rgba(8, 10, 12, 0) 100%);
+  --ga-smoke-mask: radial-gradient(ellipse 72% 78% at center, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, .72) 62%, rgba(0, 0, 0, .3) 82%, transparent 100%);
 
   /* Small floating cards and the on-screen tray (properties card, plugin list). */
   --ga-card-bg: var(--ga-dialog-bg); --ga-card-glass: blur(24px); --ga-card-ring: var(--ga-dialog-ring); --ga-card-radius: var(--ga-radius-l); --ga-card-shadow: var(--ga-dialog-shadow);

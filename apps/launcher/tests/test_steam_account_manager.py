@@ -388,3 +388,30 @@ def test_uninstall_finds_a_game_in_a_library_steam_no_longer_lists(setup, tmp_pa
 def test_removing_a_game_already_gone_from_the_library_is_done(setup):
     steam, storage, _, _ = setup
     assert GameLibraryManager(storage, steam=steam).batch("uninstall", [99999]) == [{"app_id": 99999, "ok": True, "already_gone": True}]
+
+
+def test_the_guide_setting_goes_off_at_the_top_of_localconfig():
+    from steam_account_manager.switch import guide_focus_off
+    text = '"UserLocalConfigStore"\n{\n\t"system"\n\t{\n\t}\n}\n'
+    off = guide_focus_off(text)
+    assert off == '"UserLocalConfigStore"\n{\n\t"system"\n\t{\n\t}\n\t"Controller_CheckGuideButton"\t\t"0"\n}\n'
+    assert guide_focus_off(off) is None
+    assert guide_focus_off(off.replace('"0"', '"1"')) == off
+    assert guide_focus_off('"Other"\n{\n}\n') is None
+
+
+def test_a_switch_keeps_steam_off_the_guide_button_only_when_chosen(tmp_path):
+    from steam_account_manager.switch import GUIDE_MARK, release_guide
+    config = tmp_path / "userdata" / "123" / "config"
+    config.mkdir(parents=True)
+    local = config / "localconfig.vdf"
+    local.write_text('"UserLocalConfigStore"\n{\n}\n', encoding="utf-8")
+    assert release_guide(tmp_path) == 0
+    assert "Controller_CheckGuideButton" not in local.read_text(encoding="utf-8")
+    (tmp_path / "config").mkdir()
+    mark = tmp_path / "config" / GUIDE_MARK
+    mark.write_text("", encoding="utf-8")
+    assert release_guide(tmp_path) == 1
+    assert '"Controller_CheckGuideButton"\t\t"0"' in local.read_text(encoding="utf-8")
+    assert mark.read_text(encoding="utf-8") == "123"
+    assert release_guide(tmp_path) == 0

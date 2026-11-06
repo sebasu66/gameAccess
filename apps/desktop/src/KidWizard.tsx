@@ -12,6 +12,7 @@ import { validWord } from "./AdminKeySection";
 import ParentalControlSection from "./ParentalControlSection";
 import KidGamesGrid from "./KidGamesGrid";
 import { DaySchedule } from "./KidTime";
+import { takeGuideForKid } from "./steamGuide";
 
 /**
  * Kids screen while kid mode is off (vault/Modo niño.md): the page that explains the features always comes first,
@@ -101,6 +102,8 @@ export default function KidWizard({ onPlus, onReady }: { onPlus: () => void; onR
       try { await keyStep.keep(); } catch (failure) { setError(t("adminKeyFailed", { error: String(failure) })); return; }
       const steam = draft.games.some(game => game.steam);
       await applyKidDraft();
+      // Not worth failing the wizard: the app tries again when it starts.
+      if (hasTauriRuntime() && !draft.keepSteamGuide) await takeGuideForKid().catch(() => undefined);
       if (hasTauriRuntime()) await loadAdminKey().catch(() => undefined);
       // Asked once the account exists (it counts as one failed sign-in on a protected account: windows_account.rs).
       const protectedAccount = hasTauriRuntime() ? await invoke<boolean | null>("windows_account_protected").catch(() => null) : null;
@@ -126,7 +129,9 @@ export default function KidWizard({ onPlus, onReady }: { onPlus: () => void; onR
   }, { scope: stage, dependencies: [step] });
   const views: Record<1 | 2 | 3 | 4, StepView> = {
     1: { title: t("kidKeyTitle"), body: keyStep.body, next: keyStep.save, nextLabel: t("kidKeyNext"), nextDisabled: !keyStep.ready },
-    2: { title: t("kidFilterTitle"), body: <><p>{t("kidFilterText")}</p><ParentalControlSection /></>, next: () => go(3), nextLabel: t("kidFilterNext") },
+    2: { title: t("kidFilterTitle"), body: <><p>{t("kidFilterText")}</p><ParentalControlSection />
+        <label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={!draft.keepSteamGuide} onChange={event => setKidDraft({ keepSteamGuide: !event.target.checked })} />{t("kidGuide")}</label>
+        <p className="ga-hint">{t("kidGuideHint")}</p></>, next: () => go(3), nextLabel: t("kidFilterNext") },
     3: {
       title: t("kidAccountTitle"), next: () => go(4), nextLabel: t("kidAccountNext"), nextDisabled: !validKidName(draft.name),
       body: <>

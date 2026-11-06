@@ -27,6 +27,7 @@ import { startPlusLook } from "./plusLook";
 import { trackAppVersion } from "./releaseNotes";
 import { repairShortcutIcons } from "./shortcutIcons";
 import { startSteamGuide } from "./steamGuide";
+import { startSmokeStage } from "./components/ga/smokeStage";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
 import PixelAppearance from "./PixelAppearance";
@@ -134,7 +135,8 @@ startDownloadNotifications();
 startModalStack();
 startSingleAccordion();
 startPlusLook();
-startSteamGuide();
+void startSteamGuide();
+startSmokeStage();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");

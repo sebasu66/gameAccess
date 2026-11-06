@@ -6,7 +6,7 @@ import { setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("ai-settings.css") + css("activity/activity.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("ai-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
 
 describe("capas de estilo", () => {
   it("activa y quita un sabor", () => {
@@ -35,6 +35,11 @@ describe("capas de estilo", () => {
   it("Actividad es capa de pantalla: sin fuentes, colores ni radios a mano", () => {
     const code = css("activity/activity.css").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius: \d+px|font: \d/i);
+  });
+
+  it("la capa de humo y la pregunta de Big Picture no escriben valores a mano", () => {
+    const code = (css("components/ga/smoke.css") + css("big-play-confirm.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius: \d|font-size: \d/i);
   });
 
   it("la tarjeta de propiedades no escribe fuentes ni colores propios", () => {

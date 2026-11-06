@@ -405,6 +405,15 @@ resúmenes, explicaciones con varias partes. Referencia: el diálogo final del a
 
 **Pantallas.** Dentro de `.ga-screen` ningún texto baja de 16 px; títulos de columna y pestañas 14 px (§4.12).
 
+### 4.34 Humo único `smokeStage` (Seba, 2026-11-06; prototipo)
+Los diálogos grandes del centro no son cajas: vidrio esmerilado sobre toda la ventana que se desvanece hacia las esquinas, más oscuro en el centro como humo, con el contenido directo encima. Hay **un solo humo** para toda la app (`components/ga/smokeStage.ts`, `smoke.css`).
+- **Un diálogo llama a otro:** el humo queda quieto y el contenido nuevo empuja al viejo. Se mueven juntos, con el mismo tiempo y la misma curva (`--ga-smoke-time`, `--ga-smoke-ease`): el nuevo sube desde abajo apareciendo y el viejo sube desapareciendo. La distancia se mide en cada cambio (la mitad de cada uno más un hueco), así nunca se pisan. Si el viejo seguía abierto, al cerrarse el nuevo vuelve con el mismo empujón hacia abajo.
+- Cada familia (`AppDialog`, `LaunchDialog`, Radix, diálogo central, PLUS, filtros, paneles de configuración) sigue con su código: `smokeStage` observa la página, y `SMOKE_SURFACES` dice qué cuenta como diálogo grande. Un diálogo nuevo solo tiene que usar una de esas clases o `GaSmoke`.
+- No entran los chicos con la imagen del juego de fondo, la tarjeta de propiedades ni las pantallas completas.
+- La máscara es un degradado radial (`--ga-smoke-mask`) en vez de un PNG: mismo resultado, sin archivo, y cada sabor la puede cambiar. Vidrio y oscuro: `--ga-smoke-glass`, `--ga-smoke-bg`. Recorrido mínimo: `--ga-smoke-travel`.
+- `GaSmoke`: Esc o un clic en el humo cierra; el foco va a lo marcado con `data-autofocus` y vuelve a donde estaba.
+- Primer uso propio: la pregunta antes de jugar en Big Picture (`BigPlayConfirm.tsx`), con la imagen grande, la descripción corta (`short_description`) y Jugar. Los primeros 350 ms no cuentan, así el mismo toque que la abrió no lanza el juego.
+
 ## 5. Reglas de uso
 
 1. Un diálogo tiene exactamente un botón de cierre `ga-close` (overlay) o un botón `ga-back` (pantalla completa), y como mucho una acción principal naranja. Escape lo activa en ambos casos.

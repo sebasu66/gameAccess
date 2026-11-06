@@ -84,6 +84,8 @@ pub struct Kid {
     pub library: String,
     /// The adult's Game Access language ("es" or "en"): the child's screen speaks it, whatever Windows does.
     pub language: String,
+    /// The adult left Steam's Guide button alone. Off by default: the button must not take the child out of Game Access.
+    pub keep_steam_guide: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]

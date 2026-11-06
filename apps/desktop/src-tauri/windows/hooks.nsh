@@ -5,7 +5,9 @@
 ; DownloadsDir is only written when it differs from <Downloads>\GameAccessDownloads, so every Windows user keeps
 ; their own Downloads folder by default. The same page asks whether parental control starts on (checked by default;
 ; ParentalDefault 1/0, read by apps/desktop/src-tauri/src/parental_lock.rs; the password is created in the app).
-; Passive updates skip the page and keep the stored choice.
+; Its own page asks whether the controller's button goes to Game Access instead of Steam (checked by default;
+; GuideRedirect 1/0, read by apps/desktop/src-tauri/src/steam_guide.rs, which turns Steam's setting off).
+; Passive updates skip the pages and keep the stored choice.
 !include nsDialogs.nsh
 !include LogicLib.nsh
 
@@ -24,6 +26,8 @@ Var GaParental
 Var GaParentalBox
 Var GaAntivirus
 Var GaAntivirusBox
+Var GaGuide
+Var GaGuideBox
 
 ; Absolute local path (X:\...), not a disk root.
 !macro GaCheckFolder path
@@ -45,6 +49,7 @@ Var GaAntivirusBox
 !macro GAMEACCESS_FOLDERS_PAGE
   Page custom GaFoldersCreate GaFoldersLeave
   Page custom GaAntivirusCreate GaAntivirusLeave
+  Page custom GaGuideCreate GaGuideLeave
 
 ; $R0 = a folder -> $R1 = 1 when games may not start from it: longer than 40 characters (the limit
 ; apps/launcher/game_paths.py uses), or holding characters other than letters, digits, space, backslash and
@@ -95,6 +100,7 @@ Function GaFoldersDefaults
   ReadRegStr $GaGamesDir HKLM "${GA_REGKEY}" "GamesDir"
   ReadRegStr $GaDownloadsDir HKLM "${GA_REGKEY}" "DownloadsDir"
   ReadRegStr $GaParental HKLM "${GA_REGKEY}" "ParentalDefault"
+  ReadRegStr $GaGuide HKLM "${GA_REGKEY}" "GuideRedirect"
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" "${GA_DOWNLOADS_ID}"
   SetRegView lastused
   ExpandEnvStrings $0 $0
@@ -117,6 +123,9 @@ Function GaFoldersDefaults
   ${EndIf}
   ${If} $GaParental != "0"
     StrCpy $GaParental "1"
+  ${EndIf}
+  ${If} $GaGuide != "0"
+    StrCpy $GaGuide "1"
   ${EndIf}
 FunctionEnd
 
@@ -281,6 +290,48 @@ Function GaAntivirusLeave
     StrCpy $GaAntivirus "0"
   ${EndIf}
 FunctionEnd
+
+; The controller page: the Xbox button opens Game Access instead of Steam's Big Picture.
+Function GaGuideCreate
+  ${If} $PassiveMode = 1
+    Abort
+  ${EndIf}
+  ${If} $LANGUAGE = 1034
+    !insertmacro MUI_HEADER_TEXT "Botón del mando" "Qué abre el botón Xbox del mando."
+    StrCpy $1 "Steam abre su Big Picture con el botón Xbox del mando y tapa a Game Access. Con esta opción el botón abre el modo Big Picture de Game Access, aunque Game Access esté cerrado. Durante una partida el botón queda para el juego."
+    StrCpy $2 "Deshabilitar el botón del mando que abre Steam y usarlo para abrir Game Access"
+    StrCpy $3 "Se puede cambiar después en Configuración › Steam. Si Steam está abierto, Game Access lo reinicia una vez para aplicarlo."
+  ${Else}
+    !insertmacro MUI_HEADER_TEXT "Controller button" "What the controller's Xbox button opens."
+    StrCpy $1 "Steam opens its Big Picture with the controller's Xbox button and covers Game Access. With this option the button opens Game Access's big picture mode, even with Game Access closed. During a game the button stays with the game."
+    StrCpy $2 "Disable the controller button that opens Steam and use it to open Game Access"
+    StrCpy $3 "You can change it later in Settings › Steam. If Steam is open, Game Access restarts it once to apply this."
+  ${EndIf}
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 40u $1
+  Pop $0
+  ${NSD_CreateCheckbox} 0 48u 100% 12u $2
+  Pop $GaGuideBox
+  ${If} $GaGuide != "0"
+    ${NSD_Check} $GaGuideBox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 68u 100% 22u $3
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function GaGuideLeave
+  ${NSD_GetState} $GaGuideBox $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $GaGuide "1"
+  ${Else}
+    StrCpy $GaGuide "0"
+  ${EndIf}
+FunctionEnd
 !macroend
 
 ; What earlier versions left behind and nothing uses any more (vault/Modo niño.md, MN.23): the same-account kid
@@ -300,6 +351,7 @@ FunctionEnd
       WriteRegStr HKLM "${GA_REGKEY}" "DownloadsDir" $GaDownloadsDir
     ${EndIf}
     WriteRegStr HKLM "${GA_REGKEY}" "ParentalDefault" $GaParental
+    WriteRegStr HKLM "${GA_REGKEY}" "GuideRedirect" $GaGuide
     SetRegView lastused
     CreateDirectory $GaGamesDir
     ; The antivirus page (the installer already runs as administrator: no second permission question). The 64-bit
@@ -342,6 +394,7 @@ FunctionEnd
     RMDir /r "$APPDATA\GameAccess\plugins"
     RMDir "$APPDATA\GameAccess"
     DeleteRegKey HKCU "Software\Classes\gameaccess"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GameAccessGuideButton"
     !insertmacro SetContext
     SetRegView 64
     StrCpy $1 0
@@ -360,6 +413,13 @@ FunctionEnd
     ga_profiles_done:
     SetRegView lastused
   ${EndIf}
+!macroend
+
+; The controller's watcher is this same program with no window (steam_guide.rs): it goes first, or the check below
+; would ask the player to close an app that is not open, and the program could not be replaced.
+!macro GAMEACCESS_STOP_GUIDE_WATCH
+  nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \"Name='${MAINBINARYNAME}.exe'\" | Where-Object { $$_.CommandLine -like '*--guide-watch*' } | Invoke-CimMethod -MethodName Terminate"`
+  Pop $0
 !macroend
 
 ; Steam has to be installed before Game Access: the library brings in the Steam games and plays them signed in to

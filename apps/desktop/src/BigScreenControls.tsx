@@ -56,6 +56,11 @@ export default function BigScreenControls(props: Props) {
       const p = latest.current;
       if (action === "toggle") { p.onToggle(); return; }
       if (!p.enabled) return;
+      if (document.querySelector(".ga-play-confirm")) {
+        if (action === "accept") document.activeElement instanceof HTMLButtonElement && document.activeElement.click();
+        else if (action === "back") window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+        return;
+      }
       if (action === "left" || action === "right" || action === "up" || action === "down") { p.onDirection(); focusCard(action); }
       else if (action === "pageup" || action === "pagedown") {
         const grid = document.querySelector<HTMLElement>(".library-room-grid");

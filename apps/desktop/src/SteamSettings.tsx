@@ -4,7 +4,7 @@ import { Checkbox } from "./components/ui/checkbox";
 import { useI18n } from "./i18n";
 import { saveSteamSettings, steamStatus, syncSteamLibrary, type SteamSettings as Settings, type SteamStatus } from "./steamLibrary";
 import { useLibraryGames } from "./libraryMembership";
-import { guideChosen, setGuideForGameAccess } from "./steamGuide";
+import { guideChosen, guideState, restartSteamForGuide, setGuideForGameAccess } from "./steamGuide";
 
 /** Settings › Steam: the Steam client Game Access found, its remembered accounts and how the Steam library is used. */
 export default function SteamSettings() {
@@ -45,6 +45,15 @@ export default function SteamSettings() {
       setGuideNote(outcome === "steam_running" ? t(on ? "steamGuideCloseSteam" : "steamGuideCloseSteamBack") : on ? t("steamGuideDone") : "");
     } catch (failure) { setError(String(failure instanceof Error ? failure.message : failure)); }
   };
+  // On by default, so the pending step has to show without the player touching the option.
+  useEffect(() => { if (guide && native) void guideState().then(state => { if (state.found && state.focus_pending && state.steam_running) setGuideNote(t("steamGuideCloseSteam")); }).catch(() => undefined); }, []);
+  const [restarting, setRestarting] = useState(false);
+  const restartSteam = async () => {
+    setRestarting(true); setError(""); setGuideNote("");
+    try { await restartSteamForGuide(); setGuideNote(t("steamGuideDone")); }
+    catch (failure) { const said = String(failure); setGuideNote(said === "game_running" ? t("steamGuideGameRunning") : said === "steam_slow" ? t("steamGuideSlow") : said); }
+    finally { setRestarting(false); }
+  };
   const toggle = (id: string, label: string, hint: string, checked: boolean, name: "auto_import" | "switch_accounts") => (
     <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
       <Checkbox id={id} tabIndex={-1} className="mt-0.5" disabled={!status?.found} checked={checked} onCheckedChange={value => void save({ [name]: value === true })} />
@@ -66,7 +75,7 @@ export default function SteamSettings() {
           <Checkbox id="ga-steam-guide" tabIndex={-1} className="mt-0.5" checked={guide} onCheckedChange={value => void changeGuide(value === true)} />
           <div className="grid gap-1"><label htmlFor="ga-steam-guide" className="text-sm font-semibold">{t("steamGuide")}</label><p className="m-0 text-sm text-muted-foreground">{t("steamGuideHint")}</p>
             {guideNote ? <p role="status" className="m-0 text-sm">{guideNote}</p> : null}
-            {guide && guideNote === t("steamGuideCloseSteam") ? <div><GaButton onClick={() => void changeGuide(true)}>{t("steamGuideRetry")}</GaButton></div> : null}</div>
+            {guide && guideNote && guideNote !== t("steamGuideDone") ? <div><GaButton variant="primary" disabled={restarting} onClick={() => void restartSteam()}>{t(restarting ? "steamGuideRestarting" : "steamGuideRestart")}</GaButton></div> : null}</div>
         </div>
         <div><GaButton variant="primary" disabled={busy} onClick={() => void importNow()}>{busy ? t("steamImporting") : t("steamImportNow")}</GaButton></div>
         <details className="ga-settings-group rounded-lg border border-border bg-card/50 p-4">

@@ -666,6 +666,8 @@ Section Install
     !insertmacro NSIS_HOOK_PREINSTALL
   !endif
 
+  ; GameAccess: the controller's watcher is not the app the check asks to close (hooks.nsh).
+  !insertmacro GAMEACCESS_STOP_GUIDE_WATCH
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Copy main executable
@@ -803,6 +805,8 @@ Section Uninstall
     !insertmacro NSIS_HOOK_PREUNINSTALL
   !endif
 
+  ; GameAccess: the controller's watcher is not the app the check asks to close (hooks.nsh).
+  !insertmacro GAMEACCESS_STOP_GUIDE_WATCH
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Delete the app directory and its content from disk

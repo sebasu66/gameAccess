@@ -44,6 +44,8 @@ use std::{env, sync::Mutex};
 fn main() {
     // The child's desktop (kid_mode.rs): this process only watches the real app.
     if kid_mode::run_shell_if_requested() { return; }
+    // The controller's button with the app closed (steam_guide.rs): this process only reads it.
+    if steam_guide::run_watcher_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
     app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
@@ -109,6 +111,9 @@ fn main() {
             game_controllers::game_controllers_connected,
             steam_guide::steam_guide_state,
             steam_guide::steam_guide_release,
+            steam_guide::steam_guide_restart,
+            steam_guide::steam_guide_default,
+            steam_guide::steam_guide_opened_by_button,
             steam_guide::steam_guide_restore,
             steam_guide::steam_guide_listen,
             game_focus::game_focus_watch,

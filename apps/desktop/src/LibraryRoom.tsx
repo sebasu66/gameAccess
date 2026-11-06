@@ -42,6 +42,7 @@ import { gameStateManager } from "./GameStateManager";
 import type { DownloadMap, FocusZone } from "./LibraryRoomParts";
 import { renderedGridColumns } from "./libraryNavigation";
 import BigScreenControls from "./BigScreenControls";
+import BigPlayConfirm from "./BigPlayConfirm";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { morphClose, morphOpen, pushCards, releaseCards, restoreSource } from "./motion/detailMorph";
@@ -143,6 +144,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);
+  const [confirmGame, setConfirmGame] = useState<CatalogGame | null>(null);
   /**
    * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
    * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
@@ -196,6 +198,11 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     void listen(GUIDE_BUTTON_EVENT, () => { if (!bigScreenRef.current) void toggleBigScreenRef.current(); }).then(unlisten => { if (live) stop = unlisten; else unlisten(); }).catch(() => undefined);
     return () => { live = false; stop?.(); };
   }, []);
+  // The controller's button started the app with it closed (steam_guide.rs): it opens in the mode, once the games are in.
+  useEffect(() => {
+    if (loading || !("__TAURI_INTERNALS__" in window)) return;
+    void invoke<boolean>("steam_guide_opened_by_button").then(opened => { if (opened) void toggleBigScreenRef.current(); }).catch(() => undefined);
+  }, [loading]);
   useEffect(() => {
     document.body.classList.toggle("ga-big-screen", bigScreen);
     // The cleanup runs on every change too, so the current value is set here again after it.
@@ -571,6 +578,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
 
   /** The run dialog is shown on its own: an open game detail closes first (its exit takes 180 ms), then the game starts. */
   const playGame = (game: CatalogGame) => {
+    // Big picture mode asks first (BigPlayConfirm).
+    if (bigScreen) { setConfirmGame(game); return; }
     if (!detailOpen) return onPlay(game);
     closeGameDetail();
     window.setTimeout(() => void onPlay(game), 200);
@@ -753,6 +762,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
       {modeRailOn ? null : <ViewRail view={libraryView === "catalog" ? "catalog" : "library"} />}
       <BigScreenControls footerTarget={actionsTarget} enabled={bigScreen} onToggle={() => void toggleBigScreen()} onDirection={markActivity} onAccept={gameId => { markActivity(); const game = games.find(item => item.id === gameId); if (game) void playGame(game); }} />
+      {bigScreen && confirmGame ? <BigPlayConfirm game={confirmGame} onBack={() => setConfirmGame(null)} onPlay={() => { const game = confirmGame; setConfirmGame(null); void onPlay(game); }} /> : null}
       {/* The empty welcome only covers the very first load: an empty library or search keeps the search bar,
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
