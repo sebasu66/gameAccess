@@ -7,7 +7,7 @@ import { checkParentalPassword } from "./parentalControl";
 import { parentalErrorText, useParentalLocked } from "./ParentalControlSection";
 import "./mcp-settings.css";
 
-interface McpState { enabled: boolean; running: boolean; port: number; url: string; confirm: boolean; error: string }
+interface McpState { enabled: boolean; running: boolean; port: number; url: string; confirm: boolean; developer: boolean; error: string }
 interface McpClient { id: string; name: string; found: boolean; configured: boolean; path: string; snippet: string }
 type Status = { tone: "ok" | "warn" | "error"; text: string } | null;
 
@@ -29,7 +29,7 @@ export default function McpSettings() {
   const [copied, setCopied] = useState("");
 
   const refresh = useCallback(async () => {
-    if (!hasTauri()) { setState({ enabled: false, running: false, port: 38160, url: "http://127.0.0.1:38160/mcp", confirm: true, error: "" }); return; }
+    if (!hasTauri()) { setState({ enabled: false, running: false, port: 38160, url: "http://127.0.0.1:38160/mcp", confirm: true, developer: false, error: "" }); return; }
     setState(await invoke<McpState>("mcp_state"));
     setClients(await invoke<McpClient[]>("mcp_clients").catch(() => []));
   }, []);
@@ -51,6 +51,7 @@ export default function McpSettings() {
     if (enabled && next.error) return { tone: "error", text: t("mcpPortError", { error: next.error }) };
   });
   const setConfirm = (confirm: boolean) => run(async () => { await invoke("mcp_set_confirm", { confirm }); });
+  const setDeveloper = (developer: boolean) => run(async () => { await invoke("mcp_set_developer", { developer }); });
   const setup = (client: McpClient, add: boolean) => run(async () => {
     await invoke("mcp_client_setup", { id: client.id, add });
     return { tone: "ok", text: t(add ? "mcpSetupDone" : "mcpRemoved", { name: client.name }) };
@@ -90,6 +91,18 @@ export default function McpSettings() {
         <div className="ga-mcp-actions">
           <button type="button" className="ga-settings-choice" aria-pressed={state.confirm} disabled={busy} onClick={() => void setConfirm(true)}>{t("mcpConfirmAsk")}</button>
           <button type="button" className="ga-settings-choice" aria-pressed={!state.confirm} disabled={busy} onClick={() => void setConfirm(false)}>{t("mcpConfirmTrust")}</button>
+        </div>
+      </div>
+
+      <div className="ga-settings-group ga-mcp-card">
+        <div className="ga-mcp-text">
+          <span className="ga-label">{t("mcpDevTitle")}</span>
+          <p className={`ga-status ${state.developer ? "is-warn" : ""}`}>{t(state.developer ? "mcpDevOn" : "mcpDevOff")}</p>
+        </div>
+        <div className="ga-mcp-actions">
+          {state.developer
+            ? <GaButton disabled={busy} onClick={() => void setDeveloper(false)}>{t("mcpTurnOff")}</GaButton>
+            : <GaButton disabled={busy || locked} onClick={() => void setDeveloper(true)}>{t("mcpTurnOn")}</GaButton>}
         </div>
       </div>
 

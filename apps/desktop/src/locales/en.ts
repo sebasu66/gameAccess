@@ -1824,4 +1824,7 @@ export const en: Record<keyof typeof es, string> = {
   mcpSetupDone: "Done. Restart {{name}} so it sees Game Access.",
   mcpRemoved: "Game Access was removed from {{name}}.",
   mcpTryHint: "Try asking: “Which co-op game would you recommend that I don't have?” or “I'm out of space, what can I freeze?”",
+  mcpDevTitle: "Developer tools",
+  mcpDevOn: "On: your AI can also read and press the screen, take pictures of it, and run app commands and JavaScript, without asking. Only for testing Game Access.",
+  mcpDevOff: "Off: your AI uses only the game tools. They are for testing Game Access; with parental control on they cannot be turned on.",
 };

@@ -236,6 +236,8 @@ fn main() {
             mcp_server::mcp_state,
             mcp_server::mcp_set_enabled,
             mcp_server::mcp_set_confirm,
+            mcp_server::mcp_set_developer,
+            mcp_server::mcp_screenshot,
             mcp_server::mcp_access,
             mcp_server::mcp_new_token,
             mcp_server::mcp_bridge_ready,

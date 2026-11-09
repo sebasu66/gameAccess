@@ -5,15 +5,20 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { actionTools } from "./actionTools";
+import { devTools, startDevEvents } from "./devTools";
 import { discoverTools } from "./discoverTools";
 import { libraryTools } from "./libraryTools";
 import { callTool, listTools, registerTools } from "./tools";
 
 interface McpRequest { id: number; method: "tools/list" | "tools/call"; params?: { name?: string; arguments?: Record<string, unknown> } }
 
-export async function answer(request: McpRequest): Promise<unknown> {
-  if (request.method === "tools/list") return { tools: listTools() };
-  return callTool(request.params?.name ?? "", request.params?.arguments ?? {});
+/** Whether the developer tools are on (Settings › AI control), asked on every request so the switch acts at once. */
+const developerOn = async () => { try { return (await invoke<{ developer: boolean }>("mcp_state")).developer; } catch { return false; } };
+
+export async function answer(request: McpRequest, developer?: boolean): Promise<unknown> {
+  const dev = developer ?? (isTauri() ? await developerOn() : false);
+  if (request.method === "tools/list") return { tools: listTools(dev) };
+  return callTool(request.params?.name ?? "", request.params?.arguments ?? {}, dev);
 }
 
 let started = false;
@@ -22,7 +27,8 @@ let started = false;
 export function startMcpBridge(): void {
   if (started || !isTauri()) return;
   started = true;
-  registerTools([...discoverTools, ...libraryTools, ...actionTools]);
+  registerTools([...discoverTools, ...libraryTools, ...actionTools, ...devTools]);
+  startDevEvents();
   void listen<McpRequest>("gameaccess:mcp-request", async event => {
     const request = event.payload;
     try {

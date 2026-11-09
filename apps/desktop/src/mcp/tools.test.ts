@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { answer } from "./bridge";
-import { callTool, gb, list, num, registerTools, ToolError, type McpTool } from "./tools";
+import { callTool, gb, list, listTools, num, registerTools, ToolContent, ToolError, type McpTool } from "./tools";
 import { librarySummaryRow } from "./libraryTools";
 import type { LibraryGame } from "../catalog/DigitalProcessManager";
 
@@ -13,7 +13,8 @@ const echo: McpTool = {
     return { n: num(args, "n", { max: 10 }) };
   },
 };
-registerTools([echo]);
+const secret: McpTool = { ...echo, name: "test_dev", developer: true, run: async () => new ToolContent([{ type: "image", data: "AAAA", mimeType: "image/png" }]) };
+registerTools([echo, secret]);
 
 describe("MCP tools", () => {
   it("lists a tool with its schema and hints", async () => {
@@ -25,13 +26,20 @@ describe("MCP tools", () => {
   it("answers a call as text and as structured data", async () => {
     const result = await callTool("test_echo", { n: 50 });
     expect(result.structuredContent).toEqual({ n: 10 });
-    expect(JSON.parse(result.content[0].text)).toEqual({ n: 10 });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({ n: 10 });
     expect(result.isError).toBeUndefined();
   });
 
   it("says a refusal or an unknown tool as a tool error, not a failure", async () => {
     expect(await callTool("test_echo", { fail: true })).toMatchObject({ isError: true, content: [{ text: "refused on purpose" }] });
     expect(await callTool("nope")).toMatchObject({ isError: true });
+  });
+
+  it("keeps the developer tools out of sight and out of reach until they are on", async () => {
+    expect(listTools().some(tool => tool.name === "test_dev")).toBe(false);
+    expect(listTools(true).some(tool => tool.name === "test_dev")).toBe(true);
+    expect(await callTool("test_dev", {})).toMatchObject({ isError: true });
+    expect(await callTool("test_dev", {}, true)).toEqual({ content: [{ type: "image", data: "AAAA", mimeType: "image/png" }] });
   });
 
   it("checks arguments", () => {

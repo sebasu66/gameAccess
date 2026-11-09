@@ -1822,4 +1822,7 @@ export const es = {
   mcpSetupDone: "Listo. Reiniciá {{name}} para que vea Game Access.",
   mcpRemoved: "Game Access se quitó de {{name}}.",
   mcpTryHint: "Probá pedirle: «¿Qué juego co-op me recomendás que no tenga?» o «Me quedé sin espacio, ¿qué puedo congelar?».",
+  mcpDevTitle: "Herramientas de desarrollo",
+  mcpDevOn: "Encendidas: tu IA también puede leer y apretar la pantalla, sacarle fotos, y ejecutar comandos de la app y JavaScript, sin preguntar. Solo para probar Game Access.",
+  mcpDevOff: "Apagadas: tu IA usa solo las herramientas de juegos. Son para probar Game Access; con control parental no se pueden encender.",
 } as const;

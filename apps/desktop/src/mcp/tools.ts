@@ -15,6 +15,13 @@ export interface McpTool {
   /** MCP hints: a read-only tool changes nothing; a destructive one deletes something (it asks the player first). */
   annotations: { readOnlyHint: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
   run(args: Record<string, unknown>): Promise<unknown>;
+  /** Only listed and callable with Settings › AI control › developer tools on. */
+  developer?: boolean;
+}
+
+/** A tool's answer given as MCP content as it is (a picture), instead of data turned into text. */
+export class ToolContent {
+  constructor(readonly content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>) {}
 }
 
 /** A tool's own refusal, said to the AI as it is (bad arguments, a game that is not there). */
@@ -26,16 +33,17 @@ export function registerTools(tools: McpTool[]): void {
   for (const tool of tools) registry.set(tool.name, tool);
 }
 
-export function listTools() {
-  return [...registry.values()].map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations: { title, ...annotations } }));
+export function listTools(developer = false) {
+  return [...registry.values()].filter(tool => developer || !tool.developer).map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations: { title, ...annotations } }));
 }
 
 /** One `tools/call`: the answer as MCP content, both as text and as structured data. Failures are tool errors. */
-export async function callTool(name: string, args: Record<string, unknown> = {}) {
+export async function callTool(name: string, args: Record<string, unknown> = {}, developer = false) {
   const tool = registry.get(name);
-  if (!tool) return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+  if (!tool || (tool.developer && !developer)) return { content: [{ type: "text", text: tool ? `${name} is a developer tool: turn them on in Game Access › Settings › AI control.` : `Unknown tool: ${name}` }], isError: true };
   try {
     const result = await tool.run(args ?? {});
+    if (result instanceof ToolContent) return { content: result.content };
     const structured = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : { result };
     return { content: [{ type: "text", text: JSON.stringify(structured) }], structuredContent: structured };
   } catch (failure) {

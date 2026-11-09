@@ -41,10 +41,13 @@ struct Settings {
     port: u16,
     /// Actions that delete or take a lot of room ask the player in the app first.
     confirm: bool,
+    /// The developer tools (any app command, any frontend function, reading and driving the screen). Off by default.
+    #[serde(default)]
+    developer: bool,
 }
 
 impl Default for Settings {
-    fn default() -> Self { Settings { enabled: false, port: DEFAULT_PORT, confirm: true } }
+    fn default() -> Self { Settings { enabled: false, port: DEFAULT_PORT, confirm: true, developer: false } }
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -55,6 +58,7 @@ pub struct McpState {
     pub port: u16,
     pub url: String,
     pub confirm: bool,
+    pub developer: bool,
     /// Why it is on but not running (the port is taken...). Empty when fine.
     pub error: String,
 }
@@ -128,6 +132,7 @@ fn state() -> McpState {
         port: running.unwrap_or(settings.port),
         url: url_for(running.unwrap_or(settings.port)),
         confirm: settings.confirm,
+        developer: settings.developer,
         error: if settings.enabled && running.is_none() { LAST_ERROR.lock().unwrap().clone() } else { String::new() },
     }
 }
@@ -328,6 +333,49 @@ pub fn mcp_set_confirm(confirm: bool) -> Result<McpState, String> {
     write_settings(&settings)?;
     Ok(state())
 }
+
+#[tauri::command]
+pub fn mcp_set_developer(developer: bool) -> Result<McpState, String> {
+    let mut settings = read_settings();
+    settings.developer = developer;
+    write_settings(&settings)?;
+    Ok(state())
+}
+
+/// A picture of the window's page as PNG, base64 (developer tools): WebView2's own capture through its DevTools
+/// protocol, so it works while the window is covered by another one.
+#[tauri::command]
+pub async fn mcp_screenshot(app: AppHandle) -> Result<String, String> {
+    if !read_settings().developer { return Err("The developer tools are off".into()); }
+    devtools_call(&app, "Page.captureScreenshot", r#"{"format":"png"}"#)
+        .and_then(|json| serde_json::from_str::<Value>(&json).map_err(|err| err.to_string()))
+        .and_then(|value| value.get("data").and_then(Value::as_str).map(str::to_string).ok_or_else(|| "No picture came back".into()))
+}
+
+#[cfg(windows)]
+fn devtools_call(app: &AppHandle, method: &str, params: &str) -> Result<String, String> {
+    use tauri::Manager;
+    use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
+    use windows_core::HSTRING;
+    let window = app.get_webview_window("main").ok_or("No main window")?;
+    let (sender, receiver) = mpsc::channel::<Result<String, String>>();
+    let (method, params) = (method.to_string(), params.to_string());
+    window.with_webview(move |platform| unsafe {
+        let started = platform.controller().CoreWebView2().map_err(|err| err.to_string()).and_then(|core| {
+            let reply = sender.clone();
+            let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, json: String| {
+                let _ = reply.send(result.map(|_| json).map_err(|err| err.to_string()));
+                Ok(())
+            }));
+            core.CallDevToolsProtocolMethod(&HSTRING::from(method.as_str()), &HSTRING::from(params.as_str()), &handler).map_err(|err| err.to_string())
+        });
+        if let Err(err) = started { let _ = sender.send(Err(err)); }
+    }).map_err(|err| err.to_string())?;
+    receiver.recv_timeout(Duration::from_secs(20)).map_err(|_| "The picture did not come in time".to_string())?
+}
+
+#[cfg(not(windows))]
+fn devtools_call(_app: &AppHandle, _method: &str, _params: &str) -> Result<String, String> { Err("Only on Windows".into()) }
 
 #[derive(Serialize)]
 pub struct McpAccess { url: String, token: String }
