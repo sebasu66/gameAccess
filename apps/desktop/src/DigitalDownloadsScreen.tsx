@@ -100,9 +100,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
       // never both); the steps (while preparing: the running one and the next, expandable; afterwards only the ones
       // still to come); pause and cancel.
       // A resumed download first checks what is already on disk (minutes for a big torrent): that is a stage of its own.
-      const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : typeof snapshot.checkPercent === "number" ? "check" : null;
-      const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : stage === "check" ? snapshot.checkPercent ?? 0 : 0;
-      const stageLabel = stage === "download" ? t("downloadsDownloadBar") : stage === "install" ? t("downloadsInstallBar") : t("downloadsCheckBar");
+      // So is the server getting the game ready before sending it (PLUS): minutes for a big game.
+      const stage = phase === "downloading" || (phase === "paused" && transferStarted(snapshot)) ? "download" : ["decompressing", "installing"].includes(phase) ? "install" : typeof snapshot.checkPercent === "number" ? "check" : typeof snapshot.serverPercent === "number" ? "server" : null;
+      const percent = stage === "download" ? bars.download : stage === "install" ? bars.install : stage === "check" ? snapshot.checkPercent ?? 0 : stage === "server" ? snapshot.serverPercent ?? 0 : 0;
+      const stageLabel = stage === "download" ? t("downloadsDownloadBar") : stage === "install" ? t("downloadsInstallBar") : stage === "server" ? t("downloadsServerBar") : t("downloadsCheckBar");
       const art = <DigitalDownloadThumb game={currentGame} />;
       return <article className="ga-dl-card" key={gameId}>
         <header className="ga-dl-card-head">

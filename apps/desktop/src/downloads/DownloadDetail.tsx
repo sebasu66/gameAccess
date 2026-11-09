@@ -55,7 +55,8 @@ export function useDownloadView(entry: DownloadEntry | undefined, service: Digit
   const plan = tier ? planLabel(tier, locale) : null;
   const position = service.queuePosition?.(gameId) ?? -1;
   const total = (snapshot.bytesTotal ?? 0) > 0 ? formatDownloadBytes(snapshot.bytesTotal, locale) : sourceDownloadSize(game, locale) || t("downloadsSizeUnknown");
-  const percent = install ? bars.install : started ? bars.download : typeof snapshot.checkPercent === "number" ? snapshot.checkPercent : null;
+  const percent = install ? bars.install : started ? bars.download : typeof snapshot.checkPercent === "number" ? snapshot.checkPercent
+    : typeof snapshot.serverPercent === "number" ? snapshot.serverPercent : null;
 
   const artTitle = install ? t("logInstall") : phase === "queued" && position >= 0 ? `${downloadPhaseLabel(phase, locale)} · ${position + 1}` : downloadPhaseLabel(phase, locale);
   const art = <div className="ga-dl-card-art lm-download-art">

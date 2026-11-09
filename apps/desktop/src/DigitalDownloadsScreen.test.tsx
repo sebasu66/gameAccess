@@ -47,6 +47,15 @@ describe("Digital download screen", () => {
     const html = renderToStaticMarkup(<DigitalDownloadsScreen service={service} catalogGames={[metadata]} onClose={()=>{}} />);
     expect(html).toContain("6 GB");
   });
+  it("shows how far the server got the game ready while it is still preparing", () => {
+    // Beyond: Two Souls (2026-11-09): the server was at 59 % and the card only said "Preparing", with nothing moving.
+    const service = new DigitalDownloadService();
+    const game = {id:960990, app_id:960990, name:"Beyond: Two Souls"} as CatalogGame;
+    vi.spyOn(service,"getDownloads").mockReturnValue([{game,snapshot:{gameId:960990,phase:"preparing",progress:0,serverPercent:59.4}}]);
+    const html = renderToStaticMarkup(<DigitalDownloadsScreen service={service} onClose={()=>{}} />);
+    expect(html).toContain("Preparando en el servidor");
+    expect(html).toContain("59%");
+  });
   it("formats missing and invalid metrics without invented values", () => {
     expect(formatDownloadBytes(undefined)).toBe("—");
     expect(formatDownloadBytes(NaN)).toBe("—");

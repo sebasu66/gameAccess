@@ -25,8 +25,9 @@ class Ctx:
     def wait_if_paused(self):
         pass
 
-    def emit_progress(self, *args):
+    def emit_progress(self, *args, **kwargs):
         self.progress.append(args)
+        self.extras = getattr(self, "extras", []) + [kwargs]
 
 
 class Resp:
@@ -616,3 +617,27 @@ def test_a_source_without_seeds_stops_with_a_clear_message(tmp_path):
         downloader.download("https://x", "F", str(tmp_path), "1", "F")
     assert '⟦dlSourceNoSeeds {"seeds": 1}⟧' in str(stopped.value) and '⟦dlBridgeEtaMonths {"n": 3}⟧' in str(stopped.value)
     assert "dlTryOtherSource" in str(stopped.value) and "torbox" not in str(stopped.value).lower()
+
+
+def test_while_the_server_gets_the_game_its_progress_travels_as_its_own_stage(tmp_path):
+    # Beyond: Two Souls (2026-11-09): the server was at 59 % and the player only saw "Preparing" with nothing moving.
+    class Torbox(FakeServer):
+        def manifest(self):
+            m = super().manifest()
+            if self.polls <= 2:
+                m.update(status="running", pieces=[], ready_count=0, detail={"stage": "torbox", "progress": 59.4, "seeds": 3})
+            return m
+
+    downloader, ctx = make(Torbox([("f", b"12")], 1), tmp_path)
+    downloader.download("https://x", "F", str(tmp_path), "1", "F")
+    assert {"server_percent": 59.4} in ctx.extras
+
+
+def test_emit_progress_reports_the_server_stage_apart_from_the_combined_progress(monkeypatch):
+    from game_download_manager import worker
+    sent = []
+    monkeypatch.setattr(worker, "emit_json", sent.append)
+    worker.emit_progress("1", "preparing", 59.4, status_text="x", server_percent=59.4)
+    worker.emit_progress("1", "preparing", 1.0, status_text="x")
+    assert sent[0]["progressPercent"] == 0.0 and sent[0]["serverPercent"] == 59.4
+    assert "serverPercent" not in sent[1]

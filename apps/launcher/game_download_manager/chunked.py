@@ -327,7 +327,8 @@ class ChunkedDownloader:
                         # The bar follows what Torbox reports (never 0: the job did start).
                         waiting = max(1.0, min(99.0, float(detail.get("progress") or 0))) if detail.get("stage") == "torbox" else 20.0
                         context.emit_progress(app_id, "preparing", waiting, 0, 0, int(detail.get("speed") or 0), int(detail.get("eta") or 0),
-                                              describe_wait(detail, game_name))
+                                              describe_wait(detail, game_name),
+                                              server_percent=waiting if detail.get("stage") == "torbox" else None)
                         if detail.get("stage") == "torbox" and float(detail.get("progress") or 0) > 0:
                             idle_since = time.time()  # Torbox is moving: the server is not stuck
                         self._idle(idle_since or started)

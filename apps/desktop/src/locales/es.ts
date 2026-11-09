@@ -210,6 +210,7 @@ export const es = {
   downloadsDownloadBar: "Descarga",
   downloadsInstallBar: "Instalación",
   downloadsCheckBar: "Verificando lo ya descargado",
+  downloadsServerBar: "Preparando en el servidor",
   downloadsCheckHint: "Revisa los archivos que ya están en disco; después sigue desde ahí, sin bajar todo de nuevo.",
   downloadsDownloaded: "Descargado",
   downloadsSpeed: "Velocidad",

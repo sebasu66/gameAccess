@@ -174,8 +174,11 @@ def emit_progress(
     eta_seconds: int = 0,
     status_text: str = "",
     check_percent: float | None = None,
+    server_percent: float | None = None,
 ):
-    """`check_percent`: how far the check of what is already on disk went (a resumed torrent), its own stage."""
+    """`check_percent`: how far the check of what is already on disk went (a resumed torrent), its own stage.
+    `server_percent`: how far the server got the game ready before sending it (PLUS, step 3), its own stage too: the
+    phase is still "preparing", whose combined progress stays 0, so without it the player would see no movement."""
     reported_progress = float(progress_percent)
     raw_percent = max(0.0, min(100.0, reported_progress))
     # Download and installation (extraction) are reported on their own scales so the player can
@@ -210,6 +213,7 @@ def emit_progress(
         "statusText": clean_text,
         "route": g_route,
         **({"checkPercent": round(max(0.0, min(100.0, float(check_percent))), 1)} if check_percent is not None else {}),
+        **({"serverPercent": round(max(0.0, min(100.0, float(server_percent))), 1)} if server_percent is not None else {}),
         **g_steps.payload(),
     })
 

@@ -52,6 +52,9 @@ export interface DownloadProgressSnapshot {
   /** How far the check of what is already on disk went (a resumed download), 0 to 100; absent when not checking */
   checkPercent?: number;
 
+  /** How far the server got the game ready before sending it (PLUS, step 3), 0 to 100; absent otherwise */
+  serverPercent?: number;
+
   /** Installation (extraction) progress from 0 to 100; 0 until the download finishes */
   installPercent?: number;
 

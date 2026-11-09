@@ -180,6 +180,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       downloadPercent: number("downloadPercent"),
       installPercent: number("installPercent"),
       checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
+      serverPercent: phase === "preparing" ? number("serverPercent") : undefined,
       statusText: text,
       bytesDownloaded: number("bytesDownloaded") ?? 0,
       bytesTotal: number("totalBytes") ?? 0,
