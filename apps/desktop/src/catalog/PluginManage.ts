@@ -10,7 +10,8 @@ import type { PluginManifest } from "./PluginSources";
  * - "list": things the plugin keeps. GET path → PluginListData; POST path {value} adds; DELETE path {value} removes;
  *   POST addFile.path {name, content} adds a file chosen on this PC. Each of them answers the new PluginListData.
  * - "search": GET path?q= → {results}. A result offers download and copy link; linkPath?url= turns its link into the
- *   file behind it ({url}) when the plugin knows how.
+ *   file behind it ({url}) when the plugin knows how. A result with `files: true` can also list what is inside it:
+ *   filesPath?url= → PluginFiles (a torrent's files, read by the plugin before anything is downloaded).
  */
 export interface PluginListSection {
   type: "list"; id: string; title: string; hint?: string; path: string; removeLabel?: string;
@@ -18,12 +19,14 @@ export interface PluginListSection {
   addFile?: { path: string; label: string; accept?: string };
 }
 export interface PluginSearchSection {
-  type: "search"; id: string; title: string; path: string; placeholder: string; button: string; empty?: string; hint?: string; linkPath?: string;
+  type: "search"; id: string; title: string; path: string; placeholder: string; button: string; empty?: string; hint?: string; linkPath?: string; filesPath?: string;
 }
 export type PluginSection = PluginListSection | PluginSearchSection;
 export interface PluginUi { schema: 1; description?: string; homepage?: string; sections: PluginSection[] }
 export interface PluginListData { items: string[]; busy?: boolean; busyText?: string; summary?: string }
-export interface PluginResult { title: string; link: string; meta?: string }
+export interface PluginResult { title: string; link: string; meta?: string; /** The plugin can list the files inside it (filesPath). */ files?: boolean }
+export interface PluginFile { path: string; size: number }
+export interface PluginFiles { name?: string; files: PluginFile[]; total?: number; count?: number }
 
 const base = (plugin: PluginManifest) => plugin.endpoint.replace(/\/+$/, "");
 /** Only a path on the plugin's own address: what a plugin declares can never send the app elsewhere. */
@@ -40,7 +43,7 @@ async function call<T>(plugin: PluginManifest, path: string, init?: RequestInit,
 
 const known = (section: PluginSection) => ownPath(section?.path) && typeof section.id === "string" && typeof section.title === "string"
   && (section.type === "list" ? section.addFile === undefined || ownPath(section.addFile.path)
-    : section.type === "search" && (section.linkPath === undefined || ownPath(section.linkPath)));
+    : section.type === "search" && (section.linkPath === undefined || ownPath(section.linkPath)) && (section.filesPath === undefined || ownPath(section.filesPath)));
 
 /** The plugin's form, or null when it shares none. A section the app cannot draw is left out. */
 export async function pluginUi(plugin: PluginManifest, lang: string): Promise<PluginUi | null> {
@@ -64,6 +67,15 @@ export const pluginSearch = (plugin: PluginManifest, section: PluginSearchSectio
 export const pluginLink = (plugin: PluginManifest, section: PluginSearchSection, link: string) => section.linkPath
   ? call<{ url?: string }>(plugin, `${section.linkPath}?url=${encodeURIComponent(link)}`, undefined, 60000).then(result => result.url || link).catch(() => link)
   : Promise.resolve(link);
+
+/** The files inside a result. A magnet is asked from its peers, so this may take up to the plugin's own timeout. */
+export async function pluginFiles(plugin: PluginManifest, section: PluginSearchSection, link: string, lang: string): Promise<PluginFiles> {
+  const answer = await call<PluginFiles>(plugin, `${section.filesPath}?url=${encodeURIComponent(link)}&lang=${encodeURIComponent(lang)}`, undefined, 60000);
+  const files = (Array.isArray(answer?.files) ? answer.files : [])
+    .filter(file => typeof file?.path === "string" && Number.isFinite(file.size) && file.size >= 0);
+  return { name: typeof answer.name === "string" ? answer.name : undefined, files,
+    total: Number.isFinite(answer.total) ? answer.total : files.reduce((sum, file) => sum + file.size, 0), count: files.length };
+}
 
 /** Stops the plugin and deletes its folder (only one installed in the app's data folder). */
 export const uninstallPlugin = (id: string) => invoke<void>("uninstall_plugin", { id });

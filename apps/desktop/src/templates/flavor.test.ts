@@ -6,7 +6,7 @@ import { setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("ai-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
 
 describe("capas de estilo", () => {
   it("activa y quita un sabor", () => {
@@ -22,7 +22,7 @@ describe("capas de estilo", () => {
   });
 
   it("cada variable de las piezas nuevas está definida en la base o en el sabor", () => {
-    const used = [...screens.matchAll(/var\((--ga-(?:card|tool|tray|light|feed|kind|field-line|field-ink|field-font|t\d)[\w-]*)/g)].map(match => match[1]);
+    const used = [...screens.matchAll(/var\((--ga-(?:card|tool|tray|light|feed|files|kind|field-line|field-ink|field-font|t\d)[\w-]*)/g)].map(match => match[1]);
     expect(used.length).toBeGreaterThan(10);
     for (const token of new Set(used)) expect(`${base}${flavor}`).toContain(`${token}:`);
   });
@@ -40,6 +40,11 @@ describe("capas de estilo", () => {
   it("la capa de humo y la pregunta de Big Picture no escriben valores a mano", () => {
     const code = (css("components/ga/smoke.css") + css("big-play-confirm.css")).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius: \d|font-size: \d/i);
+  });
+
+  it("los archivos de un resultado (Configuración › Plugins) son capa de pantalla: sin valores a mano", () => {
+    const code = css("plugin-files.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius|font-size|font: \d|(?<![\d.])(?:[02-9]|\d{2,})px/i);
   });
 
   it("la tarjeta de propiedades no escribe fuentes ni colores propios", () => {

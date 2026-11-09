@@ -29,7 +29,7 @@ A plugin may share a form so the player controls it inside Game Access, drawn wi
 `GET /api/ui?lang=es|en` → `{ schema: 1, description, homepage, sections: [...] }`. `description` and `homepage` (https) may also be in the manifest, which is what shows while the plugin is off. Unknown section types are ignored.
 
 - `{ type: "list", id, title, hint?, path, removeLabel?, add?: { placeholder, label, pattern? }, addFile?: { path, label, accept? } }`. `GET path`, `POST path {value}`, `DELETE path {value}` and `POST addFile.path {name, content}` all answer `{ items: string[], busy?, busyText?, summary? }`.
-- `{ type: "search", id, title, path, placeholder, button, empty?, hint?, linkPath? }`. `GET path?q=` answers `{ results: [{ title, link, meta? }] }`. Each result offers download and copy link; `GET linkPath?url=` answers `{ url }`, the file behind a link.
+- `{ type: "search", id, title, path, placeholder, button, empty?, hint?, linkPath?, filesPath? }`. `GET path?q=` answers `{ results: [{ title, link, meta?, files? }] }`. Each result offers download and copy link; `GET linkPath?url=` answers `{ url }`, the file behind a link. A result with `files: true` also offers "Show files": `GET filesPath?url=&lang=` answers `{ name?, files: [{ path, size }], total?, count? }` (sizes in bytes), what is inside it before anything is downloaded, such as a torrent's files read from its `.torrent` or asked from its peers for a magnet. The app waits up to 60 s, so the plugin should give up sooner with an `{ error }` that says why (for example, no peer answered).
 
 Errors are `{ error: "text" }` with a non-2xx status. Texts come from the plugin, in the language asked for. Routes that change anything must refuse other origins than the app's.
 
