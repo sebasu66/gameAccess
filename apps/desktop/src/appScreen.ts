@@ -10,7 +10,7 @@ import { useSyncExternalStore } from "react";
 import { dur, gsap } from "./motion/gsap";
 import { nextFrame, queueTransition } from "./motion/transitions";
 
-export type AppScreen = "games" | "home" | "kids" | "settings";
+export type AppScreen = "games" | "home" | "kids" | "settings" | "downloads";
 
 let screen: AppScreen = "games";
 // The last mode asked for (queued changes run in order; asking again for it adds nothing).

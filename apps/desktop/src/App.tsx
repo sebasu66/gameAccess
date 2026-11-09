@@ -6,7 +6,8 @@ import HomeScreen from "./HomeScreen";
 import ActivityPanel from "./activity/ActivityPanel";
 import { useActivity } from "./activity/activity";
 import KidModePanel from "./KidModePanel";
-import GamesScreenButton, { LibraryManagerButton } from "./GamesScreenButton";
+import AreaTabs, { AreaButtons } from "./AreaTabs";
+import DownloadsScreen from "./DownloadsScreen";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
@@ -46,7 +47,7 @@ import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
 import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
-import { openLibraryManager } from "./libraryManagerNav";
+import { openSection } from "./gameArea";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
 import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
@@ -259,10 +260,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     pendingNoticeShown.current = true;
     if (!left.length) return;
     const first = left[0].game;
-    const appId = left.length === 1 ? first.app_id ?? left[0].snapshot.gameId : undefined;
     showNotice({ tone: "info", game: left.length === 1 ? noticeGame(first) : undefined, title: t("pendingDownloadsNotice", { count: left.length }),
       text: left.map(entry => entry.game.name).join(", "), activity: { kind: "download" },
-      actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openLibraryManager(appId); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
+      actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openSection("downloads"); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
   }, [unfinishedDownloads, t]);
 
   // Source/metadata updates do not change the folders we need to check.
@@ -279,16 +279,16 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       try {
         const games = digitalGamesRef.current;
         const result = await digitalProcessManager.snapshot(games);
-        if (!cancelled) libraryMembership.migrate([
-          ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
-          ...digitalDownloadService.getDownloads().map(entry => entry.game),
-        ]);
-        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows,
-        // including a folder it identified that still lacks its AppID in the name (shown with an alert until fixed).
-        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder).map(entry => entry.app_id));
+        if (!cancelled) libraryMembership.migrate(games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed));
+        // Every installed game in the games root is part of the library, including a folder identified that still lacks
+        // its AppID in the name (shown with an alert until fixed). A download is not: it belongs to the Download Manager
+        // until it is installed (Seba, 2026-11-09), so unfinished folders and games still downloading are left out.
+        const downloading = new Set(digitalDownloadService.getDownloads().filter(entry => entry.snapshot.phase !== "completed").map(entry => entry.snapshot.gameId));
+        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder && entry.installed && !entry.partial && !entry.unfinished && !entry.transfer_active).map(entry => entry.app_id));
         if (!cancelled) for (const game of games) {
           const id = game.app_id ?? game.id;
-          if ((result.statuses?.[id] || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+          if (downloading.has(id)) continue;
+          if ((result.statuses?.[id]?.installed || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
         }
         if (!cancelled) setDownloads(current => {
           // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
@@ -681,9 +681,10 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       <ModeRail />
       <header ref={headerRef} className="topbar topbar-glass">
         {catalogNavigation}
+        <AreaTabs />
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><LibraryManagerButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
+          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><AreaButtons dockTarget={dockTarget} /><DownloadsScreen games={games} onPlay={launchGame} onOpenGame={openGame} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
         </div>
       </header>
 

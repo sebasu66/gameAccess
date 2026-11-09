@@ -8,8 +8,9 @@ import { useEffect, useState } from "react";
 export const MODE_RAIL_EVENT = "gameaccess:mode-rail-changed";
 export const MODE_RAIL_KEY = "gameaccess:mode-rail:v1";
 
-export type RailMode = "home" | "games" | "manager" | "parental" | "settings";
-export const RAIL_MODE_ORDER: RailMode[] = ["home", "games", "manager", "parental", "settings"];
+/** The frame's modes: Home, the two areas of the games (gameArea.ts: Catalog, Library), Parental and Settings. */
+export type RailMode = "home" | "catalog" | "library" | "parental" | "settings";
+export const RAIL_MODE_ORDER: RailMode[] = ["home", "catalog", "library", "parental", "settings"];
 export type RailAnimation = "none" | "slide" | "letters" | "wipe" | "decode" | "fade";
 export const RAIL_ANIMATIONS: RailAnimation[] = ["slide", "letters", "wipe", "decode", "fade", "none"];
 export type RailBackground = "none" | "caps" | "strips" | "custom";

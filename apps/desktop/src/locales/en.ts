@@ -724,7 +724,7 @@ export const en: Record<keyof typeof es, string> = {
   noSpaceCancelConfirm: "Delete and cancel",
   noSpaceCancelBack: "Go back",
   pendingDownloadsNotice: "You have {{count}} unfinished download(s).",
-  pendingDownloadsOpen: "See in the Library Manager",
+  pendingDownloadsOpen: "See in Downloads",
   toastDownloadInterrupted: "The download of {{name}} was interrupted",
   toastDownloadCancelled: "Download of {{name}} cancelled",
   toastLibraryAdded: "{{name}} was added to your library",
@@ -1779,4 +1779,12 @@ export const en: Record<keyof typeof es, string> = {
   genre_accounting: "Accounting",
   genre_software_training: "Software training",
   genre_programming: "Programming",
+  // The two areas of the games (gameArea.ts) and their sections (AreaTabs.tsx).
+  areaCatalog: "Catalog",
+  areaLibrary: "Library",
+  areaSectionsAria: "{{area}} sections",
+  sectionBrowse: "Browse",
+  sectionPlay: "Play",
+  downloadsScreenSubtitle: "Everything being downloaded, step by step. Once a game is installed, it moves to your library.",
+  downloadsManualAdd: "Add manual download",
 };

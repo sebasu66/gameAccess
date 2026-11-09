@@ -237,7 +237,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (previous && !isDownloadHistory(previous.phase)) return;
     if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
     this.startedNow.add(id);
-    libraryMembership.add(game);
+    // The game joins the library only once it is installed (updateSnapshot, "completed"), never while it downloads.
     this.speeds.delete(id);
     const jobOptions = options ?? this.jobs.get(id)?.options;
     this.jobs.set(id, { game, options: jobOptions });
@@ -523,7 +523,10 @@ export class DigitalDownloadService implements IDownloadProvider {
       if (game) {
         this.shortcutCreated.add(snapshot.gameId);
         void digitalProcessManager.status(game).then(status => {
-          if (status.installed) return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
+          if (!status.installed) return;
+          // Downloaded and installed: now it is a library game (Seba, 2026-11-09: one Download Manager, one library).
+          try { if (!libraryMembership.has(game)) libraryMembership.add(game); } catch { /* busy: the folder scan adds it */ }
+          return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
         }).catch(error => {
           this.shortcutCreated.delete(snapshot.gameId);
           void narrate("No se pudo crear el acceso directo: " + String(error), { area: "SHORTCUT", level: "ERROR" });

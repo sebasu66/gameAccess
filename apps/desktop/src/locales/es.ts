@@ -722,7 +722,7 @@ export const es = {
   noSpaceCancelConfirm: "Borrar y cancelar",
   noSpaceCancelBack: "Volver",
   pendingDownloadsNotice: "Tenés {{count}} descarga(s) sin terminar.",
-  pendingDownloadsOpen: "Ver en el Library Manager",
+  pendingDownloadsOpen: "Ver en Descargas",
   toastDownloadInterrupted: "Se interrumpió la descarga de {{name}}",
   toastDownloadCancelled: "Descarga de {{name}} cancelada",
   toastLibraryAdded: "{{name}} se agregó a tu biblioteca",
@@ -1777,4 +1777,12 @@ export const es = {
   genre_accounting: "Contabilidad",
   genre_software_training: "Formación en software",
   genre_programming: "Programación",
+  // The two areas of the games (gameArea.ts) and their sections (AreaTabs.tsx).
+  areaCatalog: "Catálogo",
+  areaLibrary: "Biblioteca",
+  areaSectionsAria: "Secciones de {{area}}",
+  sectionBrowse: "Explorar",
+  sectionPlay: "Jugar",
+  downloadsScreenSubtitle: "Todo lo que se está bajando, paso a paso. Cuando un juego termina de instalarse, pasa a tu biblioteca.",
+  downloadsManualAdd: "Añadir descarga manual",
 } as const;

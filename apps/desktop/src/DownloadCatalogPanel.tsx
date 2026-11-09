@@ -1,6 +1,5 @@
 import { AiResults } from "./AiPicks";
 import { rememberTasteGame } from "./tasteProfile";
-import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
 import { overviewCoverSizing } from "./overviewSizing";
 import "./catalog-dock.css";
@@ -368,10 +367,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
   const { coverFloor, coverColumns, coverGap } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
   setCoverCardWidth(coverFloor);
-  const views: { id: LibraryView; label: string }[] = [
-    { id: "catalog", label: t("tabCatalog") },
-    { id: getCatalogMode() === "digital" ? "library" : "installed", label: t("uiBiblioteca") },
-  ];
   const sortOptions: { id: CatalogSort; label: string }[] = [
     { id: "release-date", label: t("sortRelease") },
     { id: "steam-popularity", label: t("sortPopularity") },
@@ -505,19 +500,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
         <div className="ga-search-dock">
           <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
         </div>
-        {/* One button for the two views: it shows where it goes (the other view's icon and name, in its big word's
-            colour) and switches to it. */}
-        <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
-          {(() => {
-            const next = view === "catalog" ? views[1] : views[0];
-            return <button type="button" className={`ga-view-toggle is-${next.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { next: next.label })} title={t("viewToggleAria", { next: next.label })}
-              onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
-              <span key={next.id} className="ga-view-toggle-face"><FilledIcon name={next.id === "catalog" ? "catalog" : "library"} /><span>{next.label}</span></span>
-            </button>;
-          })()}
-        </div>
-
-
+        {/* Catalog and Library are areas of the frame now (AreaTabs.tsx, gameArea.ts): no switch here. */}
       </div>
       </>
   );

@@ -40,13 +40,13 @@ const typeCss = (text: string) => {
 const apply = async () => { await act(async () => { button("Aplicar estilo").click(); await new Promise(resolve => setTimeout(resolve, 80)); }); };
 
 describe("mode rail settings", () => {
-  it("shows the rail with the games' word and makes room for it", async () => {
+  it("shows the rail with the catalog's word and makes room for it", async () => {
     const element = rail();
     expect(element).not.toBeNull();
-    expect(element!.getAttribute("mode")).toBe("games");
-    expect(element!.getAttribute("label")).toBe("JUEGOS");
+    expect(element!.getAttribute("mode")).toBe("catalog");
+    expect(element!.getAttribute("label")).toBe("CATÁLOGO");
     await act(async () => { await element!.settled(); });
-    expect(element!.shownText).toBe("JUEGOS");
+    expect(element!.shownText).toBe("CATÁLOGO");
     expect(document.documentElement.classList.contains("ga-mode-rail-on")).toBe(true);
   });
 
@@ -56,7 +56,7 @@ describe("mode rail settings", () => {
     await act(async () => { await rail()!.settled(); });
     expect(rail()!.shownText).toBe("AJUSTES");
     act(() => { button("Modo actual").click(); });
-    expect(rail()!.getAttribute("mode")).toBe("games");
+    expect(rail()!.getAttribute("mode")).toBe("catalog");
   });
 
   it("saves and applies a change at once", () => {

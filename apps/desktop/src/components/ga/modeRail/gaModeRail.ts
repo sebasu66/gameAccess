@@ -1,7 +1,7 @@
 // @ts-nocheck -- Stage: prototype. Typed in the polish stage, once Seba approves the component in the app.
 /**
  * <ga-mode-rail>: the current mode, written large and vertical in the first column (docs/TAREA-pantallas-y-modos.md).
- * Modes: home, games, manager, parental, settings. Everything is set by attributes (ModeRail.tsx maps the user's
+ * Modes: home, catalog, library, parental, settings. Everything is set by attributes (ModeRail.tsx maps the user's
  * appearance preferences onto them): font, size, orientation, position, colours, outline, a background image (a sheet
  * of vertical strips, or a sheet of header and footer caps, one per mode), custom CSS, and GSAP animations for the
  * word leaving (end) and arriving (start). Shadow DOM: the user's CSS only reaches the rail.
@@ -61,8 +61,8 @@ export function analyzeCaps(img) {
   return { headers: out[0], footers: out[1], cols: cells[0].length };
 }
 
-export const RAIL_MODES = ["home", "games", "manager", "parental", "settings"];
-const MODES = { home: "HOME", games: "JUEGOS", manager: "MANAGER", settings: "AJUSTES", parental: "PARENTAL" };
+export const RAIL_MODES = ["home", "catalog", "library", "parental", "settings"];
+const MODES = { home: "HOME", catalog: "CATALOGO", library: "BIBLIOTECA", settings: "AJUSTES", parental: "PARENTAL" };
 
 /* Built-in animations. Signature: (word, ctx) => tween | timeline | Promise | void; ctx = { gsap, chars, rail, mode, duration }. */
 export const RAIL_PRESETS = {

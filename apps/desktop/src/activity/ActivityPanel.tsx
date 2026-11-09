@@ -8,6 +8,7 @@ import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
 import { useI18n } from "../i18n";
 import { setAppScreen } from "../appScreen";
 import { openLibraryManager } from "../libraryManagerNav";
+import { openSection } from "../gameArea";
 import { openNews } from "../newDownloads";
 import { openReleaseNotes } from "../releaseNotes";
 import { confirmNotice } from "../notice/notice";
@@ -45,7 +46,7 @@ function useBackgroundTask(): TaskView | null {
   return task;
 }
 
-/** One running process: its name, its bar, cancel; a click takes to its game's row in the Library Manager. The app's
+/** One running process: its name, its bar, cancel; a click takes to Downloads, or to its game's row in the Library Manager. The app's
  *  own tasks have no game and cannot be cancelled. */
 function RunningRow({ item, onOpen }: { item: Running; onOpen?: () => void }) {
   const { t } = useI18n();
@@ -58,7 +59,7 @@ function RunningRow({ item, onOpen }: { item: Running; onOpen?: () => void }) {
   </>;
   return <li className="ga-process-task" data-app-task={item.appId === undefined || undefined}>
     {item.appId !== undefined
-      ? <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: item.title })} onClick={() => { onOpen?.(); openLibraryManager(item.appId); }}>{content}</button>
+      ? <button type="button" className="ga-process-task-open" aria-label={t("tasksOpen", { name: item.title })} onClick={() => { onOpen?.(); if (item.key.startsWith("download:")) openSection("downloads"); else openLibraryManager(item.appId); }}>{content}</button>
       : <div className="ga-process-task-open" role="status">{content}</div>}
     {item.cancel ? <button type="button" className="ga-process-task-cancel" disabled={item.cancelling} aria-label={t("downloadsCancel")} title={t("downloadsCancel")} onClick={item.cancel}><X size={16} aria-hidden="true" /></button> : null}
   </li>;
@@ -101,13 +102,15 @@ function useWhen() {
   return { hour, when: (at: number) => `${dayLabel(at, t, locale)} ${hour(at)}` };
 }
 
-/** Where an entry's detail is: its news item or the version's notes on Home, or the Library Manager. */
+/** Where an entry's detail is: its news item or the version's notes on Home, Downloads, or the Library Manager. */
 function entryDestination(entry: ActivityEntry): (() => void) | null {
   const category = activityCategory(entry);
   if (entry.news) return () => openNews(entry.news!);
   if (category === "app") return openReleaseNotes;
   if (category === "catalog" || category === "news") return () => setAppScreen("home");
-  if (entry.appId || category === "downloads" || category === "library" || entry.state === "failed") return () => openLibraryManager(entry.appId);
+  // A download is followed in the Catalog's Downloads (gameArea.ts); the rest of a game's story in the Library Manager.
+  if (category === "downloads") return () => openSection("downloads");
+  if (entry.appId || category === "library" || entry.state === "failed") return () => openLibraryManager(entry.appId);
   return null;
 }
 

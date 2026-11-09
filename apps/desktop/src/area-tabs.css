@@ -1,0 +1,7 @@
+/* The sections of an area (AreaTabs.tsx, gameArea.ts): the tabs template (tabs.css) laid out as a short row of links.
+   Layout only; the look is the template's. */
+.ga-area-tabs { flex: none; }
+.ga-area-tabs .ga-tabs-list { flex-wrap: nowrap; padding: 0; }
+.ga-area-tabs .ga-tab { flex: 0 0 auto; }
+/* In the games' top bar: beside the catalog's own controls. */
+.topbar > .ga-area-tabs { align-self: center; }

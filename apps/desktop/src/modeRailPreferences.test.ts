@@ -31,8 +31,8 @@ describe("mode rail preferences", () => {
   });
 
   it("turns the choices into the element's attributes", () => {
-    const attrs = railAttributes({ ...DEFAULT_MODE_RAIL, hazard: false, strokeWidth: 2, stroke: "#ffffff", contrast: 1.25 }, "manager", "MANAGER");
-    expect(attrs).toMatchObject({ mode: "manager", label: "MANAGER", bg: "/mode-rail/caps.png", hazard: "off", stroke: "#ffffff", "stroke-width": "2", "bg-contrast": "1.25", size: null, css: null });
+    const attrs = railAttributes({ ...DEFAULT_MODE_RAIL, hazard: false, strokeWidth: 2, stroke: "#ffffff", contrast: 1.25 }, "library", "BIBLIOTECA");
+    expect(attrs).toMatchObject({ mode: "library", label: "BIBLIOTECA", bg: "/mode-rail/caps.png", hazard: "off", stroke: "#ffffff", "stroke-width": "2", "bg-contrast": "1.25", size: null, css: null });
     expect(railAttributes({ ...DEFAULT_MODE_RAIL, background: "none" }, "home", "HOME")).toMatchObject({ bg: null, "bg-blend": null, "bg-strips": null });
   });
 });

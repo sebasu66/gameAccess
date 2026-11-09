@@ -1,13 +1,13 @@
 /**
- * The mode rail in the app: <ga-mode-rail> in the first column, showing the mode chosen from the frame (Home, Games,
- * Library Manager, Parental, Settings) with the look chosen in Settings > Appearance (modeRailPreferences.ts).
+ * The mode rail in the app: <ga-mode-rail> in the first column, showing the mode chosen from the frame (Home, Catalog,
+ * Library, Parental, Settings) with the look chosen in Settings > Appearance (modeRailPreferences.ts).
  * While it is on, screens and the games keep clear of it, and the old catalog/library side word (ViewRail) is not shown.
  * Stage: prototype.
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useAppScreen } from "./appScreen";
-import { useLibraryManagerShown } from "./libraryManagerNav";
+import { useGameSection } from "./gameArea";
 import { useI18n } from "./i18n";
 import { defineModeRail } from "./components/ga/modeRail/gaModeRail";
 import { railAttributes, useModeRail, type RailMode } from "./modeRailPreferences";
@@ -16,8 +16,8 @@ import "./mode-rail.css";
 defineModeRail();
 
 export const RAIL_LABELS: Record<"es" | "en", Record<RailMode, string>> = {
-  es: { home: "HOME", games: "JUEGOS", manager: "MANAGER", parental: "PARENTAL", settings: "AJUSTES" },
-  en: { home: "HOME", games: "GAMES", manager: "MANAGER", parental: "PARENTAL", settings: "SETTINGS" },
+  es: { home: "HOME", catalog: "CATÁLOGO", library: "BIBLIOTECA", parental: "PARENTAL", settings: "AJUSTES" },
+  en: { home: "HOME", catalog: "CATALOG", library: "LIBRARY", parental: "PARENTAL", settings: "SETTINGS" },
 };
 
 // A mode shown only while the settings try a look on another mode ("See it on").
@@ -27,14 +27,14 @@ export function setRailPreview(mode: RailMode | null): void { if (preview === mo
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export const useRailPreview = () => useSyncExternalStore(subscribe, () => preview, () => preview);
 
-/** The mode the frame has chosen: the games area counts as Library Manager while the manager is what it shows. */
+/** The mode the frame has chosen: outside Home, Parental and Settings, the area of the games on screen (gameArea.ts). */
 export function useRailMode(): RailMode {
   const screen = useAppScreen();
-  const manager = useLibraryManagerShown();
+  const section = useGameSection();
   if (screen === "home") return "home";
   if (screen === "kids") return "parental";
   if (screen === "settings") return "settings";
-  return manager ? "manager" : "games";
+  return section?.area ?? "catalog";
 }
 
 /**

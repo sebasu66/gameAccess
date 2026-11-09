@@ -1,5 +1,6 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { SCREEN_CHANGE_EVENT, getAppScreen, setAppScreen } from "./appScreen";
+import { REQUEST_GAMES_VIEW_EVENT, setGamesView, type GamesView } from "./gameArea";
 import { openLibraryManager } from "./libraryManagerNav";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
@@ -141,6 +142,17 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryView, setLibraryView] = useState<LibraryView>(() => opensOn("library") ? (getCatalogMode() === "digital" ? "library" : "installed") : "catalog");
   useEffect(() => startScreenUsed("library"), []);
+  // The Catalog and Library areas (gameArea.ts) are the two views of this grid: they are asked for and reported here.
+  useEffect(() => { setGamesView(libraryView === "catalog" ? "catalog" : "library"); }, [libraryView]);
+  useEffect(() => {
+    const show = (event: Event) => {
+      const next = (event as CustomEvent<{ view?: GamesView }>).detail?.view;
+      if (next === "catalog") setLibraryView("catalog");
+      else if (next === "library") setLibraryView(current => current === "catalog" ? (getCatalogMode() === "digital" ? "library" : "installed") : current);
+    };
+    window.addEventListener(REQUEST_GAMES_VIEW_EVENT, show);
+    return () => window.removeEventListener(REQUEST_GAMES_VIEW_EVENT, show);
+  }, []);
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);
