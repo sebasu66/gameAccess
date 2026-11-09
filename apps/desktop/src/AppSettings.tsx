@@ -6,6 +6,7 @@ import StartupSettings from "./StartupSettings";
 import { useEffect, useState } from "react";
 import PluginSettings from "./PluginSettings";
 import AiSettings from "./AiSettings";
+import McpSettings from "./McpSettings";
 import { pollPluginRuntime } from "./catalog/PluginRuntime";
 import { clearPluginSection, PLUGIN_SECTION_EVENT, pluginSection } from "./pluginNav";
 import { createPortal } from "react-dom";
@@ -44,6 +45,7 @@ function SettingsScreen() {
    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
    { id: "ai", label: t("aiTab"), content: <AiSettings /> },
+   { id: "mcp", label: t("mcpTab"), content: <McpSettings /> },
    { id: "style", label: c.tabStyle, content: <>
     <fieldset><legend>{t("language")}</legend><LanguageSwitch /></fieldset>
     <StartupSettings />

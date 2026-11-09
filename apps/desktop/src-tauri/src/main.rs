@@ -39,10 +39,13 @@ mod app_shortcuts;
 mod antivirus;
 mod steam_guide;
 mod mcp_server;
+mod mcp_clients;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    // An AI app (Claude Desktop, Codex...) talking to the open Game Access (mcp_clients.rs): this process only relays.
+    if env::args().any(|arg| arg == "--mcp-stdio") { mcp_clients::run_stdio_bridge(); return; }
     // The child's desktop (kid_mode.rs): this process only watches the real app.
     if kid_mode::run_shell_if_requested() { return; }
     // The controller's button with the app closed (steam_guide.rs): this process only reads it.
@@ -237,7 +240,9 @@ fn main() {
             mcp_server::mcp_new_token,
             mcp_server::mcp_bridge_ready,
             mcp_server::mcp_show_window,
-            mcp_server::mcp_reply
+            mcp_server::mcp_reply,
+            mcp_clients::mcp_clients,
+            mcp_clients::mcp_client_setup
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");

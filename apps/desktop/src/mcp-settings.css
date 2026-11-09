@@ -1,0 +1,12 @@
+/* Settings › AI control (McpSettings.tsx; docs/GUI_DESIGN.md §0c). The screen layer: only how the parts are placed.
+   Text, groups, statuses and buttons come from the general template (components/ga/content.css, Buttons); choices
+   from ai-settings.css (.ga-settings-choice); sizes and looks always through variables. */
+.ga-mcp-settings { max-width: var(--ga-settings-w); }
+.ga-mcp-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.ga-mcp-text { display: grid; flex: 1 1 var(--ga-settings-text-min); gap: var(--ga-space-1); min-width: 0; }
+.ga-mcp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-row-gap); }
+.ga-mcp-password { flex: 1 1 100%; margin: 0; }
+.ga-heading.ga-mcp-title { color: var(--ga-white); font: var(--ga-t2-font); letter-spacing: 0; }
+.ga-mcp-clients { display: grid; gap: var(--ga-space-2); margin: 0; padding: 0; list-style: none; }
+/* The old settings sheet gives every group its own margins; in the list only the list's gap counts. */
+.ga-mcp-clients > .ga-settings-group { margin: 0; }

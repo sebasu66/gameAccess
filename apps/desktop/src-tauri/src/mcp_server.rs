@@ -287,6 +287,17 @@ fn ask_window(method: &str, params: Value) -> Result<Value, String> {
     answer.unwrap_or_else(|_| Err("Game Access did not answer in time".into()))
 }
 
+/// For the stdio bridge (mcp_clients.rs) while the app is closed: `initialize` and `ping` need no window.
+pub fn answer_locally(message: &Value) -> Option<Value> {
+    match message.get("method").and_then(Value::as_str) {
+        Some("initialize") | Some("ping") => handle(message),
+        _ => None,
+    }
+}
+
+/// The door's address and token, for the stdio bridge: it runs as the same Windows account, so it can read the token.
+pub fn access_for_bridge() -> Result<(String, String), String> { Ok((url_for(read_settings().port), token()?)) }
+
 // ---- Commands ----
 
 #[tauri::command]

@@ -9,6 +9,8 @@
   --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
   /* Sizes. */
   --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
+  /* A settings tab: how wide it runs, and the least a group's text column takes before its buttons wrap below it. */
+  --ga-settings-w: 960px; --ga-settings-text-min: 280px;
   /* Cards of a list of notices (Activity). */
   /* Mode rail: its default width, its margin inside the frame and the gap to the screen beside it. */
   /* The smoke: how wide its content runs, the layer of its own dialogs, and how one dialog pushes another out (the distance is measured; this is the least). */

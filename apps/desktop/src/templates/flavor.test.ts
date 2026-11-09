@@ -6,7 +6,7 @@ import { setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
 
 describe("capas de estilo", () => {
   it("activa y quita un sabor", () => {
@@ -30,6 +30,11 @@ describe("capas de estilo", () => {
   it("Configuración › IA es capa de pantalla: sin fuentes, colores ni radios a mano", () => {
     const code = css("ai-settings.css").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius: \d/i);
+  });
+
+  it("Configuración › Control por IA es capa de pantalla: sin fuentes, colores, radios ni medidas a mano", () => {
+    const code = css("mcp-settings.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}|border-radius|font-size|font: \d|(?<![\d.])\d+px/i);
   });
 
   it("Actividad es capa de pantalla: sin fuentes, colores ni radios a mano", () => {
