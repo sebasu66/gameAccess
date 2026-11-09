@@ -58,7 +58,7 @@ async function ready() {
   if (instance.phase === "failed") throw new Error(JSON.stringify(instance.status()));
   const page = instance.requirePage();
   // The frontend's modules answer once the window has drawn its toolbar.
-  await page.getByRole("button", { name: "Juegos", exact: true }).first().waitFor({ timeout: 60000 });
+  await page.getByRole("button", { name: "Catálogo", exact: true }).first().waitFor({ timeout: 60000 });
   return page;
 }
 
@@ -90,13 +90,17 @@ async function searches(page) {
 /** One picture per screen, reached through the toolbar as a person does; the page's errors are kept per screen. */
 const SCREENS = [
   { name: "home", open: page => page.getByRole("button", { name: "Inicio", exact: true }).first().click() },
-  { name: "catalog", open: page => page.getByRole("button", { name: "Juegos", exact: true }).first().click() },
+  { name: "catalog", open: page => page.getByRole("button", { name: "Catálogo", exact: true }).first().click() },
   { name: "filters", open: page => page.getByRole("button", { name: "Filtros", exact: true }).first().click(), close: "Escape" },
   { name: "detail", open: page => page.locator("button[aria-label^='Seleccionar'], button[aria-label^='Seleccionado']").first().click(), close: "Escape" },
   // The activity panel stays open beside the other screens until its button is pressed again.
   { name: "activity", open: page => page.getByRole("button", { name: "Actividad", exact: true }).first().click(),
     close: page => page.getByRole("button", { name: "Actividad", exact: true }).first().click() },
-  { name: "library-manager", open: page => page.getByRole("button", { name: "Administrar biblioteca", exact: true }).first().click(), close: "Escape" },
+  // Catalog › Downloads and Library › Manager are sections of the two areas (gameArea.ts), reached by their tabs.
+  { name: "downloads", open: async page => { await page.getByRole("button", { name: "Catálogo", exact: true }).first().click();
+    await page.locator(".ga-area-tabs").getByRole("button", { name: /^Descargas/ }).first().click(); }, close: "Escape" },
+  { name: "library-manager", open: async page => { await page.getByRole("button", { name: "Biblioteca", exact: true }).first().click();
+    await page.locator(".ga-area-tabs").getByRole("button", { name: "Administrar biblioteca", exact: true }).first().click(); }, close: "Escape" },
   { name: "settings", open: page => page.getByRole("button", { name: "Configuración", exact: true }).first().click(), close: "Escape" },
 ];
 

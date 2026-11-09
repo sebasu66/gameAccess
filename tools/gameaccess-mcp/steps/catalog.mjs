@@ -9,7 +9,7 @@ const RACING = { genres: ["Racing"], features: ["multiplayer", "shared_split_scr
 
 export async function run(call, log) {
   // The window has to have loaded the frontend before its modules answer.
-  await call("ga_wait", { target: { role: "button", name: "Juegos", exact: true }, ms: 60000 });
+  await call("ga_wait", { target: { role: "button", name: "Catálogo", exact: true }, ms: 60000 });
 
   const rated = await call("ga_catalog_search", { filters: RACING });
   log("racing, same screen, ≥ 70 %, 5 years:", rated.total);
