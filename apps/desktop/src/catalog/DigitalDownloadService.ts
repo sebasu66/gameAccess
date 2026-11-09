@@ -1,4 +1,5 @@
 import { libraryMembership } from "../libraryMembership";
+import { scanLibrary } from "../libraryScan";
 import { translate } from "../i18n";
 import { confirmNotice } from "../notice/notice";
 import { invoke } from "@tauri-apps/api/core";
@@ -526,6 +527,8 @@ export class DigitalDownloadService implements IDownloadProvider {
           if (!status.installed) return;
           // Downloaded and installed: now it is a library game (Seba, 2026-11-09: one Download Manager, one library).
           try { if (!libraryMembership.has(game)) libraryMembership.add(game); } catch { /* busy: the folder scan adds it */ }
+          // The Library Manager reads the folders: scanned again so the new "-ready" folder shows there at once.
+          void scanLibrary().catch(() => undefined);
           return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
         }).catch(error => {
           this.shortcutCreated.delete(snapshot.gameId);

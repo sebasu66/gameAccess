@@ -14,6 +14,10 @@ from game_download_manager.chunked import ChunkSession, ChunkedDownloader, Chunk
 from game_download_manager.client_events import DownloadReporter
 from game_download_manager.ui_text import ui
 
+# The "-ready" rename: tries and the wait between them (pipeline.set_status).
+READY_RENAME_ATTEMPTS = 6
+READY_RENAME_WAIT_SECONDS = 2.0
+
 class NotAGameError(RuntimeError):
     """The download holds no executable or installer at all (only music, artwork, documents...)."""
     def __init__(self, kinds: list[str]):
@@ -169,11 +173,22 @@ class DownloadPipeline:
             nonlocal game_dir
             if args.destination_dir:
                 return
-            try:
-                game_dir = str(storage.set_status(int(app_id), game_name, status))
-                journal.note(game_dir, "estado", status)
-            except (OSError, ValueError) as rename_error:
-                context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s: %s", app_id, status, rename_error)
+            # "ready" is what makes it a library game: a file still held open (the antivirus scanning what was just
+            # unpacked, an installer finishing) blocks the rename for a moment, so it is tried again; if it never
+            # goes, the download fails instead of saying "ready" over a folder the library does not take as installed.
+            attempts = READY_RENAME_ATTEMPTS if status == "ready" else 1
+            for attempt in range(1, attempts + 1):
+                try:
+                    game_dir = str(storage.set_status(int(app_id), game_name, status))
+                    journal.note(game_dir, "estado", status)
+                    return
+                except (OSError, ValueError) as rename_error:
+                    context.logger.warning("AppID %s: no se pudo marcar la carpeta como %s (intento %s de %s): %s", app_id, status, attempt, attempts, rename_error)
+                    if attempt == attempts:
+                        if status == "ready":
+                            raise RuntimeError(f"{ui('dlErrReadyRename')} ({rename_error})") from rename_error
+                        return
+                    time.sleep(READY_RENAME_WAIT_SECONDS)
         set_status("preparing")
 
         def room_check(total_bytes, on_disk_bytes):

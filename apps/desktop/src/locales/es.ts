@@ -1119,6 +1119,7 @@ export const es = {
   dlErrServerAnswered: "el servidor respondió {{status}}",
   dlErrServerSilent: "el servidor no respondió",
   dlErrServerLost: "el servidor perdió la descarga varias veces",
+  dlErrReadyRename: "El juego se descargó y se configuró, pero no se pudo marcar su carpeta como lista: algún archivo seguía abierto (a veces el antivirus). Reintentá en un momento.",
   dlErrServerPageSource: "El servidor no pudo enviar el juego y esta fuente es una página de descarga, que no se puede bajar directo",
   dlTryAgainOrOther: "Reintentá en un rato o probá otra fuente.",
   dlErrServerSlowPiece: "el servidor tardó demasiado en preparar el siguiente fragmento",
