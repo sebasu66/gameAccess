@@ -236,6 +236,7 @@ fn main() {
             mcp_server::mcp_access,
             mcp_server::mcp_new_token,
             mcp_server::mcp_bridge_ready,
+            mcp_server::mcp_show_window,
             mcp_server::mcp_reply
         ])
         .run(tauri::generate_context!())

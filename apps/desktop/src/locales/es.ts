@@ -1786,4 +1786,13 @@ export const es = {
   sectionPlay: "Jugar",
   downloadsScreenSubtitle: "Todo lo que se está bajando, paso a paso. Cuando un juego termina de instalarse, pasa a tu biblioteca.",
   downloadsManualAdd: "Añadir descarga manual",
+  mcpAskTitle: "Tu IA pide: {{action}}",
+  mcpAskReason: "Motivo que da: {{reason}}",
+  mcpAskNoReason: "No dio un motivo.",
+  mcpAllow: "Permitir",
+  mcpDeny: "No permitir",
+  mcpActUninstall: "desinstalar {{name}}",
+  mcpActDeepFreeze: "congelar a fondo {{name}}",
+  mcpActDownload: "descargar {{name}}",
+  mcpActCancel: "cancelar la descarga de {{name}}",
 } as const;

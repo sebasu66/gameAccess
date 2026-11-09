@@ -47,6 +47,7 @@ import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
 import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
+import { provideAppActions } from "./mcp/appActions";
 import { openSection } from "./gameArea";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
@@ -543,6 +544,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       setToast(message);
     }
   };
+
+  // The player's AI downloads and plays through these same handlers (mcp/appActions.ts); refreshed every render.
+  useEffect(() => provideAppActions({ download: game => startDownload(game), play: game => launchGame(game) }));
 
   const launchGame = async (game: CatalogGame, managedShortcut = false, autoFixed = false) => {
     // A game being frozen or thawed (or waiting for that) is not started: wait, or cancel that work and play.

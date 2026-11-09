@@ -335,6 +335,14 @@ pub fn mcp_new_token() -> Result<McpAccess, String> {
     Ok(McpAccess { url: url_for(port), token })
 }
 
+/// Brings the window to the front, so the player sees what their AI asks to confirm (a delete, a big download).
+#[tauri::command]
+pub fn mcp_show_window(app: AppHandle) {
+    use tauri::Manager;
+    crate::webview_rest::wake(&app);
+    if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus(); }
+}
+
 /// The window's tools are registered (src/mcp/bridge.ts): requests can be handed over.
 #[tauri::command]
 pub fn mcp_bridge_ready() { BRIDGE_READY.store(true, Ordering::SeqCst); }

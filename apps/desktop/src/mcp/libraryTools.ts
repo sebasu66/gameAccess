@@ -5,6 +5,7 @@
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import type { LibraryGame } from "../catalog/DigitalProcessManager";
 import { activeDownloadService } from "../downloads/activeService";
+import { freezeJob } from "../freezeJobs";
 import { queryCatalogCache } from "../catalogCache";
 import { libraryScanState, scanLibrary } from "../libraryScan";
 import { bool, gb, num, str, ToolError, type McpTool } from "./tools";
@@ -19,6 +20,13 @@ const idleDays = (game: LibraryGame): number | null => {
 
 /** Where a game comes from, as the library shows it: one of Game Access's own, a linked folder, or Steam's. */
 const origin = (game: LibraryGame) => game.link_kind === "steam" ? "steam" : game.linked ? "linked_folder" : "game_access";
+
+/** What the freeze queue is doing with a game: "freeze", "deep", "thaw" (or "move"), plus " (queued)" while it waits. */
+export function workingOn(appId: number): string | null {
+  const job = freezeJob(appId);
+  if (!job || job.outcome) return null;
+  return `${job.mode}${job.queued ? " (queued)" : ""}`;
+}
 
 export function librarySummaryRow(game: LibraryGame) {
   return {
@@ -37,6 +45,8 @@ export function librarySummaryRow(game: LibraryGame) {
     added_at: game.added_at ?? null,
     needs_repair: game.needs_repair,
     problem: game.error || game.warning || null,
+    /** A freeze, deep freeze or thaw going on (or waiting its turn) for this game. */
+    working: game.app_id != null ? workingOn(game.app_id) : null,
   };
 }
 

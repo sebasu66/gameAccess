@@ -1788,4 +1788,13 @@ export const en: Record<keyof typeof es, string> = {
   sectionPlay: "Play",
   downloadsScreenSubtitle: "Everything being downloaded, step by step. Once a game is installed, it moves to your library.",
   downloadsManualAdd: "Add manual download",
+  mcpAskTitle: "Your AI asks: {{action}}",
+  mcpAskReason: "Its reason: {{reason}}",
+  mcpAskNoReason: "It gave no reason.",
+  mcpAllow: "Allow",
+  mcpDeny: "Don't allow",
+  mcpActUninstall: "uninstall {{name}}",
+  mcpActDeepFreeze: "deep-freeze {{name}}",
+  mcpActDownload: "download {{name}}",
+  mcpActCancel: "cancel the download of {{name}}",
 };
