@@ -74,9 +74,12 @@ si falta, el informe lo dice como paso no listo, no como falla del juego.
 Con `--cycle` (o `--only cycle`) suma la vida entera de un juego fijo, Terraria (105600), por los mismos servicios que
 usan los botones (`regress/cycle.mjs`): fuentes del plugin, nivel de la cola (base: 1 descarga; PLUS: hasta 4),
 descarga e instalación, carpeta en disco con su ejecutable, verificación, jugar (que el proceso siga vivo 15 s y se
-cierra), congelar, descongelar, verificar y jugar otra vez, y desinstalar (que la carpeta ya no esté). Baja unos
+cierra), congelar, descongelar, verificar y jugar otra vez, congelado profundo, descongelar y verificar, y desinstalar
+(que la carpeta ya no esté). Baja unos
 600 MB y usa la carpeta de juegos real de la PC; si Terraria ya está instalado no corre, para no borrarlo. Jugar
 necesita Steam con sesión: si falta, el paso queda como **no listo** (la máquina), no como falla del juego.
+Las mismas fases sin la app ni red, con un juego de prueba y una carpeta de juegos propia (segundos):
+`apps/launcher/run_lifecycle_tests.ps1` (`tests/test_lifecycle.py`, a demanda).
 
 Deja `report.json`, `summary.md` y `shots/` en `%LOCALAPPDATA%\GameAccess-MCP\runs\<fecha>` (u otra carpeta con
 `GA_RUNS`). Cada informe nombra la pasada anterior y su captura de la misma pantalla. `--no-build` reusa la última

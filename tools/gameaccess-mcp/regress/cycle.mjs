@@ -1,6 +1,6 @@
 /**
  * A game's whole life with a fixed game, through the services the interface's buttons call: sources from the plugin,
- * download, install, verification, play, freeze, thaw, verify and play again, uninstall. Each step is checked with
+ * download, install, verification, play, freeze, thaw, verify and play again, deep freeze, thaw, verify, uninstall. Each step is checked with
  * what the app answers and what is left on disk, and the machine ends as it was (the game is removed).
  */
 import { execFile } from "node:child_process";
@@ -122,6 +122,17 @@ export async function runCycle(page, instance, log, game = CYCLE_GAME) {
   });
   await verify("verification after thaw");
   await playOnce("play after thaw");
+  await step("deep freeze", async () => {
+    // One 7-Zip archive in place of the files: still in the library, thawed before it runs.
+    const outcome = await call("deep");
+    const files = folder && existsSync(folder) ? folderSize(folder).files : 0;
+    return { ok: Boolean(outcome?.ok), detail: `${outcome?.detail ?? ""} · ${files} files left in the folder` };
+  });
+  await step("thaw after deep freeze", async () => {
+    const outcome = await call("thaw");
+    return { ok: Boolean(outcome?.ok), detail: outcome?.detail ?? "" };
+  });
+  await verify("verification after deep thaw");
   await step("uninstall", async () => {
     const result = await call("uninstall");
     const gone = folder ? !existsSync(folder) || folderSize(folder).files === 0 : true;

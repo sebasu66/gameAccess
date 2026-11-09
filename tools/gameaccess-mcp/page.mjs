@@ -109,7 +109,7 @@ export async function gameStep({ appId, step }) {
     case "verify": return digitalProcessManager.verifyRun(game, true);
     case "play": await digitalCatalogService.play(game); return { started: true };
     case "launch": return invoke("launch_progress", { appId });
-    case "freeze": case "thaw": return freezeJobs.startFreezeJob(game, step).done;
+    case "freeze": case "deep": case "thaw": return freezeJobs.startFreezeJob(game, step).done;
     case "uninstall": return digitalCatalogService.uninstall(game);
     default: throw new Error(`Unknown step ${step}.`);
   }

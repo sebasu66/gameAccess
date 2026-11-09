@@ -61,3 +61,12 @@ code or to the data quietly degrades the catalog. Genre concepts are documented 
 `npm run catalog:report` (in `apps/desktop`) prints the same measurements as a readable text report
 and writes it to `logs/catalog-report.txt`: data coverage, genre counts, player-mode counts, top of each
 ordering, search and speed, each check marked PASS/FAIL. Use it to read the numbers without opening the app.
+
+## Lifecycle tests (on demand)
+
+`apps/launcher/run_lifecycle_tests.ps1` runs `tests/test_lifecycle.py` (skipped in the normal run; it needs
+`GAMEACCESS_LIFECYCLE=1`, Windows and the portable 7-Zip) and `tests/test_ready_rename.py`. On a copy of the launcher
+with its own games folder, never the PC's: the real downloader brings a test game from a local web server, unpacks it,
+sets it up, marks the folder `-ready` and says `completed`, in that order (the game's log is checked); then the
+library lists it, verification, freeze, thaw, deep freeze, thaw (byte for byte each time) and uninstall. Seconds. The
+same cycle with a real game through the app is `npm run regress -- --cycle` in `tools/gameaccess-mcp`.
