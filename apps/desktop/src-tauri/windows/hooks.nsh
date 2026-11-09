@@ -338,6 +338,12 @@ FunctionEnd
 ; mode's service and its folder, Windows' password for administrator tasks where Game Access turned it on, and a
 ; family file whose children's accounts are gone. Every install and update, kid mode set up or not.
 !macro NSIS_HOOK_POSTINSTALL
+  ; The plugin page installs through gameaccess:// links (plugin_install.rs). The app registers the protocol when it
+  ; starts, but the test installer opens that page right after installing, before Game Access was ever opened, and
+  ; Windows then asked for a missing app (bugs.txt). Same keys as register_protocol; uninstalling deletes them.
+  WriteRegStr HKCU "Software\Classes\gameaccess" "" "URL:Game Access"
+  WriteRegStr HKCU "Software\Classes\gameaccess" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\gameaccess\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
   ${If} ${FileExists} "$INSTDIR\runtime\kid-account.ps1"
     nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\runtime\kid-account.ps1" -CleanStale`
     Pop $0
