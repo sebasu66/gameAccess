@@ -8,7 +8,7 @@ from pathlib import Path
 import game_journal as journal
 from launcher_data import data_dir
 from urllib.parse import urlparse, unquote
-from game_download_manager.source_validation import normalize_download_source, is_torrent_source, validate_downloaded_file
+from game_download_manager.source_validation import normalize_download_source, is_direct_file_link, is_torrent_source, validate_downloaded_file
 from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
 from game_download_manager.client_events import DownloadReporter
@@ -125,6 +125,11 @@ class DownloadPipeline:
                 context.logger.info("Descarga por fragmentos no disponible (%s); se usa la descarga normal.", unavailable)
                 self.report("torrent" if is_torrent else "started", f"el servidor no pudo ({unavailable}); se baja directo")
             except ChunkedDownloadError as failure:
+                if not is_torrent and not is_direct_file_link(download_source):
+                    # A host's page (gofile.io/d/...) is only a web page for the player: downloading it "directly"
+                    # cannot work, so the server's failure is the answer (Beyond: Two Souls, 2026-11-09).
+                    context.logger.warning("La descarga por fragmentos falló (%s) y la fuente es una página: no se baja directo.", failure)
+                    raise RuntimeError(f"{ui('dlErrServerPageSource')} ({failure}). {ui('dlTryAgainOrOther')}") from failure
                 self.step("finish", f"{ui('dlServerFailed')} ({failure})", "skipped")
                 context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
                 self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
@@ -265,11 +270,7 @@ class DownloadPipeline:
                 if not os.path.exists(target_content_path):
                     raise RuntimeError("No se encontró el archivo descargado para descomprimir.")
             else:
-                is_direct_file_link = any(
-                    download_source.lower().split("?")[0].endswith(ext)
-                    for ext in (".rar", ".zip", ".7z", ".bin", ".iso", ".tar", ".gz")
-                ) or "vikingfile.com" in download_source.lower()
-                if args.source_delivery == "browser" and not is_direct_file_link:
+                if args.source_delivery == "browser" and not is_direct_file_link(download_source):
                     import webbrowser
                     webbrowser.open(download_source)
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)

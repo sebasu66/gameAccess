@@ -157,3 +157,22 @@ def test_a_source_without_seeds_cancels_the_download_instead_of_falling_back_to_
     p = pipeline(lambda **kw: pytest.fail("the torrent must not start"), NoSeeds(where="torbox"))
     with pytest.raises(SourceWithoutSeeds):
         p.server_or_torrent(ARGS, MAGNET, True, "d", "1", "G")
+
+
+class FailingChunks(FakeChunks):
+    def download(self, source, *rest):
+        from game_download_manager.chunked import ChunkedDownloadError
+        raise ChunkedDownloadError("⟦dlErrServerLost⟧")
+
+
+def test_a_host_page_is_not_downloaded_directly_when_the_server_fails(plus):
+    # Beyond: Two Souls (2026-11-09): after the server failed, gofile.io/d/... was fetched "directly" and timed out.
+    p = pipeline(lambda **kw: pytest.fail("no torrent here"), FailingChunks())
+    with pytest.raises(RuntimeError) as failed:
+        p.server_or_torrent(ARGS, "https://gofile.io/d/vT5Vhh", False, "d", "1", "G")
+    assert "dlErrServerPageSource" in str(failed.value) and "dlErrServerLost" in str(failed.value)
+
+
+def test_a_direct_file_still_falls_back_to_the_normal_download_when_the_server_fails(plus):
+    p = pipeline(lambda **kw: pytest.fail("no torrent here"), FailingChunks())
+    assert p.server_or_torrent(ARGS, "https://host.example/game.rar", False, "d", "1", "G") == (None, None, False)

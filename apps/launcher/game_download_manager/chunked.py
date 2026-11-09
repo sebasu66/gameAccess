@@ -33,6 +33,7 @@ POLL_SECONDS = 5.0               # asking the server what is ready while nothing
 INFLIGHT_POLL_SECONDS = 3.0      # and while pieces are downloading (a thousand players must stay cheap for the server)
 PIECE_ATTEMPTS = 4
 MAX_IDLE_SECONDS = 60 * 30       # give up when the server makes no progress for this long
+PIECE_WAIT_SECONDS = 15.0        # a piece the server listed but could not link yet is asked for again after this
 SPEED_WINDOW_SECONDS = 20.0      # speed and time left are measured over this recent window
 STREAM_CHUNK = 1 << 20
 DOWNLOADS_IN_PARALLEL = 12       # pieces downloaded at once (GAMEACCESS_CHUNK_DOWNLOADS); ViKiNG caps each connection near 1-8 MB/s
@@ -248,6 +249,7 @@ class ChunkedDownloader:
         resumes = 0
         finished = False
         inflight: dict[Any, int] = {}
+        link_waits: dict[int, float] = {}  # piece -> when to ask for its link again
         sizes: dict[int, tuple] = {}  # index -> (file, start, size)
         total = 0
         base_done = 0
@@ -269,8 +271,13 @@ class ChunkedDownloader:
                     except ChunkedDownloadUnavailable as exc:
                         if exc.status != 404:
                             raise
-                        lost = True  # the server no longer knows the job
+                        # The server listed the piece but has no link for it yet (Torbox refused it while ViKiNG is
+                        # still importing it): it is waited for. Only the manifest says the job itself is gone
+                        # (Beyond: Two Souls, 2026-11-09: six "lost" rejoins of the same job, then a useless fallback).
+                        logger.info("Pieza %s: el servidor todavía no tiene un enlace; se espera.", index)
+                        link_waits[index] = time.time() + PIECE_WAIT_SECONDS
                         continue
+                    link_waits.pop(index, None)
                     done.add(index)
                     self._save_state(state_path, source_url, job_id, done, sizes)
                 if files_ready and not inflight and len(done) >= len(sizes):
@@ -294,6 +301,7 @@ class ChunkedDownloader:
                         raise ChunkedDownloadError(ui("dlErrServerLost"))
                     rejoins += 1
                     self._drop_inflight(inflight)
+                    link_waits.clear()
                     manifest = self.start(source_url, item_name, have=done)
                     logger.info("El servidor ya no tenía el trabajo %s; se retoma como %s con %s piezas ya bajadas.",
                                 job_id[:8], manifest["job_id"][:8], len(done))
@@ -357,8 +365,13 @@ class ChunkedDownloader:
                         finished = True
                         break
                     taken = set(inflight.values())
-                    for piece in [p for p in todo if p["ready"] and p["index"] not in taken][: self.parallel - len(inflight)]:
-                        idle_since = time.time()
+                    now = time.time()
+                    for piece in [p for p in todo if p["ready"] and p["index"] not in taken
+                                  and link_waits.get(p["index"], 0.0) <= now][: self.parallel - len(inflight)]:
+                        if piece["index"] not in link_waits:
+                            idle_since = now  # asking again for a piece that had no link is not progress
+                        elif not idle_since:
+                            idle_since = started
                         future = pool.submit(self._download_piece, job_id, piece, paths[piece["file_index"]], work)
                         inflight[future] = piece["index"]
                 if inflight:

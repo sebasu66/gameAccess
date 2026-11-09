@@ -1114,6 +1114,8 @@ export const en: Record<keyof typeof es, string> = {
   dlErrNoServer: "could not connect to the server",
   dlErrServerAnswered: "the server answered {{status}}",
   dlErrServerSilent: "the server did not answer",
+  dlErrServerPageSource: "The server could not send the game, and this source is a download page that cannot be downloaded directly",
+  dlTryAgainOrOther: "Retry in a while or try another source.",
   dlErrServerLost: "the server lost the download several times",
   dlErrServerSlowPiece: "the server took too long to prepare the next piece",
   dlErrLinkSealed: "the link could not be opened",

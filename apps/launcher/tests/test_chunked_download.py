@@ -641,3 +641,26 @@ def test_emit_progress_reports_the_server_stage_apart_from_the_combined_progress
     worker.emit_progress("1", "preparing", 1.0, status_text="x")
     assert sent[0]["progressPercent"] == 0.0 and sent[0]["serverPercent"] == 59.4
     assert "serverPercent" not in sent[1]
+
+
+def test_a_piece_the_server_cannot_link_yet_is_waited_for_without_rejoining(tmp_path, monkeypatch):
+    # Beyond: Two Souls (2026-11-09): the piece link answered 404 ("not ready", Torbox refused it while ViKiNG imported)
+    # and the player took it for a lost job: six rejoins of the same job, then it gave up.
+    monkeypatch.setattr(cd, "PIECE_WAIT_SECONDS", 0.0)
+    data = bytes(range(100)) * 50
+    server = FakeServer([("f.bin", data)], 5000)
+    real_request = server.request
+    state = {"refused": 0, "posts": 0}
+
+    def request(method, url, **kw):
+        if method == "POST":
+            state["posts"] += 1
+        if "/link" in url and state["refused"] < 3:
+            state["refused"] += 1
+            return Resp(404, {"detail": "Esa pieza todavía no está lista."})
+        return real_request(method, url, **kw)
+
+    server.request = request
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data and state == {"refused": 3, "posts": 1}

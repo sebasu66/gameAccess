@@ -83,11 +83,29 @@ async def _sealed_torbox_links(job_id: str, pieces: list, request: Request, refr
     for piece in pieces:
         try:
             url = await source._link(piece.file_index, refresh=refresh)
-        except ProviderFailure:
-            continue  # the player waits for ViKiNG
+        except ProviderFailure as failure:
+            # The player waits for ViKiNG; the story says why Torbox gave no link, once per job and reason
+            # (Beyond: Two Souls, 2026-11-09: the reason was swallowed and the player only saw "not ready").
+            _note_torbox_refusal(job_id, failure)
+            continue
         links.append({"index": piece.piece_index, "size": piece.size_bytes, "sha256": "", "source": "torbox",
                       "sealed": seal(url, token, installation)})
     return links
+
+
+_torbox_refusals: set[tuple[str, str]] = set()
+
+
+def _note_torbox_refusal(job_id: str, failure: ProviderFailure) -> None:
+    key = (job_id, failure.code)
+    logger.warning("Job %s: Torbox gave no link for a piece (%s).", job_id[:8], failure.code)
+    if key in _torbox_refusals:
+        return
+    if len(_torbox_refusals) > 10000:
+        _torbox_refusals.clear()
+    _torbox_refusals.add(key)
+    log_event(local_engine, job_id, "send", f"Torbox no dio el enlace de un archivo ({failure.code}: {failure.public_message}); "
+              "el cliente espera a que Viking termine de copiarlo.", status="error")
 
 
 _served: set[tuple[str, str, str, int]] = set()
