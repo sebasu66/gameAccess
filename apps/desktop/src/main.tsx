@@ -28,6 +28,7 @@ import { trackAppVersion } from "./releaseNotes";
 import { repairShortcutIcons } from "./shortcutIcons";
 import { startSteamGuide } from "./steamGuide";
 import { startSmokeStage } from "./components/ga/smokeStage";
+import { startMcpBridge } from "./mcp/bridge";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
 import PixelAppearance from "./PixelAppearance";
@@ -132,6 +133,8 @@ function CatalogShell() {
 
 startClientErrorReporting();
 startDownloadNotifications();
+// The player's own AI (Settings › AI clients): the window answers what it asks (mcp/bridge.ts).
+startMcpBridge();
 startModalStack();
 startSingleAccordion();
 startPlusLook();

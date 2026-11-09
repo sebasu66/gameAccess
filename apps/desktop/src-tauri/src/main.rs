@@ -38,6 +38,7 @@ mod windows_account;
 mod app_shortcuts;
 mod antivirus;
 mod steam_guide;
+mod mcp_server;
 
 use std::{env, sync::Mutex};
 
@@ -87,6 +88,8 @@ fn main() {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
             plugin_install::attach(app.handle().clone());
+            // The player's own AI, when they turned it on in Settings (mcp_server.rs). Never a test instance's.
+            if !test_instance { mcp_server::attach(app.handle().clone()); }
             if !test_instance { plugin_install::register_protocol(); }
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
@@ -226,7 +229,14 @@ fn main() {
             app_shortcuts::shortcut_open,
             antivirus::antivirus_probe,
             antivirus::antivirus_add_exclusions,
-            antivirus::antivirus_open_settings
+            antivirus::antivirus_open_settings,
+            mcp_server::mcp_state,
+            mcp_server::mcp_set_enabled,
+            mcp_server::mcp_set_confirm,
+            mcp_server::mcp_access,
+            mcp_server::mcp_new_token,
+            mcp_server::mcp_bridge_ready,
+            mcp_server::mcp_reply
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");
