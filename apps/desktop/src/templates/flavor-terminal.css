@@ -12,6 +12,8 @@
   --ga-nav-shell-ink: #f0f3f4; --ga-nav-shell-muted: #a4b0b7; --ga-nav-shell-line: #ffffff30;
   --ga-nav-panel-shade: #10191ff2; --ga-nav-panel-shade-clear: #10191f1a;
   --ga-nav-button-rest: #090e12d9; --ga-nav-button-hover: #10191ff2;
+  --ga-nav-ok: #6fcfb0; --ga-nav-bad: #ff5d4d; --ga-nav-badge-ink: #090e12; --ga-nav-hover-bright: 1.22;
+  --ga-nav-disabled-opacity: .42; --ga-nav-status-hover: #ffffff0d;
   --ga-nav-panel-catalog: url('/styles/estilo-1/panel-1.jpg');
   --ga-nav-panel-library: url('/styles/estilo-1/panel-0.jpg');
   --ga-nav-panel-game-access: url('/styles/estilo-1/panel-2.jpg');

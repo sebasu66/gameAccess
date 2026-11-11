@@ -28,6 +28,12 @@
   --ga-nav-mode-cut: 16px;
   --ga-nav-section-title-size: clamp(38px, 5.6vh, 64px); --ga-nav-title-overhang: clamp(80px, 17.6vh, 190px);
   --ga-nav-panel-shade-start: 8%; --ga-nav-panel-shade-end: 70%;
+  /* The shell's lines, focus ring and leadings of its big words; the status bar's parts and a mode button's count. */
+  --ga-nav-line-w: 1px; --ga-nav-focus-w: 2px; --ga-nav-word-leading: .85; --ga-nav-title-leading: .92;
+  --ga-nav-status-icon: 13px; --ga-nav-status-item-h: 24px; --ga-nav-status-item-pad: 8px; --ga-nav-status-item-gap: 7px;
+  --ga-nav-status-sep-h: 14px; --ga-nav-status-badge: 12px; --ga-nav-status-badge-size: 9px; --ga-nav-status-dot: 7px;
+  --ga-nav-meter-w: 3px; --ga-nav-meter-h: 12px; --ga-nav-meter-gap: 2px; --ga-nav-meter-low: .35; --ga-nav-meter-time: 1.4s;
+  --ga-nav-mode-badge: 20px; --ga-nav-mode-badge-inset: 6px;
   /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
   /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */

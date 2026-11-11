@@ -10,6 +10,7 @@ export const es = {
   navGeneral: "General", navGamesDownloads: "Juegos y descargas", navSteam: "Steam", navArtificialIntelligence: "Inteligencia artificial", navOptions: "Opciones",
   navAppearance: "Apariencia", navStyle: "Estilo", navDetails: "Detalles", navPlugins: "Plugins", navParental: "Control parental", navTime: "Tiempo", navFilter: "Filtro",
   navModesAria: "Modos de Game Access", navSectionsAria: "Secciones del modo", navStatusAria: "Estado de Game Access",
+  navDisk: "Disco", navDiskFree: "Disco {{pct}} % libre", navDownloadsActive: "{{count}} en curso", navCatalogUpToDate: "Catálogo al día", navCatalogUpdating: "Actualizando el catálogo…", navCatalogNever: "Catálogo sin actualizar", navVersion: "Versión", navNewsUnread: "Novedades sin leer: {{count}}",
   navPlanBase: "BASE", navPlanPlus: "PLUS",
   sourcesChecking: "Buscando fuentes…",
   sourcesUnavailable: "Fuentes no disponibles",
