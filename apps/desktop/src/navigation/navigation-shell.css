@@ -40,6 +40,9 @@ html.ga-navigation-shell {
 .ga-nav-activity-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .ga-nav-activity-scroll .ga-activity { min-width: 0; }
 .ga-nav-status { position: absolute; left: var(--ga-nav-left); right: var(--ga-nav-right); bottom: var(--ga-frame-bottom, 0px); height: var(--ga-nav-status-h); display: flex; align-items: center; gap: var(--ga-nav-status-gap); padding: 0 var(--ga-nav-section-pad); box-sizing: border-box; border-top: 1px solid var(--ga-nav-shell-line); background: var(--ga-nav-shell-bg); color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-caption-size)/1 var(--ga-text-family); }
+.ga-nav-status button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.ga-nav-status button:hover, .ga-nav-status button:focus-visible { color: var(--ga-mode-acc); outline: 1px solid var(--ga-mode-acc); }
+.ga-nav-status button:disabled { opacity: .6; cursor: default; }
 html.ga-navigation-shell body ga-mode-rail.ga-mode-rail { display: none !important; }
 html.ga-navigation-shell body .catalog-bottom-actions { display: none !important; }
 html.ga-navigation-shell body .plugin-indicator-group { display: none !important; }

@@ -90,7 +90,7 @@ export type LegacyDestination = GameSection | Exclude<AppScreen, "games">;
  * has one (checked by the type: a missing section or a destination that does not exist does not compile).
  */
 export const LEGACY_DESTINATIONS = {
-  catalog: { explore: "catalog", smartSearch: "catalog", aiSuggestions: "home", newGames: "catalog", tasteProfile: "catalog" },
+  catalog: { explore: "catalog", smartSearch: "catalog", aiSuggestions: "home", newGames: "home", tasteProfile: "catalog" },
   library: { play: "play", downloads: "downloads", manager: "manager" },
   gameAccess: { news: "home", guide: "home", account: "home", subscription: "home", help: "home" },
   settings: { general: "settings", appearance: "settings", plugins: "settings", parental: "kids" },

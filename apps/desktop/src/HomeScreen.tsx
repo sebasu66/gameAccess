@@ -40,7 +40,9 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
   const projectAnnouncements = items.filter(item => !item.games?.length);
   const notes = useReleaseNotes(locale);
   const newShell = navigationShellEnabled();
-  const chosen = useNavigationSelection().gameAccess;
+  const selection = useNavigationSelection();
+  const chosen = selection.gameAccess;
+  const openGame = (game: CatalogGame) => { setAppScreen("games"); onOpenGame(game); };
   useEffect(() => {
     if (!notes) return;
     const show = () => { if (takePendingReleaseNotes()) {
@@ -51,6 +53,16 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
     window.addEventListener(OPEN_RELEASE_NOTES_EVENT, show);
     return () => window.removeEventListener(OPEN_RELEASE_NOTES_EVENT, show);
   }, [notes, newShell]);
+  // The new shell's Catalog › AI suggestions and Catalog › New games are drawn here until they get screens of their own.
+  if (newShell && selection.homeMode === "catalog") return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
+    <div className="ga-home-content ga-stack ga-stack-lg">
+      {selection.catalog === "aiSuggestions" ? <AiPicks onOpenGame={openGame} /> : null}
+      {selection.catalog === "newGames" ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
+        <h3 id="ga-home-news-title" className="ga-home-card-title">{t("navNewGames")}</h3>
+        <NewsPanel games={games} onOpenGame={openGame} downloadsOnly />
+      </section> : null}
+    </div>
+  </GaScreen>;
   return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
     <div className="ga-home-content ga-stack ga-stack-lg">
       {(!newShell || chosen === "guide") && welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>

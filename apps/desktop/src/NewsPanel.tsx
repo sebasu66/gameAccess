@@ -103,9 +103,11 @@ function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game
  * News as a panel (docs/TAREA-interfaz-nueva.md T13): the latest news card (date, title, text), older news, the
  * games that just arrived in the catalog (View opens their detail) and a usage tip. Opening it marks the news read.
  */
-export default function NewsPanel({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
+export default function NewsPanel({ games, onOpenGame, downloadsOnly = false }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void; downloadsOnly?: boolean }) {
   const { t, locale } = useI18n();
-  const { items } = useNews();
+  const news = useNews().items;
+  // In the new shell the project's announcements are Game Access › News; Catalog › New games shows only the downloads.
+  const items = useMemo(() => downloadsOnly ? news.filter(item => item.games?.length) : news, [news, downloadsOnly]);
   useEffect(() => { markNewsRead(); }, [items.length]);
   const recent = useMemo(() => games
     .filter(game => game.release_date && Date.now() - Date.parse(game.release_date) < 30 * DAY && Date.parse(game.release_date) <= Date.now())

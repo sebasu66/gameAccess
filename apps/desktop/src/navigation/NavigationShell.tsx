@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Gamepad2, House, LayoutGrid, Settings } from "lucide-react";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
 import BackendStatus from "../BackendStatus";
+import { getPluginStatuses, subscribePluginStatuses } from "../catalog/PluginRuntime";
+import { useNews } from "../centralDialog/useAnnouncements";
 import { useAppScreen, setAppScreen } from "../appScreen";
 import ActivityPanel from "../activity/ActivityPanel";
 import { useActiveDownloadCount } from "../downloads/useActiveDownloadCount";
 import { openArea, openSection, useGameSection } from "../gameArea";
 import { useI18n } from "../i18n";
 import { NAVIGATION, type NavigationModeId } from "./navigationTree";
-import { selectNavigationSection, useNavigationSelection } from "./navigationSelection";
-import { PLUGIN_SECTION_EVENT } from "../pluginNav";
+import { CATALOG_ON_HOME, getNavigationSelection, newsDestination, selectNavigationSection, shellMode, useNavigationSelection } from "./navigationSelection";
+import { OPEN_NEWS_EVENT } from "../newDownloads";
+import { openPluginSection, PLUGIN_SECTION_EVENT } from "../pluginNav";
 import "./navigation-shell.css";
 
 /** Development entry point for the RN2 shell while legacy pages are being moved into its content zone. */
@@ -20,6 +23,7 @@ const MODE_ICONS = { catalog: LayoutGrid, library: Gamepad2, gameAccess: House, 
 function openMode(mode: NavigationModeId) {
   if (mode === "catalog" || mode === "library") openArea(mode);
   else {
+    if (mode === "gameAccess") selectNavigationSection("gameAccess", getNavigationSelection().gameAccess);
     if (mode === "settings") selectNavigationSection("settings", "general");
     setAppScreen(mode === "gameAccess" ? "home" : "settings");
   }
@@ -29,12 +33,14 @@ function openExistingSection(mode: NavigationModeId, section: string) {
   selectNavigationSection(mode, section);
   if (mode === "library" && (section === "play" || section === "downloads" || section === "manager")) openSection(section);
   else if (mode === "catalog" && section === "explore") openSection("catalog");
+  // AI suggestions and new games are still drawn by the Home screen (HomeScreen.tsx), hosted as Catalog.
+  else if (mode === "catalog" && (CATALOG_ON_HOME as readonly string[]).includes(section)) setAppScreen("home");
   else if (mode === "gameAccess") setAppScreen("home");
   else if (mode === "settings") setAppScreen(section === "parental" ? "kids" : "settings");
 }
 
 const reachable = (mode: NavigationModeId, section: string) => mode === "library"
-  || mode === "catalog" && section === "explore"
+  || mode === "catalog" && (section === "explore" || (CATALOG_ON_HOME as readonly string[]).includes(section))
   || mode === "gameAccess"
   || mode === "settings";
 
@@ -44,12 +50,14 @@ export default function NavigationShell() {
   const screen = useAppScreen();
   const gameSection = useGameSection();
   const downloads = useActiveDownloadCount();
+  const plugins = useSyncExternalStore(subscribePluginStatuses, getPluginStatuses, getPluginStatuses);
+  const { unread } = useNews();
   const navigationSelection = useNavigationSelection();
   const [tier, setTier] = useState(getActivationTier);
-  const mode: NavigationModeId = screen === "home" ? "gameAccess" : screen === "kids" || screen === "settings" ? "settings"
-    : gameSection?.area ?? "catalog";
+  const mode = shellMode(screen, gameSection?.area, navigationSelection.homeMode);
   const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
-    : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess : "explore";
+    : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
+    : screen === "home" ? navigationSelection.catalog : "explore";
   const current = NAVIGATION.find(item => item.id === mode)!;
 
   useEffect(() => {
@@ -64,8 +72,11 @@ export default function NavigationShell() {
 
   useEffect(() => {
     const showPlugins = () => selectNavigationSection("settings", "plugins");
+    // A notice or an Activity entry opens a news item (newDownloads.ts goes to Home): new downloads are Catalog's.
+    const showNews = (event: Event) => { const to = newsDestination(String((event as CustomEvent<string>).detail ?? "")); selectNavigationSection(to.mode, to.section); };
     window.addEventListener(PLUGIN_SECTION_EVENT, showPlugins);
-    return () => window.removeEventListener(PLUGIN_SECTION_EVENT, showPlugins);
+    window.addEventListener(OPEN_NEWS_EVENT, showNews);
+    return () => { window.removeEventListener(PLUGIN_SECTION_EVENT, showPlugins); window.removeEventListener(OPEN_NEWS_EVENT, showNews); };
   }, []);
 
   return <div className="ga-nav-shell" data-mode={mode}>
@@ -91,7 +102,11 @@ export default function NavigationShell() {
     </aside>
     <footer className="ga-nav-status" aria-label={t("navStatusAria")}>
       <BackendStatus />
-      <span>{t("navDownloads")} · {downloads}</span>
+      <button type="button" onClick={() => { openPluginSection(plugins[0]?.id ?? ""); }} disabled={!plugins.length}>
+        {t("navPlugins")} · {plugins.length ? plugins.filter(plugin => plugin.alive && plugin.enabled !== false).length : "—"}
+      </button>
+      <button type="button" onClick={() => openSection("downloads")}>{t("navDownloads")} · {downloads}</button>
+      <button type="button" onClick={() => { selectNavigationSection("gameAccess", "news"); setAppScreen("home"); }}>{t("navNews")} · {unread}</button>
     </footer>
   </div>;
 }
