@@ -129,11 +129,12 @@ html.ga-navigation-shell {
   opacity: 0; pointer-events: none; transition: opacity var(--ga-nav-hover-time), transform var(--ga-nav-hover-time); }
 .ga-nav-lock:hover::after, :focus-visible > .ga-nav-lock::after { opacity: 1; transform: translate(-50%, 0); }
 /* On a section the padlock sits in the arrow's tip, which the text never uses, so names keep their room. */
-.ga-nav-section { --ga-nav-lock-right: max(calc(var(--ga-nav-arrow) * var(--ga-nav-lock-tip-at) - var(--ga-nav-lock-big) / 2), var(--ga-nav-section-gap)); }
-.ga-nav-section[data-locked] { padding-right: calc(var(--ga-nav-lock-right) + var(--ga-nav-lock-big) + var(--ga-nav-section-gap)); }
-.ga-nav-section > .ga-nav-lock { position: absolute; z-index: 1; top: 50%; right: var(--ga-nav-lock-right); width: var(--ga-nav-lock-big); height: var(--ga-nav-lock-big); transform: translateY(-50%); }
+/* On a section the padlock follows the name like one more letter: solid, in PLUS gold. */
+.ga-nav-lock-inline { width: var(--ga-nav-lock-inline); height: var(--ga-nav-lock-inline); color: var(--ga-plus-gold-label); }
+.ga-nav-lock-inline svg { fill: currentColor; }
+.ga-nav-lock-inline .ga-nav-lock-shackle { fill: none; stroke: currentColor; stroke-width: var(--ga-nav-lock-shackle); }
 .ga-nav-section { --ga-nav-arrow: var(--ga-nav-button-cut); position: relative; width: calc(100% - var(--ga-nav-section-room)); height: var(--ga-nav-section-h);
-  display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 calc(var(--ga-nav-section-mark) * var(--ga-nav-section-mark-show) + var(--ga-nav-section-gap)); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }
+  display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 calc(var(--ga-nav-section-mark) * var(--ga-nav-section-text-at) + var(--ga-nav-section-gap)); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }
 .ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after { position: absolute; clip-path: polygon(0 0, calc(100% - var(--ga-nav-arrow)) 0, 100% 50%, calc(100% - var(--ga-nav-arrow)) 100%, 0 100%); }
 .ga-nav-section-shape { inset: 0; background: var(--ga-nav-section-line); transition: background var(--ga-nav-hover-time); }
 .ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after, .ga-nav-hero-plate { border-radius: var(--ga-nav-button-radius); }
@@ -142,12 +143,15 @@ html.ga-navigation-shell {
 .ga-nav-section-shape::after { background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode-acc) 30%, transparent), transparent 70%); opacity: 0; transition: opacity var(--ga-nav-hover-time); }
 .ga-nav-section::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--ga-nav-section-bar); background: var(--ga-mode-acc); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) var(--ga-mode-acc); transform: scaleY(0); transform-origin: 50% 0; transition: transform var(--ga-nav-grow-time); }
 .ga-nav-section-mark { position: absolute; z-index: 1; top: 50%; left: calc(var(--ga-nav-section-mark) * (var(--ga-nav-section-mark-show) - 1)); width: var(--ga-nav-section-mark); height: var(--ga-nav-section-mark); transform: translateY(-50%);
-  color: var(--ga-nav-shell-ink); opacity: var(--ga-nav-section-mark-opacity); transition: color var(--ga-nav-hover-time), opacity var(--ga-nav-hover-time); }
+  color: var(--ga-nav-shell-ink); opacity: var(--ga-nav-section-mark-opacity); transition: color var(--ga-nav-hover-time), opacity var(--ga-nav-hover-time);
+  /* More than half of the drawing shows; its right side fades out behind the name. */
+  -webkit-mask-image: var(--ga-nav-section-mark-fade); mask-image: var(--ga-nav-section-mark-fade); }
 .ga-nav-section-mark svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: var(--ga-nav-section-mark-stroke); stroke-linecap: round; stroke-linejoin: round; }
 .ga-nav-section-mark .f { fill: currentColor; fill-opacity: var(--ga-nav-section-mark-fill); }
 .ga-nav-section-mark .s { fill: currentColor; fill-opacity: var(--ga-nav-section-mark-fill-strong); }
 .ga-nav-section-text { position: relative; min-width: 0; display: flex; flex-direction: column; gap: var(--ga-nav-hero-gap); }
-.ga-nav-section-name { overflow: hidden; white-space: nowrap; font: var(--ga-nav-display-style) 400 var(--ga-nav-section-name-size)/var(--ga-nav-name-leading) var(--ga-nav-display-family); text-transform: var(--ga-nav-display-case); letter-spacing: var(--ga-nav-word-tracking); }
+.ga-nav-section-title { display: flex; align-items: center; gap: var(--ga-nav-lock-inline-gap); min-width: 0; }
+.ga-nav-section-name { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font: var(--ga-nav-display-style) 400 var(--ga-nav-section-name-size)/var(--ga-nav-name-leading) var(--ga-nav-display-family); text-transform: var(--ga-nav-display-case); letter-spacing: var(--ga-nav-word-tracking); }
 .ga-nav-section-desc { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-nav-pale); opacity: var(--ga-nav-desc-opacity); font: 500 var(--ga-nav-section-desc-size)/var(--ga-t2-leading) var(--ga-text-family); letter-spacing: var(--ga-nav-caption-tracking); }
 .ga-nav-section:not(:disabled):hover .ga-nav-section-shape, .ga-nav-section:focus-visible .ga-nav-section-shape { background: color-mix(in srgb, var(--ga-mode-acc) 70%, var(--ga-nav-shell-ink)); }
 .ga-nav-section:not(:disabled):hover .ga-nav-section-shape::after, .ga-nav-section:focus-visible .ga-nav-section-shape::after { opacity: 1; }

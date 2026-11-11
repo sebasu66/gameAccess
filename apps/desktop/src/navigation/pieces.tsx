@@ -72,9 +72,14 @@ export function TitlePlate({ name, desc }: { name: string; desc: string }) {
 }
 
 /** A white padlock beside a name the plan does not include; on hover it says «Disponible en PLUS» (§5.12). */
-export function PlanLock() {
+export function PlanLock({ inline }: {
+  /** After a section's name, like one more letter: a solid padlock in PLUS gold (Seba, 2026-11-11). */
+  inline?: boolean;
+}) {
   const { t } = useI18n();
-  return <span className="ga-nav-lock" data-tip={t("navPlusOnly")} role="img" aria-label={t("navPlusOnly")}><Lock aria-hidden="true" /></span>;
+  return <span className={inline ? "ga-nav-lock ga-nav-lock-inline" : "ga-nav-lock"} data-tip={t("navPlusOnly")} role="img" aria-label={t("navPlusOnly")}>
+    {inline ? <svg viewBox="0 0 24 24" aria-hidden="true"><path className="ga-nav-lock-shackle" d="M7.5 11V7.5a4.5 4.5 0 0 1 9 0V11" /><rect x="4" y="10" width="16" height="12" rx="2.5" /></svg> : <Lock aria-hidden="true" />}
+  </span>;
 }
 
 /** The pills' drawn order (pillRows.ts), measured again on a resize, a new style or a font that arrives. */
@@ -139,10 +144,9 @@ export function SectionButton({ art, label, desc, disabled, locked, onClick }: {
       {/* The icon is a watermark larger than the button, cut by its left edge (inside the shape, which clips it). */}
       <span className="ga-nav-section-shape" aria-hidden="true"><span className="ga-nav-section-mark">{art}</span></span>
       <span className="ga-nav-section-text">
-        <span className="ga-nav-section-name" data-fit="">{t(label)}</span>
+        <span className="ga-nav-section-title"><span className="ga-nav-section-name" data-fit="">{t(label)}</span>{locked ? <PlanLock inline /> : null}</span>
         <span className="ga-nav-section-desc">{t(desc)}</span>
       </span>
-      {locked ? <PlanLock /> : null}
       <Chevrons />
     </button>
   </li>;
