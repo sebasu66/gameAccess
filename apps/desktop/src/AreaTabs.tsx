@@ -10,7 +10,7 @@ import "./area-tabs.css";
 const SECTION_KEYS = { catalog: "sectionBrowse", downloads: "downloadsTitle", play: "sectionPlay", manager: "libraryManagerButton" } as const satisfies Record<GameSection, string>;
 
 /**
- * The sections of the area on screen (gameArea.ts): Catalog › Browse | Downloads, Library › Play | Manager. Drawn with
+ * The sections of the area on screen (gameArea.ts): Catalog › Explore, Library › Play | Downloads | Manager. Drawn with
  * the tabs template (tabs.css, `.ga-tabs-list` and `.ga-tab`) as links between sections, not as a tab panel.
  */
 export default function AreaTabs({ area }: { area?: GameArea }) {
@@ -40,9 +40,9 @@ export function AreaButtons({ dockTarget = null }: { dockTarget?: HTMLElement | 
   const current = useGameSection();
   const downloads = useActiveDownloadCount();
   const buttons = <>
-    <GaIconButton className="ga-catalog-fab" icon={<LayoutGrid size={20} aria-hidden="true" />} label={t("areaCatalog")} badge={downloads || undefined}
+    <GaIconButton className="ga-catalog-fab" icon={<LayoutGrid size={20} aria-hidden="true" />} label={t("areaCatalog")}
       pressed={current?.area === "catalog"} onClick={() => openArea("catalog")} />
-    <GaIconButton className="ga-library-fab" icon={<Gamepad2 size={20} aria-hidden="true" />} label={t("areaLibrary")}
+    <GaIconButton className="ga-library-fab" icon={<Gamepad2 size={20} aria-hidden="true" />} label={t("areaLibrary")} badge={downloads || undefined}
       pressed={current?.area === "library"} onClick={() => openArea("library")} />
   </>;
   return dockTarget ? createPortal(buttons, dockTarget) : buttons;

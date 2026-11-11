@@ -1,6 +1,16 @@
 import type { es } from "./es";
 
 export const en: Record<keyof typeof es, string> = {
+  navModeCatalog: "Catalog", navModeLibrary: "Library", navModeGameAccess: "Game Access", navModeSettings: "Settings",
+  navExplore: "Explore", navSmartSearch: "Smart search", navAiSuggestions: "AI suggestions", navNewGames: "New games", navTasteProfile: "Taste profile",
+  navInCatalog: "In the catalog", navReadyToDownload: "Ready to download",
+  navPlay: "Play", navLastPlayed: "Last played", navByGenre: "By genre", navFavorites: "Favorites", navAlphabetical: "A–Z",
+  navDownloads: "Downloads", navActive: "Active", navQueued: "Queued", navCompleted: "Completed",
+  navManager: "Manager", navGames: "Games", navSpace: "Space", navFreeze: "Freeze", navMove: "Move", navImport: "Import",
+  navNews: "News", navLatestVersion: "Latest version", navAnnouncements: "Announcements", navHowToUse: "How to use",
+  navMyAccount: "My account", navSubscription: "Subscription", navHelpContact: "Help and contact", navFaq: "Frequently asked questions", navContactUs: "Contact us",
+  navGeneral: "General", navGamesDownloads: "Games and downloads", navSteam: "Steam", navArtificialIntelligence: "Artificial intelligence", navOtherSettings: "Other settings",
+  navAppearance: "Appearance", navStyle: "Style", navDetails: "Details", navPlugins: "Plugins", navParental: "Parental controls", navTime: "Time", navFilter: "Filter",
   sourcesChecking: "Checking sources…",
   sourcesUnavailable: "No sources available",
   sourcesChoose: "Versions and sources",

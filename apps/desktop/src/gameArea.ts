@@ -3,15 +3,13 @@ import { setAppScreen, useAppScreen } from "./appScreen";
 import { closeLibraryManager, openLibraryManager, useLibraryManagerShown } from "./libraryManagerNav";
 
 /**
- * The two areas of the games (Seba, 2026-11-09): the Catalog is about getting new games (the catalog and the Download
- * Manager), the Library about playing and managing the games one has (the library and the Library Manager). A game
- * leaves the Catalog's downloads for the Library only once the Download Manager has installed it.
- * Each area has its sections, chosen from the tabs under the top bar (AreaTabs.tsx). The catalog and the library are
- * views of the games' grid (LibraryRoom); the Download Manager is a screen of its own (DownloadsScreen.tsx).
+ * Catalog is for discovering games; Library is for playing, downloading, and managing them.
+ * This hierarchy comes from vault/Rediseño de navegación.md §2. The catalog and play sections are views of
+ * LibraryRoom; Downloads has its own screen and Manager its own panel.
  */
 export type GameArea = "catalog" | "library";
 export type GameSection = "catalog" | "downloads" | "play" | "manager";
-export const AREA_SECTIONS: Record<GameArea, GameSection[]> = { catalog: ["catalog", "downloads"], library: ["play", "manager"] };
+export const AREA_SECTIONS: Record<GameArea, GameSection[]> = { catalog: ["catalog"], library: ["play", "downloads", "manager"] };
 
 /** Asks the games' grid to show the catalog or the library view (LibraryRoom listens). */
 export const REQUEST_GAMES_VIEW_EVENT = "gameaccess:request-games-view";
@@ -47,7 +45,7 @@ export function useGameSection(): { area: GameArea; section: GameSection } | nul
   const screen = useAppScreen();
   const manager = useLibraryManagerShown();
   const current = useGamesView();
-  if (screen === "downloads") return { area: "catalog", section: "downloads" };
+  if (screen === "downloads") return { area: "library", section: "downloads" };
   if (screen !== "games") return null;
   if (current === "catalog") return { area: "catalog", section: "catalog" };
   return { area: "library", section: manager ? "manager" : "play" };
