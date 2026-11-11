@@ -64,23 +64,13 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  /* Its lower corner breaks up into strips at the mode bar's angle: five cuts that come closer together toward the
-     corner, each strip a little wider than the one below it (Seba, 2026-11-11). A mask, not paint: the cuts show what
-     is behind the panel. The gradient runs from the bottom-right corner, so every stop is a distance from there. */
-  --ga-nav-cut-angle: calc(360deg - atan2(var(--ga-nav-mode-slant), var(--ga-nav-mode-w)));
-  --ga-nav-u: var(--ga-nav-cut-unit); --ga-nav-k0: var(--ga-nav-u);
-  --ga-nav-k1: calc(var(--ga-nav-k0) + 1.4 * var(--ga-nav-u)); --ga-nav-k2: calc(var(--ga-nav-k1) + var(--ga-nav-u)); --ga-nav-k3: calc(var(--ga-nav-k2) + 2 * var(--ga-nav-u));
-  --ga-nav-k4: calc(var(--ga-nav-k3) + var(--ga-nav-u)); --ga-nav-k5: calc(var(--ga-nav-k4) + 3 * var(--ga-nav-u)); --ga-nav-k6: calc(var(--ga-nav-k5) + var(--ga-nav-u));
-  --ga-nav-k7: calc(var(--ga-nav-k6) + 4.4 * var(--ga-nav-u)); --ga-nav-k8: calc(var(--ga-nav-k7) + var(--ga-nav-u)); --ga-nav-k9: calc(var(--ga-nav-k8) + 6.4 * var(--ga-nav-u)); --ga-nav-k10: calc(var(--ga-nav-k9) + var(--ga-nav-u));
-  --ga-nav-cut-mask: linear-gradient(var(--ga-nav-cut-angle), transparent 0 var(--ga-nav-k0), black 0 var(--ga-nav-k1), transparent 0 var(--ga-nav-k2), black 0 var(--ga-nav-k3), transparent 0 var(--ga-nav-k4),
-    black 0 var(--ga-nav-k5), transparent 0 var(--ga-nav-k6), black 0 var(--ga-nav-k7), transparent 0 var(--ga-nav-k8), black 0 var(--ga-nav-k9), transparent 0 var(--ga-nav-k10), black 0);
-  clip-path: var(--ga-nav-panel-shape); -webkit-mask-image: var(--ga-nav-cut-mask); mask-image: var(--ga-nav-cut-mask); }
+  clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
 .ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
 .ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
 .ga-nav-panel-shade { background: var(--ga-nav-panel-shade-fill); }
-/* Toward its lower corner the image sinks into the content panel's colour, so it meets the panel beside it. */
-.ga-nav-panel-fade { background: linear-gradient(var(--ga-nav-cut-angle), var(--ga-nav-stage-base) 0, var(--ga-nav-stage-base) var(--ga-nav-panel-fade-hold), transparent var(--ga-nav-panel-fade-reach)); }
+/* In its lower corner the image sinks into the content panel's colour, so it meets the panel beside it (Seba, 2026-11-11). */
+.ga-nav-panel-fade { background: radial-gradient(var(--ga-nav-panel-fade-shape) at 100% 100%, var(--ga-nav-stage-base) var(--ga-nav-panel-fade-hold), transparent var(--ga-nav-panel-fade-reach)); }
 .ga-nav-panel-scan { background: var(--ga-nav-scan-fill); opacity: var(--ga-nav-scan-opacity); }
 
 .ga-nav-hero { position: absolute; z-index: 2; top: var(--ga-nav-section-pad); left: var(--ga-nav-section-pad); width: calc(100% - var(--ga-nav-section-pad) + var(--ga-nav-title-overhang)); height: var(--ga-nav-hero-h); pointer-events: none; }
