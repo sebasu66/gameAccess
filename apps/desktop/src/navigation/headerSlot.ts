@@ -1,22 +1,5 @@
-/**
- * Where the content header (§4.3) puts the one game search: the header hands its slot here and the catalog panel,
- * which owns the search and its state, draws the box into it. No slot, no box in the header.
- */
-import { useSyncExternalStore } from "react";
-
-let slot: HTMLElement | null = null;
-const listeners = new Set<() => void>();
-
-export function setHeaderSearchSlot(next: HTMLElement | null): void {
-  if (slot === next) return;
-  slot = next;
-  listeners.forEach(listener => listener());
-}
-
-const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
-export const useHeaderSearchSlot = () => useSyncExternalStore(subscribe, () => slot, () => null);
-
-/** Which kind of header each section shows: the game search, a search over what is on screen, or a summary. */
+/** What the content header (§4.3) shows in each section: nothing in the game sections (their search sits with the
+ *  filters, DownloadCatalogPanel), a search over what is on screen, or a summary. */
 export const GAME_SEARCH_SECTIONS: readonly string[] = ["explore", "newGames", "play", "manager"];
 export const PAGE_SEARCH_SECTIONS: readonly string[] = ["support", "general", "appearance", "plugins", "parental"];
 export type HeaderKind = "games" | "page" | "summary";

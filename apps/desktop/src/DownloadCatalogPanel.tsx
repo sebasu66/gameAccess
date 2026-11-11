@@ -35,7 +35,7 @@ import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
-import { useHeaderSearchSlot } from "./navigation/headerSlot";
+import { navigationShellEnabled } from "./navigation/navigationSelection";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
@@ -494,14 +494,14 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, [contextMenu]);
 
 
-  const headerSlot = useHeaderSearchSlot();
+  // In the new shell the one game search sits with the filters and sort, under the banner (§4.3, Seba 2026-11-11).
+  const gridSearch = navigationShellEnabled() ? <div className="ga-nav-grid-search"><SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} /></div> : null;
   const toolbar = (
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock">
-          {/* In the new shell the one game search goes up into the content header (§4.3), where the section has one. */}
-          {headerSlot ? createPortal(<SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} />, headerSlot) : <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />}
+          {gridSearch ? null : <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />}
         </div>
         {/* Catalog and Library are areas of the frame now (AreaTabs.tsx, gameArea.ts): no switch here. */}
       </div>
@@ -530,7 +530,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.lead ?? null}
       {view === "catalog" && !searchQuery.trim() && !props.lead ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{aiReasons ? <div className="library-catalog-filter-actions"><AiSearchSwitch /></div> : filters}{aiReasons ? null : view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+      {showManager ? (gridSearch ? <div className="ga-grid-toolbar">{gridSearch}</div> : null) : <div className="ga-grid-toolbar">{gridSearch}{aiReasons ? <div className="library-catalog-filter-actions"><AiSearchSwitch /></div> : filters}{aiReasons ? null : view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
       </div> : null}<span className="ga-strip-info" ref={setInfoTarget} /></div>}

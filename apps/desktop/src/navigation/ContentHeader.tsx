@@ -1,13 +1,13 @@
 /**
  * The content header (vault/Rediseño de navegación.md §4.3), one piece for every section: in the gap right of the
- * title's arrow, the game search, a search over what is on screen, or a summary of two or three facts; in the corner,
- * the mode's picture cut as a parallelogram (in Downloads, the cover of the game that is coming down).
+ * title's chevrons, a search over what is on screen or a summary of two or three facts. The game sections have none:
+ * their banner goes up level with the title and the game search sits with the filters (DownloadCatalogPanel).
  */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useActiveDownloads } from "../downloads/useActiveDownloadCount";
-import { filterBlocks, headerKind, setHeaderSearchSlot } from "./headerSlot";
+import { filterBlocks, headerKind } from "./headerSlot";
 import { formatSpeed, useAppVersion } from "./statusBarData";
 
 type Fact = { label: string; value: string };
@@ -38,13 +38,6 @@ function PageSearch({ section }: { section: string }) {
   </div>;
 }
 
-/** The slot the catalog panel draws the one game search into (headerSlot.ts). */
-function GameSearchSlot() {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { setHeaderSearchSlot(ref.current); return () => setHeaderSearchSlot(null); }, []);
-  return <div className="ga-nav-head-search ga-nav-head-games" ref={ref} />;
-}
-
 function Summary({ facts }: { facts: Fact[] }) {
   if (!facts.length) return null;
   return <dl className="ga-nav-head-summary">{facts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>;
@@ -55,16 +48,15 @@ export default function ContentHeader({ section, plan, unread }: { section: stri
   const downloads = useActiveDownloads();
   const version = useAppVersion();
   const kind = headerKind(section);
+  // The content zone starts higher where there is no header (navigation-shell.css reads this).
+  useEffect(() => { document.documentElement.dataset.gaNavHead = kind; return () => { delete document.documentElement.dataset.gaNavHead; }; }, [kind]);
   const facts: Fact[] = section === "downloads"
     ? [{ label: t("navSumActive"), value: String(downloads.count - downloads.queued) }, { label: t("navSumQueued"), value: String(downloads.queued) }, { label: t("navSumSpeed"), value: formatSpeed(downloads.speedBps, locale) }]
     : section === "news" ? [{ label: t("navSumUnread"), value: String(unread) }, ...(version ? [{ label: t("navSumVersion"), value: version }] : [])]
     : section === "subscription" ? [{ label: t("navSumPlan"), value: plan }]
     : [];
-  const cover = section === "downloads" ? downloads.cover : undefined;
+  if (kind === "games") return null;
   return <header className="ga-nav-head" aria-label={t("navHeadAria")}>
-    <div className="ga-nav-head-main">
-      {kind === "games" ? <GameSearchSlot /> : kind === "page" ? <PageSearch section={section} /> : <Summary facts={facts} />}
-    </div>
-    <i className="ga-nav-head-art" aria-hidden="true" style={cover ? { "--ga-nav-head-image": `url("${cover}")` } as React.CSSProperties : undefined} />
+    <div className="ga-nav-head-main">{kind === "page" ? <PageSearch section={section} /> : <Summary facts={facts} />}</div>
   </header>;
 }

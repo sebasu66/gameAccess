@@ -196,32 +196,31 @@ html.ga-navigation-shell body .plugin-indicator-group { display: none !important
 /* §4.3: one content zone for every section. Each old screen (a .ga-screen, the library room) is placed in the same box under
    the title, with the same padding, so all sections look and behave alike; their own titles and menus give way to the panel's. */
 html.ga-navigation-shell { --ga-rail-clear: 0px; --ga-nav-body-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h)); }
-/* §4.3 content header: in the gap right of the title's arrow and its chevrons, the search or the summary; the mode's picture in the corner. */
+/* §4.3 content header: in the gap right of the title's chevrons, the page search or the summary. The game sections have none:
+   their content starts level with the title (banner first) and the game search sits with the filters (Seba, 2026-11-11). */
+html.ga-navigation-shell[data-ga-nav-head="games"] { --ga-nav-body-top: calc(var(--ga-nav-top) + var(--ga-nav-section-pad)); }
 .ga-nav-head { position: absolute; z-index: 2; top: calc(var(--ga-nav-top) + var(--ga-nav-section-pad)); height: var(--ga-nav-hero-h); right: calc(var(--ga-nav-content-right) + var(--ga-nav-content-pad));
-  left: calc(var(--ga-nav-content-left) - var(--ga-nav-column-gap) + var(--ga-nav-title-overhang) + var(--ga-nav-head-clear)); display: flex; align-items: center; gap: var(--ga-nav-section-gap); container: ga-nav-head / inline-size; }
+  left: calc(var(--ga-nav-content-left) - var(--ga-nav-column-gap) + var(--ga-nav-title-overhang) + var(--ga-nav-head-clear)); display: flex; align-items: center; gap: var(--ga-nav-section-gap); }
 .ga-nav-head-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
-.ga-nav-head-search { position: relative; width: min(100%, var(--ga-nav-head-search-w)); }
-.ga-nav-head-field, .ga-nav-head-games .global-search-box { width: 100% !important; max-width: none; margin: 0; display: flex; align-items: center; gap: var(--ga-nav-section-gap); height: var(--ga-nav-head-field-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box;
+.ga-nav-head-search, .ga-nav-grid-search { position: relative; width: min(100%, var(--ga-nav-head-search-w)); }
+.ga-nav-grid-search { flex: 0 1 var(--ga-nav-head-search-w); min-width: 0; }
+.ga-nav-head-field, .ga-nav-grid-search .global-search-box { width: 100% !important; max-width: none; margin: 0; display: flex; align-items: center; gap: var(--ga-nav-section-gap); height: var(--ga-nav-head-field-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box;
   border: var(--ga-nav-line-w) solid var(--ga-nav-tab-line); border-left: var(--ga-nav-section-bar) solid var(--ga-mode-acc); border-radius: var(--ga-nav-button-radius); background: var(--ga-nav-section-fill); backdrop-filter: blur(var(--ga-nav-glass-blur));
   color: var(--ga-nav-shell-ink); transition: border-color var(--ga-nav-hover-time), box-shadow var(--ga-nav-hover-time); }
-.ga-nav-head-field:focus-within, .ga-nav-head-games .global-search-box:focus-within { border-color: var(--ga-mode-acc); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 45%, transparent); }
-.ga-nav-head-field svg, .ga-nav-head-games .global-search-box svg { flex: none; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); color: var(--ga-mode-acc); }
-.ga-nav-head-field input, .ga-nav-head-games .global-search-box input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: inherit; font: 600 var(--ga-nav-head-text)/1 var(--ga-text-family); outline: none; }
-.ga-nav-head-field input::placeholder, .ga-nav-head-games .global-search-box input::placeholder { color: var(--ga-nav-shell-muted); }
-.ga-nav-head-field button, .ga-nav-head-games .global-search-box button { flex: none; display: grid; place-items: center; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); padding: 0; border: 0; background: none; color: var(--ga-nav-shell-muted); cursor: pointer; }
-.ga-nav-head-field button:hover, .ga-nav-head-games .global-search-box button:hover { color: var(--ga-nav-shell-ink); }
-.ga-nav-head-games .global-search { width: 100%; margin: 0; padding: 0; background: none; border: 0; box-shadow: none; }
+.ga-nav-head-field:focus-within, .ga-nav-grid-search .global-search-box:focus-within { border-color: var(--ga-mode-acc); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 45%, transparent); }
+.ga-nav-head-field svg, .ga-nav-grid-search .global-search-box svg { flex: none; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); color: var(--ga-mode-acc); }
+.ga-nav-head-field input, .ga-nav-grid-search .global-search-box input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: inherit; font: 600 var(--ga-nav-head-text)/1 var(--ga-text-family); outline: none; }
+.ga-nav-head-field input::placeholder, .ga-nav-grid-search .global-search-box input::placeholder { color: var(--ga-nav-shell-muted); }
+.ga-nav-head-field button, .ga-nav-grid-search .global-search-box button { flex: none; display: grid; place-items: center; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); padding: 0; border: 0; background: none; color: var(--ga-nav-shell-muted); cursor: pointer; }
+.ga-nav-head-field button:hover, .ga-nav-grid-search .global-search-box button:hover { color: var(--ga-nav-shell-ink); }
+.ga-nav-grid-search .global-search { width: 100%; margin: 0; padding: 0; background: none; border: 0; box-shadow: none; }
 .ga-nav-head-note { position: absolute; top: 100%; left: 0; margin: var(--ga-nav-hero-gap) 0 0; color: var(--ga-nav-shell-muted); font: 500 var(--ga-nav-section-desc-size)/var(--ga-t2-leading) var(--ga-text-family); }
 .ga-nav-head-summary { display: flex; gap: var(--ga-nav-head-fact-gap); margin: 0; }
 .ga-nav-head-summary > div { display: flex; flex-direction: column; gap: var(--ga-nav-hero-gap); padding-left: var(--ga-nav-section-gap); border-left: var(--ga-nav-section-bar) solid var(--ga-mode-acc); }
 .ga-nav-head-summary dt { color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-section-desc-size)/1 var(--ga-text-family); letter-spacing: var(--ga-nav-caption-tracking); text-transform: uppercase; }
 .ga-nav-head-summary dd { margin: 0; color: var(--ga-nav-shell-ink); font: var(--ga-nav-display-style) 400 var(--ga-nav-head-fact-size)/1 var(--ga-nav-display-family); white-space: nowrap; }
-.ga-nav-head-art { flex: none; align-self: stretch; width: var(--ga-nav-head-art-w); background: var(--ga-nav-head-image, var(--ga-nav-panel-image)) 50% 30% / cover no-repeat; opacity: var(--ga-nav-head-art-opacity);
-  clip-path: polygon(var(--ga-nav-head-art-slant) 0, 100% 0, calc(100% - var(--ga-nav-head-art-slant)) 100%, 0 100%); }
 html.ga-navigation-shell .ga-nav-filtered { display: none !important; }
 html.ga-navigation-shell .library-catalog-toolbar .ga-search-dock:empty { display: none; }
-/* A narrow header keeps the search whole: the picture gives way (container sizes cannot read variables). */
-@container ga-nav-head (max-width: 560px) { .ga-nav-head-art { display: none; } }
 html.ga-navigation-shell .app-shell > main { margin: 0 !important; }
 html.ga-navigation-shell body :is(.ga-screen, .app-shell > main > .library-room:not(.surface-tablet):not(.surface-display)) {
   position: fixed !important; left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-body-top) !important; bottom: var(--ga-nav-bottom) !important;
