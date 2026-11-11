@@ -61,16 +61,19 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
-/* Black under the image, so the line between its strips reads clearly (the title's chevrons are not clipped). */
-.ga-nav-sections::before { content: ""; position: absolute; inset: 0; background: var(--ga-nav-stripe-line); clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  /* The image itself ends in two wide strips cut at the mode bar's angle, split by a black line (Seba, 2026-11-11).
-     One polygon: the lower strip is joined along the left edge by a zero-width run, so the gap shows the panel's black. */
-  --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant)); --ga-nav-sh: var(--ga-nav-stripe-h); --ga-nav-sg: var(--ga-nav-stripe-gap);
-  --ga-nav-s0: calc(100% - var(--ga-nav-sh)); --ga-nav-s1: calc(100% - 2 * var(--ga-nav-sh) - var(--ga-nav-sg)); --ga-nav-s2: calc(100% - 2 * var(--ga-nav-sh) - 2 * var(--ga-nav-sg));
-  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-s2) - var(--ga-nav-ss)), 0 var(--ga-nav-s2),
-    0 var(--ga-nav-s1), 100% calc(var(--ga-nav-s1) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-s0) - var(--ga-nav-sg) - var(--ga-nav-ss)), 0 calc(var(--ga-nav-s0) - var(--ga-nav-sg)),
-    0 var(--ga-nav-s0), 100% calc(var(--ga-nav-s0) - var(--ga-nav-ss)), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%); }
+  /* The image's lower part is cut along the very lines that split the mode bar's bands, carried on at the same angle,
+     so the panel ends in strips as tall as those bands (Seba, 2026-11-11). The gaps are cut out, not painted: what is behind
+     the panel shows through. One polygon: the strips are joined along the left edge by zero-width runs.
+     --ga-nav-sl: how far a band line has risen by the panel's left edge; --ga-nav-ss: how much more across the panel. */
+  --ga-nav-sl: calc(var(--ga-nav-mode-slant) * (1 + var(--ga-nav-stripe-lead))); --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant));
+  --ga-nav-sp: calc(var(--ga-nav-band-h) - var(--ga-nav-mode-slant) + var(--ga-nav-band-gap)); --ga-nav-sg: var(--ga-nav-stripe-gap);
+  --ga-nav-c0: calc(100% - var(--ga-nav-band-h) + var(--ga-nav-mode-slant) - (var(--ga-nav-band-gap) + var(--ga-nav-sg)) / 2 - var(--ga-nav-sl));
+  --ga-nav-c1: calc(var(--ga-nav-c0) - var(--ga-nav-sp)); --ga-nav-c2: calc(var(--ga-nav-c0) - 2 * var(--ga-nav-sp));
+  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-c2) - var(--ga-nav-ss)), 0 var(--ga-nav-c2),
+    0 calc(var(--ga-nav-c2) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c2) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-c1) - var(--ga-nav-ss)), 0 var(--ga-nav-c1),
+    0 calc(var(--ga-nav-c1) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c1) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-c0) - var(--ga-nav-ss)), 0 var(--ga-nav-c0),
+    0 calc(var(--ga-nav-c0) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c0) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
 .ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
 .ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
