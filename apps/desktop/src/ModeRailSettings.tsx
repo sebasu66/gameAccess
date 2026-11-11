@@ -61,15 +61,15 @@ export function describeCssProblem(problem: CssProblem, c: Copy): string {
   return `${c.cssError}\nError (${c.line} ${problem.line}): «${problem.text}» ${c.reasons[problem.reason] ?? ""}`.trim();
 }
 
-function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: Array<[T, string]>; onChange: (value: T) => void; label: string }) {
+export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: Array<[T, string]>; onChange: (value: T) => void; label: string }) {
   return <div className="ga-rail-seg" role="group" aria-label={label}>{options.map(([key, text]) => <button key={key} type="button" aria-pressed={value === key} onClick={() => onChange(key)}>{text}</button>)}</div>;
 }
 
-function Slider({ id, label, value, min, max, step, unit = "", disabled, onChange }: { id: string; label: string; value: number; min: number; max: number; step: number; unit?: string; disabled?: boolean; onChange: (value: number) => void }) {
+export function Slider({ id, label, value, min, max, step, unit = "", disabled, onChange }: { id: string; label: string; value: number; min: number; max: number; step: number; unit?: string; disabled?: boolean; onChange: (value: number) => void }) {
   return <label className="ga-style-control" htmlFor={id}><span>{label}</span><output htmlFor={id}>{disabled ? "auto" : `${Math.round(value * 100) / 100}${unit}`}</output><input id={id} type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={e => onChange(Number(e.target.value))} /></label>;
 }
 
-function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+export function Field({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
   return <div className={wide ? "ga-rail-field ga-rail-wide" : "ga-rail-field"}><span>{label}</span>{children}</div>;
 }
 

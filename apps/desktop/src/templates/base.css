@@ -20,7 +20,7 @@
   --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
   --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px;
   --ga-nav-content-pad: 28px; --ga-nav-section-pad: 22px; --ga-nav-card-pad: 22px;
-  --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px; --ga-nav-band-h: 118px;
+  --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px;
   --ga-nav-title-size: 70px; --ga-nav-button-h: 42px; --ga-nav-button-pad-x: 18px;
   --ga-nav-deck-size: 16px; --ga-nav-log-size: 11px;
   --ga-nav-mode-switch-h: 56px; --ga-nav-brand-h: 104px; --ga-nav-section-button-h: 64px;
@@ -34,6 +34,20 @@
   --ga-nav-status-sep-h: 14px; --ga-nav-status-badge: 12px; --ga-nav-status-badge-size: 9px; --ga-nav-status-dot: 7px;
   --ga-nav-meter-w: 3px; --ga-nav-meter-h: 12px; --ga-nav-meter-gap: 2px; --ga-nav-meter-low: .35; --ga-nav-meter-time: 1.4s;
   --ga-nav-mode-badge: 20px; --ga-nav-mode-badge-inset: 6px;
+  /* Mode bar (§4.1): diagonal bands under the word, their slant, the gap between them and the icon. Editable in Appearance › Details. */
+  --ga-nav-band-h: clamp(80px, 10.9vh, 118px); --ga-nav-mode-slant: clamp(20px, 2.8vh, 30px); --ga-nav-band-gap: 5px; --ga-nav-band-icon: clamp(36px, 4.8vh, 52px);
+  --ga-nav-band-icon-line: 1.8; --ga-nav-icon-grow: 1.18; --ga-nav-word-pad: 12px;
+  /* Sections panel (§4.2): its cut corner, the image's opacity, tint and blur (Appearance › Details), the title that reaches over
+     the content, the stepped buttons, their chevrons and the least size a text shrinks to. */
+  --ga-nav-panel-cut: clamp(40px, 5.9vh, 64px); --ga-nav-panel-image-opacity: 1; --ga-nav-panel-tint: 0; --ga-nav-panel-blur: 0px; --ga-nav-panel-bleed: 12px;
+  --ga-nav-hero-h: clamp(76px, 9.6vh, 104px); --ga-nav-hero-name-size: clamp(40px, 6.5vh, 70px); --ga-nav-hero-desc-size: 12px; --ga-nav-hero-edge: 6px; --ga-nav-hero-gap: 4px;
+  --ga-nav-section-h: clamp(64px, 8.15vh, 88px); --ga-nav-section-name-size: clamp(22px, 2.96vh, 32px); --ga-nav-section-desc-size: 11.5px;
+  --ga-nav-section-step: 8px; --ga-nav-section-room: 42px; --ga-nav-section-icon: 40px; --ga-nav-section-glyph: 20px; --ga-nav-section-bar: 3px; --ga-nav-section-ring: 1.5px;
+  --ga-nav-chevron-t: 8px; --ga-nav-chevron-g: 4px; --ga-nav-chevron-big-t: 12px; --ga-nav-chevron-big-g: 6px; --ga-nav-chevron-travel: 14px; --ga-nav-chevron-delay: 50ms;
+  --ga-nav-hero-tip: calc(var(--ga-nav-button-cut) * 1.18); --ga-nav-section-step-max: 32px; --ga-nav-glass-blur: 8px; --ga-nav-desc-opacity: .8;
+  --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
+  --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
+  --ga-nav-glow-r: 22px; --ga-nav-fit-min: 15px; --ga-nav-dim-hover: .62; --ga-nav-stripe-extra: 20px; --ga-nav-stripe-slant: 1.3;
   /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
   /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */

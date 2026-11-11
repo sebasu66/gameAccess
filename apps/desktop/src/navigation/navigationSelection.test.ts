@@ -35,12 +35,12 @@ describe("selección del nuevo panel", () => {
     expect(newsDestination("release-2026-11")).toEqual({ mode: "gameAccess", section: "news" });
   });
 
-  it("Configuración: idioma e inicio (Opciones) en General, el estilo en Apariencia, nada repetido ni perdido", () => {
+  it("Configuración: idioma e inicio (Opciones) en General, Estilo y Detalles en Apariencia, nada repetido ni perdido", () => {
     expect(settingsTabIds("general")).toEqual(["games", "steam", "ai", "mcp", "options"]);
-    expect(settingsTabIds("appearance")).toEqual(["style"]);
+    expect(settingsTabIds("appearance")).toEqual(["style", "details"]);
     const settings = NAVIGATION.find(mode => mode.id === "settings")!;
     const all = settings.sections.flatMap(section => settingsTabIds(section.id));
     expect(new Set(all).size).toBe(all.length);
-    expect(all.sort()).toEqual(["ai", "games", "mcp", "options", "plugins", "steam", "style"]);
+    expect(all.sort()).toEqual(["ai", "details", "games", "mcp", "options", "plugins", "steam", "style"]);
   });
 });

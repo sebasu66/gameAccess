@@ -52,7 +52,19 @@ export const newsDestination = (id: string): { mode: NavigationModeId; section: 
 /** The tabs of the settings screen each Settings section shows (vault/Rediseño de navegación.md §2). */
 export function settingsTabIds(section: string): string[] {
   if (section === "general") return ["games", "steam", "ai", "mcp", "options"];
-  if (section === "appearance") return ["style"];
+  if (section === "appearance") return ["style", "details"];
   if (section === "plugins") return ["plugins"];
   return [];
+}
+
+/**
+ * The other sections, in the order the panel lists them (§4.2): the chosen one leaves the list for the title, and the
+ * one that was the title comes back in the place the chosen one left. Without a usable earlier order, the tree's.
+ */
+export function sectionListOrder(all: readonly string[], selected: string, previous?: readonly string[]): string[] {
+  const rest = all.filter(id => id !== selected);
+  if (!previous || previous.length !== rest.length || !previous.every(id => all.includes(id))) return rest;
+  if (!previous.includes(selected)) return [...previous];
+  const back = all.find(id => id !== selected && !previous.includes(id))!;
+  return previous.map(id => id === selected ? back : id);
 }

@@ -14,6 +14,26 @@
   --ga-nav-button-rest: #090e12d9; --ga-nav-button-hover: #10191ff2;
   --ga-nav-ok: #6fcfb0; --ga-nav-bad: #ff5d4d; --ga-nav-badge-ink: #090e12; --ga-nav-hover-bright: 1.22;
   --ga-nav-disabled-opacity: .42; --ga-nav-status-hover: #ffffff0d;
+  /* The shell's mode bar and sections panel: dark ink on the mode colour, the panel's shade over its image, the lines. */
+  --ga-nav-void: #050607; --ga-nav-ink-dark: #0a0705; --ga-nav-pale: #d9e2e4; --ga-nav-chevron-dark: #0b0d0f; --ga-nav-hero-end: #0e1113;
+  --ga-nav-shade-top: #050607e6; --ga-nav-shade-mid: #050607b8; --ga-nav-shade-clear: #0506071f; --ga-nav-shade-foot: #05060780;
+  --ga-nav-scan-line: #00000042; --ga-nav-hero-scan: #0000002e; --ga-nav-text-shadow: #00000073; --ga-nav-icon-shadow: #00000059;
+  --ga-nav-section-line: #ffffff38; --ga-nav-section-fill: #080a0ce6; --ga-nav-section-fill-end: #080a0cb3; --ga-nav-section-ring-color: #ffffff8c;
+  --ga-nav-panel-shade-fill: linear-gradient(180deg, #050607e6 0, #050607b8 38%, #0506071f 68%, #05060780 100%);
+  --ga-nav-scan-fill: repeating-linear-gradient(0deg, #00000042 0 1px, transparent 1px 3px);
+  --ga-nav-hero-scan-fill: repeating-linear-gradient(0deg, #0000002e 0 1px, transparent 1px 3px);
+  --ga-nav-title-shadow: 0 2px 0 #00000073; --ga-nav-icon-drop: drop-shadow(0 2px 0 #00000059);
+  --ga-nav-band-rest: brightness(.82) saturate(.9); --ga-nav-band-hover: brightness(1.15) saturate(1.1);
+  --ga-nav-glass: #ffffff59; --ga-nav-glass-shine: #ffffff47; --ga-nav-glass-clear: #ffffff00; --ga-nav-duotone: #00000052; --ga-nav-neon: #ffffff;
+  /* The mode bar's 2D graphic per choice (§4.1; no imitated materials). */
+  --ga-nav-graphic-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --ga-nav-graphic-hazard: repeating-linear-gradient(45deg, #00000042 0 14px, transparent 14px 28px);
+  --ga-nav-graphic-circuit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='.3' stroke-width='1.6'%3E%3Cpath d='M0 18h22l9 9h41M12 72V48l12-12h48M50 0v12l-9 9'/%3E%3C/g%3E%3Cg fill='%23000' fill-opacity='.34'%3E%3Ccircle cx='31' cy='27' r='3'/%3E%3Ccircle cx='24' cy='36' r='3'/%3E%3Ccircle cx='41' cy='21' r='3'/%3E%3C/g%3E%3C/svg%3E") 0 0/72px 72px;
+  --ga-nav-graphic-racing: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cg stroke='%23000' stroke-opacity='.26' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M-20 52L40 8M28 62L88 18M76 72L136 28'/%3E%3C/g%3E%3Cg stroke='%23fff' stroke-opacity='.14' stroke-width='1.5'%3E%3Cpath d='M4 58L64 14M52 68L112 24'/%3E%3C/g%3E%3C/svg%3E") 0 0/120px 60px;
+  --ga-nav-graphic-dots: radial-gradient(#00000052 1.6px, transparent 1.9px) 0 0/11px 11px;
+  --ga-nav-graphic-stripes: repeating-linear-gradient(0deg, #00000059 0 2px, transparent 2px 5px);
+  --ga-nav-graphic-checker: conic-gradient(#0000004d 25%, transparent 0 50%, #0000004d 0 75%, transparent 0) 0 0/24px 24px;
+  --ga-nav-graphic-plain: none;
   --ga-nav-panel-catalog: url('/styles/estilo-1/panel-1.jpg');
   --ga-nav-panel-library: url('/styles/estilo-1/panel-0.jpg');
   --ga-nav-panel-game-access: url('/styles/estilo-1/panel-2.jpg');

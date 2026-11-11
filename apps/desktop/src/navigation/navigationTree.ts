@@ -6,30 +6,30 @@ import type { TranslationKey } from "../i18n";
 export const NAVIGATION = [
   {
     id: "catalog", label: "navModeCatalog", sections: [
-      { id: "explore", label: "navExplore", tabs: [] },
-      { id: "smartSearch", label: "navSmartSearch", tabs: [] },
-      { id: "aiSuggestions", label: "navAiSuggestions", tabs: [] },
-      { id: "newGames", label: "navNewGames", tabs: [
+      { id: "explore", label: "navExplore", desc: "navDescExplore", tabs: [] },
+      { id: "smartSearch", label: "navSmartSearch", desc: "navDescSmartSearch", tabs: [] },
+      { id: "aiSuggestions", label: "navAiSuggestions", desc: "navDescAiSuggestions", tabs: [] },
+      { id: "newGames", label: "navNewGames", desc: "navDescNewGames", tabs: [
         { id: "catalog", label: "navInCatalog" },
         { id: "downloadable", label: "navReadyToDownload" },
       ] },
-      { id: "tasteProfile", label: "navTasteProfile", tabs: [] },
+      { id: "tasteProfile", label: "navTasteProfile", desc: "navDescTasteProfile", tabs: [] },
     ],
   },
   {
     id: "library", label: "navModeLibrary", sections: [
-      { id: "play", label: "navPlay", tabs: [
+      { id: "play", label: "navPlay", desc: "navDescPlay", tabs: [
         { id: "recent", label: "navLastPlayed" },
         { id: "genres", label: "navByGenre" },
         { id: "favorites", label: "navFavorites" },
         { id: "alphabetical", label: "navAlphabetical" },
       ] },
-      { id: "downloads", label: "navDownloads", tabs: [
+      { id: "downloads", label: "navDownloads", desc: "navDescDownloads", tabs: [
         { id: "active", label: "navActive" },
         { id: "queued", label: "navQueued" },
         { id: "completed", label: "navCompleted" },
       ] },
-      { id: "manager", label: "navManager", tabs: [
+      { id: "manager", label: "navManager", desc: "navDescManager", tabs: [
         { id: "games", label: "navGames" },
         { id: "space", label: "navSpace" },
         { id: "freeze", label: "navFreeze" },
@@ -40,14 +40,14 @@ export const NAVIGATION = [
   },
   {
     id: "gameAccess", label: "navModeGameAccess", sections: [
-      { id: "news", label: "navNews", tabs: [
+      { id: "news", label: "navNews", desc: "navDescNews", tabs: [
         { id: "release", label: "navLatestVersion" },
         { id: "announcements", label: "navAnnouncements" },
       ] },
-      { id: "guide", label: "navHowToUse", tabs: [] },
-      { id: "account", label: "navMyAccount", tabs: [] },
-      { id: "subscription", label: "navSubscription", tabs: [] },
-      { id: "help", label: "navHelpContact", tabs: [
+      { id: "guide", label: "navHowToUse", desc: "navDescGuide", tabs: [] },
+      { id: "account", label: "navMyAccount", desc: "navDescAccount", tabs: [] },
+      { id: "subscription", label: "navSubscription", desc: "navDescSubscription", tabs: [] },
+      { id: "help", label: "navHelpContact", desc: "navDescHelp", tabs: [
         { id: "faq", label: "navFaq" },
         { id: "contact", label: "navContactUs" },
       ] },
@@ -55,19 +55,19 @@ export const NAVIGATION = [
   },
   {
     id: "settings", label: "navModeSettings", sections: [
-      { id: "general", label: "navGeneral", tabs: [
+      { id: "general", label: "navGeneral", desc: "navDescGeneral", tabs: [
         { id: "gamesDownloads", label: "navGamesDownloads" },
         { id: "steam", label: "navSteam" },
         { id: "ai", label: "navArtificialIntelligence" },
         { id: "options", label: "navOptions" },
       ] },
-      { id: "appearance", label: "navAppearance", tabs: [
+      { id: "appearance", label: "navAppearance", desc: "navDescAppearance", tabs: [
         { id: "general", label: "navGeneral" },
         { id: "style", label: "navStyle" },
         { id: "details", label: "navDetails" },
       ] },
-      { id: "plugins", label: "navPlugins", tabs: [] },
-      { id: "parental", label: "navParental", tabs: [
+      { id: "plugins", label: "navPlugins", desc: "navDescPlugins", tabs: [] },
+      { id: "parental", label: "navParental", desc: "navDescParental", tabs: [
         { id: "games", label: "navGames" },
         { id: "time", label: "navTime" },
         { id: "filter", label: "navFilter" },
@@ -77,7 +77,7 @@ export const NAVIGATION = [
 ] as const satisfies readonly {
   id: string;
   label: TranslationKey;
-  sections: readonly { id: string; label: TranslationKey; tabs: readonly { id: string; label: TranslationKey }[] }[];
+  sections: readonly { id: string; label: TranslationKey; desc: TranslationKey; tabs: readonly { id: string; label: TranslationKey }[] }[];
 }[];
 
 export type NavigationModeId = (typeof NAVIGATION)[number]["id"];

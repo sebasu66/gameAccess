@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { Gamepad2, House, LayoutGrid, Settings } from "lucide-react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
 import { useNews } from "../centralDialog/useAnnouncements";
 import { useAppScreen, setAppScreen } from "../appScreen";
@@ -12,12 +11,13 @@ import { CATALOG_ON_HOME, getNavigationSelection, newsDestination, selectNavigat
 import { OPEN_NEWS_EVENT } from "../newDownloads";
 import { PLUGIN_SECTION_EVENT } from "../pluginNav";
 import StatusBar from "./StatusBar";
+import ModeBar from "./ModeBar";
+import SectionPanel from "./SectionPanel";
+import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
 
 /** Development entry point for the RN2 shell while legacy pages are being moved into its content zone. */
 export const navigationShellEnabled = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("navigationShell") === "1";
-
-const MODE_ICONS = { catalog: LayoutGrid, library: Gamepad2, gameAccess: House, settings: Settings } as const;
 
 function openMode(mode: NavigationModeId) {
   if (mode === "catalog" || mode === "library") openArea(mode);
@@ -56,7 +56,14 @@ export default function NavigationShell() {
   const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
     : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
     : screen === "home" ? navigationSelection.catalog : "explore";
-  const current = NAVIGATION.find(item => item.id === mode)!;
+  const look = useShellLook();
+  // The style's choices that CSS cannot test by value (a pattern, an icon fill) become attributes the screen layer selects.
+  const [looks, setLooks] = useState<Record<string, string>>({});
+  useLayoutEffect(() => {
+    applyShellLook(look);
+    setLooks({ "data-rail-graphic": currentCssValue("--ga-nav-rail-graphic"), "data-icon-fill": currentCssValue("--ga-nav-icon-fill"), "data-button-fill": currentCssValue("--ga-nav-button-fill") });
+  }, [look]);
+  useEffect(() => () => clearShellLook(), []);
 
   useEffect(() => {
     document.documentElement.classList.add("ga-navigation-shell");
@@ -77,25 +84,9 @@ export default function NavigationShell() {
     return () => { window.removeEventListener(PLUGIN_SECTION_EVENT, showPlugins); window.removeEventListener(OPEN_NEWS_EVENT, showNews); };
   }, []);
 
-  return <div className="ga-nav-shell" data-mode={mode}>
-    <nav className="ga-nav-modes" aria-label={t("navModesAria")}>
-      <strong className="ga-nav-current-mode">{t(current.label)}</strong>
-      <div className="ga-nav-mode-buttons">{NAVIGATION.filter(item => item.id !== mode).map(item => {
-        const Icon = MODE_ICONS[item.id];
-        // Fixed order (§4.1): the three other modes keep the tree's order; a count says what waits there.
-        const badge = item.id === "library" ? downloads : item.id === "gameAccess" ? unread : 0;
-        return <button key={item.id} type="button" data-target={item.id} onClick={() => openMode(item.id)} aria-label={badge ? `${t(item.label)} · ${badge}` : t(item.label)}>
-          <Icon aria-hidden="true" /><span>{t(item.label)}</span>{badge > 0 && <em aria-hidden="true">{badge}</em>}
-        </button>;
-      })}</div>
-    </nav>
-    <nav className="ga-nav-sections" aria-label={t("navSectionsAria")}>
-      <h2 className="ga-nav-section-title">{t(current.sections.find(section => section.id === selectedSection)?.label ?? current.sections[0].label)}</h2>
-      <div className="ga-nav-section-list">{current.sections.map(section => <button key={section.id} type="button"
-        aria-current={section.id === selectedSection ? "page" : undefined}
-        disabled={!reachable(mode, section.id)}
-        onClick={() => openExistingSection(mode, section.id)}>{t(section.label)}</button>)}</div>
-    </nav>
+  return <div className="ga-nav-shell" data-mode={mode} {...looks}>
+    <ModeBar mode={mode} word={look.word} badges={{ library: downloads, gameAccess: unread }} onOpen={openMode} />
+    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
       <div className="ga-nav-brand"><strong>{t("navModeGameAccess")}</strong><span>{t(tier ? "navPlanPlus" : "navPlanBase")}</span></div>
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>

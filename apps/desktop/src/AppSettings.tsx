@@ -20,6 +20,7 @@ import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import ModeRailSettings from "./ModeRailSettings";
 import { navigationShellEnabled } from "./navigation/NavigationShell";
+import ShellLookSettings from "./navigation/ShellLookSettings";
 import { selectNavigationSection, settingsTabIds, useNavigationSelection } from "./navigation/navigationSelection";
 const copy = {
  es: { title: "Configuración", tabGames: "Juegos", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", field: "Fondo de píxeles animado", fieldHint: "Apagado: fondo gris que toma el color del juego bajo el puntero.", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
@@ -60,7 +61,12 @@ function SettingsScreen() {
    { id: "mcp", label: t("mcpTab"), content: <McpSettings /> },
    // The new shell puts language and start with Windows in General › Options (vault/Rediseño de navegación.md §2).
    ...(newShell ? [{ id: "options", label: t("navOptions"), content: options }] : []),
-   { id: "style", label: c.tabStyle, content: <>
+   // The new shell's Appearance: Style 1–4 and its values, then the mode bar and the sections panel (§5.13).
+   ...(newShell ? [
+    { id: "style", label: t("navStyle"), content: <ShellLookSettings tab="style" /> },
+    { id: "details", label: t("navDetails"), content: <ShellLookSettings tab="details" /> },
+   ] : []),
+   { id: "legacyStyle", label: c.tabStyle, content: <>
     {newShell ? null : options}
     <fieldset><legend>{c.background}</legend><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={style.field} onChange={e => { const next = { ...style, field: e.target.checked }; setStyle(next); savePixelStyle(next); }} />{c.field}</label>{style.field ? (["spd", "cob", "blink"] as StyleParam[]).map(slider) : <p className="ga-style-hint">{c.fieldHint}</p>}</fieldset>
     <fieldset><legend>{c.buttons}</legend>{(["ovar", "oled", "glass"] as StyleParam[]).map(slider)}</fieldset>
