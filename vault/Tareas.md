@@ -304,3 +304,20 @@ Ordenadas a partir de las notas sueltas de Seba y de lo conversado ese día.
 - [ ] **IA2 · Botón mágico con IA**: la frase del jugador → filtros válidos y un «por qué».
 - [ ] **IA3 · Diagnóstico con herramientas**: `ai-tools.json` (riesgo read/fix), bucle de hasta 8 pasos, permiso del jugador para los `fix`, `dev_report`; las mismas herramientas en `tools/gameaccess-mcp`.
 - [ ] **IA4 · Recomendaciones y administrador de biblioteca con IA.**
+
+## Rediseño de navegación (diseño en [[Rediseño de navegación]]; Seba 2026-11-11)
+Codifica: el agente que tome la tarea · Verifica: Claude · Prueba: Seba. Un commit probado por tarea en `dev`, mirado en la app compilada. Referencia: `examples/GA Arbol de Navegacion/index.html`.
+- [ ] **RN1 · Variables y estilos 1–4**: tokens nuevos en `templates/base.css` (estructura: anchos de las zonas, aire, relleno) y un sabor por estilo (`flavor-*.css`, `setStyleFlavor`), con los valores de §6. Fuentes condensadas empaquetadas en la app. `flavor.test.ts` cubre los cuatro.
+- [ ] **RN2 · Marco de cuatro zonas + barra de estado** (§1, §4.4, §4.5): barra de modos, panel de secciones, contenido que crece, Actividad con bloque de marca; sin proporción fija (probar 1366×768, 1920×1080, 2560×1080, 3440×1440).
+- [ ] **RN3 · Árbol de navegación** (§2): modos, secciones y submodos con `t()`; Home → Game Access, Library Manager → Librería › Manager, Descargas → Librería, Niños en casa → Configuración › Control parental. Que nada de lo que hay hoy quede sin lugar.
+- [ ] **RN4 · Barra de modos** (§4.1): palabra vertical, franjas fijas con íconos fijos; relleno de íconos y gráfico SVG según el estilo; colores de §3 fijos.
+- [ ] **RN5 · Panel de secciones** (§4.2): imagen por modo, título en flecha, submodos debajo, botones escalonados con hover de chevrones, textos que se achican; **animación de cambio de sección** en el orden de §4.2 por `queueTransition`.
+- [ ] **RN6 · Cabecera y contenido** (§4.3): buscador o resumen en el hueco, imagen en paralelogramo, resplandor del modo, varias pestañas a la vez en pantallas anchas.
+- [ ] **RN7 · Ficha del juego como placa ancha** (§5.8): pestañas verticales que cargan cada una por su cuenta, valoración animada siempre visible, medios, botones abajo a la derecha, parallax, bordes que se funden. Mismos datos que `LibraryDetailPanel`.
+- [ ] **RN8 · Mazos por género** (§5.9).
+- [ ] **RN9 · Asistente de descarga en cinco etapas + registro tipo terminal** (§5.10), sobre `downloadStepModel.ts` y el log real del launcher.
+- [ ] **RN10 · Manager dentro de Librería** (§5.11).
+- [ ] **RN11 · Suscripción con tarjetas de acceso** (§5.12): textos de BASE y PLUS, sin precios, enlace a `https://gameaccess.site/plus`.
+- [ ] **RN12 · Configuración › Apariencia** (§5.13): pestañas General / Estilo / Detalles, Estilo 1–4, imagen propia con la explicación del tamaño, guardar, exportar e importar tema.
+- [ ] **RN13 · Atajos con Ctrl** (§5.14).
+- [ ] **RN14 · Documentación**: actualizar `docs/GUI_DESIGN.md` §0b (modos) y §4.33 (barra de modos), y la skill `gameaccess-gui-design`, con lo que quedó implementado.
