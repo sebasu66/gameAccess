@@ -1098,6 +1098,7 @@ export const en: Record<keyof typeof es, string> = {
   activityOpenNews: "{{name}}: see on Home",
   newsShowAll: "See all {{count}}",
   newsShowLess: "See fewer",
+  newsMoreGames: "Also downloadable",
   newDownloadsMore: "More",
   noticeOk: "OK",
   newsEmpty: "No news for now.",

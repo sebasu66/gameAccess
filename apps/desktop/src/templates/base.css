@@ -27,5 +27,7 @@
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
   /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */
   --ga-files-max-h: 320px; --ga-files-row-h: 32px;
+  /* Games of a news item past its covers, as links: the least width of one column. */
+  --ga-news-link-col: 220px;
   --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
 }

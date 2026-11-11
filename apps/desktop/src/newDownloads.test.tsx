@@ -6,8 +6,9 @@ import type { CatalogGame } from "./types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const game = (app_id: number, name: string): CatalogGame => ({ id: app_id, app_id, slug: name.toLowerCase(), name, credit_cost_per_hour: 0, copies_total: 1, copies_available: 1 });
-const catalog = [game(30, "Gamma"), game(40, "Delta")];
+const game = (app_id: number, name: string, release_date?: string): CatalogGame => ({ id: app_id, app_id, slug: name.toLowerCase(), name, release_date, credit_cost_per_hour: 0, copies_total: 1, copies_available: 1 });
+const recently = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+const catalog = [game(30, "Gamma", recently), game(40, "Delta", "2015-03-01")];
 const mocks = vi.hoisted(() => ({ openPanel: vi.fn(), query: vi.fn() }));
 vi.mock("./desk/desk", () => ({ openPanel: mocks.openPanel, closePanel: vi.fn(), isWideDesk: () => false }));
 vi.mock("./catalogCache", () => ({ queryCatalogCache: mocks.query }));
@@ -67,7 +68,7 @@ describe("new downloads: notice, news item and bell", () => {
     expect(session.newsSnapshot().items).toHaveLength(1);
   });
 
-  it("the News panel shows the games as a grid and each cover opens its game's page", async () => {
+  it("the News panel shows covers for recent games, links for the rest, and each opens its game's page", async () => {
     const session = await app();
     session.recordNewDownloads([40, 30], "catalog");
     const onOpenGame = vi.fn();
@@ -75,9 +76,13 @@ describe("new downloads: notice, news item and bell", () => {
     root = createRoot(container);
     await act(async () => root!.render(<session.NewsPanel games={[]} onOpenGame={onOpenGame} />));
     const rows = [...container.querySelectorAll(".ga-news-latest .ga-news-grid li")];
-    expect(rows.map(row => row.querySelector(".ga-news-tile-name")?.textContent)).toEqual(["Delta", "Gamma"]);
-    act(() => rows[1].querySelector("button")!.click());
+    expect(rows.map(row => row.querySelector(".ga-news-tile-name")?.textContent)).toEqual(["Gamma"]);
+    const links = [...container.querySelectorAll(".ga-news-latest .ga-news-links .ga-news-link")];
+    expect(links.map(link => link.textContent)).toEqual(["Delta"]);
+    act(() => rows[0].querySelector("button")!.click());
     expect(onOpenGame).toHaveBeenCalledWith(expect.objectContaining({ app_id: 30, name: "Gamma" }));
+    act(() => (links[0] as HTMLButtonElement).click());
+    expect(onOpenGame).toHaveBeenCalledWith(expect.objectContaining({ app_id: 40, name: "Delta" }));
   });
 
   it("games already reported are not reported again", async () => {

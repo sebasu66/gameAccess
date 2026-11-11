@@ -1096,6 +1096,7 @@ export const es = {
   activityOpenNews: "{{name}}: ver en Inicio",
   newsShowAll: "Ver los {{count}}",
   newsShowLess: "Ver menos",
+  newsMoreGames: "También se pueden descargar",
   newDownloadsMore: "Más",
   noticeOk: "Aceptar",
   newsEmpty: "No hay novedades por ahora.",

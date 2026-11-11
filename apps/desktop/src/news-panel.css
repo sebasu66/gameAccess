@@ -18,4 +18,8 @@
 .ga-news-tile-cover img { width: 100%; height: 100%; object-fit: cover; }
 .ga-news-tile:hover .ga-news-tile-cover, .ga-news-tile:focus-visible .ga-news-tile-cover { box-shadow: inset 0 0 0 2px var(--ga-orange); transform: translateY(-2px); }
 .ga-news-tile-name { font: 600 16px/1.3 var(--ga-text-family); color: var(--ga-white); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The rest of a news item's games, as plain links without images (Seba, 2026-11-11). */
+.ga-news-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ga-news-link-col), 1fr)); gap: var(--ga-feed-tight) var(--ga-space-2); }
+.ga-news-link { padding: 0; border: 0; background: none; font: 500 var(--ga-text-min)/var(--ga-text-leading) var(--ga-text-family); color: var(--ga-text-ink); text-align: start; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ga-news-link:hover, .ga-news-link:focus-visible { color: var(--ga-orange); text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .ga-news-tile-cover { transition: none; } .ga-news-tile:hover .ga-news-tile-cover { transform: none; } }
