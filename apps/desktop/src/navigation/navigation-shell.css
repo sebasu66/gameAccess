@@ -11,10 +11,10 @@ html.ga-navigation-shell {
 }
 .ga-nav-shell { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: var(--ga-nav-shell-ink); }
 .ga-nav-shell > * { pointer-events: auto; }
-.ga-nav-shell[data-mode="catalog"] { --ga-mode: var(--ga-nav-catalog); --ga-mode-acc: var(--ga-nav-catalog-acc); --ga-nav-panel-image: var(--ga-nav-panel-catalog); }
-.ga-nav-shell[data-mode="library"] { --ga-mode: var(--ga-nav-library); --ga-mode-acc: var(--ga-nav-library-acc); --ga-nav-panel-image: var(--ga-nav-panel-library); }
-.ga-nav-shell[data-mode="gameAccess"] { --ga-mode: var(--ga-nav-game-access); --ga-mode-acc: var(--ga-nav-game-access-acc); --ga-nav-panel-image: var(--ga-nav-panel-game-access); }
-.ga-nav-shell[data-mode="settings"] { --ga-mode: var(--ga-nav-settings); --ga-mode-acc: var(--ga-nav-settings-acc); --ga-nav-panel-image: var(--ga-nav-panel-settings); }
+.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-nav-catalog); --ga-mode-acc: var(--ga-nav-catalog-acc); --ga-nav-panel-image: var(--ga-nav-panel-catalog); }
+.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-nav-library); --ga-mode-acc: var(--ga-nav-library-acc); --ga-nav-panel-image: var(--ga-nav-panel-library); }
+.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-nav-game-access); --ga-mode-acc: var(--ga-nav-game-access-acc); --ga-nav-panel-image: var(--ga-nav-panel-game-access); }
+.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-nav-settings); --ga-mode-acc: var(--ga-nav-settings-acc); --ga-nav-panel-image: var(--ga-nav-panel-settings); }
 .ga-nav-modes, .ga-nav-sections, .ga-nav-activity { position: absolute; top: var(--ga-nav-top); bottom: var(--ga-nav-bottom); }
 .ga-nav-activity { overflow: hidden; background: var(--ga-nav-shell-surface); }
 .ga-nav-shell[data-rail-graphic="paper"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-paper); --ga-nav-rail-pattern-opacity: var(--ga-nav-grain-opacity); }
@@ -97,7 +97,9 @@ html.ga-navigation-shell {
 .ga-nav-tab > span { min-width: 0; overflow: hidden; white-space: nowrap; }
 .ga-nav-tab:not(:disabled):hover, .ga-nav-tab:focus-visible { color: var(--ga-nav-shell-ink); background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint-hover), transparent); border-color: var(--ga-nav-shell-ink); outline: none; }
 .ga-nav-tab[aria-current="page"] { color: var(--ga-nav-ink-dark); background: var(--ga-mode-acc); border-color: var(--ga-nav-shell-ink); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 50%, transparent); }
-.ga-nav-tab:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
+/* A submode without a screen yet keeps the same box as the others: only its letters dim, so every section's list reads the same. */
+.ga-nav-tab:disabled { color: var(--ga-nav-shell-muted); cursor: default; }
+.ga-nav-tab:disabled > span { opacity: var(--ga-nav-tab-off-text); }
 .ga-nav-section { --ga-nav-arrow: var(--ga-nav-button-cut); position: relative; width: calc(100% - var(--ga-nav-section-room) - min(var(--ga-nav-step) * var(--ga-nav-section-step), var(--ga-nav-section-step-max))); height: var(--ga-nav-section-h);
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ga-nav-section-gap); padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 var(--ga-nav-section-gap); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }
 .ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after { position: absolute; clip-path: polygon(0 0, calc(100% - var(--ga-nav-arrow)) 0, 100% 50%, calc(100% - var(--ga-nav-arrow)) 100%, 0 100%); }
@@ -152,12 +154,19 @@ html.ga-navigation-shell {
 html.ga-navigation-shell body ga-mode-rail.ga-mode-rail { display: none !important; }
 html.ga-navigation-shell body .catalog-bottom-actions { display: none !important; }
 html.ga-navigation-shell body .plugin-indicator-group { display: none !important; }
-html.ga-navigation-shell .app-shell > main { margin-left: var(--ga-nav-content-left) !important; margin-right: var(--ga-nav-content-right) !important; }
-html.ga-navigation-shell body .ga-screen { left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-top) !important; bottom: var(--ga-nav-bottom) !important; padding: var(--ga-nav-content-pad) !important; padding-top: var(--ga-nav-head-h) !important; }
-html.ga-navigation-shell.ga-mode-rail-on body.ga-device-frame .ga-screen { left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; }
-html.ga-navigation-shell .ga-screen-head { display: none; }
+/* §4.3: one content zone for every section. Each old screen (a .ga-screen, the library room) is placed in the same box under
+   the title, with the same padding, so all sections look and behave alike; their own titles and menus give way to the panel's. */
+html.ga-navigation-shell { --ga-rail-clear: 0px; --ga-nav-body-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h)); }
+html.ga-navigation-shell .app-shell > main { margin: 0 !important; }
+html.ga-navigation-shell body :is(.ga-screen, .app-shell > main > .library-room:not(.surface-tablet):not(.surface-display)) {
+  position: fixed !important; left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-body-top) !important; bottom: var(--ga-nav-bottom) !important;
+  width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 var(--ga-nav-content-pad) var(--ga-nav-content-pad) !important; box-sizing: border-box;
+  background: radial-gradient(var(--ga-nav-content-glow-shape), color-mix(in srgb, var(--ga-mode) var(--ga-nav-content-glow), transparent), transparent var(--ga-nav-content-glow-reach)) !important; }
+html.ga-navigation-shell body .library-room:not(.surface-tablet):not(.surface-display) { grid-template-columns: minmax(0, 1fr); }
+html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: 0 !important; }
+html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame { margin-inline: 0 !important; }
+html.ga-navigation-shell :is(.ga-screen-head, .ga-area-tabs, .ga-manager-view > .ga-desk-head) { display: none !important; }
 html.ga-navigation-shell .ga-screen > * { max-width: none; }
-html.ga-navigation-shell .library-room:not(.surface-tablet):not(.surface-display) { height: calc(100svh - var(--ga-nav-top) - var(--ga-nav-bottom)); min-height: 0; padding: var(--ga-nav-content-pad); padding-top: var(--ga-nav-head-h); grid-template-columns: minmax(0, 1fr); }
 html.ga-navigation-shell .ga-view-rail { display: none; }
 @media (max-width: 1100px) {
   .ga-nav-activity { display: none; }

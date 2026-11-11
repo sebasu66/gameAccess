@@ -47,7 +47,8 @@
   --ga-nav-hero-tip: calc(var(--ga-nav-button-cut) * 1.18); --ga-nav-section-step-max: 32px; --ga-nav-glass-blur: 8px; --ga-nav-desc-opacity: .8;
   --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
   --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
-  --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%;
+  --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%; --ga-nav-tab-off-text: .7;
+  --ga-nav-content-glow: 16%; --ga-nav-content-glow-reach: 70%; --ga-nav-content-glow-shape: ellipse at 50% 0%;
   --ga-nav-glow-r: 22px; --ga-nav-fit-min: 15px; --ga-nav-dim-hover: .62; --ga-nav-stripe-extra: 20px; --ga-nav-stripe-slant: 1.3;
   /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;

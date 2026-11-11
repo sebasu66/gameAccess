@@ -63,6 +63,9 @@ export default function NavigationShell() {
     setLooks({ "data-rail-graphic": currentCssValue("--ga-nav-rail-graphic"), "data-icon-fill": currentCssValue("--ga-nav-icon-fill"), "data-button-fill": currentCssValue("--ga-nav-button-fill") });
   }, [look]);
   useEffect(() => () => clearShellLook(), []);
+  // The content zone is outside the shell's layer: the mode goes on the page so the zone takes its colour too (§4.3).
+  useLayoutEffect(() => { document.documentElement.dataset.gaNavMode = mode; }, [mode]);
+  useEffect(() => () => { delete document.documentElement.dataset.gaNavMode; }, []);
 
   useEffect(() => {
     document.documentElement.classList.add("ga-navigation-shell");
