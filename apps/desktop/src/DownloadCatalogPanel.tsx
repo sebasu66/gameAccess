@@ -35,6 +35,7 @@ import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
+import { useHeaderSearchSlot } from "./navigation/headerSlot";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
@@ -493,12 +494,14 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, [contextMenu]);
 
 
+  const headerSlot = useHeaderSearchSlot();
   const toolbar = (
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock">
-          <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
+          {/* In the new shell the one game search goes up into the content header (§4.3), where the section has one. */}
+          {headerSlot ? createPortal(<SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} />, headerSlot) : <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />}
         </div>
         {/* Catalog and Library are areas of the frame now (AreaTabs.tsx, gameArea.ts): no switch here. */}
       </div>

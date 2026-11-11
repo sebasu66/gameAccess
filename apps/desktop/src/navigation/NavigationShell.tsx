@@ -13,6 +13,7 @@ import { PLUGIN_SECTION_EVENT } from "../pluginNav";
 import StatusBar from "./StatusBar";
 import ModeBar from "./ModeBar";
 import SectionPanel from "./SectionPanel";
+import ContentHeader from "./ContentHeader";
 import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
 
@@ -88,6 +89,7 @@ export default function NavigationShell() {
 
   return <div className="ga-nav-shell" data-mode={mode} {...looks}>
     <ModeBar mode={mode} word={look.word} badges={{ library: downloads, gameAccess: unread }} onOpen={openMode} />
+    <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
     <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
       <div className="ga-nav-brand"><strong>{t("navModeGameAccess")}</strong><span>{t(tier ? "navPlanPlus" : "navPlanBase")}</span></div>

@@ -11,11 +11,12 @@ describe("barra de estado (Rediseño de navegación §4.5)", () => {
 
   it("las descargas suman su velocidad y no cuentan las terminadas", () => {
     const entries = [
-      { snapshot: { phase: "downloading" as const, speedBps: 8 * 1024 * 1024 } },
+      { snapshot: { phase: "queued" as const } },
+      { game: { header_image: "elden.jpg" }, snapshot: { phase: "downloading" as const, speedBps: 8 * 1024 * 1024 } },
       { snapshot: { phase: "paused" as const } },
       { snapshot: { phase: "completed" as const, speedBps: 999 } },
     ];
-    expect(readActiveDownloads(entries)).toEqual({ count: 2, speedBps: 8 * 1024 * 1024 });
+    expect(readActiveDownloads(entries)).toEqual({ count: 3, queued: 1, speedBps: 8 * 1024 * 1024, cover: "elden.jpg" });
     expect(formatSpeed(12.4 * 1024 * 1024, "es")).toBe("12,4 MB/s");
     expect(formatSpeed(0, "en")).toBe("0 B/s");
   });
