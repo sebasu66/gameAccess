@@ -21,8 +21,10 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 .ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-nav-game-access); --ga-mode-acc: var(--ga-nav-game-access-acc); --ga-nav-panel-image: var(--ga-nav-panel-game-access); }
 .ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-nav-settings); --ga-mode-acc: var(--ga-nav-settings-acc); --ga-nav-panel-image: var(--ga-nav-panel-settings); }
 .ga-nav-modes, .ga-nav-sections, .ga-nav-activity { position: absolute; top: var(--ga-nav-top); bottom: var(--ga-nav-bottom); }
-/* The activity column carries on the screen's fade: a trace of the mode's wash on its left, near black by its far side. */
-.ga-nav-activity { overflow: hidden; background: linear-gradient(90deg, color-mix(in srgb, var(--ga-nav-stage-base) var(--ga-nav-activity-tint), var(--ga-nav-void)), var(--ga-nav-void)); clip-path: var(--ga-nav-panel-shape); }
+/* The activity column carries on the screen's fade: a trace of the mode's wash on its left, near black by its far side,
+   and a thin strip of the mode's colour on its outer edge, so the mode bar and it frame the whole window (Seba, 2026-11-11). */
+.ga-nav-activity { overflow: hidden; box-sizing: border-box; border-right: var(--ga-nav-activity-edge) solid var(--ga-mode);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ga-nav-stage-base) var(--ga-nav-activity-tint), var(--ga-nav-void)), var(--ga-nav-void) var(--ga-nav-activity-fade)); clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-shell[data-rail-graphic="paper"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-paper); --ga-nav-rail-pattern-opacity: var(--ga-nav-grain-opacity); }
 .ga-nav-shell[data-rail-graphic="hazard"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-hazard); }
 .ga-nav-shell[data-rail-graphic="circuit"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-circuit); }
