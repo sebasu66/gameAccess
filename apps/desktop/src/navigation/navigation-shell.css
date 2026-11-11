@@ -3,12 +3,15 @@ html.ga-navigation-shell {
   --ga-nav-left: calc(var(--ga-frame-left, 0px) + var(--ga-nav-outer-pad));
   --ga-nav-right: calc(var(--ga-frame-right, 0px) + var(--ga-nav-outer-pad));
   --ga-nav-top: calc(var(--ga-frame-offset, 0px) + var(--ga-nav-outer-pad));
-  --ga-nav-bottom: calc(var(--ga-frame-bottom, 0px) + var(--ga-nav-outer-pad) + var(--ga-nav-status-h));
+  --ga-nav-bottom: calc(var(--ga-frame-bottom, 0px) + var(--ga-nav-status-h) + var(--ga-nav-status-gap));
+  /* Every panel (mode bar, sections, content, activity) has the same cut corner, same size and angle (Seba, 2026-11-11). */
+  --ga-nav-panel-shape: polygon(0 0, 100% 0, 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%);
   --ga-nav-content-left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + 2 * var(--ga-nav-column-gap));
   --ga-nav-content-right: calc(var(--ga-nav-right) + var(--ga-nav-activity-w) + var(--ga-nav-column-gap));
   /* The content starts under the header row, level with the section's title (§4.3). */
   --ga-nav-head-h: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h));
 }
+html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav-backdrop) !important; }
 .ga-nav-shell { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: var(--ga-nav-shell-ink); }
 .ga-nav-shell > * { pointer-events: auto; }
 .ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-nav-catalog); --ga-mode-acc: var(--ga-nav-catalog-acc); --ga-nav-panel-image: var(--ga-nav-panel-catalog); }
@@ -16,7 +19,7 @@ html.ga-navigation-shell {
 .ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-nav-game-access); --ga-mode-acc: var(--ga-nav-game-access-acc); --ga-nav-panel-image: var(--ga-nav-panel-game-access); }
 .ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-nav-settings); --ga-mode-acc: var(--ga-nav-settings-acc); --ga-nav-panel-image: var(--ga-nav-panel-settings); }
 .ga-nav-modes, .ga-nav-sections, .ga-nav-activity { position: absolute; top: var(--ga-nav-top); bottom: var(--ga-nav-bottom); }
-.ga-nav-activity { overflow: hidden; background: var(--ga-nav-shell-surface); }
+.ga-nav-activity { overflow: hidden; background: var(--ga-nav-shell-surface); clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-shell[data-rail-graphic="paper"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-paper); --ga-nav-rail-pattern-opacity: var(--ga-nav-grain-opacity); }
 .ga-nav-shell[data-rail-graphic="hazard"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-hazard); }
 .ga-nav-shell[data-rail-graphic="circuit"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-circuit); }
@@ -28,7 +31,7 @@ html.ga-navigation-shell {
 
 /* Mode bar (§4.1): the current mode's word, then the other three as diagonal bands in the tree's order. */
 .ga-nav-modes { left: var(--ga-nav-left); width: var(--ga-nav-mode-w); display: flex; flex-direction: column; overflow: hidden; background: var(--ga-mode);
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ga-nav-mode-cut)), calc(100% - var(--ga-nav-mode-cut)) 100%, 0 100%); }
+  clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-modes::before { content: ""; position: absolute; inset: 0; background: var(--ga-nav-rail-pattern, none); opacity: var(--ga-nav-rail-pattern-opacity, 1); mix-blend-mode: multiply; pointer-events: none; }
 .ga-nav-word-box { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: var(--ga-nav-word-pad) 0 calc(var(--ga-nav-mode-slant) + var(--ga-nav-word-pad)); box-sizing: border-box; }
 .ga-nav-word-box[data-align="top"] { justify-content: flex-start; }
@@ -59,7 +62,7 @@ html.ga-navigation-shell {
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  clip-path: polygon(0 0, calc(100% - var(--ga-nav-panel-corner)) 0, 100% var(--ga-nav-panel-corner), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, var(--ga-nav-panel-corner) 100%, 0 calc(100% - var(--ga-nav-panel-corner))); }
+  clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
 .ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
 .ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
@@ -224,12 +227,12 @@ html.ga-navigation-shell .library-catalog-toolbar .ga-search-dock:empty { displa
 html.ga-navigation-shell .app-shell > main { margin: 0 !important; }
 html.ga-navigation-shell body :is(.ga-screen, .app-shell > main > .library-room:not(.surface-tablet):not(.surface-display)) {
   position: fixed !important; left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-body-top) !important; bottom: var(--ga-nav-bottom) !important;
-  width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 var(--ga-nav-content-pad) var(--ga-nav-content-pad) !important; box-sizing: border-box;
+  width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 var(--ga-nav-content-pad) var(--ga-nav-content-pad-end) !important; box-sizing: border-box;
   background: none !important; }
 /* The content's panel, header included, behind every screen: a muted wash of the mode's color that fades out from
    left to right, so the centre belongs to the same piece as the mode bar and the panel (Seba, 2026-11-11). */
 html.ga-navigation-shell body::before { content: ""; position: fixed; z-index: 0; pointer-events: none; left: var(--ga-nav-content-left); right: var(--ga-nav-content-right); top: var(--ga-nav-top); bottom: var(--ga-nav-bottom);
-  border: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-stage-line), transparent); border-radius: var(--ga-nav-button-radius); box-sizing: border-box;
+  border: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-stage-line), transparent); box-sizing: border-box; clip-path: var(--ga-nav-panel-shape);
   background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode) var(--ga-nav-stage-tint), var(--ga-nav-void)), var(--ga-nav-void) var(--ga-nav-stage-fade)); }
 html.ga-navigation-shell body .library-room:not(.surface-tablet):not(.surface-display) { grid-template-columns: minmax(0, 1fr); }
 html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: 0 !important; }
