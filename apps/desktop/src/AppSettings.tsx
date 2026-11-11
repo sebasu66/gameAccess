@@ -3,7 +3,7 @@ import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import LanguageSwitch from "./LanguageSwitch";
 import StartupSettings from "./StartupSettings";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import PluginSettings from "./PluginSettings";
 import AiSettings from "./AiSettings";
 import McpSettings from "./McpSettings";
@@ -19,9 +19,9 @@ import { setAppScreen, useAppScreen } from "./appScreen";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import ModeRailSettings from "./ModeRailSettings";
-import { navigationShellEnabled } from "./navigation/NavigationShell";
+import { navigationShellEnabled } from "./navigation/navigationSelection";
 import ShellLookSettings from "./navigation/ShellLookSettings";
-import { selectNavigationSection, settingsTabIds, useNavigationSelection } from "./navigation/navigationSelection";
+import { sectionTab, selectNavigationSection, selectNavigationTab, settingsTabIds, useNavigationSelection } from "./navigation/navigationSelection";
 const copy = {
  es: { title: "Configuración", tabGames: "Juegos", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", field: "Fondo de píxeles animado", fieldHint: "Apagado: fondo gris que toma el color del juego bajo el puntero.", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
  en: { title: "Settings", tabGames: "Games", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", field: "Animated pixel background", fieldHint: "Off: grey background that takes the colour of the game under the pointer.", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
@@ -30,20 +30,18 @@ const copy = {
 function SettingsScreen() {
  const { locale, t } = useI18n(); const c = copy[locale];
  const newShell = navigationShellEnabled();
- const selectedSection = useNavigationSelection().settings;
+ const navigation = useNavigationSelection();
+ const selectedSection = navigation.settings;
  const [style, setStyle] = useState(loadPixelStyle);
  // One Plugins tab with a section per plugin; the on-screen list opens it on one of them (pluginNav.ts).
  const [pluginFocus, setPluginFocus] = useState(() => ({ id: pluginSection(), times: 0 }));
  const [aiFirst] = useState(aiTabRequested);
- const aiOnce = useRef(aiFirst);
  useEffect(() => {
   clearAiTabRequest();
-  // In the new shell the AI tab is in General: choose it, and only this first time.
-  if (newShell && aiFirst) selectNavigationSection("settings", "general");
+  // In the new shell the AI tab is in General: choose it there, in the sections panel.
+  if (newShell && aiFirst) { selectNavigationSection("settings", "general"); selectNavigationTab("settings", "general", "ai"); }
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, []);
- // Once General has been drawn with the AI tab, later visits open it on its first tab.
- useEffect(() => { if (selectedSection === "general") aiOnce.current = false; }, [selectedSection]);
  useEffect(() => {
   void pollPluginRuntime();
   clearPluginSection();
@@ -81,11 +79,11 @@ function SettingsScreen() {
   ];
  const shown = settingsTabIds(selectedSection);
  const visibleTabs = !newShell ? tabs : tabs.filter(tab => shown.includes(tab.id));
- // A tab someone asked for (a plugin, the AI tab) opens once; after that each section opens on its first tab.
- const asked = pluginFocus.id ? "plugins" : aiOnce.current ? "ai" : undefined;
- const newShellInitial = asked && shown.includes(asked) ? asked : visibleTabs[0]?.id;
  return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
-  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={`${pluginFocus.times}-${newShell ? selectedSection : "legacy"}`} initial={newShell ? newShellInitial : pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={visibleTabs} /><BuildStamp /></div>
+  {newShell ? <div className="ga-settings-content ga-settings-screen-content">
+   {/* The new shell chooses the tab in the sections panel (its submodes): only that one is drawn here. */}
+   {visibleTabs.find(tab => tab.id === (selectedSection === "plugins" ? "plugins" : sectionTab(selectedSection, navigation.tabs)))?.content ?? null}<BuildStamp />
+  </div> : <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={visibleTabs} /><BuildStamp /></div>}
  </GaScreen>;
 }
 export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {

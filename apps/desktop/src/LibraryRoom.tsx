@@ -7,6 +7,8 @@ import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { buildLibraryCollection, type CatalogSort, type LibraryView } from "./librarySections";
+import { navigationShellEnabled } from "./navigation/navigationSelection";
+import { useSectionTab } from "./navigation/navigationSelection";
 import { useCatalogQuery } from "./useCatalogQuery";
 import { buildTasteProfile, rememberTasteGame, tailorCatalog, tasteQuery } from "./tasteProfile";
 import { publishTasteReadiness, usePersonalOrder } from "./personalOrder";
@@ -154,6 +156,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     return () => window.removeEventListener(REQUEST_GAMES_VIEW_EVENT, show);
   }, []);
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
+  // The new shell chooses Play's order in the sections panel (Last played, Favourites, A–Z).
+  const chosenPlayTab = useSectionTab("play");
+  const playTab = navigationShellEnabled() ? chosenPlayTab as "recent" | "favorites" | "alphabetical" | undefined : undefined;
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);
   const [confirmGame, setConfirmGame] = useState<CatalogGame | null>(null);
@@ -365,8 +370,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       libraryView,
       catalogSort,
       libraryIds,
+      playTab,
     );
-  }, [libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring, aiMode, aiResult]);
+  }, [playTab, libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring, aiMode, aiResult]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;

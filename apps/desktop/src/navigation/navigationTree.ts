@@ -56,9 +56,10 @@ export const NAVIGATION = [
   {
     id: "settings", label: "navModeSettings", sections: [
       { id: "general", label: "navGeneral", desc: "navDescGeneral", tabs: [
-        { id: "gamesDownloads", label: "navGamesDownloads" },
+        { id: "games", label: "navGamesDownloads" },
         { id: "steam", label: "navSteam" },
         { id: "ai", label: "navArtificialIntelligence" },
+        { id: "mcp", label: "mcpTab" },
         { id: "options", label: "navOptions" },
       ] },
       { id: "appearance", label: "navAppearance", desc: "navDescAppearance", tabs: [

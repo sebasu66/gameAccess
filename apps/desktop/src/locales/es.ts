@@ -1568,6 +1568,7 @@ export const es = {
   accountEmailTaken: "Ya hay una cuenta con ese correo. Probá con «Ya tengo cuenta».",
   accountBadCredentials: "El correo o la contraseña no coinciden.",
   accountFailed: "No se pudo completar. Probá de nuevo.",
+  homeNoAnnouncements: "Todavía no hay anuncios del proyecto.",
   homeNewsTitle: "Novedades",
   homeChangesTitle: "Qué cambió en la versión {{version}}",
   homeHelpTitle: "Ayuda y contacto",

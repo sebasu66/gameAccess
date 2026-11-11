@@ -16,8 +16,7 @@ import SectionPanel from "./SectionPanel";
 import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
 
-/** Development entry point for the RN2 shell while legacy pages are being moved into its content zone. */
-export const navigationShellEnabled = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("navigationShell") === "1";
+export { navigationShellEnabled } from "./navigationSelection";
 
 function openMode(mode: NavigationModeId) {
   if (mode === "catalog" || mode === "library") openArea(mode);

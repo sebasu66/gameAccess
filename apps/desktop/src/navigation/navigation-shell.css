@@ -88,7 +88,16 @@ html.ga-navigation-shell {
 .ga-nav-chevrons-big { --ga-nav-d: var(--ga-nav-hero-tip); --ga-nav-t: var(--ga-nav-chevron-big-t); --ga-nav-g: var(--ga-nav-chevron-big-g); }
 .ga-nav-chevrons-big i { opacity: 1; transform: none; transition: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode-acc) 85%, var(--ga-nav-void)), color-mix(in srgb, var(--ga-mode-acc) 55%, var(--ga-nav-chevron-dark))); }
 
-.ga-nav-section-list { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); margin: 0; padding: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h)) 0 0 var(--ga-nav-section-pad); list-style: none; }
+/* Under the title: the section's submodes, then the other sections, with the same air between them (§4.2). */
+.ga-nav-panel-flow { position: relative; z-index: 1; display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); padding: calc(var(--ga-nav-section-pad) + var(--ga-nav-hero-h) + var(--ga-nav-section-gap)) 0 0 var(--ga-nav-section-pad); }
+.ga-nav-section-list { display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); margin: 0; padding: 0; list-style: none; }
+.ga-nav-tabs { display: flex; flex-direction: column; gap: var(--ga-nav-tab-gap); margin: 0; padding: 0 var(--ga-nav-section-room) 0 var(--ga-nav-tab-indent); list-style: none; }
+.ga-nav-tab { display: flex; align-items: center; width: 100%; height: var(--ga-nav-tab-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box; border: 0; border-left: var(--ga-nav-section-bar) solid color-mix(in srgb, var(--ga-mode-acc) 35%, transparent);
+  background: var(--ga-nav-section-fill); backdrop-filter: blur(var(--ga-nav-glass-blur)); color: var(--ga-nav-pale); text-align: left; font: 700 var(--ga-nav-tab-size)/1 var(--ga-text-family); cursor: pointer; transition: background var(--ga-nav-hover-time), color var(--ga-nav-hover-time); }
+.ga-nav-tab > span { min-width: 0; overflow: hidden; white-space: nowrap; }
+.ga-nav-tab:not(:disabled):hover, .ga-nav-tab:focus-visible { color: var(--ga-nav-shell-ink); background: var(--ga-nav-tab-hover); outline: none; }
+.ga-nav-tab[aria-current="page"] { color: var(--ga-nav-ink-dark); background: var(--ga-mode-acc); border-left-color: var(--ga-nav-shell-ink); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 50%, transparent); }
+.ga-nav-tab:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
 .ga-nav-section { --ga-nav-arrow: var(--ga-nav-button-cut); position: relative; width: calc(100% - var(--ga-nav-section-room) - min(var(--ga-nav-step) * var(--ga-nav-section-step), var(--ga-nav-section-step-max))); height: var(--ga-nav-section-h);
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ga-nav-section-gap); padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 var(--ga-nav-section-gap); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }
 .ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after { position: absolute; clip-path: polygon(0 0, calc(100% - var(--ga-nav-arrow)) 0, 100% 50%, calc(100% - var(--ga-nav-arrow)) 100%, 0 100%); }

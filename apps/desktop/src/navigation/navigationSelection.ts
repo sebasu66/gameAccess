@@ -7,14 +7,17 @@ import { NAVIGATION, type NavigationModeId } from "./navigationTree";
  * The section chosen in each mode of the new shell (RN2), and which mode the Home screen hosts: Game Access (news,
  * guide, account, subscription, help) or the Catalog sections that still live there (AI suggestions, new games).
  */
-type Selection = Record<NavigationModeId, string> & { homeMode: HomeMode };
+type Selection = Record<NavigationModeId, string> & { homeMode: HomeMode; tabs: Readonly<Record<string, string>> };
+/** Development entry point for the RN2 shell while legacy pages are being moved into its content zone. */
+export const navigationShellEnabled = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("navigationShell") === "1";
+
 export type HomeMode = "gameAccess" | "catalog";
 
 /** Catalog sections drawn by the Home screen until they get screens of their own (AiPicks, NewsPanel). */
 export const CATALOG_ON_HOME = ["aiSuggestions", "newGames"] as const;
 const onHome = (section: string) => (CATALOG_ON_HOME as readonly string[]).includes(section);
 
-const initial = (): Selection => ({ ...(Object.fromEntries(NAVIGATION.map(mode => [mode.id, mode.sections[0].id])) as Record<NavigationModeId, string>), homeMode: "gameAccess" });
+const initial = (): Selection => ({ ...(Object.fromEntries(NAVIGATION.map(mode => [mode.id, mode.sections[0].id])) as Record<NavigationModeId, string>), homeMode: "gameAccess", tabs: {} });
 let selection: Selection = initial();
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
@@ -31,6 +34,42 @@ export function selectNavigationSection(mode: NavigationModeId, section: string)
   listeners.forEach(listener => listener());
   return true;
 }
+
+/**
+ * The submode tabs (§2) that already have something to show. The others are drawn but cannot be chosen yet: their
+ * screens do not have that part (Play › By genre is the decks of RN8; Manager's Space, Freeze, Move and Import, the
+ * three parts of Parental controls and Catalog's new games still have one screen for everything).
+ */
+export const READY_TABS: Readonly<Record<string, readonly string[]>> = {
+  newGames: ["downloadable"],
+  play: ["recent", "favorites", "alphabetical"],
+  downloads: ["active", "queued", "completed"],
+  manager: ["games"],
+  news: ["release", "announcements"],
+  help: ["faq", "contact"],
+  general: ["games", "steam", "ai", "mcp", "options"],
+  appearance: ["style", "details"],
+};
+export const tabReady = (section: string, tab: string) => READY_TABS[section]?.includes(tab) ?? false;
+
+/** The tab a section shows: the one chosen if it can be shown, otherwise its first that can. */
+export function sectionTab(section: string, chosen: Readonly<Record<string, string>> = selection.tabs): string | undefined {
+  const tab = chosen[section];
+  return tab && tabReady(section, tab) ? tab : READY_TABS[section]?.[0];
+}
+
+/** Chooses a submode tab of a section. False if the section has no such tab or it cannot be shown yet. */
+export function selectNavigationTab(mode: NavigationModeId, section: string, tab: string): boolean {
+  const found = NAVIGATION.find(item => item.id === mode)?.sections.find(item => item.id === section);
+  if (!found || !found.tabs.some(item => item.id === tab) || !tabReady(section, tab)) return false;
+  if (selection.tabs[section] === tab) return true;
+  selection = { ...selection, tabs: { ...selection.tabs, [section]: tab } };
+  listeners.forEach(listener => listener());
+  return true;
+}
+
+/** The tab one section shows, kept up to date. */
+export const useSectionTab = (section: string) => sectionTab(section, useNavigationSelection().tabs);
 
 /** Back to the first section of every mode (tests). */
 export function resetNavigationSelection(): void {

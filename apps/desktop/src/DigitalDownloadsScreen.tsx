@@ -38,9 +38,11 @@ export function eta(snapshot: DownloadProgressSnapshot): string {
 }
 type Entry = ReturnType<DigitalDownloadService["getDownloads"]>[number];
 const terminal = (entry: Entry) => ["completed", "error", "cancelled", "interrupted", "external"].includes(entry.snapshot.phase);
-export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [], embedded = false }: {
+export default function DigitalDownloadsScreen({ onClose: onClosed, service = digitalDownloadService, onPlay, onOpenGame, catalogGames = [], embedded = false, only }: {
   /** Inside a desk panel (T10): the panel draws the header and handles focus and Esc. */
   embedded?: boolean;
+  /** One group only (the new shell's Library › Downloads submodes): in progress, in the queue, or finished. */
+  only?: "active" | "queued" | "completed";
   onClose: () => void; service?: DigitalDownloadService; onPlay?: (game: CatalogGame) => void | Promise<void>; catalogGames?: CatalogGame[]; onOpenGame?: (game: CatalogGame) => void;
 }) {
   const {t,locale} = useI18n();
@@ -197,9 +199,9 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     </header>}
     {error ? <p role="alert" className="digital-download-error">{error}</p> : null}
     {!entries.length ? <div className="digital-download-empty"><Download size={42} /><h2>{t("downloadsEmpty")}</h2><p>{t("downloadsEmptyHelp")}</p><button onClick={onClose}>{t("downloadsBrowse")}</button></div> : null}
-    {active.length ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
-    {queue.length ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
-    {history.length ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsSession")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
+    {active.length && (!only || only === "active") ? <section aria-label={t("downloadsActive")}><h2 className="digital-download-section-label">{t("downloadsInProgress")}</h2>{active.map((entry, index) => row(entry, index, true))}</section> : null}
+    {queue.length && (!only || only === "queued") ? <section aria-label={t("downloadsQueue")}><h2 className="digital-download-section-label">{t("downloadsQueueHeading",{count:queue.length})}</h2>{queue.map((entry, index) => row(entry, index))}</section> : null}
+    {history.length && (!only || only === "completed") ? <section aria-label={t("downloadsHistory")}><h2 className="digital-download-section-label">{t("downloadsSession")}</h2>{history.map((entry, index) => row(entry, index))}</section> : null}
     <details className="manual-download-entry"><summary>{t("downloadsManualAdd")}</summary><ManualDownloadForm /></details>
   </section>;
 }

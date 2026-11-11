@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { NAVIGATION } from "./navigationTree";
-import { getNavigationSelection, newsDestination, resetNavigationSelection, selectNavigationSection, settingsTabIds, shellMode } from "./navigationSelection";
+import { getNavigationSelection, newsDestination, resetNavigationSelection, sectionTab, selectNavigationSection, selectNavigationTab, settingsTabIds, shellMode } from "./navigationSelection";
 
 beforeEach(resetNavigationSelection);
 
@@ -42,5 +42,16 @@ describe("selección del nuevo panel", () => {
     const all = settings.sections.flatMap(section => settingsTabIds(section.id));
     expect(new Set(all).size).toBe(all.length);
     expect(all.sort()).toEqual(["ai", "details", "games", "mcp", "options", "plugins", "steam", "style"]);
+  });
+});
+
+describe("submodos de cada sección", () => {
+  it("cada sección muestra su primer submodo listo y solo cambia a uno que exista y esté listo", () => {
+    expect(sectionTab("downloads")).toBe("active");
+    expect(selectNavigationTab("library", "downloads", "queued")).toBe(true);
+    expect(sectionTab("downloads", getNavigationSelection().tabs)).toBe("queued");
+    expect(selectNavigationTab("library", "play", "genres")).toBe(false);
+    expect(selectNavigationTab("library", "downloads", "nada")).toBe(false);
+    expect(sectionTab("play", getNavigationSelection().tabs)).toBe("recent");
   });
 });

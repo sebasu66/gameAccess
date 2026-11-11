@@ -11,8 +11,8 @@ import { useNews } from "./centralDialog/useAnnouncements";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import GaScreen from "./components/ga/Screen";
 import { useI18n } from "./i18n";
-import { navigationShellEnabled } from "./navigation/NavigationShell";
-import { selectNavigationSection, useNavigationSelection } from "./navigation/navigationSelection";
+import { navigationShellEnabled } from "./navigation/navigationSelection";
+import { sectionTab, selectNavigationSection, useNavigationSelection } from "./navigation/navigationSelection";
 import NewsPanel from "./NewsPanel";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { OPEN_RELEASE_NOTES_EVENT, takePendingReleaseNotes, useReleaseNotes } from "./releaseNotes";
@@ -42,6 +42,9 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
   const newShell = navigationShellEnabled();
   const selection = useNavigationSelection();
   const chosen = selection.gameAccess;
+  // Game Access › News and › Help show the submode chosen in the sections panel.
+  const newsTab = newShell ? sectionTab("news", selection.tabs) : undefined;
+  const helpTab = newShell ? sectionTab("help", selection.tabs) as "faq" | "contact" | undefined : undefined;
   const openGame = (game: CatalogGame) => { setAppScreen("games"); onOpenGame(game); };
   useEffect(() => {
     if (!notes) return;
@@ -69,7 +72,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         <h3 id={`ga-home-welcome-${item.id}`} className="ga-home-card-title">{item.title}</h3>
         <div className="ga-home-welcome-body ga-stack"><AnnouncementBody text={item.body} /></div>
       </section>)}
-      {(!newShell || chosen === "news") && notes ? <section className="ga-home-card ga-home-changes" aria-labelledby="ga-home-changes-title">
+      {(!newShell || chosen === "news" && newsTab === "release") && notes ? <section className="ga-home-card ga-home-changes" aria-labelledby="ga-home-changes-title">
         <h3 id="ga-home-changes-title" className="ga-home-card-title">{t("homeChangesTitle", { version: notes.version })}</h3>
         <div className="ga-home-changes-body ga-stack"><AnnouncementBody text={notes.changes.map(line => `- ${line}`).join("\n")} /></div>
       </section> : null}
@@ -82,12 +85,13 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
       </section> : null}
       {newShell ? null : <AiPicks onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />}
       {(!newShell || chosen === "account") ? <AccountCard /> : null}
-      {newShell && chosen === "news" && projectAnnouncements.length ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
+      {newShell && chosen === "news" && newsTab === "announcements" ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         {projectAnnouncements.map(item => <article key={item.id} className="ga-home-welcome-body ga-stack">
           <h4>{item.title}</h4>
           <AnnouncementBody text={item.body} />
         </article>)}
+        {projectAnnouncements.length ? null : <p className="ga-home-welcome-body">{t("homeNoAnnouncements")}</p>}
       </section> : null}
       {!newShell ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
@@ -95,7 +99,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
       </section> : null}
       {(!newShell || chosen === "help") ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
         <h3 id="ga-home-help-title" className="ga-home-card-title">{t("homeHelpTitle")}</h3>
-        <HelpContent />
+        <HelpContent part={helpTab} />
       </section> : null}
     </div>
   </GaScreen>;

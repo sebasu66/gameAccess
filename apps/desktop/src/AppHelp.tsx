@@ -76,17 +76,18 @@ const copy = {
 };
 
 /** The help's topics and the contact: in the help dialog and in Home (docs/GUI_DESIGN.md §0b). */
-export function HelpContent() {
+/** Help topics and contact; `part` draws only one of them (the new shell's Help › FAQ / Contact us). */
+export function HelpContent({ part }: { part?: "faq" | "contact" } = {}) {
  const { locale, t } = useI18n(); const c = copy[locale];
  const email = supportEmail();
  const [copied, setCopied] = useState(false);
  const copyMail = () => { void navigator.clipboard?.writeText(email).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => undefined); };
  return <>
-  {c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
+  {part === "contact" ? null : c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
    <summary>{topic.title}</summary>
    <ol>{topic.steps.map(step => <li key={step}>{step}</li>)}</ol>
   </details>)}
-  <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
+  {part === "faq" ? null : <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
    <h3 id="ga-help-contact-title">{c.contact}</h3>
    <p>{c.contactText}</p>
    <ContactForm />
@@ -94,7 +95,7 @@ export function HelpContent() {
     <span className="ga-hint">{t("contactOrMail", { email })}</span>
     <GaButton icon={<Copy size={16} aria-hidden="true" />} onClick={copyMail}>{copied ? c.copied : c.copyMail}</GaButton>
    </div>
-  </div>
+  </div>}
  </>;
 }
 

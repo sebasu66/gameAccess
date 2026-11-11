@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "../i18n";
 import { NAVIGATION, type NavigationModeId } from "./navigationTree";
-import { sectionListOrder } from "./navigationSelection";
+import { sectionListOrder, selectNavigationTab, tabReady, useSectionTab } from "./navigationSelection";
 import { currentCssValue, SHELL_LOOK_EVENT } from "./shellLook";
 
 /** A descriptive icon per section; none repeats a mode's icon (§4.2: Manager is a table with rows, not the catalog's grid). */
@@ -39,6 +39,7 @@ export default function SectionPanel({ mode, selected, reachable, onOpen }: { mo
   const current = NAVIGATION.find(item => item.id === mode)!;
   const ids = current.sections.map(section => section.id as string);
   const chosen = current.sections.find(section => section.id === selected) ?? current.sections[0];
+  const tab = useSectionTab(chosen.id);
   const [orders, setOrders] = useState<Partial<Record<NavigationModeId, string[]>>>({});
   const order = sectionListOrder(ids, chosen.id, orders[mode]);
   if (orders[mode]?.join() !== order.join()) setOrders(previous => ({ ...previous, [mode]: order }));
@@ -71,6 +72,11 @@ export default function SectionPanel({ mode, selected, reachable, onOpen }: { mo
       </div>
       <Chevrons big />
     </div>
+    <div className="ga-nav-panel-flow">
+    {chosen.tabs.length ? <ul className="ga-nav-tabs" aria-label={t(chosen.label)}>{chosen.tabs.map(item => <li key={item.id}>
+      <button type="button" className="ga-nav-tab" aria-current={item.id === tab ? "page" : undefined} disabled={!tabReady(chosen.id, item.id)}
+        onClick={() => selectNavigationTab(mode, chosen.id, item.id)}><span data-fit="">{t(item.label)}</span></button>
+    </li>)}</ul> : null}
     <ul className="ga-nav-section-list">{order.map((id, index) => {
       const section = current.sections.find(item => item.id === id)!;
       const Icon = SECTION_ICONS[id] ?? Search;
@@ -86,5 +92,6 @@ export default function SectionPanel({ mode, selected, reachable, onOpen }: { mo
         </button>
       </li>;
     })}</ul>
+    </div>
   </nav>;
 }

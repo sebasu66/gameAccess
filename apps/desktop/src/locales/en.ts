@@ -1570,6 +1570,7 @@ export const en: Record<keyof typeof es, string> = {
   accountEmailTaken: "There's already an account with that email. Try “I have an account”.",
   accountBadCredentials: "The email or the password don't match.",
   accountFailed: "It couldn't be done. Try again.",
+  homeNoAnnouncements: "No project announcements yet.",
   homeNewsTitle: "News",
   homeChangesTitle: "What changed in version {{version}}",
   homeHelpTitle: "Help and contact",

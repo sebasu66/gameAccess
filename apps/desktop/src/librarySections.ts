@@ -81,6 +81,8 @@ export function buildLibraryCollection(
   view: LibraryView = "popular",
   catalogSort: CatalogSort = "steam-popularity",
   libraryIds: ReadonlySet<number> = new Set(),
+  /** The new shell's Library › Play submode: last played first, the liked ones, or A–Z (over the library view). */
+  playTab?: "recent" | "favorites" | "alphabetical",
 ): LibrarySection {
   const hasRecommendations = hasPopularityData(games);
   const hasSteamReviewData = games.some(game => typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0);
@@ -118,7 +120,7 @@ export function buildLibraryCollection(
     favorites: translate("descFavorites"),
   };
   const collection = games.filter(game => {
-    if (view === "library") return libraryIds.has(game.app_id ?? game.id);
+    if (view === "library") return libraryIds.has(game.app_id ?? game.id) && (playTab !== "favorites" || preferences[game.id] === 1);
     if (view === "installed") {
       const state = gameStateManager.resolve(game.app_id ? downloads[game.app_id] : undefined);
       return state.installed || state.prepared;
@@ -128,6 +130,8 @@ export function buildLibraryCollection(
     return true;
   });
   collection.sort((a, b) => {
+    if (view === "library" && playTab === "recent") return (history[b.app_id ?? 0] || 0) - (history[a.app_id ?? 0] || 0) || a.name.localeCompare(b.name);
+    if (view === "library" && playTab === "alphabetical") return a.name.localeCompare(b.name);
     // Catalog and Library share the visible sort selector; neither history nor
     // likes may silently override it.
     const sort = view === "latest" ? "release-date" : view === "top" ? "steam-review-score" : view === "popular" ? effectiveSort : catalogSort;
