@@ -8,6 +8,7 @@ import { Play } from "lucide-react";
 import { GaButton } from "./components/ga/Buttons";
 import { GaSmoke } from "./components/ga/GaSmoke";
 import { useI18n } from "./i18n";
+import { useBigPictureView } from "./bigPicture";
 import type { CatalogGame } from "./types";
 import "./big-play-confirm.css";
 
@@ -18,6 +19,7 @@ export const shortAbout = (game: Pick<CatalogGame, "short_description">) => (gam
 
 export default function BigPlayConfirm({ game, onPlay, onBack }: { game: CatalogGame; onPlay: () => void; onBack: () => void }) {
   const { t } = useI18n();
+  const { input } = useBigPictureView();
   const opened = useRef(performance.now());
   const play = () => { if (performance.now() - opened.current >= ARMED_AFTER_MS) onPlay(); };
   const art = game.hero_image ?? game.header_image ?? game.capsule_image;
@@ -30,6 +32,8 @@ export default function BigPlayConfirm({ game, onPlay, onBack }: { game: Catalog
       <GaButton data-autofocus variant="primary" size="tall" icon={<Play size={18} aria-hidden="true" />} onClick={play}>{t("bigPicturePlay")}</GaButton>
       <GaButton size="tall" onClick={onBack}>{t("bigPlayBack")}</GaButton>
     </div>
-    <p className="ga-hint ga-play-confirm-keys"><span className="ga-pad-key is-a">A</span> {t("bigPicturePlay")} <span className="ga-pad-key">B</span> {t("bigPlayBack")}</p>
+    <p className="ga-hint ga-play-confirm-keys">{input === "pad"
+      ? <><span className="ga-pad-key is-a">A</span> {t("bigPicturePlay")} <span className="ga-pad-key">B</span> {t("bigPlayBack")}</>
+      : <><kbd className="ga-pad-key">{t("bigKeyEnter")}</kbd> {t("bigPicturePlay")} <kbd className="ga-pad-key">{t("bigKeyEsc")}</kbd> {t("bigPlayBack")}</>}</p>
   </GaSmoke>;
 }

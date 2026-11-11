@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 
 import { CATALOG_TABS } from "./CatalogTabs";
 import { installKeyboardRules } from "./keyboardRules";
+import { bigPictureActive } from "./bigPicture";
 import type { CatalogMode } from "./catalogMode";
 
 type ModeUiState = {
@@ -164,7 +165,8 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       // A screen (kids, home, settings) hides the grid: its keys are not the grid's (appScreen.ts).
-      if (!libraryRoot() || modal() || document.documentElement.classList.contains("ga-screen-on")) return;
+      // Big picture mode has its own keys (BigScreenControls.tsx).
+      if (!libraryRoot() || modal() || document.documentElement.classList.contains("ga-screen-on") || bigPictureActive()) return;
       if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
 

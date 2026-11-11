@@ -1,5 +1,5 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
-import { SCREEN_CHANGE_EVENT, getAppScreen, setAppScreen } from "./appScreen";
+import { SCREEN_CHANGE_EVENT, setAppScreen } from "./appScreen";
 import { REQUEST_GAMES_VIEW_EVENT, setGamesView, type GamesView } from "./gameArea";
 import { openLibraryManager } from "./libraryManagerNav";
 import { useLibraryDownloads } from "./useLibraryDownloads";
@@ -28,7 +28,7 @@ import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
 import { libraryHasNoGames } from "./libraryScan";
-import { bigPictureActive, controllerConnected, setBigPictureActive } from "./bigPicture";
+import { bigPictureActive, controllerConnected, setBigPictureActive, setBigPictureInput } from "./bigPicture";
 import { hideForBigPicture, labelOut, showAfterBigPicture, closeGate, openGate } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
 import { usePluginReady } from "./usePluginReady";
@@ -158,8 +158,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [bigScreen, setBigScreen] = useState(false);
   const [confirmGame, setConfirmGame] = useState<CatalogGame | null>(null);
   /**
-   * Big picture mode (bigPicture.ts): only with a controller connected. Entering closes the panels and the game detail
-   * and shows the library; downloads keep going. F11, this button and the controller's Menu button leave it.
+   * Big picture mode (bigPicture.ts): with a controller or with keyboard and mouse (Seba, 2026-11-10). Entering closes
+   * the panels and the game detail and shows the library; downloads keep going. F11, this button, Esc and the
+   * controller's Menu button leave it, after asking (BigExitConfirm, in BigScreenControls).
    */
   // The change is animated (motion/bigPictureMotion.ts): a second press while it runs is ignored.
   const bigScreenChanging = useRef(false);
@@ -170,16 +171,16 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       showNotice({ tone: "info", title: t("emptyLibraryTitle"), text: t("emptyLibraryBigPicture"), timer: true });
       return;
     }
-    if (next && !(await controllerConnected())) {
-      showNotice({ tone: "info", title: t("bigPictureNoControllerTitle"), text: t("bigPictureNoControllerText"), timer: true });
-      return;
-    }
+    // It starts in controller mode when one is connected (on-screen keyboard, the controller's buttons on screen);
+    // the last input used decides from then on.
+    if (next) setBigPictureInput((await controllerConnected()) ? "pad" : "keyboard");
     bigScreenChanging.current = true;
     // One step after the other (motion/bigPictureMotion.ts): the controls slide off, the opening's gate closes while the
     // window and the grid change behind it, then opens on the mode. Leaving runs the same way back.
     if (next) {
       // From another screen (home, kids, settings) the mode goes to the games grid (Seba, 2026-11-05).
-      if (getAppScreen() !== "games") setAppScreen("games");
+      // Asked even when the games show: a change to another screen may still be on its way (setAppScreen ignores a repeat).
+      setAppScreen("games");
       closeAllPanels();
       setDetailMenu(null);
       setDetailOpen(false);
@@ -192,8 +193,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     try {
       // The whole screen, taskbar included; leaving puts the window back as it was (window_fit.rs).
       if ("__TAURI_INTERNALS__" in window) await invoke("window_set_big_screen", { on: next });
-      else if (next) await document.documentElement.requestFullscreen?.();
-      else if (document.fullscreenElement) await document.exitFullscreen();
+      // In a browser the request can stay unanswered (an embedded view): the gate opens anyway after a moment.
+      else if (next) await Promise.race([document.documentElement.requestFullscreen?.(), new Promise(done => window.setTimeout(done, 1500))]);
+      else if (document.fullscreenElement) await Promise.race([document.exitFullscreen(), new Promise(done => window.setTimeout(done, 1500))]);
     } catch { /* The large, controller-friendly layout still works windowed. */ }
     await openGate(next ? "enter" : "leave");
     if (!next) await showAfterBigPicture();
@@ -603,6 +605,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     window.addEventListener(SCREEN_CHANGE_EVENT, drop);
     return () => window.removeEventListener(SCREEN_CHANGE_EVENT, drop);
   }, [onDetailClose]);
+  // Big picture mode stays on the games, whatever screen something else asks for meanwhile (the start screen settling
+  // while the mode comes in, a notice's link).
+  useEffect(() => { if (bigScreen && appScreen !== "games") setAppScreen("games"); }, [bigScreen, appScreen]);
   // Big picture mode stays on the library with no detail open, whatever asks otherwise.
   useEffect(() => {
     if (!bigScreen) return;
@@ -657,6 +662,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const activateAction = () => onAction(actionIndex);
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    // Big picture has its own keys (BigScreenControls); F11 enters it from here.
+    if (bigPictureActive()) return;
     if (event.key === "F11") { event.preventDefault(); void toggleBigScreen(); return; }
     if (event.key === "Escape" && detailOpen) {
       event.preventDefault();

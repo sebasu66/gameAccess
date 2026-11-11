@@ -10,6 +10,7 @@ body.ga-big-screen .ga-footer-left,
 body.ga-big-screen .ga-dock > :not(.ga-big-screen-toggle),
 body.ga-big-screen .ga-bento-menu,
 body.ga-big-screen .ga-view-rail,
+body.ga-big-screen .ga-area-tabs,
 body.ga-big-screen .ga-brand-wall { display: none !important; }
 
 /* Real fullscreen: Windows already gives the window the whole screen (window_fit.rs); the app's own title bar

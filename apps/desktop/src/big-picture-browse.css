@@ -1,0 +1,66 @@
+/* Big picture's browsing (Seba, 2026-11-10; docs/GUI_DESIGN.md §0c): the side rail (BigPictureRail.tsx), the search
+   with its on-screen keyboard (BigPictureSearch.tsx), the question before leaving (BigExitConfirm.tsx) and the group
+   titles of the grid. Screen layer: only how the parts are placed; sizes from templates/base.css, looks from the flavor. */
+
+/* The grid leaves the rail's column free, and the legend centres in what is left. */
+html body.ga-big-screen.ga-big-rail-on .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog {
+  padding-left: calc(var(--ga-big-rail-w) + var(--ga-space-3) * 2) !important; }
+body.ga-big-rail-on .ga-big-picture-label { left: calc(var(--ga-big-rail-w) + var(--ga-space-3)); max-width: calc(100vw - var(--ga-big-rail-w) - var(--ga-space-4) * 2); }
+
+/* A glass panel with a gradient edge, as the properties card. */
+.ga-big-rail, .ga-big-search { box-sizing: border-box; border-radius: var(--ga-card-radius); background: var(--ga-card-bg); backdrop-filter: var(--ga-card-glass);
+  box-shadow: var(--ga-card-shadow); color: var(--ga-card-ink); }
+.ga-big-rail::before, .ga-big-search::before { content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: var(--ga-card-ring); pointer-events: none;
+  -webkit-mask: linear-gradient(black 0 0) content-box, linear-gradient(black 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+
+/* The rail: search on top, the orders in the middle, leaving at the bottom. */
+.ga-big-rail { position: fixed; z-index: var(--ga-big-layer); top: var(--ga-space-3); bottom: var(--ga-space-3); left: var(--ga-space-3); width: var(--ga-big-rail-w);
+  display: flex; flex-direction: column; gap: var(--ga-space-3); padding: var(--ga-space-2); overflow-y: auto; }
+.ga-big-rail .ga-big-rail-button { width: 100%; justify-content: flex-start; gap: var(--ga-space-1); }
+.ga-big-rail .ga-big-rail-button > span:first-of-type { flex: 1; text-align: left; }
+.ga-big-rail .ga-label { display: flex; align-items: center; justify-content: space-between; }
+.ga-big-rail-orders { gap: var(--ga-space-1); }
+.ga-big-rail-orders > .ga-big-rail-button { justify-self: stretch; }
+.ga-big-rail .ga-big-rail-order[aria-checked="true"] { border-color: var(--ga-orange); color: var(--ga-orange); }
+.ga-big-rail-exit { margin-top: auto; }
+.ga-big-rail button:focus-visible { outline: var(--ga-focus-w) solid var(--ga-orange); outline-offset: var(--ga-focus-w); }
+.ga-big-rail-query { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--ga-space-1); padding: var(--ga-space-1) var(--ga-space-2);
+  border-radius: var(--ga-radius-m); background: var(--ga-orange-tint); border: 1px solid var(--ga-orange-line); }
+.ga-big-rail-query .ga-hint { grid-column: 1 / -1; }
+.ga-big-rail-query-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ga-orange-ink); font: var(--ga-t2-font); }
+
+/* The search: a bar over the top of the games, so they stay in view while it filters. */
+.ga-big-search { position: fixed; z-index: calc(var(--ga-big-layer) + 1); top: var(--ga-space-3); right: var(--ga-space-3);
+  left: calc(var(--ga-big-rail-w) + var(--ga-space-3) * 2); display: grid; gap: var(--ga-space-2); padding: var(--ga-space-2) var(--ga-space-3); }
+.ga-big-search-bar { display: flex; align-items: center; gap: var(--ga-space-2); }
+.ga-big-search-icon { flex: none; color: var(--ga-orange); }
+.ga-big-search-field { flex: 1; min-width: 0; height: var(--ga-key-h); box-sizing: border-box; padding: 0 var(--ga-space-2); border: 1px solid var(--ga-field-line);
+  border-radius: var(--ga-radius-m); background: var(--ga-field-bg); color: var(--ga-field-ink); font: var(--ga-t2-font); }
+.ga-big-search-field:focus { outline: none; border-color: var(--ga-orange); }
+.ga-big-search .ga-actions { flex: none; align-items: center; }
+.ga-big-keys { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-space-1); }
+.ga-big-search-rule { margin-left: auto; }
+
+/* While it is open the games start below it (BigPictureSearch.tsx measures how far). */
+body.ga-big-searching .ga-bento-wrap { padding-top: var(--ga-big-search-clear, 0); }
+
+/* The on-screen keyboard (only with the controller). */
+.ga-big-osk { display: grid; gap: var(--ga-row-gap); justify-content: center; }
+.ga-big-osk-row { display: flex; justify-content: center; gap: var(--ga-row-gap); }
+.ga-big-osk-key { min-width: var(--ga-key-w); height: var(--ga-key-h); padding: 0 var(--ga-space-2); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-m);
+  background: var(--ga-surface-2); color: var(--ga-white); font: var(--ga-t2-font); text-transform: uppercase; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ga-big-osk-key.is-wide { min-width: calc(var(--ga-key-w) * 3); text-transform: none; }
+.ga-big-osk-key:hover { background: var(--ga-tray-hover); }
+.ga-big-osk-key:focus-visible, .ga-big-osk-key:focus { outline: var(--ga-focus-w) solid var(--ga-orange); outline-offset: 0; border-color: var(--ga-orange); color: var(--ga-orange); }
+
+/* The question before leaving, as the one before playing. */
+.ga-big-exit .ga-smoke-body { display: grid; gap: var(--ga-space-2); justify-items: center; text-align: center; }
+.ga-big-exit-icon { color: var(--ga-orange); }
+.ga-big-exit-title { margin: 0; font: var(--ga-t1-font); color: var(--ga-orange); }
+.ga-big-exit-text { margin: 0; max-width: 80ch; font: var(--ga-t2-font); }
+.ga-big-exit .ga-actions { justify-content: center; margin-top: var(--ga-space-1); }
+
+/* A group's title in the grid (by letter, by genre): larger than the library's dividers, it only names. */
+.ga-bento-divider.ga-big-group-title > span:first-child { color: var(--ga-label-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-bento-divider.ga-big-group-title .ga-bento-divider-count { font: var(--ga-label-font); }

@@ -6,7 +6,7 @@ import { setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css");
 
 describe("capas de estilo", () => {
   it("activa y quita un sabor", () => {
@@ -45,6 +45,11 @@ describe("capas de estilo", () => {
   it("la capa de humo y la pregunta de Big Picture no escriben valores a mano", () => {
     const code = (css("components/ga/smoke.css") + css("big-play-confirm.css")).replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|border-radius: \d|font-size: \d/i);
+  });
+
+  it("la búsqueda, el riel y la salida de Big Picture son capa de pantalla: sin valores a mano", () => {
+    const code = css("big-picture-browse.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}|border-radius: \d|font-size|font: \d|(?<![\d.])(?:[02-9]|\d{2,})px/i);
   });
 
   it("los archivos de un resultado (Configuración › Plugins) son capa de pantalla: sin valores a mano", () => {

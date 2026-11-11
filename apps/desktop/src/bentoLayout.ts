@@ -201,3 +201,33 @@ export function bentoInWindow<T>(placements: BentoPlacement<T>[], tops: number[]
     return bottom >= from && top <= to;
   });
 }
+
+export interface BentoGroupMark { title: string; row: number; count: number }
+/**
+ * Big picture mode grouped (by letter or by genre): each group under its title (a "label" row), its games as
+ * portraits, `columns` to a line, in the order given. Groups without games are left out.
+ */
+export function bigPictureGroups<T>(groups: Array<{ title: string; values: T[] }>, columns: number): { placements: BentoPlacement<T>[]; tracks: BentoTrack[]; marks: BentoGroupMark[] } {
+  const cols = Math.max(1, Math.floor(columns));
+  const placements: BentoPlacement<T>[] = [];
+  const tracks: BentoTrack[] = [];
+  const marks: BentoGroupMark[] = [];
+  let row = 1;
+  for (const group of groups) {
+    if (!group.values.length) continue;
+    marks.push({ title: group.title, row, count: group.values.length });
+    tracks.push("label");
+    row++;
+    group.values.forEach((value, index) => placements.push({ value, kind: "ready", column: (index % cols) + 1, row: row + Math.floor(index / cols) * 3, rowSpan: 3 }));
+    const used = Math.ceil(group.values.length / cols) * 3;
+    for (let i = 0; i < used; i++) tracks.push("row");
+    row += used;
+  }
+  return { placements, tracks, marks };
+}
+
+/** The letter a name is grouped under in big picture's alphabetical order: A–Z, or "#" for digits and symbols. */
+export function nameGroup(name: string): string {
+  const first = name.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().charAt(0).toUpperCase();
+  return first >= "A" && first <= "Z" ? first : "#";
+}

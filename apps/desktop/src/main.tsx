@@ -15,6 +15,7 @@ import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
 import { setAppScreen } from "./appScreen";
+import { bigPictureActive } from "./bigPicture";
 import { opensOn, startScreenUsed } from "./startupPreferences";
 import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
@@ -115,6 +116,8 @@ function CatalogShell() {
   React.useEffect(() => {
     if (!prepared || !openingSettled || !opensOn("home")) return;
     startScreenUsed("home");
+    // Big picture already on (the controller's button opened the app in it, or a quick F11): it stays on the games.
+    if (bigPictureActive()) return;
     setAppScreen("home");
   }, [prepared, openingSettled]);
   const changeMode = React.useCallback((next: CatalogMode) => {
