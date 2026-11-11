@@ -33,7 +33,7 @@ De izquierda a derecha, a todo el alto, con un margen alrededor y una barra de e
 
 **Pantallas anchas (Seba, 2026-11-11):** no hay proporción fija ni franjas vacías a los costados. La escala sale del lado corto de la ventana y el contenido se estira. En un monitor ultra ancho (por ejemplo 2560 × 1080 o 3440 × 1440), el contenido aprovecha el ancho: ver §4.3 (varias pestañas a la vez) y §5.8 (ficha).
 
-**No duplicar información (Seba):** el modo se nombra una sola vez (la palabra de la barra de modos); la sección, una sola vez (su título en el panel de secciones, que se extiende sobre el contenido). El contenido no repite título ni migas de pan.
+**No duplicar información (Seba):** el modo se nombra una sola vez (la palabra de la barra de modos); la sección, una sola vez (su título en el panel de secciones, cuyos chevrones entran en el contenido). El contenido no repite título ni migas de pan.
 
 ## 2. Árbol de navegación
 
@@ -72,7 +72,7 @@ Estados: correcto `#6fcfb0`, error `#ff5d4d`. El color del modo activo se public
 
 ### 4.2 Panel de secciones
 - **Fondo:** una imagen por modo (§6), con el motivo abajo y la parte de arriba más libre. Esquina inferior derecha cortada en diagonal y tres franjas diagonales que terminan en ese corte, como las de la barra de modos.
-- **Título (la sección elegida):** sale de la lista y queda arriba, más grande, como una flecha que se extiende sobre el contenido (unos 190 px dentro del contenido, no más: deja lugar al buscador). Nombre grande, descripción corta debajo, y en la punta tres chevrones siempre encendidos. Fondo con el color del modo en degradé.
+- **Título (la sección elegida):** sale de la lista y queda arriba, más grande, como una flecha del ancho del panel: solo los tres chevrones de la punta entran en el contenido (Seba, 2026-11-11: el título que se metía a medias dejaba un hueco incómodo arriba). El contenido, cabecera incluida, es un panel iluminado desde los bordes con el color del modo, como una pantalla LCD, más oscuro al centro. Nombre grande, descripción corta debajo, y en la punta tres chevrones siempre encendidos. Fondo con el color del modo en degradé.
 - **Submodos:** si la sección tiene pestañas, van debajo del título, dentro del panel (no en el contenido).
 - **Botones de las otras secciones:**
   - Forma de flecha con la punta a 45°, borde fino blanco al 22 %, ícono descriptivo en un círculo de línea a la izquierda, nombre y descripción.

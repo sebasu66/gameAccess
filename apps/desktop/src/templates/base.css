@@ -26,7 +26,7 @@
   --ga-nav-mode-switch-h: 56px; --ga-nav-brand-h: 104px; --ga-nav-section-button-h: 64px;
   --ga-nav-caption-size: 12px; --ga-nav-status-gap: 16px;
   --ga-nav-mode-cut: 16px;
-  --ga-nav-section-title-size: clamp(38px, 5.6vh, 64px); --ga-nav-title-overhang: clamp(80px, 17.6vh, 190px);
+  --ga-nav-section-title-size: clamp(38px, 5.6vh, 64px); --ga-nav-title-overhang: 0px;
   --ga-nav-panel-shade-start: 8%; --ga-nav-panel-shade-end: 70%;
   /* The shell's lines, focus ring and leadings of its big words; the status bar's parts and a mode button's count. */
   --ga-nav-line-w: 1px; --ga-nav-focus-w: 2px; --ga-nav-word-leading: .85; --ga-nav-title-leading: .92;
@@ -50,8 +50,8 @@
   --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
   --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
   --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%; --ga-nav-tab-off-text: .7;
-  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: calc(clamp(14px, 1.6vh, 17px) * var(--ga-nav-pill-scale, 1)); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-inline: calc(var(--ga-nav-section-name-size) * .62); --ga-nav-lock-inline-gap: .35em; --ga-nav-lock-shackle: 2.6px;
-  --ga-nav-content-glow: 16%; --ga-nav-content-glow-reach: 70%; --ga-nav-content-glow-shape: ellipse at 50% 0%;
+  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: calc(clamp(14px, 1.6vh, 17px) * var(--ga-nav-pill-scale, 1)); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-inline: calc(var(--ga-nav-section-name-size) * .74); --ga-nav-lock-inline-gap: .5em; --ga-nav-lock-shackle: 2.6px;
+  --ga-nav-stage-shape: ellipse 75% 70% at 50% 50%; --ga-nav-stage-core: 4%; --ga-nav-stage-core-reach: 35%; --ga-nav-stage-edge: 30%; --ga-nav-stage-glow: 34%; --ga-nav-stage-glow-blur: clamp(48px, 9vh, 110px); --ga-nav-stage-line: 45%;
   --ga-nav-head-clear: calc(var(--ga-nav-hero-tip) + 3 * (var(--ga-nav-chevron-big-t) + var(--ga-nav-chevron-big-g)) + var(--ga-nav-section-gap));
   --ga-nav-head-search-w: 560px; --ga-nav-head-field-h: clamp(40px, 4.6vh, 50px); --ga-nav-head-icon: 20px; --ga-nav-head-text: clamp(14px, 1.5vh, 16px);
   --ga-nav-head-fact-gap: clamp(18px, 2.4vw, 40px); --ga-nav-head-fact-size: clamp(22px, 3vh, 32px);
@@ -70,6 +70,6 @@
     --ga-nav-mode-w: 76px; --ga-nav-sections-w: min(260px, 30vw); --ga-nav-activity-w: 0px;
     --ga-nav-outer-pad: 12px; --ga-nav-column-gap: 8px; --ga-nav-title-size: 52px;
     --ga-nav-content-pad: 16px; --ga-nav-section-pad: 12px; --ga-nav-section-button-h: 52px;
-    --ga-nav-section-title-size: 38px; --ga-nav-title-overhang: 72px;
+    --ga-nav-section-title-size: 38px;
   }
 }

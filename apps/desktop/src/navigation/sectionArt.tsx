@@ -1,129 +1,95 @@
 /**
- * The sections' watermarks (vault/Rediseño de navegación.md §4.2): line drawings with fine strokes and a soft fill,
- * larger than the button, so only their right half shows inside it. Each keeps its telling detail on that side.
+ * The sections' watermarks (vault/Rediseño de navegación.md §4.2): simple symbols, a fine outline with a soft fill and
+ * few lines (Seba: too many lines blur what the drawing is), larger than the button and fading out behind the name.
  * Lines take the stroke, `f` parts the soft fill and `s` parts a stronger one (navigation-shell.css).
  */
 import type { ReactNode } from "react";
 
 const Art = ({ children }: { children: ReactNode }) => <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">{children}</svg>;
 
-/** Explore: a magnifier over a folded map. */
+/** Explore: a magnifier. */
 const explore = <Art>
-  <path className="f" d="M10 40l12-5 12 5 12-5v20l-12 5-12-5-12 5z" /><path d="M22 35v20M34 40v20" />
-  <circle className="f" cx="36" cy="24" r="14" /><circle cx="36" cy="24" r="11" /><path d="M28 19a9 9 0 0 1 6-5" />
-  <path d="M29 27l4-3 4 2 5-4" /><circle className="s" cx="42" cy="22" r="1.4" />
-  <path className="f" d="M45 33l4 4-3 3-4-4z" /><path className="s" d="M48 38l8 8a2.5 2.5 0 0 1-3.5 3.5l-8-8z" /><path d="M51 44l-2.5 2.5M54 47l-2.5 2.5" />
+  <circle className="f" cx="27" cy="27" r="17" /><path d="M18 22a11 11 0 0 1 8-6" />
+  <path className="s" d="M39 37l4-4 16 16a2.8 2.8 0 0 1-4 4z" />
 </Art>;
 
-/** Smart search: a magnifier holding a spark, with circuit traces. */
+/** Smart search: a magnifier holding a spark. */
 const smartSearch = <Art>
-  <circle className="f" cx="28" cy="28" r="17" /><circle cx="28" cy="28" r="13.5" />
-  <path className="s" d="M28 17l2.4 7.6L38 27l-7.6 2.4L28 37l-2.4-7.6L18 27l7.6-2.4z" />
-  <path className="s" d="M37 18l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" />
-  <path className="f" d="M39 40l4 4-3 3-4-4z" /><path className="s" d="M42 45l10 10a2.5 2.5 0 0 1-3.5 3.5L38.5 48.5z" />
-  <path d="M46 14h6l3 3h4M47 22h8M45 30h5l2 2h6" /><circle cx="60" cy="17" r="1.3" /><circle cx="56" cy="22" r="1.3" /><circle cx="59" cy="32" r="1.3" />
+  <circle className="f" cx="27" cy="27" r="17" />
+  <path className="s" d="M27 16l2.6 8.4L38 27l-8.4 2.6L27 38l-2.6-8.4L16 27l8.4-2.6z" />
+  <path className="s" d="M39 37l4-4 16 16a2.8 2.8 0 0 1-4 4z" />
 </Art>;
 
-/** AI suggestions: a lit bulb with its filament, rays and a spark. */
+/** AI suggestions: a lit bulb. */
 const aiSuggestions = <Art>
-  <path className="f" d="M32 7a16 16 0 0 0-9 29.3c2.1 1.7 3 3.9 3 6.7h12c0-2.8.9-5 3-6.7A16 16 0 0 0 32 7z" />
-  <path d="M27 43V33l-2.5-5M37 43V33l2.5-5M24.5 28c2.5 2 5-2 7.5 0s5-2 7.5 0" />
-  <path className="s" d="M26 46h12v3H26zM27 51h10v3H27z" /><path d="M29 56h6" />
-  <path d="M52 22l5-2M52 30h6M50 39l5 3M12 22l-5-2M6 30h6" />
-  <path className="s" d="M53 7l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" /><path d="M44 12l-1.5 2.2M36 13.5a10 10 0 0 1 7 6" />
+  <path className="f" d="M32 6a17 17 0 0 0-9.5 31c2.2 1.8 3.5 4 3.5 7h12c0-3 1.3-5.2 3.5-7A17 17 0 0 0 32 6z" />
+  <path className="s" d="M26 48h12v4H26zM28 55h8v3h-8z" /><path d="M56 23h5M3 23h5M52 9l3-3M12 9L9 6" />
 </Art>;
 
-/** New games: a star with its burst and a new tag. */
+/** New games: a star. */
 const newGames = <Art>
-  <path className="f" d="M28 6l6.6 13.5 14.9 2.1-10.8 10.5 2.6 14.8L28 39.9l-13.3 7 2.6-14.8L6.5 21.6l14.9-2.1z" />
-  <path d="M28 14l4 8.2 9 1.3-6.5 6.4 1.5 9L28 34.6l-8 4.3 1.5-9-6.5-6.4 9-1.3z" />
-  <path className="s" d="M40 44h20l-2 5 2 5H40z" /><circle cx="43.5" cy="49" r="1.2" /><path d="M47 47.5h8M47 50.5h6" />
-  <path d="M50 10l3-3M54 16h4M52 26l3 2M20 54l-2 4M36 52l2 4" />
+  <path className="f" d="M32 5l8 16.4 18 2.6-13 12.7 3 18L32 46.2 16 54.7l3-18L6 24l18-2.6z" />
 </Art>;
 
-/** Taste profile: a heart crossed by a pulse line, with a small heart beside. */
+/** Taste profile: a heart. */
 const tasteProfile = <Art>
-  <path className="f" d="M30 54S6 41 6 25.5A11.5 11.5 0 0 1 30 20a11.5 11.5 0 0 1 24 5.5C54 41 30 54 30 54z" />
-  <path d="M30 48S11 38 11 26a7 7 0 0 1 13-3.5" />
-  <path d="M4 34h12l3.5-7 5 14 4.5-11 3 5h10l2-3 2 3h14" />
-  <path className="s" d="M54 9s-5-2.8-5-6a2.4 2.4 0 0 1 5-1 2.4 2.4 0 0 1 5 1c0 3.2-5 6-5 6z" transform="translate(0 4)" />
+  <path className="f" d="M32 56S5 41 5 23.5A13 13 0 0 1 32 17a13 13 0 0 1 27 6.5C59 41 32 56 32 56z" />
 </Art>;
 
-/** Play: a gamepad with its cross, buttons and sticks. */
+/** Play: a gamepad. */
 const play = <Art>
-  <path className="f" d="M17 20h30c8 0 12.5 6 13.6 15.5l1.2 10.5c.8 6.8-6 9.6-10 4.8L46 44H18l-5.8 6.8c-4 4.8-10.8 2-10-4.8l1.2-10.5C4.5 26 9 20 17 20z" />
-  <path d="M14.5 30h4v-4h4v4h4v4h-4v4h-4v-4h-4z" />
-  <circle className="s" cx="47" cy="27.5" r="2.3" /><circle cx="52.5" cy="33" r="2.3" /><circle className="s" cx="47" cy="38.5" r="2.3" /><circle cx="41.5" cy="33" r="2.3" />
-  <circle cx="24" cy="43" r="3.5" /><circle cx="40" cy="43" r="3.5" /><path d="M28.5 27h7M22 20l2-4h16l2 4" />
+  <path className="f" d="M17 18h30c8 0 12.5 6 13.6 15.5l1.2 10.5c.8 6.8-6 9.6-10 4.8L46 42H18l-5.8 6.8c-4 4.8-10.8 2-10-4.8l1.2-10.5C4.5 24 9 18 17 18z" />
+  <path className="s" d="M15 28h4v-4h4v4h4v4h-4v4h-4v-4h-4z" /><circle className="s" cx="45" cy="27" r="2.6" /><circle className="s" cx="45" cy="37" r="2.6" />
 </Art>;
 
-/** Downloads: an arrow into a tray with its progress bar and speed lines. */
+/** Downloads: an arrow into a tray. */
 const downloads = <Art>
-  <path className="f" d="M27 5h10v19h8L32 39 19 24h8z" />
-  <path d="M7 40v12a4 4 0 0 0 4 4h42a4 4 0 0 0 4-4V40" /><path className="f" d="M7 44h50v8a4 4 0 0 1-4 4H11a4 4 0 0 1-4-4z" />
-  <path d="M13 50h38" /><path className="s" d="M13 48.8h24v2.4H13z" />
-  <path d="M44 9h12M47 15h10M50 21h7M44 30l5 5" />
+  <path className="f" d="M26 5h12v20h9L32 42 17 25h9z" /><path className="s" d="M7 44h50v8a5 5 0 0 1-5 5H12a5 5 0 0 1-5-5z" />
 </Art>;
 
-/** Manager: a game table with checkboxes, covers, names and size bars. */
+/** Manager: a list of games. */
 const manager = <Art>
-  <path className="f" d="M6 9h52v46H6z" /><path d="M6 17h52M6 27h52M6 37h52M6 47h52" />
-  <path d="M9.5 20.5h4v4h-4zM9.5 30.5h4v4h-4zM9.5 40.5h4v4h-4z" /><path className="s" d="M9.5 30.5h4v4h-4z" />
-  <path className="s" d="M17 19.5h6v6h-6zM17 29.5h6v6h-6zM17 39.5h6v6h-6z" />
-  <path d="M26 21h14M26 24h9M26 31h12M26 34h7M26 41h15M26 44h10M10 13h10M26 13h10" />
-  <path className="s" d="M45 21h10v3H45zM45 31h6v3h-6zM45 41h8v3h-8z" /><path d="M45 13h9" />
+  <rect className="f" x="6" y="8" width="52" height="48" rx="4" />
+  <path className="s" d="M12 16h8v8h-8zM12 28h8v8h-8zM12 40h8v8h-8z" /><path d="M26 20h24M26 32h24M26 44h18" />
 </Art>;
 
-/** News: a megaphone with its sound waves. */
+/** News: a megaphone. */
 const news = <Art>
-  <path className="f" d="M14 25l24-13v40L14 39z" /><path className="s" d="M7 25h7v14H7z" />
-  <path d="M18 39l4 14h6l-3.5-12M38 12v40" /><path d="M20 30h4" />
-  <path d="M44 24a10 10 0 0 1 0 16M49 18a18 18 0 0 1 0 28M54 12a26 26 0 0 1 0 40" />
+  <path className="f" d="M12 24l28-14v44L12 40z" /><path className="s" d="M5 24h7v16H5z" /><path d="M17 40l4 14h6l-3.5-13" />
+  <path d="M47 24a10 10 0 0 1 0 16M53 17a19 19 0 0 1 0 30" />
 </Art>;
 
-/** Subscription: a crown with its jewels. */
+/** Subscription: a crown. */
 const subscription = <Art>
-  <path className="f" d="M9 45L5 18l14 12 13-19 13 19 14-12-4 27z" /><path className="s" d="M9 45h46v8H9z" />
-  <circle className="s" cx="5" cy="17" r="2.6" /><circle className="s" cx="32" cy="9" r="2.6" /><circle className="s" cx="59" cy="17" r="2.6" />
-  <path d="M19 30l4 15M45 30l-4 15M32 11v34" /><path d="M29 49h6M15 49h4M45 49h4" />
-  <path d="M32 27l3 4-3 4-3-4z" /><path d="M50 8l2-3M55 11h3" />
+  <path className="f" d="M9 46L5 18l14 12 13-19 13 19 14-12-4 28z" /><path className="s" d="M9 46h46v8H9z" />
 </Art>;
 
-/** Support: a life ring with its bands and rope. */
+/** Support: a life ring. */
 const support = <Art>
-  <circle className="f" cx="32" cy="32" r="24" /><circle cx="32" cy="32" r="11" />
-  <path className="s" d="M11.2 20A24 24 0 0 1 20 11.2l6.5 11.3a11 11 0 0 0-4 4zM44 11.2a24 24 0 0 1 8.8 8.8l-11.3 6.5a11 11 0 0 0-4-4zM52.8 44a24 24 0 0 1-8.8 8.8l-6.5-11.3a11 11 0 0 0 4-4zM20 52.8a24 24 0 0 1-8.8-8.8l11.3-6.5a11 11 0 0 0 4 4z" />
-  <path d="M32 4.5c3 2 3 4 0 6M59.5 32c-2 3-4 3-6 0" />
-  <path d="M29 29.5a3 3 0 1 1 4.2 2.7c-.8.4-1.2 1-1.2 1.8v.6M32 37.6v.4" />
+  <circle className="f" cx="32" cy="32" r="25" /><circle cx="32" cy="32" r="11" />
+  <path className="s" d="M10.4 19.5A25 25 0 0 1 19.5 10.4l6.6 11.4a11 11 0 0 0-4.3 4.3zM44.5 10.4a25 25 0 0 1 9.1 9.1l-11.4 6.6a11 11 0 0 0-4.3-4.3zM53.6 44.5a25 25 0 0 1-9.1 9.1l-6.6-11.4a11 11 0 0 0 4.3-4.3zM19.5 53.6a25 25 0 0 1-9.1-9.1l11.4-6.6a11 11 0 0 0 4.3 4.3z" />
 </Art>;
 
-/** General: a panel of sliders with ticks. */
+/** General: three sliders. */
 const general = <Art>
-  <rect className="f" x="5" y="9" width="54" height="46" rx="4" />
-  <path d="M17 15v34M32 15v34M47 15v34" /><path d="M20 19h3M20 25h3M20 31h3M20 37h3M20 43h3M35 19h3M35 25h3M35 31h3M35 37h3M35 43h3M50 19h3M50 25h3M50 31h3M50 37h3M50 43h3" />
-  <path className="s" d="M12.5 33h9v6h-9zM27.5 20h9v6h-9zM42.5 38h9v6h-9z" />
+  <path d="M16 8v48M32 8v48M48 8v48" /><path className="s" d="M10 34h12v8H10zM26 16h12v8H26zM42 40h12v8H42z" />
 </Art>;
 
-/** Appearance: a palette with paint and a brush. */
+/** Appearance: a palette. */
 const appearance = <Art>
-  <path className="f" d="M30 7C16 7 5 17.5 5 31c0 11.5 8.5 20 18.5 20 4.5 0 5.5-3.7 3.6-6.6-1.6-2.6 0-6.4 4.4-6.4H39c8.5 0 15-5.5 15-14C54 14 43 7 30 7z" />
-  <circle className="s" cx="18" cy="23" r="3.6" /><circle className="s" cx="29" cy="16" r="3.6" /><circle className="s" cx="41" cy="20" r="3.6" /><circle cx="15" cy="35" r="3.2" />
-  <path d="M60 28L43 47M57 25l6 6" /><path className="s" d="M43 47c-3.2.8-6 4.6-5.2 9 4.2 1 8.4-2 9.2-5.2z" /><path d="M41 49l4 4" />
+  <path className="f" d="M31 6C16 6 5 17 5 31c0 12 9 21 19.5 21 4.5 0 5.6-3.8 3.6-6.8-1.7-2.7 0-6.6 4.6-6.6H40c9 0 16-5.8 16-14.6C56 13.5 45 6 31 6z" />
+  <circle className="s" cx="18" cy="24" r="4" /><circle className="s" cx="30" cy="16" r="4" /><circle className="s" cx="43" cy="21" r="4" />
 </Art>;
 
-/** Plugins: a plug with its cable and a charge. */
+/** Plugins: a plug. */
 const plugins = <Art>
-  <path d="M25 6v14M39 6v14" /><path className="s" d="M23 5h4v4h-4zM37 5h4v4h-4z" />
-  <path className="f" d="M19 20h26v14a13 13 0 0 1-26 0z" /><path d="M19 26h26" />
-  <path className="s" d="M33.5 29l-5 8h5l-3 7 7-10h-5l2-5z" />
-  <path d="M32 47v4c0 6 5 8 11 8h16M49 13l4-4M53 20h5M49 27l4 3" />
+  <path className="s" d="M22 5h5v15h-5zM37 5h5v15h-5z" /><path className="f" d="M16 20h32v13a16 16 0 0 1-32 0z" /><path d="M32 49v9" />
 </Art>;
 
-/** Parental control: a shield with a child and a clock. */
+/** Parental control: a shield with a child. */
 const parental = <Art>
-  <path className="f" d="M30 5l22 8v16c0 14-10 24-22 29C18 53 8 43 8 29V13z" /><path d="M30 10l17 6v13c0 11-7.5 19-17 23" />
-  <circle cx="25" cy="23" r="4.5" /><path d="M17 40c0-5.5 3.5-9 8-9s8 3.5 8 9" />
-  <circle className="s" cx="50" cy="49" r="8" /><circle cx="50" cy="49" r="6" /><path d="M50 45v4l3 2M50 42.2v.9M56.8 49h-.9" />
+  <path className="f" d="M32 5l23 8v17c0 14-10 24-23 29C19 54 9 44 9 30V13z" />
+  <circle className="s" cx="32" cy="24" r="5.5" /><path className="s" d="M22 44c0-6.5 4.5-11 10-11s10 4.5 10 11z" />
 </Art>;
 
 export const SECTION_ART: Readonly<Record<string, ReactNode>> = {

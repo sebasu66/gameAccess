@@ -6,7 +6,7 @@ html.ga-navigation-shell {
   --ga-nav-bottom: calc(var(--ga-frame-bottom, 0px) + var(--ga-nav-outer-pad) + var(--ga-nav-status-h));
   --ga-nav-content-left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + 2 * var(--ga-nav-column-gap));
   --ga-nav-content-right: calc(var(--ga-nav-right) + var(--ga-nav-activity-w) + var(--ga-nav-column-gap));
-  /* The content starts under the section's title, which reaches over it (§4.3: the header). */
+  /* The content starts under the header row, level with the section's title (§4.3). */
   --ga-nav-head-h: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h));
 }
 .ga-nav-shell { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: var(--ga-nav-shell-ink); }
@@ -226,7 +226,13 @@ html.ga-navigation-shell .app-shell > main { margin: 0 !important; }
 html.ga-navigation-shell body :is(.ga-screen, .app-shell > main > .library-room:not(.surface-tablet):not(.surface-display)) {
   position: fixed !important; left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-body-top) !important; bottom: var(--ga-nav-bottom) !important;
   width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 var(--ga-nav-content-pad) var(--ga-nav-content-pad) !important; box-sizing: border-box;
-  background: radial-gradient(var(--ga-nav-content-glow-shape), color-mix(in srgb, var(--ga-mode) var(--ga-nav-content-glow), transparent), transparent var(--ga-nav-content-glow-reach)) !important; }
+  background: none !important; }
+/* The content's panel, header included, behind every screen: lit from its edges in the mode's color like an LCD,
+   darker toward the middle, so the centre belongs to the same piece as the mode bar and the panel. */
+html.ga-navigation-shell body::before { content: ""; position: fixed; z-index: 0; pointer-events: none; left: var(--ga-nav-content-left); right: var(--ga-nav-content-right); top: var(--ga-nav-top); bottom: var(--ga-nav-bottom);
+  border: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-stage-line), transparent); border-radius: var(--ga-nav-button-radius); box-sizing: border-box;
+  background: radial-gradient(var(--ga-nav-stage-shape), color-mix(in srgb, var(--ga-mode) var(--ga-nav-stage-core), var(--ga-nav-void)) var(--ga-nav-stage-core-reach), color-mix(in srgb, var(--ga-mode) var(--ga-nav-stage-edge), var(--ga-nav-void)) 100%);
+  box-shadow: inset 0 0 var(--ga-nav-stage-glow-blur) color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-stage-glow), transparent); }
 html.ga-navigation-shell body .library-room:not(.surface-tablet):not(.surface-display) { grid-template-columns: minmax(0, 1fr); }
 html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: 0 !important; }
 html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame { margin-inline: 0 !important; }
