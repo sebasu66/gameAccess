@@ -3,8 +3,8 @@
  * drawn with these, so a change to one piece, its template variables or a style reaches every section the same way.
  * Shape and measures live in templates/base.css, look in the flavor layer, and navigation-shell.css only reads them.
  */
-import { useLayoutEffect, type RefObject } from "react";
-import { Lock, type LucideIcon } from "lucide-react";
+import { useLayoutEffect, type ReactNode, type RefObject } from "react";
+import { Lock } from "lucide-react";
 import { useI18n, type TranslationKey } from "../i18n";
 import type { NavigationModeId } from "./navigationTree";
 import { NAVIGATION } from "./navigationTree";
@@ -93,17 +93,18 @@ export function SubmodeTabs({ mode, section, onLocked }: { mode: NavigationModeI
   })}</ul>;
 }
 
-/** One section as a stepped arrow: icon in a ring, name, description and the chevrons that light on hover. */
-export function SectionButton({ icon: Icon, label, desc, step, disabled, locked, onClick }: {
-  icon: LucideIcon; label: TranslationKey; desc: TranslationKey; step: number; disabled?: boolean;
+/** One section as an arrow: its icon as an oversized watermark on the left, name, description and the chevrons that light on hover. */
+export function SectionButton({ art, label, desc, disabled, locked, onClick }: {
+  /** The section's line drawing (sectionArt.tsx), shown as a watermark. */
+  art: ReactNode; label: TranslationKey; desc: TranslationKey; disabled?: boolean;
   /** Outside the player's plan: drawn as usual with a padlock, and the click opens the plans. */
   locked?: boolean; onClick: () => void;
 }) {
   const { t } = useI18n();
-  return <li style={{ "--ga-nav-step": step } as React.CSSProperties}>
+  return <li>
     <button type="button" className="ga-nav-section" data-locked={locked || undefined} disabled={disabled && !locked} onClick={onClick}>
-      <span className="ga-nav-section-shape" aria-hidden="true" />
-      <span className="ga-nav-section-icon" aria-hidden="true"><Icon /></span>
+      {/* The icon is a watermark larger than the button, cut by its left edge (inside the shape, which clips it). */}
+      <span className="ga-nav-section-shape" aria-hidden="true"><span className="ga-nav-section-mark">{art}</span></span>
       <span className="ga-nav-section-text">
         <span className="ga-nav-section-name" data-fit="">{t(label)}</span>
         <span className="ga-nav-section-desc">{t(desc)}</span>

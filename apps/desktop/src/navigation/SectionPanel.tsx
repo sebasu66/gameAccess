@@ -1,22 +1,11 @@
 import { useRef, useState } from "react";
-import {
-  ArrowDownToLine, BookOpen, CircleHelp, Crown, Heart, Lightbulb, Megaphone, Palette, Play, Plug, Rows3, Search,
-  ShieldCheck, SlidersHorizontal, Sparkles, Star, User, type LucideIcon,
-} from "lucide-react";
 import { useI18n } from "../i18n";
 import { NAVIGATION, type NavigationModeId } from "./navigationTree";
 import { sectionListOrder } from "./navigationSelection";
 import { usePlus } from "../kidMode";
 import { planLocked } from "./planLocks";
+import { SECTION_ART } from "./sectionArt";
 import { PanelArt, SectionButton, SubmodeTabs, TitlePlate, useFitText } from "./pieces";
-
-/** A descriptive icon per section; none repeats a mode's icon (§4.2: Manager is a table with rows, not the catalog's grid). */
-const SECTION_ICONS: Record<string, LucideIcon> = {
-  explore: Search, smartSearch: Sparkles, aiSuggestions: Lightbulb, newGames: Star, tasteProfile: Heart,
-  play: Play, downloads: ArrowDownToLine, manager: Rows3,
-  news: Megaphone, guide: BookOpen, account: User, subscription: Crown, help: CircleHelp,
-  general: SlidersHorizontal, appearance: Palette, plugins: Plug, parental: ShieldCheck,
-};
 
 /** The sections panel (vault/Rediseño de navegación.md §4.2): the chosen section as a title that reaches over the content, the others as stepped arrows. */
 export default function SectionPanel({ mode, selected, reachable, onOpen, onLocked }: { mode: NavigationModeId; selected: string; reachable: (section: string) => boolean; onOpen: (section: string) => void; onLocked: () => void }) {
@@ -37,10 +26,10 @@ export default function SectionPanel({ mode, selected, reachable, onOpen, onLock
     <TitlePlate name={t(chosen.label)} desc={t(chosen.desc)} />
     <div className="ga-nav-panel-flow">
       <SubmodeTabs mode={mode} section={chosen.id} onLocked={onLocked} />
-      <ul className="ga-nav-section-list">{order.map((id, index) => {
+      <ul className="ga-nav-section-list">{order.map(id => {
         const section = current.sections.find(item => item.id === id)!;
         const locked = planLocked(plus, id);
-        return <SectionButton key={id} icon={SECTION_ICONS[id] ?? Search} label={section.label} desc={section.desc} step={index} disabled={!reachable(id)} locked={locked} onClick={() => locked ? onLocked() : onOpen(id)} />;
+        return <SectionButton key={id} art={SECTION_ART[id]} label={section.label} desc={section.desc} disabled={!reachable(id)} locked={locked} onClick={() => locked ? onLocked() : onOpen(id)} />;
       })}</ul>
     </div>
   </nav>;
