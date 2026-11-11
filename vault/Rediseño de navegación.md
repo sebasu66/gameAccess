@@ -71,7 +71,7 @@ Estados: correcto `#6fcfb0`, error `#ff5d4d`. El color del modo activo se public
 - Al cambiar de modo: las letras de la palabra entran escalonadas y las franjas entran desde la izquierda. La imagen del panel de secciones hace un barrido y cambia.
 
 ### 4.2 Panel de secciones
-- **Fondo:** una imagen por modo (§6), con el motivo abajo y la parte de arriba más libre. Esquina inferior derecha cortada en diagonal y tres franjas diagonales que terminan en ese corte, como las de la barra de modos.
+- **Fondo:** una imagen por modo (§6), con el motivo abajo y la parte de arriba más libre. Esquina inferior derecha cortada en diagonal, como los demás paneles. Abajo, la imagen misma se corta en tres franjas con huecos entre ellas, en el mismo ángulo que las franjas de la barra de modos (no son franjas de color; Seba, 2026-11-11).
 - **Título (la sección elegida):** sale de la lista y queda arriba, más grande, como una flecha del ancho del panel: solo los tres chevrones de la punta entran en el contenido (Seba, 2026-11-11: el título que se metía a medias dejaba un hueco incómodo arriba). El contenido, cabecera incluida, es un panel con un tinte apagado del color del modo que se desvanece de izquierda a derecha. Nombre grande, descripción corta debajo, y en la punta tres chevrones siempre encendidos. Fondo con el color del modo en degradé.
 - **Submodos:** si la sección tiene pestañas, van debajo del título, dentro del panel (no en el contenido).
 - **Botones de las otras secciones:**

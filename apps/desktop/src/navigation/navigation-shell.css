@@ -62,17 +62,19 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  clip-path: var(--ga-nav-panel-shape); }
+  /* The image itself ends in three strips cut at the mode bar's angle, with gaps between them (Seba, 2026-11-11).
+     One polygon: the strips are joined along the left edge by zero-width runs, so the gaps show through. */
+  --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant)); --ga-nav-sh: var(--ga-nav-stripe-h); --ga-nav-sg: var(--ga-nav-band-gap);
+  --ga-nav-s0: calc(100% - var(--ga-nav-sh)); --ga-nav-s1: calc(100% - 2 * var(--ga-nav-sh) - var(--ga-nav-sg)); --ga-nav-s2: calc(100% - 3 * var(--ga-nav-sh) - 2 * var(--ga-nav-sg)); --ga-nav-s3: calc(100% - 3 * var(--ga-nav-sh) - 3 * var(--ga-nav-sg));
+  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-s3) - var(--ga-nav-ss)), 0 var(--ga-nav-s3),
+    0 var(--ga-nav-s2), 100% calc(var(--ga-nav-s2) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-s1) - var(--ga-nav-sg) - var(--ga-nav-ss)), 0 calc(var(--ga-nav-s1) - var(--ga-nav-sg)),
+    0 var(--ga-nav-s1), 100% calc(var(--ga-nav-s1) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-s0) - var(--ga-nav-sg) - var(--ga-nav-ss)), 0 calc(var(--ga-nav-s0) - var(--ga-nav-sg)),
+    0 var(--ga-nav-s0), 100% calc(var(--ga-nav-s0) - var(--ga-nav-ss)), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
 .ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
 .ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
 .ga-nav-panel-shade { background: var(--ga-nav-panel-shade-fill); }
 .ga-nav-panel-scan { background: var(--ga-nav-scan-fill); opacity: var(--ga-nav-scan-opacity); }
-.ga-nav-panel-stripes { --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant)); position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: var(--ga-nav-band-gap); }
-.ga-nav-panel-stripes i { display: block; height: calc(var(--ga-nav-ss) + var(--ga-nav-stripe-extra)); margin-top: calc(-1 * var(--ga-nav-ss)); clip-path: polygon(0 var(--ga-nav-ss), 100% 0, 100% calc(100% - var(--ga-nav-ss)), 0 100%); }
-.ga-nav-panel-stripes i:first-child { margin-top: 0; background: color-mix(in srgb, var(--ga-mode) 38%, var(--ga-nav-chevron-dark)); }
-.ga-nav-panel-stripes i:nth-child(2) { background: color-mix(in srgb, var(--ga-mode) 68%, var(--ga-nav-chevron-dark)); }
-.ga-nav-panel-stripes i:last-child { background: var(--ga-mode); clip-path: polygon(0 var(--ga-nav-ss), 100% 0, 100% 100%, 0 100%); }
 
 .ga-nav-hero { position: absolute; z-index: 2; top: var(--ga-nav-section-pad); left: var(--ga-nav-section-pad); width: calc(100% - var(--ga-nav-section-pad) + var(--ga-nav-title-overhang)); height: var(--ga-nav-hero-h); pointer-events: none; }
 .ga-nav-hero-plate { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--ga-nav-hero-gap); padding: 0 calc(var(--ga-nav-hero-tip) + var(--ga-nav-section-gap)) 0 calc(var(--ga-nav-hero-edge) + var(--ga-nav-section-pad)); box-sizing: border-box; color: var(--ga-nav-shell-ink);

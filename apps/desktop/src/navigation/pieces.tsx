@@ -56,7 +56,6 @@ export function Chevrons({ big }: { big?: boolean }) {
 export function PanelArt() {
   return <div className="ga-nav-panel-art" aria-hidden="true">
     <i className="ga-nav-panel-image" /><i className="ga-nav-panel-tint" /><i className="ga-nav-panel-shade" /><i className="ga-nav-panel-scan" />
-    <span className="ga-nav-panel-stripes"><i /><i /><i /></span>
   </div>;
 }
 
