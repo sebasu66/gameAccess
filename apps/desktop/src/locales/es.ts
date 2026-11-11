@@ -7,7 +7,7 @@ export const es = {
   navManager: "Manager", navGames: "Juegos", navSpace: "Espacio", navFreeze: "Congelar", navMove: "Mover", navImport: "Importar",
   navNews: "Novedades", navLatestVersion: "Última versión", navAnnouncements: "Anuncios", navHowToUse: "Cómo se usa",
   navMyAccount: "Mi cuenta", navSubscription: "Suscripción", navHelpContact: "Ayuda y contacto", navFaq: "Preguntas frecuentes", navContactUs: "Escribinos",
-  navGeneral: "General", navGamesDownloads: "Juegos y descargas", navSteam: "Steam", navArtificialIntelligence: "Inteligencia artificial", navOtherSettings: "Otros ajustes",
+  navGeneral: "General", navGamesDownloads: "Juegos y descargas", navSteam: "Steam", navArtificialIntelligence: "Inteligencia artificial", navOptions: "Opciones",
   navAppearance: "Apariencia", navStyle: "Estilo", navDetails: "Detalles", navPlugins: "Plugins", navParental: "Control parental", navTime: "Tiempo", navFilter: "Filtro",
   navModesAria: "Modos de Game Access", navSectionsAria: "Secciones del modo", navStatusAria: "Estado de Game Access",
   navPlanBase: "BASE", navPlanPlus: "PLUS",

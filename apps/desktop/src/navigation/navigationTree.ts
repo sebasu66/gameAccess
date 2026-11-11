@@ -59,7 +59,7 @@ export const NAVIGATION = [
         { id: "gamesDownloads", label: "navGamesDownloads" },
         { id: "steam", label: "navSteam" },
         { id: "ai", label: "navArtificialIntelligence" },
-        { id: "other", label: "navOtherSettings" },
+        { id: "options", label: "navOptions" },
       ] },
       { id: "appearance", label: "navAppearance", tabs: [
         { id: "general", label: "navGeneral" },
