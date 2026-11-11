@@ -62,18 +62,16 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  /* The image's lower part is cut along the very lines that split the mode bar's bands, carried on at the same angle,
-     so the panel ends in strips as tall as those bands (Seba, 2026-11-11). The gaps are cut out, not painted: what is behind
-     the panel shows through. One polygon: the strips are joined along the left edge by zero-width runs.
-     --ga-nav-sl: how far a band line has risen by the panel's left edge; --ga-nav-ss: how much more across the panel. */
-  --ga-nav-sl: calc(var(--ga-nav-mode-slant) * (1 + var(--ga-nav-stripe-lead))); --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant));
-  --ga-nav-sp: calc(var(--ga-nav-band-h) - var(--ga-nav-mode-slant) + var(--ga-nav-band-gap)); --ga-nav-sg: var(--ga-nav-stripe-gap);
-  --ga-nav-c0: calc(100% - var(--ga-nav-band-h) + var(--ga-nav-mode-slant) - (var(--ga-nav-band-gap) + var(--ga-nav-sg)) / 2 - var(--ga-nav-sl));
-  --ga-nav-c1: calc(var(--ga-nav-c0) - var(--ga-nav-sp)); --ga-nav-c2: calc(var(--ga-nav-c0) - 2 * var(--ga-nav-sp));
-  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-c2) - var(--ga-nav-ss)), 0 var(--ga-nav-c2),
-    0 calc(var(--ga-nav-c2) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c2) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-c1) - var(--ga-nav-ss)), 0 var(--ga-nav-c1),
-    0 calc(var(--ga-nav-c1) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c1) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-c0) - var(--ga-nav-ss)), 0 var(--ga-nav-c0),
-    0 calc(var(--ga-nav-c0) + var(--ga-nav-sg)), 100% calc(var(--ga-nav-c0) + var(--ga-nav-sg) - var(--ga-nav-ss)), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%); }
+  /* Its cut corner breaks up into strips parallel to the cut: five cuts that come closer together toward the corner,
+     each strip a little wider than the one below it (Seba, 2026-11-11). A mask, not paint: the cuts show what is behind
+     the panel. The gradient runs from the bottom-right corner, so every stop is a distance from it at 45°. */
+  --ga-nav-u: var(--ga-nav-cut-unit); --ga-nav-k0: calc(var(--ga-nav-panel-cut) * .7071 + var(--ga-nav-u));
+  --ga-nav-k1: calc(var(--ga-nav-k0) + 1.4 * var(--ga-nav-u)); --ga-nav-k2: calc(var(--ga-nav-k1) + var(--ga-nav-u)); --ga-nav-k3: calc(var(--ga-nav-k2) + 2 * var(--ga-nav-u));
+  --ga-nav-k4: calc(var(--ga-nav-k3) + var(--ga-nav-u)); --ga-nav-k5: calc(var(--ga-nav-k4) + 3 * var(--ga-nav-u)); --ga-nav-k6: calc(var(--ga-nav-k5) + var(--ga-nav-u));
+  --ga-nav-k7: calc(var(--ga-nav-k6) + 4.4 * var(--ga-nav-u)); --ga-nav-k8: calc(var(--ga-nav-k7) + var(--ga-nav-u)); --ga-nav-k9: calc(var(--ga-nav-k8) + 6.4 * var(--ga-nav-u)); --ga-nav-k10: calc(var(--ga-nav-k9) + var(--ga-nav-u));
+  --ga-nav-cut-mask: linear-gradient(315deg, transparent 0 var(--ga-nav-k0), black 0 var(--ga-nav-k1), transparent 0 var(--ga-nav-k2), black 0 var(--ga-nav-k3), transparent 0 var(--ga-nav-k4),
+    black 0 var(--ga-nav-k5), transparent 0 var(--ga-nav-k6), black 0 var(--ga-nav-k7), transparent 0 var(--ga-nav-k8), black 0 var(--ga-nav-k9), transparent 0 var(--ga-nav-k10), black 0);
+  clip-path: var(--ga-nav-panel-shape); -webkit-mask-image: var(--ga-nav-cut-mask); mask-image: var(--ga-nav-cut-mask); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
 .ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
 .ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
