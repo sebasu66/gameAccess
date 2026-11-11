@@ -40,7 +40,7 @@
   /* Sections panel (§4.2): its cut corner, the image's opacity, tint and blur (Appearance › Details), the title that reaches over
      the content, the stepped buttons, their chevrons and the least size a text shrinks to. */
   --ga-nav-panel-cut: clamp(40px, 5.9vh, 64px); --ga-nav-panel-image-opacity: 1; --ga-nav-panel-tint: 0; --ga-nav-panel-blur: 0px; --ga-nav-panel-bleed: 12px;
-  --ga-nav-hero-h: clamp(76px, 9.6vh, 104px); --ga-nav-hero-name-size: clamp(40px, 6.5vh, 70px); --ga-nav-hero-desc-size: 12px; --ga-nav-hero-edge: 6px; --ga-nav-hero-gap: 4px;
+  --ga-nav-hero-h: clamp(76px, 9.6vh, 104px); --ga-nav-hero-name-size: clamp(40px, 6.5vh, 70px); --ga-nav-hero-desc-size: 13px; --ga-nav-hero-desc-weight: 700; --ga-nav-hero-desc-opacity: 1; --ga-nav-hero-desc-shadow-y: 1px; --ga-nav-hero-desc-shadow-blur: 3px; --ga-nav-hero-edge: 6px; --ga-nav-hero-gap: 4px;
   --ga-nav-section-h: clamp(64px, 8.15vh, 88px); --ga-nav-section-name-size: clamp(22px, 2.96vh, 32px); --ga-nav-section-desc-size: 11.5px;
   --ga-nav-section-room: calc(3 * (var(--ga-nav-chevron-t) + var(--ga-nav-chevron-g)));
   --ga-nav-section-mark: calc(var(--ga-nav-section-h) * 1.4); --ga-nav-section-mark-show: .42; --ga-nav-section-mark-opacity: .7; --ga-nav-section-mark-opacity-on: 1; --ga-nav-section-mark-fill: .14; --ga-nav-section-mark-fill-strong: .34; --ga-nav-section-mark-stroke: .8;
@@ -50,7 +50,7 @@
   --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
   --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
   --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%; --ga-nav-tab-off-text: .7;
-  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: clamp(14px, 1.6vh, 17px); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-tip-at: .5; --ga-nav-lock-big: clamp(20px, 2.6vh, 26px);
+  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: calc(clamp(14px, 1.6vh, 17px) * var(--ga-nav-pill-scale, 1)); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-tip-at: .5; --ga-nav-lock-big: clamp(20px, 2.6vh, 26px);
   --ga-nav-content-glow: 16%; --ga-nav-content-glow-reach: 70%; --ga-nav-content-glow-shape: ellipse at 50% 0%;
   --ga-nav-head-clear: calc(var(--ga-nav-hero-tip) + 3 * (var(--ga-nav-chevron-big-t) + var(--ga-nav-chevron-big-g)) + var(--ga-nav-section-gap));
   --ga-nav-head-search-w: 560px; --ga-nav-head-field-h: clamp(40px, 4.6vh, 50px); --ga-nav-head-icon: 20px; --ga-nav-head-text: clamp(14px, 1.5vh, 16px);

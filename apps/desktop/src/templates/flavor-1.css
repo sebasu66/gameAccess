@@ -14,6 +14,6 @@
   --ga-nav-pill-line: #0a0705; --ga-nav-pill-line-on: #0a0705; --ga-nav-pill-base: #14100ce6;
   --ga-nav-pill-shadow-x: 3px; --ga-nav-pill-shadow-y: 3px; --ga-nav-pill-shadow-blur: 0px; --ga-nav-pill-shadow-tint: 0%; --ga-nav-pill-shadow-ink: #000000;
   --ga-nav-pill-dot-radius: 50%; --ga-nav-pill-dot-turn: 0deg;
-  --ga-nav-pill-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif; --ga-nav-pill-weight: 400; --ga-nav-pill-case: uppercase; --ga-nav-pill-tracking: .04em;
+  --ga-nav-pill-family: var(--ga-text-family); --ga-nav-pill-weight: 800; --ga-nav-pill-case: none; --ga-nav-pill-tracking: 0; --ga-nav-pill-scale: .86;
   --ga-nav-transition-time: .6s;
 }

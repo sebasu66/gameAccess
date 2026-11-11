@@ -3,7 +3,7 @@
  * drawn with these, so a change to one piece, its template variables or a style reaches every section the same way.
  * Shape and measures live in templates/base.css, look in the flavor layer, and navigation-shell.css only reads them.
  */
-import { useLayoutEffect, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Lock } from "lucide-react";
 import { useI18n, type TranslationKey } from "../i18n";
 import type { NavigationModeId } from "./navigationTree";
@@ -12,6 +12,7 @@ import { selectNavigationTab, tabReady, useSectionTab } from "./navigationSelect
 import { usePlus } from "../kidMode";
 import { planLocked } from "./planLocks";
 import { currentCssValue, SHELL_LOOK_EVENT } from "./shellLook";
+import { packPills } from "./pillRows";
 
 /** Texts marked `data-fit` that do not fit shrink down to the template's least size; they never spill. */
 export function shrinkToFit(root: HTMLElement): void {
@@ -76,17 +77,49 @@ export function PlanLock() {
   return <span className="ga-nav-lock" data-tip={t("navPlusOnly")} role="img" aria-label={t("navPlusOnly")}><Lock aria-hidden="true" /></span>;
 }
 
-/** A section's submodes, from the navigation tree, as pills that wrap: the chosen one filled with its dot lit, the ones
+/** The pills' drawn order (pillRows.ts), measured again on a resize, a new style or a font that arrives. */
+function usePillOrder(key: string): { list: RefObject<HTMLUListElement>; ref: number[] } {
+  const list = useRef<HTMLUListElement>(null);
+  const [order, setOrder] = useState<number[]>([]);
+  useLayoutEffect(() => {
+    const root = list.current;
+    if (!root) return;
+    const pack = () => {
+      const style = getComputedStyle(root);
+      const room = root.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const widths: number[] = [];
+      root.querySelectorAll<HTMLElement>(":scope > li[data-pill]").forEach(li => { widths[Number(li.dataset.pill)] = li.getBoundingClientRect().width; });
+      const next = packPills(widths, room, parseFloat(style.columnGap) || 0);
+      setOrder(prev => prev.join() === next.join() ? prev : next);
+    };
+    pack();
+    const observer = new ResizeObserver(pack);
+    observer.observe(root);
+    // A pill can change size without the list doing so (a new font or letter size): watch each one too.
+    root.querySelectorAll(":scope > li").forEach(li => observer.observe(li));
+    const restyled = () => requestAnimationFrame(pack);
+    window.addEventListener(SHELL_LOOK_EVENT, restyled);
+    document.fonts?.addEventListener("loadingdone", pack);
+    void document.fonts?.ready.then(pack);
+    return () => { observer.disconnect(); window.removeEventListener(SHELL_LOOK_EVENT, restyled); document.fonts?.removeEventListener("loadingdone", pack); };
+  }, [key]);
+  return { list, ref: order };
+}
+
+/** A section's submodes, from the navigation tree, as pills that fill their rows: the chosen one filled with its dot lit, the ones
  *  without a screen yet dimmed, the ones outside the plan as usual with a padlock (a click opens the plans). */
 export function SubmodeTabs({ mode, section, onLocked }: { mode: NavigationModeId; section: string; onLocked: () => void }) {
   const { t } = useI18n();
   const plus = usePlus();
   const found = NAVIGATION.find(item => item.id === mode)?.sections.find(item => item.id === section);
   const chosen = useSectionTab(section);
-  if (!found?.tabs.length) return null;
-  return <ul className="ga-nav-tabs" aria-label={t(found.label)}>{found.tabs.map(item => {
+  const tabs: readonly { id: string; label: TranslationKey }[] = found?.tabs ?? [];
+  const order = usePillOrder(tabs.map(item => item.id).join(" "));
+  if (!tabs.length) return null;
+  const drawn = order.ref.length === tabs.length ? order.ref.map(index => tabs[index]) : tabs;
+  return <ul className="ga-nav-tabs" ref={order.list} aria-label={t(found!.label)}>{drawn.map(item => {
     const locked = planLocked(plus, section, item.id);
-    return <li key={item.id}>
+    return <li key={item.id} data-pill={tabs.indexOf(item)}>
       <button type="button" className="ga-nav-tab" aria-current={!locked && item.id === chosen ? "page" : undefined} data-locked={locked || undefined} disabled={!locked && !tabReady(section, item.id)}
         onClick={() => locked ? onLocked() : selectNavigationTab(mode, section, item.id)}><i className="ga-nav-tab-dot" aria-hidden="true" /><span>{t(item.label)}</span>{locked ? <PlanLock /> : null}</button>
     </li>;
