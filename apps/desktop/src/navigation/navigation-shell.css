@@ -91,14 +91,29 @@ html.ga-navigation-shell {
 /* Under the title: the section's submodes, then the other sections, with the same air between them (§4.2). */
 .ga-nav-panel-flow { position: relative; z-index: 1; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); padding: calc(var(--ga-nav-section-pad) + var(--ga-nav-hero-h) + var(--ga-nav-section-gap)) 0 0 var(--ga-nav-section-pad); }
 .ga-nav-section-list { display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); margin: 0; padding: 0; list-style: none; }
-.ga-nav-tabs { display: flex; flex-direction: column; gap: var(--ga-nav-tab-gap); margin: 0; padding: 0 var(--ga-nav-section-room) 0 var(--ga-nav-tab-indent); list-style: none; }
-.ga-nav-tab { display: flex; align-items: center; width: 100%; height: var(--ga-nav-tab-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box; border: var(--ga-nav-line-w) solid var(--ga-nav-tab-line); border-left-width: var(--ga-nav-section-bar); border-radius: var(--ga-nav-button-radius);
-  background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint), transparent); backdrop-filter: blur(var(--ga-nav-glass-blur)); color: var(--ga-nav-shell-ink); text-align: left; font: 700 var(--ga-nav-tab-size)/1 var(--ga-text-family); cursor: pointer; transition: background var(--ga-nav-hover-time), color var(--ga-nav-hover-time), border-color var(--ga-nav-hover-time); }
-.ga-nav-tab > span { min-width: 0; overflow: hidden; white-space: nowrap; }
-.ga-nav-tab:not(:disabled):hover, .ga-nav-tab:focus-visible { color: var(--ga-nav-shell-ink); background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint-hover), transparent); border-color: var(--ga-nav-shell-ink); outline: none; }
-.ga-nav-tab[aria-current="page"] { color: var(--ga-nav-ink-dark); background: var(--ga-mode-acc); border-color: var(--ga-nav-shell-ink); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 50%, transparent); }
-/* A submode without a screen yet keeps the same box as the others: only its letters dim, so every section's list reads the same. */
+/* A section's submodes as pills (§4.2): each as long as its name, wrapping row after row; a dot marks the active one.
+   The shape (radius, slanted edges, cut corners), the edge, the shadow and the dot come from the style; the fill is always flat so the name reads well. */
+.ga-nav-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-nav-pill-gap); margin: 0; padding: 0 var(--ga-nav-section-room) 0 var(--ga-nav-tab-indent); list-style: none; }
+.ga-nav-tabs > li { filter: drop-shadow(var(--ga-nav-pill-shadow-x) var(--ga-nav-pill-shadow-y) var(--ga-nav-pill-shadow-blur) color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-pill-shadow-tint), var(--ga-nav-pill-shadow-ink))); }
+.ga-nav-tab { --ga-nav-pill-shape: polygon(var(--ga-nav-pill-slant) 0, calc(100% - var(--ga-nav-pill-chamfer)) 0, 100% var(--ga-nav-pill-chamfer), calc(100% - var(--ga-nav-pill-slant)) 100%, var(--ga-nav-pill-chamfer) 100%, 0 calc(100% - var(--ga-nav-pill-chamfer)));
+  position: relative; display: inline-flex; align-items: center; gap: var(--ga-nav-pill-dot-gap); height: var(--ga-nav-pill-h); padding: 0 calc(var(--ga-nav-pill-pad) + var(--ga-nav-pill-slant)) 0 calc(var(--ga-nav-pill-pad) + var(--ga-nav-pill-slant) * .5);
+  box-sizing: border-box; border: 0; border-radius: var(--ga-nav-pill-radius); clip-path: var(--ga-nav-pill-shape); background: var(--ga-nav-pill-line); color: var(--ga-nav-shell-ink);
+  font: var(--ga-nav-display-style) var(--ga-nav-pill-weight) var(--ga-nav-pill-size)/1 var(--ga-nav-pill-family); text-transform: var(--ga-nav-pill-case); letter-spacing: var(--ga-nav-pill-tracking); white-space: nowrap; cursor: pointer; transition: background var(--ga-nav-hover-time), color var(--ga-nav-hover-time); }
+.ga-nav-tab::before { content: ""; position: absolute; inset: var(--ga-nav-pill-edge); border-radius: max(0px, calc(var(--ga-nav-pill-radius) - var(--ga-nav-pill-edge))); clip-path: var(--ga-nav-pill-shape);
+  background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint), var(--ga-nav-pill-base)); transition: background var(--ga-nav-hover-time); }
+.ga-nav-tab { max-width: 100%; }
+.ga-nav-tab > * { position: relative; }
+.ga-nav-tab > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ga-nav-tab-dot { flex: none; width: var(--ga-nav-pill-dot); height: var(--ga-nav-pill-dot); box-sizing: border-box; border: var(--ga-nav-pill-dot-ring) solid currentColor; border-radius: var(--ga-nav-pill-dot-radius); transform: rotate(var(--ga-nav-pill-dot-turn)); opacity: var(--ga-nav-pill-dot-off); transition: background var(--ga-nav-hover-time), opacity var(--ga-nav-hover-time), box-shadow var(--ga-nav-hover-time); }
+.ga-nav-tab:not(:disabled):hover::before, .ga-nav-tab:focus-visible::before { background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint-hover), var(--ga-nav-pill-base)); }
+.ga-nav-tab:not(:disabled):hover, .ga-nav-tab:focus-visible { background: var(--ga-nav-shell-ink); outline: none; }
+.ga-nav-tab:not(:disabled):hover .ga-nav-tab-dot { opacity: 1; }
+.ga-nav-tab[aria-current="page"] { color: var(--ga-nav-ink-dark); background: var(--ga-nav-pill-line-on); }
+.ga-nav-tab[aria-current="page"]::before { background: var(--ga-mode-acc); }
+.ga-nav-tab[aria-current="page"] .ga-nav-tab-dot { opacity: 1; background: currentColor; box-shadow: 0 0 0 var(--ga-nav-pill-dot-ring) color-mix(in srgb, var(--ga-nav-shell-ink) 60%, transparent); }
+/* A submode without a screen yet keeps the same pill: only its letters and dot dim. */
 .ga-nav-tab:disabled { color: var(--ga-nav-shell-muted); cursor: default; }
+.ga-nav-tab:disabled .ga-nav-tab-dot { border-style: dashed; }
 .ga-nav-tab:disabled > span { opacity: var(--ga-nav-tab-off-text); }
 .ga-nav-section { --ga-nav-arrow: var(--ga-nav-button-cut); position: relative; width: calc(100% - var(--ga-nav-section-room) - min(var(--ga-nav-step) * var(--ga-nav-section-step), var(--ga-nav-section-step-max))); height: var(--ga-nav-section-h);
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ga-nav-section-gap); padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 var(--ga-nav-section-gap); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }

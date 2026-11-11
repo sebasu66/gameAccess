@@ -9,5 +9,11 @@
   --ga-nav-button-cut: 44px; --ga-nav-panel-corner: 26px; --ga-nav-button-radius: 0px;
   --ga-nav-button-fill: solid; --ga-nav-icon-fill: flat; --ga-nav-rail-graphic: paper;
   --ga-nav-glow: .5; --ga-nav-scan-opacity: 1; --ga-nav-grain-opacity: .28;
+  /* Submode pills: inked comic panel and a hard offset shadow. */
+  --ga-nav-pill-radius: 10px; --ga-nav-pill-slant: 0px; --ga-nav-pill-chamfer: 0px; --ga-nav-pill-edge: 2px;
+  --ga-nav-pill-line: #0a0705; --ga-nav-pill-line-on: #0a0705; --ga-nav-pill-base: #14100ce6;
+  --ga-nav-pill-shadow-x: 3px; --ga-nav-pill-shadow-y: 3px; --ga-nav-pill-shadow-blur: 0px; --ga-nav-pill-shadow-tint: 0%; --ga-nav-pill-shadow-ink: #000000;
+  --ga-nav-pill-dot-radius: 50%; --ga-nav-pill-dot-turn: 0deg;
+  --ga-nav-pill-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif; --ga-nav-pill-weight: 400; --ga-nav-pill-case: uppercase; --ga-nav-pill-tracking: .04em;
   --ga-nav-transition-time: .6s;
 }

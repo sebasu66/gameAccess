@@ -68,7 +68,7 @@ export function TitlePlate({ name, desc }: { name: string; desc: string }) {
   </div>;
 }
 
-/** A section's submodes, from the navigation tree: the chosen one filled, the ones without a screen yet dimmed. */
+/** A section's submodes, from the navigation tree, as pills that wrap: the chosen one filled with its dot lit, the ones without a screen yet dimmed. */
 export function SubmodeTabs({ mode, section }: { mode: NavigationModeId; section: string }) {
   const { t } = useI18n();
   const found = NAVIGATION.find(item => item.id === mode)?.sections.find(item => item.id === section);
@@ -76,7 +76,7 @@ export function SubmodeTabs({ mode, section }: { mode: NavigationModeId; section
   if (!found?.tabs.length) return null;
   return <ul className="ga-nav-tabs" aria-label={t(found.label)}>{found.tabs.map(item => <li key={item.id}>
     <button type="button" className="ga-nav-tab" aria-current={item.id === chosen ? "page" : undefined} disabled={!tabReady(section, item.id)}
-      onClick={() => selectNavigationTab(mode, section, item.id)}><span data-fit="">{t(item.label)}</span></button>
+      onClick={() => selectNavigationTab(mode, section, item.id)}><i className="ga-nav-tab-dot" aria-hidden="true" /><span>{t(item.label)}</span></button>
   </li>)}</ul>;
 }
 

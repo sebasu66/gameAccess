@@ -16,5 +16,11 @@
   --ga-nav-button-cut: 0px; --ga-nav-panel-corner: 0px; --ga-nav-button-radius: 14px;
   --ga-nav-button-fill: outline; --ga-nav-icon-fill: glass; --ga-nav-rail-graphic: circuit;
   --ga-nav-glow: .7; --ga-nav-scan-opacity: 0; --ga-nav-grain-opacity: 0;
+  /* Submode pills: round console capsules and a soft glow. */
+  --ga-nav-pill-radius: 999px; --ga-nav-pill-slant: 0px; --ga-nav-pill-chamfer: 0px; --ga-nav-pill-edge: 1px;
+  --ga-nav-pill-line: #9fe8ff59; --ga-nav-pill-line-on: #e6fbff; --ga-nav-pill-base: #060b10d9;
+  --ga-nav-pill-shadow-x: 0px; --ga-nav-pill-shadow-y: 0px; --ga-nav-pill-shadow-blur: 8px; --ga-nav-pill-shadow-tint: 55%; --ga-nav-pill-shadow-ink: transparent;
+  --ga-nav-pill-dot-radius: 50%; --ga-nav-pill-dot-turn: 0deg;
+  --ga-nav-pill-family: "Saira Condensed", "Arial Narrow", sans-serif; --ga-nav-pill-weight: 600; --ga-nav-pill-case: none; --ga-nav-pill-tracking: .03em;
   --ga-nav-transition-time: .55s;
 }

@@ -18,7 +18,8 @@ describe("capas de estilo", () => {
   });
 
   it("los cuatro estilos están disponibles sin conexión y tienen los mismos roles visuales", () => {
-    const roles = ["display-family", "display-style", "display-case", "button-cut", "panel-corner", "button-radius", "button-fill", "icon-fill", "rail-graphic", "glow", "scan-opacity", "grain-opacity", "transition-time"];
+    const roles = ["display-family", "display-style", "display-case", "button-cut", "panel-corner", "button-radius", "button-fill", "icon-fill", "rail-graphic", "glow", "scan-opacity", "grain-opacity", "transition-time",
+      "pill-radius", "pill-slant", "pill-chamfer", "pill-edge", "pill-line", "pill-shadow-x", "pill-dot-radius", "pill-family"];
     const main = css("main.tsx");
     for (const [index, name] of numberedStyleFlavors.entries()) {
       const sheet = css(`templates/flavor-${index + 1}.css`);

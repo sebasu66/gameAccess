@@ -16,5 +16,11 @@
   --ga-nav-button-cut: 30px; --ga-nav-panel-corner: 16px; --ga-nav-button-radius: 0px;
   --ga-nav-button-fill: solid; --ga-nav-icon-fill: duotone; --ga-nav-rail-graphic: hazard;
   --ga-nav-glow: .3; --ga-nav-scan-opacity: 0; --ga-nav-grain-opacity: 0;
+  /* Submode pills: military plates with cut corners and a diamond marker. */
+  --ga-nav-pill-radius: 0px; --ga-nav-pill-slant: 0px; --ga-nav-pill-chamfer: 9px; --ga-nav-pill-edge: 1px;
+  --ga-nav-pill-line: #ffffff59; --ga-nav-pill-line-on: #f0f3f4; --ga-nav-pill-base: #0b0e0ce6;
+  --ga-nav-pill-shadow-x: 0px; --ga-nav-pill-shadow-y: 2px; --ga-nav-pill-shadow-blur: 0px; --ga-nav-pill-shadow-tint: 0%; --ga-nav-pill-shadow-ink: #000000b3;
+  --ga-nav-pill-dot-radius: 1px; --ga-nav-pill-dot-turn: 45deg;
+  --ga-nav-pill-family: "Teko", "Arial Narrow", sans-serif; --ga-nav-pill-weight: 600; --ga-nav-pill-case: uppercase; --ga-nav-pill-tracking: .06em;
   --ga-nav-transition-time: .35s;
 }
