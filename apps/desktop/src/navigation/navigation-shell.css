@@ -61,13 +61,14 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 
 /* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
 .ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
+/* Black under the image, so the line between its strips reads clearly (the title's chevrons are not clipped). */
+.ga-nav-sections::before { content: ""; position: absolute; inset: 0; background: var(--ga-nav-stripe-line); clip-path: var(--ga-nav-panel-shape); }
 .ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
-  /* The image itself ends in three strips cut at the mode bar's angle, with gaps between them (Seba, 2026-11-11).
-     One polygon: the strips are joined along the left edge by zero-width runs, so the gaps show through. */
-  --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant)); --ga-nav-sh: var(--ga-nav-stripe-h); --ga-nav-sg: var(--ga-nav-band-gap);
-  --ga-nav-s0: calc(100% - var(--ga-nav-sh)); --ga-nav-s1: calc(100% - 2 * var(--ga-nav-sh) - var(--ga-nav-sg)); --ga-nav-s2: calc(100% - 3 * var(--ga-nav-sh) - 2 * var(--ga-nav-sg)); --ga-nav-s3: calc(100% - 3 * var(--ga-nav-sh) - 3 * var(--ga-nav-sg));
-  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-s3) - var(--ga-nav-ss)), 0 var(--ga-nav-s3),
-    0 var(--ga-nav-s2), 100% calc(var(--ga-nav-s2) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-s1) - var(--ga-nav-sg) - var(--ga-nav-ss)), 0 calc(var(--ga-nav-s1) - var(--ga-nav-sg)),
+  /* The image itself ends in two wide strips cut at the mode bar's angle, split by a black line (Seba, 2026-11-11).
+     One polygon: the lower strip is joined along the left edge by a zero-width run, so the gap shows the panel's black. */
+  --ga-nav-ss: calc(var(--ga-nav-mode-slant) * var(--ga-nav-stripe-slant)); --ga-nav-sh: var(--ga-nav-stripe-h); --ga-nav-sg: var(--ga-nav-stripe-gap);
+  --ga-nav-s0: calc(100% - var(--ga-nav-sh)); --ga-nav-s1: calc(100% - 2 * var(--ga-nav-sh) - var(--ga-nav-sg)); --ga-nav-s2: calc(100% - 2 * var(--ga-nav-sh) - 2 * var(--ga-nav-sg));
+  clip-path: polygon(0 0, 100% 0, 100% calc(var(--ga-nav-s2) - var(--ga-nav-ss)), 0 var(--ga-nav-s2),
     0 var(--ga-nav-s1), 100% calc(var(--ga-nav-s1) - var(--ga-nav-ss)), 100% calc(var(--ga-nav-s0) - var(--ga-nav-sg) - var(--ga-nav-ss)), 0 calc(var(--ga-nav-s0) - var(--ga-nav-sg)),
     0 var(--ga-nav-s0), 100% calc(var(--ga-nav-s0) - var(--ga-nav-ss)), 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%); }
 .ga-nav-panel-art > i { position: absolute; inset: 0; }
@@ -208,7 +209,9 @@ html.ga-navigation-shell[data-ga-nav-head="games"] { --ga-nav-body-top: calc(var
   left: calc(var(--ga-nav-content-left) - var(--ga-nav-column-gap) + var(--ga-nav-title-overhang) + var(--ga-nav-head-clear)); display: flex; align-items: center; gap: var(--ga-nav-section-gap); }
 .ga-nav-head-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
 .ga-nav-head-search, .ga-nav-grid-search { position: relative; width: min(100%, var(--ga-nav-head-search-w)); }
-.ga-nav-grid-search { flex: 0 1 var(--ga-nav-head-search-w); min-width: 0; }
+/* Search, filters and sort in one row when they fit; on a narrow content the controls go to the next row. */
+html.ga-navigation-shell .ga-grid-toolbar { flex-wrap: wrap; row-gap: var(--ga-nav-pill-gap); }
+.ga-nav-grid-search { flex: 1 1 var(--ga-nav-head-search-w); min-width: var(--ga-nav-grid-search-min); max-width: var(--ga-nav-head-search-w); }
 .ga-nav-head-field, .ga-nav-grid-search .global-search-box { width: 100% !important; max-width: none; margin: 0; display: flex; align-items: center; gap: var(--ga-nav-section-gap); height: var(--ga-nav-head-field-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box;
   border: var(--ga-nav-line-w) solid var(--ga-nav-tab-line); border-left: var(--ga-nav-section-bar) solid var(--ga-mode-acc); border-radius: var(--ga-nav-button-radius); background: var(--ga-nav-section-fill); backdrop-filter: blur(var(--ga-nav-glass-blur));
   color: var(--ga-nav-shell-ink); transition: border-color var(--ga-nav-hover-time), box-shadow var(--ga-nav-hover-time); }

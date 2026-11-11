@@ -15,7 +15,7 @@
   --ga-nav-ok: #6fcfb0; --ga-nav-bad: #ff5d4d; --ga-nav-badge-ink: #090e12; --ga-nav-hover-bright: 1.22;
   --ga-nav-disabled-opacity: .42; --ga-nav-status-hover: #ffffff0d;
   /* The shell's mode bar and sections panel: dark ink on the mode colour, the panel's shade over its image, the lines. */
-  --ga-nav-void: #050607; --ga-nav-backdrop: #08090a; --ga-nav-ink-dark: #0a0705; --ga-nav-pale: #d9e2e4; --ga-nav-chevron-dark: #0b0d0f; --ga-nav-hero-end: #0e1113;
+  --ga-nav-void: #050607; --ga-nav-backdrop: #08090a; --ga-nav-stripe-line: #000; --ga-nav-ink-dark: #0a0705; --ga-nav-pale: #d9e2e4; --ga-nav-chevron-dark: #0b0d0f; --ga-nav-hero-end: #0e1113;
   --ga-nav-shade-top: #050607e6; --ga-nav-shade-mid: #050607b8; --ga-nav-shade-clear: #0506071f; --ga-nav-shade-foot: #05060780;
   --ga-nav-scan-line: #00000042; --ga-nav-hero-scan: #0000002e; --ga-nav-text-shadow: #00000073; --ga-nav-icon-shadow: #00000059;
   --ga-nav-section-line: #ffffff38; --ga-nav-section-fill: #080a0ce6; --ga-nav-section-fill-end: #080a0cb3; --ga-nav-section-ring-color: #ffffff8c;
