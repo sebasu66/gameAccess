@@ -12,6 +12,8 @@ html.ga-navigation-shell {
   --ga-nav-head-h: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h));
 }
 html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav-backdrop) !important; }
+/* Behind the panels the whole screen is near black, the device's metal frame included (Seba, 2026-11-11). */
+html.ga-navigation-shell .ga-frame-back { filter: brightness(var(--ga-nav-frame-dim)); }
 .ga-nav-shell { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: var(--ga-nav-shell-ink); }
 .ga-nav-shell > * { pointer-events: auto; }
 .ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-nav-catalog); --ga-mode-acc: var(--ga-nav-catalog-acc); --ga-nav-panel-image: var(--ga-nav-panel-catalog); }
