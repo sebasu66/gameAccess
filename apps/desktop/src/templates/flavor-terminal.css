@@ -29,5 +29,12 @@
   --ga-feed-title-font: 700 15px/1.3 var(--ga-text-family); --ga-feed-body-font: 400 14px/1.4 var(--ga-text-family); --ga-feed-small-font: 400 13px var(--ga-text-family);
   --ga-feed-time-font: 700 12px/1.2 var(--ga-text-family); --ga-feed-eyebrow-font: 700 12px var(--ga-text-family); --ga-feed-eyebrow-track: .08em;
   --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
+  /* RN1 default appearance, shared by the new shell until a numbered flavor is selected. */
+  --ga-nav-display-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+  --ga-nav-display-style: normal; --ga-nav-display-case: uppercase;
+  --ga-nav-button-cut: 44px; --ga-nav-panel-corner: 26px; --ga-nav-button-radius: 0px;
+  --ga-nav-button-fill: solid; --ga-nav-icon-fill: flat; --ga-nav-rail-graphic: paper;
+  --ga-nav-glow: .5; --ga-nav-scan-opacity: 1; --ga-nav-grain-opacity: .28;
+  --ga-nav-transition-time: .6s;
   --ga-card-label-font: 700 11px var(--ga-text-family); --ga-card-value-font: 600 14px var(--ga-text-family); --ga-card-eyebrow-font: 800 11px var(--ga-text-family); --ga-tray-font: 650 10px var(--ga-text-family);
 }

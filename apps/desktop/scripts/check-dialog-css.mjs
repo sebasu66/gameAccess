@@ -36,7 +36,7 @@ export function scanCss(source, file) {
       }
     }
   }
-  if (!THEME_FILES.has(file)) {
+  if (!THEME_FILES.has(file) && !/^templates\/flavor-[\w-]+\.css$/.test(file)) {
     for (const match of text.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
       const before = text.slice(Math.max(0, match.index - 200), match.index);
       if (/[{;]\s*[\w-]+\s*:[^;{}]*$/.test(before)) issues.push([lineOf(match.index), `color ${match[0]} — usá un token de :root`]);

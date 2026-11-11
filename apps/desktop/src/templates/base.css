@@ -16,6 +16,13 @@
   /* The smoke: how wide its content runs, the layer of its own dialogs, and how one dialog pushes another out (the distance is measured; this is the least). */
   --ga-smoke-w: 860px; --ga-smoke-layer: 12040; --ga-smoke-travel: 96px; --ga-smoke-time: .46s; --ga-smoke-ease: cubic-bezier(.45, 0, .2, 1);
   --ga-mode-rail-w: 112px; --ga-rail-inset: 12px; --ga-rail-gutter: 16px;
+  /* New navigation shell (RN1). Kept separate from the existing rail until RN2 replaces its layout. */
+  --ga-nav-mode-w: 120px; --ga-nav-sections-w: 392px; --ga-nav-activity-w: 264px;
+  --ga-nav-outer-pad: 28px; --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px;
+  --ga-nav-content-pad: 28px; --ga-nav-section-pad: 22px; --ga-nav-card-pad: 22px;
+  --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px; --ga-nav-band-h: 118px;
+  --ga-nav-title-size: 70px; --ga-nav-button-h: 42px; --ga-nav-button-pad-x: 18px;
+  --ga-nav-deck-size: 16px; --ga-nav-log-size: 11px;
   /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
   /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */

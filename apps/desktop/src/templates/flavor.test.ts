@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { setStyleFlavor, styleFlavor } from "./flavor";
+import { numberedStyleFlavors, setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
@@ -15,6 +15,30 @@ describe("capas de estilo", () => {
     expect(styleFlavor()).toBe("night");
     setStyleFlavor(null);
     expect(styleFlavor()).toBeNull();
+  });
+
+  it("los cuatro estilos están disponibles sin conexión y tienen los mismos roles visuales", () => {
+    const roles = ["display-family", "display-style", "display-case", "button-cut", "panel-corner", "button-radius", "button-fill", "icon-fill", "rail-graphic", "glow", "scan-opacity", "grain-opacity", "transition-time"];
+    const main = css("main.tsx");
+    for (const [index, name] of numberedStyleFlavors.entries()) {
+      const sheet = css(`templates/flavor-${index + 1}.css`);
+      expect(main).toContain(`./templates/flavor-${index + 1}.css`);
+      expect(sheet).toContain(`:root[data-ga-flavor="${name}"]`);
+      for (const role of roles) expect(sheet).toContain(`--ga-nav-${role}:`);
+      setStyleFlavor(name);
+      expect(styleFlavor()).toBe(name);
+    }
+    for (const font of ["Teko[wght].ttf", "SairaCondensed-SemiBold.ttf", "BarlowCondensed-BoldItalic.ttf"])
+      expect(existsSync(join(process.cwd(), "public", "fonts", font))).toBe(true);
+    setStyleFlavor(null);
+  });
+
+  it("la estructura del nuevo marco vive en la base y no en los sabores", () => {
+    const roles = ["mode-w", "sections-w", "activity-w", "outer-pad", "column-gap", "status-h", "content-pad", "section-pad", "card-pad", "section-gap", "action-gap"];
+    for (const role of roles) {
+      expect(base).toContain(`--ga-nav-${role}:`);
+      for (let index = 1; index <= 4; index++) expect(css(`templates/flavor-${index}.css`)).not.toContain(`--ga-nav-${role}:`);
+    }
   });
 
   it("la base no tiene colores ni tipografías: eso es del sabor", () => {

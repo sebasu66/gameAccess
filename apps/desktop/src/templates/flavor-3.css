@@ -1,0 +1,16 @@
+/* Style 3: abstract console. */
+@font-face {
+  font-family: "Saira Condensed";
+  src: url("/fonts/SairaCondensed-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+:root[data-ga-flavor="estilo-3"] {
+  --ga-nav-display-family: "Saira Condensed", "Arial Narrow", sans-serif;
+  --ga-nav-display-style: normal; --ga-nav-display-case: none;
+  --ga-nav-button-cut: 0px; --ga-nav-panel-corner: 0px; --ga-nav-button-radius: 14px;
+  --ga-nav-button-fill: outline; --ga-nav-icon-fill: glass; --ga-nav-rail-graphic: circuit;
+  --ga-nav-glow: .7; --ga-nav-scan-opacity: 0; --ga-nav-grain-opacity: 0;
+  --ga-nav-transition-time: .55s;
+}

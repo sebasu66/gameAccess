@@ -1,0 +1,9 @@
+/* Style 1: comic. Mode colors are fixed outside the flavor (vault/Rediseño de navegación.md §3). */
+:root[data-ga-flavor="estilo-1"] {
+  --ga-nav-display-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+  --ga-nav-display-style: normal; --ga-nav-display-case: uppercase;
+  --ga-nav-button-cut: 44px; --ga-nav-panel-corner: 26px; --ga-nav-button-radius: 0px;
+  --ga-nav-button-fill: solid; --ga-nav-icon-fill: flat; --ga-nav-rail-graphic: paper;
+  --ga-nav-glow: .5; --ga-nav-scan-opacity: 1; --ga-nav-grain-opacity: .28;
+  --ga-nav-transition-time: .6s;
+}

@@ -46,6 +46,10 @@ import { narrate, startClientErrorReporting, startNarrationSession } from "./nar
 import { setAppLocale, translate, useI18n } from "./i18n";
 import "./templates/base.css";
 import "./templates/flavor-terminal.css";
+import "./templates/flavor-1.css";
+import "./templates/flavor-2.css";
+import "./templates/flavor-3.css";
+import "./templates/flavor-4.css";
 import "./styles.css";
 
 // The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.

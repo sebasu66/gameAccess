@@ -1,0 +1,16 @@
+/* Style 4: racing and mechanics. */
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/BarlowCondensed-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+}
+:root[data-ga-flavor="estilo-4"] {
+  --ga-nav-display-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --ga-nav-display-style: italic; --ga-nav-display-case: uppercase;
+  --ga-nav-button-cut: 50px; --ga-nav-panel-corner: 30px; --ga-nav-button-radius: 0px;
+  --ga-nav-button-fill: arrow; --ga-nav-icon-fill: neon; --ga-nav-rail-graphic: racing;
+  --ga-nav-glow: .6; --ga-nav-scan-opacity: 0; --ga-nav-grain-opacity: 0;
+  --ga-nav-transition-time: .3s;
+}
