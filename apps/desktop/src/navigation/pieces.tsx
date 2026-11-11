@@ -4,11 +4,13 @@
  * Shape and measures live in templates/base.css, look in the flavor layer, and navigation-shell.css only reads them.
  */
 import { useLayoutEffect, type RefObject } from "react";
-import type { LucideIcon } from "lucide-react";
+import { Lock, type LucideIcon } from "lucide-react";
 import { useI18n, type TranslationKey } from "../i18n";
 import type { NavigationModeId } from "./navigationTree";
 import { NAVIGATION } from "./navigationTree";
 import { selectNavigationTab, tabReady, useSectionTab } from "./navigationSelection";
+import { usePlus } from "../kidMode";
+import { planLocked } from "./planLocks";
 import { currentCssValue, SHELL_LOOK_EVENT } from "./shellLook";
 
 /** Texts marked `data-fit` that do not fit shrink down to the template's least size; they never spill. */
@@ -68,31 +70,45 @@ export function TitlePlate({ name, desc }: { name: string; desc: string }) {
   </div>;
 }
 
-/** A section's submodes, from the navigation tree, as pills that wrap: the chosen one filled with its dot lit, the ones without a screen yet dimmed. */
-export function SubmodeTabs({ mode, section }: { mode: NavigationModeId; section: string }) {
+/** A white padlock beside a name the plan does not include; on hover it says «Disponible en PLUS» (§5.12). */
+export function PlanLock() {
   const { t } = useI18n();
+  return <span className="ga-nav-lock" data-tip={t("navPlusOnly")} role="img" aria-label={t("navPlusOnly")}><Lock aria-hidden="true" /></span>;
+}
+
+/** A section's submodes, from the navigation tree, as pills that wrap: the chosen one filled with its dot lit, the ones
+ *  without a screen yet dimmed, the ones outside the plan as usual with a padlock (a click opens the plans). */
+export function SubmodeTabs({ mode, section, onLocked }: { mode: NavigationModeId; section: string; onLocked: () => void }) {
+  const { t } = useI18n();
+  const plus = usePlus();
   const found = NAVIGATION.find(item => item.id === mode)?.sections.find(item => item.id === section);
   const chosen = useSectionTab(section);
   if (!found?.tabs.length) return null;
-  return <ul className="ga-nav-tabs" aria-label={t(found.label)}>{found.tabs.map(item => <li key={item.id}>
-    <button type="button" className="ga-nav-tab" aria-current={item.id === chosen ? "page" : undefined} disabled={!tabReady(section, item.id)}
-      onClick={() => selectNavigationTab(mode, section, item.id)}><i className="ga-nav-tab-dot" aria-hidden="true" /><span>{t(item.label)}</span></button>
-  </li>)}</ul>;
+  return <ul className="ga-nav-tabs" aria-label={t(found.label)}>{found.tabs.map(item => {
+    const locked = planLocked(plus, section, item.id);
+    return <li key={item.id}>
+      <button type="button" className="ga-nav-tab" aria-current={!locked && item.id === chosen ? "page" : undefined} data-locked={locked || undefined} disabled={!locked && !tabReady(section, item.id)}
+        onClick={() => locked ? onLocked() : selectNavigationTab(mode, section, item.id)}><i className="ga-nav-tab-dot" aria-hidden="true" /><span>{t(item.label)}</span>{locked ? <PlanLock /> : null}</button>
+    </li>;
+  })}</ul>;
 }
 
 /** One section as a stepped arrow: icon in a ring, name, description and the chevrons that light on hover. */
-export function SectionButton({ icon: Icon, label, desc, step, disabled, onClick }: {
-  icon: LucideIcon; label: TranslationKey; desc: TranslationKey; step: number; disabled?: boolean; onClick: () => void;
+export function SectionButton({ icon: Icon, label, desc, step, disabled, locked, onClick }: {
+  icon: LucideIcon; label: TranslationKey; desc: TranslationKey; step: number; disabled?: boolean;
+  /** Outside the player's plan: drawn as usual with a padlock, and the click opens the plans. */
+  locked?: boolean; onClick: () => void;
 }) {
   const { t } = useI18n();
   return <li style={{ "--ga-nav-step": step } as React.CSSProperties}>
-    <button type="button" className="ga-nav-section" disabled={disabled} onClick={onClick}>
+    <button type="button" className="ga-nav-section" data-locked={locked || undefined} disabled={disabled && !locked} onClick={onClick}>
       <span className="ga-nav-section-shape" aria-hidden="true" />
       <span className="ga-nav-section-icon" aria-hidden="true"><Icon /></span>
       <span className="ga-nav-section-text">
         <span className="ga-nav-section-name" data-fit="">{t(label)}</span>
         <span className="ga-nav-section-desc">{t(desc)}</span>
       </span>
+      {locked ? <PlanLock /> : null}
       <Chevrons />
     </button>
   </li>;

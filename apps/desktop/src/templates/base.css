@@ -48,7 +48,7 @@
   --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
   --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
   --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%; --ga-nav-tab-off-text: .7;
-  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: clamp(14px, 1.6vh, 17px); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55;
+  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: clamp(14px, 1.6vh, 17px); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-tip-at: .5;
   --ga-nav-content-glow: 16%; --ga-nav-content-glow-reach: 70%; --ga-nav-content-glow-shape: ellipse at 50% 0%;
   --ga-nav-head-clear: calc(var(--ga-nav-hero-tip) + 3 * (var(--ga-nav-chevron-big-t) + var(--ga-nav-chevron-big-g)) + var(--ga-nav-section-gap));
   --ga-nav-head-search-w: 560px; --ga-nav-head-field-h: clamp(40px, 4.6vh, 50px); --ga-nav-head-icon: 20px; --ga-nav-head-text: clamp(14px, 1.5vh, 16px);

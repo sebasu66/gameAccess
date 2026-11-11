@@ -90,7 +90,7 @@ export default function NavigationShell() {
   return <div className="ga-nav-shell" data-mode={mode} {...looks}>
     <ModeBar mode={mode} word={look.word} badges={{ library: downloads, gameAccess: unread }} onOpen={openMode} />
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
-    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} />
+    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={() => openExistingSection("gameAccess", "subscription")} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
       <div className="ga-nav-brand"><strong>{t("navModeGameAccess")}</strong><span>{t(tier ? "navPlanPlus" : "navPlanBase")}</span></div>
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>
