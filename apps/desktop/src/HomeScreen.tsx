@@ -11,6 +11,8 @@ import { useNews } from "./centralDialog/useAnnouncements";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import GaScreen from "./components/ga/Screen";
 import { useI18n } from "./i18n";
+import { navigationShellEnabled } from "./navigation/NavigationShell";
+import { selectNavigationSection, useNavigationSelection } from "./navigation/navigationSelection";
 import NewsPanel from "./NewsPanel";
 import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { OPEN_RELEASE_NOTES_EVENT, takePendingReleaseNotes, useReleaseNotes } from "./releaseNotes";
@@ -34,42 +36,55 @@ const greetingKey = (hour = new Date().getHours()) => hour >= 6 && hour < 13 ? "
 function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
   const { t, locale } = useI18n();
   const tier = useSyncExternalStore(subscribeTier, getActivationTier, () => null);
-  const { welcome } = useNews();
+  const { welcome, items } = useNews();
+  const projectAnnouncements = items.filter(item => !item.games?.length);
   const notes = useReleaseNotes(locale);
+  const newShell = navigationShellEnabled();
+  const chosen = useNavigationSelection().gameAccess;
   useEffect(() => {
     if (!notes) return;
-    const show = () => { if (takePendingReleaseNotes()) document.getElementById("ga-home-changes-title")?.scrollIntoView({ block: "start", behavior: "smooth" }); };
+    const show = () => { if (takePendingReleaseNotes()) {
+      if (newShell) selectNavigationSection("gameAccess", "news");
+      else document.getElementById("ga-home-changes-title")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    } };
     show();
     window.addEventListener(OPEN_RELEASE_NOTES_EVENT, show);
     return () => window.removeEventListener(OPEN_RELEASE_NOTES_EVENT, show);
-  }, [notes]);
+  }, [notes, newShell]);
   return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
     <div className="ga-home-content ga-stack ga-stack-lg">
-      {welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>
+      {(!newShell || chosen === "guide") && welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>
         <h3 id={`ga-home-welcome-${item.id}`} className="ga-home-card-title">{item.title}</h3>
         <div className="ga-home-welcome-body ga-stack"><AnnouncementBody text={item.body} /></div>
       </section>)}
-      {notes ? <section className="ga-home-card ga-home-changes" aria-labelledby="ga-home-changes-title">
+      {(!newShell || chosen === "news") && notes ? <section className="ga-home-card ga-home-changes" aria-labelledby="ga-home-changes-title">
         <h3 id="ga-home-changes-title" className="ga-home-card-title">{t("homeChangesTitle", { version: notes.version })}</h3>
         <div className="ga-home-changes-body ga-stack"><AnnouncementBody text={notes.changes.map(line => `- ${line}`).join("\n")} /></div>
       </section> : null}
-      <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
+      {(!newShell || chosen === "subscription") ? <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
         <div className="ga-stack">
           <h3 id="ga-home-plus-title" className="ga-home-card-title"><Sparkles size={20} aria-hidden="true" />{t(tier ? "homePlusOnTitle" : "homeBaseTitle")}</h3>
           <p>{t(tier ? "homePlusOnText" : "homeBaseText")}</p>
         </div>
         {tier ? null : <GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("homeActivatePlus")}</GaButton>}
-      </section>
-      <AiPicks onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />
-      <AccountCard />
-      <section className="ga-home-card" aria-labelledby="ga-home-news-title">
+      </section> : null}
+      {newShell ? null : <AiPicks onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />}
+      {(!newShell || chosen === "account") ? <AccountCard /> : null}
+      {newShell && chosen === "news" && projectAnnouncements.length ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
+        <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
+        {projectAnnouncements.map(item => <article key={item.id} className="ga-home-welcome-body ga-stack">
+          <h4>{item.title}</h4>
+          <AnnouncementBody text={item.body} />
+        </article>)}
+      </section> : null}
+      {!newShell ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         <NewsPanel games={games} onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />
-      </section>
-      <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
+      </section> : null}
+      {(!newShell || chosen === "help") ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
         <h3 id="ga-home-help-title" className="ga-home-card-title">{t("homeHelpTitle")}</h3>
         <HelpContent />
-      </section>
+      </section> : null}
     </div>
   </GaScreen>;
 }

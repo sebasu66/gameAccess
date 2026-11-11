@@ -7,6 +7,10 @@
   font-display: swap;
 }
 :root[data-ga-flavor="estilo-2"] {
+  --ga-nav-panel-catalog: url('/styles/estilo-2/panel-1.jpg');
+  --ga-nav-panel-library: url('/styles/estilo-2/panel-0.jpg');
+  --ga-nav-panel-game-access: url('/styles/estilo-2/panel-2.jpg');
+  --ga-nav-panel-settings: url('/styles/estilo-2/panel-3.jpg');
   --ga-nav-display-family: "Teko", "Arial Narrow", sans-serif;
   --ga-nav-display-style: normal; --ga-nav-display-case: uppercase;
   --ga-nav-button-cut: 30px; --ga-nav-panel-corner: 16px; --ga-nav-button-radius: 0px;

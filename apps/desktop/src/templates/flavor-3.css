@@ -7,6 +7,10 @@
   font-display: swap;
 }
 :root[data-ga-flavor="estilo-3"] {
+  --ga-nav-panel-catalog: url('/styles/estilo-3/panel-1.jpg');
+  --ga-nav-panel-library: url('/styles/estilo-3/panel-0.jpg');
+  --ga-nav-panel-game-access: url('/styles/estilo-3/panel-2.jpg');
+  --ga-nav-panel-settings: url('/styles/estilo-3/panel-3.jpg');
   --ga-nav-display-family: "Saira Condensed", "Arial Narrow", sans-serif;
   --ga-nav-display-style: normal; --ga-nav-display-case: none;
   --ga-nav-button-cut: 0px; --ga-nav-panel-corner: 0px; --ga-nav-button-radius: 14px;

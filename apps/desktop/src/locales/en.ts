@@ -11,6 +11,8 @@ export const en: Record<keyof typeof es, string> = {
   navMyAccount: "My account", navSubscription: "Subscription", navHelpContact: "Help and contact", navFaq: "Frequently asked questions", navContactUs: "Contact us",
   navGeneral: "General", navGamesDownloads: "Games and downloads", navSteam: "Steam", navArtificialIntelligence: "Artificial intelligence", navOtherSettings: "Other settings",
   navAppearance: "Appearance", navStyle: "Style", navDetails: "Details", navPlugins: "Plugins", navParental: "Parental controls", navTime: "Time", navFilter: "Filter",
+  navModesAria: "Game Access modes", navSectionsAria: "Mode sections", navStatusAria: "Game Access status",
+  navPlanBase: "BASE", navPlanPlus: "PLUS",
   sourcesChecking: "Checking sources…",
   sourcesUnavailable: "No sources available",
   sourcesChoose: "Versions and sources",

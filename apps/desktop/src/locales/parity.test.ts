@@ -4,7 +4,7 @@ import { es } from "./es";
 
 // Valores que pueden ser iguales en ambos idiomas (marcas, nombres propios, símbolos).
 const SAME_VALUE_ALLOWED = new Set<string>(["activityCategory_app", "genre_indie", "genre_casual", "genre_rpg", "genre_arcade", "genre_point_and_click", "genre_hack_and_slash", "genre_roguelike", "genre_sandbox", "genre_moba", "genre_metroidvania", "aiProfileMode_pvp", "aiProfileMode_mmo", "infoAppId", "pluginsTab", "uiZoom", "chipPvp", "chipMmo", "chipLan", "chipOnline", "filterTagRating", "pluginIndicatorTip", "languageNameEs", "languageNameEn", "steamTitle", "bigScreenEnter", "lmKindDirect", "lmKindSteam", "sentenceModeOnline", "freezeSpeed", "freezeEvFile", "freezeEvFileStored", "freezeEvFailed", "downloadsPlanLabel", "kidDurationHM", "kidDurationH", "kidDurationM", "kidAddMinutes", "kidLimitGeneral", "kidNo", "bigKeyEnter", "bigKeySearch", "bigKeyEsc"]);
-for (const key of ["navModeGameAccess", "navAlphabetical", "navManager", "navGeneral", "navSteam", "navPlugins"]) SAME_VALUE_ALLOWED.add(key);
+for (const key of ["navModeGameAccess", "navAlphabetical", "navManager", "navGeneral", "navSteam", "navPlugins", "navPlanBase", "navPlanPlus"]) SAME_VALUE_ALLOWED.add(key);
 
 const esKeys = Object.keys(es);
 const enKeys = Object.keys(en);

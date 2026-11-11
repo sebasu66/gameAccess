@@ -17,12 +17,17 @@
   --ga-smoke-w: 860px; --ga-smoke-layer: 12040; --ga-smoke-travel: 96px; --ga-smoke-time: .46s; --ga-smoke-ease: cubic-bezier(.45, 0, .2, 1);
   --ga-mode-rail-w: 112px; --ga-rail-inset: 12px; --ga-rail-gutter: 16px;
   /* New navigation shell (RN1). Kept separate from the existing rail until RN2 replaces its layout. */
-  --ga-nav-mode-w: 120px; --ga-nav-sections-w: 392px; --ga-nav-activity-w: 264px;
-  --ga-nav-outer-pad: 28px; --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px;
+  --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
+  --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px;
   --ga-nav-content-pad: 28px; --ga-nav-section-pad: 22px; --ga-nav-card-pad: 22px;
   --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px; --ga-nav-band-h: 118px;
   --ga-nav-title-size: 70px; --ga-nav-button-h: 42px; --ga-nav-button-pad-x: 18px;
   --ga-nav-deck-size: 16px; --ga-nav-log-size: 11px;
+  --ga-nav-mode-switch-h: 56px; --ga-nav-brand-h: 104px; --ga-nav-section-button-h: 64px;
+  --ga-nav-caption-size: 12px; --ga-nav-status-gap: 16px;
+  --ga-nav-mode-cut: 16px;
+  --ga-nav-section-title-size: clamp(38px, 5.6vh, 64px); --ga-nav-title-overhang: clamp(80px, 17.6vh, 190px);
+  --ga-nav-panel-shade-start: 8%; --ga-nav-panel-shade-end: 70%;
   /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
   --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
   /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */
@@ -30,4 +35,12 @@
   /* Games of a news item past its covers, as links: the least width of one column. */
   --ga-news-link-col: 220px;
   --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
+}
+@media (max-width: 1100px) {
+  :root {
+    --ga-nav-mode-w: 76px; --ga-nav-sections-w: min(260px, 30vw); --ga-nav-activity-w: 0px;
+    --ga-nav-outer-pad: 12px; --ga-nav-column-gap: 8px; --ga-nav-title-size: 52px;
+    --ga-nav-content-pad: 16px; --ga-nav-section-pad: 12px; --ga-nav-section-button-h: 52px;
+    --ga-nav-section-title-size: 38px; --ga-nav-title-overhang: 72px;
+  }
 }

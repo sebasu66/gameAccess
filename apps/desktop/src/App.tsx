@@ -17,6 +17,7 @@ import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
 import ModeRail from "./ModeRail";
+import NavigationShell, { navigationShellEnabled } from "./navigation/NavigationShell";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
@@ -683,6 +684,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
       <ModeRail />
+      {navigationShellEnabled() ? <NavigationShell /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
         {catalogNavigation}
         <AreaTabs />

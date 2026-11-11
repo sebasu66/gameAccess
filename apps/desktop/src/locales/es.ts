@@ -9,6 +9,8 @@ export const es = {
   navMyAccount: "Mi cuenta", navSubscription: "Suscripción", navHelpContact: "Ayuda y contacto", navFaq: "Preguntas frecuentes", navContactUs: "Escribinos",
   navGeneral: "General", navGamesDownloads: "Juegos y descargas", navSteam: "Steam", navArtificialIntelligence: "Inteligencia artificial", navOtherSettings: "Otros ajustes",
   navAppearance: "Apariencia", navStyle: "Estilo", navDetails: "Detalles", navPlugins: "Plugins", navParental: "Control parental", navTime: "Tiempo", navFilter: "Filtro",
+  navModesAria: "Modos de Game Access", navSectionsAria: "Secciones del modo", navStatusAria: "Estado de Game Access",
+  navPlanBase: "BASE", navPlanPlus: "PLUS",
   sourcesChecking: "Buscando fuentes…",
   sourcesUnavailable: "Fuentes no disponibles",
   sourcesChoose: "Versiones y fuentes",

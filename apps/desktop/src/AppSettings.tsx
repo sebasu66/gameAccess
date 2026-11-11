@@ -19,6 +19,8 @@ import { setAppScreen, useAppScreen } from "./appScreen";
 import { DEFAULT_PIXEL_STYLE, loadPixelStyle, savePixelStyle, STYLE_RANGES, type StyleParam } from "./pixelStylePreferences";
 import { GaButton, GaIconButton } from "./components/ga/Buttons";
 import ModeRailSettings from "./ModeRailSettings";
+import { navigationShellEnabled } from "./navigation/NavigationShell";
+import { useNavigationSelection } from "./navigation/navigationSelection";
 const copy = {
  es: { title: "Configuración", tabGames: "Juegos", tabStyle: "Apariencia", style: "Estilo de la aplicación", subtitle: "Juegos, descargas y apariencia", background: "Fondo", field: "Fondo de píxeles animado", fieldHint: "Apagado: fondo gris que toma el color del juego bajo el puntero.", buttons: "Botones principales", animation: "Animación de píxeles y logo", reset: "Restablecer estilo", replay: "Repetir apertura", saved: "Los cambios se guardan automáticamente.", spd: "Velocidad", cob: "Cobalto", blink: "Parpadeo", ovar: "Variación", oled: "Titileo", glass: "Vidrio", close: "Cerrar" },
  en: { title: "Settings", tabGames: "Games", tabStyle: "Appearance", style: "App appearance", subtitle: "Games, downloads and appearance", background: "Background", field: "Animated pixel background", fieldHint: "Off: grey background that takes the colour of the game under the pointer.", buttons: "Main app buttons", animation: "Pixel and logo animation", reset: "Reset appearance", replay: "Replay opening", saved: "Changes are saved automatically.", spd: "Speed", cob: "Cobalt", blink: "Blink", ovar: "Variation", oled: "Twinkle", glass: "Glass", close: "Close" },
@@ -26,6 +28,8 @@ const copy = {
 /** The settings screen (docs/GUI_DESIGN.md §0b): chosen from the frame like the others, no close button. */
 function SettingsScreen() {
  const { locale, t } = useI18n(); const c = copy[locale];
+ const newShell = navigationShellEnabled();
+ const selectedSection = useNavigationSelection().settings;
  const [style, setStyle] = useState(loadPixelStyle);
  // One Plugins tab with a section per plugin; the on-screen list opens it on one of them (pluginNav.ts).
  const [pluginFocus, setPluginFocus] = useState(() => ({ id: pluginSection(), times: 0 }));
@@ -40,8 +44,7 @@ function SettingsScreen() {
  }, []);
  const update = (key: StyleParam, value: number) => { const next = { ...style, [key]: value }; setStyle(next); savePixelStyle(next); };
  const slider = (key: StyleParam) => <label className="ga-style-control" key={key} htmlFor={`ga-style-${key}`}><span>{c[key]}</span><output htmlFor={`ga-style-${key}`}>{style[key]}</output><input id={`ga-style-${key}`} type="range" tabIndex={-1} min={STYLE_RANGES[key][0]} max={STYLE_RANGES[key][1]} step={STYLE_RANGES[key][2]} value={style[key]} onChange={e => update(key, Number(e.target.value))} /></label>;
- return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
-  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={[
+ const tabs = [
    { id: "games", label: c.tabGames, content: <DigitalStorageSettings /> },
    { id: "steam", label: t("steamTitle"), content: <SteamSettings /> },
    { id: "ai", label: t("aiTab"), content: <AiSettings /> },
@@ -59,7 +62,11 @@ function SettingsScreen() {
     </div></div>
    </> },
    { id: "plugins", label: t("pluginsTab"), content: <PluginSettings focus={pluginFocus.id} /> },
-  ]} /><BuildStamp /></div>
+  ];
+ const visibleTabs = !newShell ? tabs : tabs.filter(tab => selectedSection === "general" ? ["games", "steam", "ai", "mcp"].includes(tab.id)
+  : selectedSection === "appearance" ? tab.id === "style" : tab.id === "plugins");
+ return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
+  <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={`${pluginFocus.times}-${newShell ? selectedSection : "legacy"}`} initial={newShell ? visibleTabs[0]?.id : pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={visibleTabs} /><BuildStamp /></div>
  </GaScreen>;
 }
 export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {

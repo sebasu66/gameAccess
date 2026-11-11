@@ -3,6 +3,19 @@
    `:root[data-ga-flavor="name"]` as its selector; it never touches components.
    The older tokens of this flavor still live in gameaccess-theme.css and move here as screens are migrated. */
 :root {
+  /* Mode colors are stable across all four editable looks (vault §3). */
+  --ga-nav-catalog: #e8661c; --ga-nav-catalog-acc: #ff7a2e;
+  --ga-nav-library: #dc9a17; --ga-nav-library-acc: #f2b33d;
+  --ga-nav-game-access: #c4472d; --ga-nav-game-access-acc: #ff8466;
+  --ga-nav-settings: #2f7fb8; --ga-nav-settings-acc: #7cc4ff;
+  --ga-nav-shell-bg: #090e12; --ga-nav-shell-surface: #10191f; --ga-nav-shell-surface-raised: #16232b;
+  --ga-nav-shell-ink: #f0f3f4; --ga-nav-shell-muted: #a4b0b7; --ga-nav-shell-line: #ffffff30;
+  --ga-nav-panel-shade: #10191ff2; --ga-nav-panel-shade-clear: #10191f1a;
+  --ga-nav-button-rest: #090e12d9; --ga-nav-button-hover: #10191ff2;
+  --ga-nav-panel-catalog: url('/styles/estilo-1/panel-1.jpg');
+  --ga-nav-panel-library: url('/styles/estilo-1/panel-0.jpg');
+  --ga-nav-panel-game-access: url('/styles/estilo-1/panel-2.jpg');
+  --ga-nav-panel-settings: url('/styles/estilo-1/panel-3.jpg');
   --ga-text-family: Manrope, "Segoe UI", sans-serif; --ga-display-family: "Bebas Neue", sans-serif;
   --ga-t2-weight: 700; --ga-label-weight: 800; --ga-status-weight: 700;
   --ga-t1-font: 400 var(--ga-t1-size)/1 var(--ga-display-family);
