@@ -44,6 +44,8 @@ class Job:
     keep_archive: bool = False
     source_title: str = ""      # the download as its source names it, kept with the install (two downloads can differ)
     source_provider: str = ""
+    # The torrents that race for this download, as the server allowed them (source_race.RacePlan); None: no race.
+    race: dict | None = None
     # waiting: queued for a place; active: a worker is moving data (the only state that takes a place);
     # paused: the player paused it; cancelling: its worker is winding down; done: finished
     state: str = "waiting"
@@ -109,7 +111,7 @@ class DownloadQueue:
     # ------------------------------------------------------------------ orders
     def enqueue(self, app_id: int, name: str, source: str, delivery: str = "download",
                 auto_installed: bool = False, keep_archive: bool = False, source_title: str = "",
-                source_provider: str = "") -> Job:
+                source_provider: str = "", race: dict | None = None) -> Job:
         with self.lock:
             source = (source or "").strip()
             if not source:
@@ -121,7 +123,8 @@ class DownloadQueue:
                 return current  # already queued or running: asking again changes nothing
             job = Job(app_id=app_id, name=name, source=source, delivery=delivery or "download",
                       auto_installed=auto_installed, keep_archive=keep_archive,
-                      source_title=source_title or "", source_provider=source_provider or "")
+                      source_title=source_title or "", source_provider=source_provider or "",
+                      race=race if isinstance(race, dict) else None)
             self.jobs[app_id] = job
             self.order.append(app_id)
             self.pump()

@@ -69,6 +69,11 @@ class ProcessWorkers:
             command += ["--source-title", job.source_title]
         if job.source_provider:
             command += ["--source-provider", job.source_provider]
+        race_file = self.status_dir / f"{job.app_id}.race.json"
+        race_file.unlink(missing_ok=True)
+        if job.race:
+            race_file.write_text(json.dumps(job.race), encoding="utf-8")
+            command += ["--race-file", str(race_file)]
         env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         env.pop("GAMEACCESS_CHUNK_SESSION", None)
         if chunk_session:
@@ -171,7 +176,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     queue.enqueue(int(body["appId"]), str(body.get("name") or ""), str(body.get("source") or ""),
                                   str(body.get("delivery") or "download"), bool(body.get("autoInstalled")),
                                   bool(body.get("keepArchive")), str(body.get("sourceTitle") or ""),
-                                  str(body.get("sourceProvider") or ""))
+                                  str(body.get("sourceProvider") or ""),
+                                  body.get("race") if isinstance(body.get("race"), dict) else None)
                 elif self.path == "/suspend":
                     queue.suspend()
                 elif self.path == "/shutdown":

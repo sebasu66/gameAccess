@@ -26,7 +26,9 @@ export type DownloadPhase =
  * - `<DownloadGameCard />` (DownloadCatalogPanel)
  */
 /** The steps a download goes through (the launcher's game_download_manager/steps.py). */
-export type DownloadStepId = "route" | "probe" | "server" | "download" | "extract" | "install";
+export type DownloadStepId = "pick" | "route" | "probe" | "server" | "download" | "extract" | "install";
+/** One torrent in the race at the start of a download (the launcher's source_race.py). */
+export interface RaceLane { title: string; provider: string; done: number; total: number; speed: number; seeds: number; state: "racing" | "out" | "won" }
 export interface DownloadStepNow { id: DownloadStepId; detail: string; startedAt: number }
 export interface DownloadStepDone { id: DownloadStepId; state: "done" | "skipped" | "failed"; result: string; ms: number }
 
@@ -54,6 +56,9 @@ export interface DownloadProgressSnapshot {
 
   /** How far the server got the game ready before sending it (PLUS, step 3), 0 to 100; absent otherwise */
   serverPercent?: number;
+
+  /** The torrents racing to be the source (step "pick"), while they race; absent otherwise */
+  race?: RaceLane[];
 
   /** Installation (extraction) progress from 0 to 100; 0 until the download finishes */
   installPercent?: number;

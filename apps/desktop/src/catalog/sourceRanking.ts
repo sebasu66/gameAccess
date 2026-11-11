@@ -40,10 +40,15 @@ function compareVersions(a: number[] | null, b: number[] | null): number {
   return 0;
 }
 
-export function rankSources<T extends RankableSource>(sources: T[]): T[] {
+/** A patch among these sources (update only, or tiny next to the full game): on its own it is not the game. */
+export function isPartialSource<T extends Pick<RankableSource, "title" | "size">>(sources: T[]): (source: T) => boolean {
   const largest = Math.max(0, ...sources.map(s => sizeGb(s.size)));
-  // A patch (update only, or tiny next to the full game) is offered last: on its own it is not the game.
-  const partial = (s: T) => UPDATE_ONLY.test(s.title) || (largest > 1 && sizeGb(s.size) > 0 && sizeGb(s.size) < largest * 0.1);
+  return (s: T) => UPDATE_ONLY.test(s.title) || (largest > 1 && sizeGb(s.size) > 0 && sizeGb(s.size) < largest * 0.1);
+}
+
+export function rankSources<T extends RankableSource>(sources: T[]): T[] {
+  // A patch is offered last.
+  const partial = isPartialSource(sources);
   return sources
     .map((source, index) => ({ source, index, version: titleVersion(source.title), build: titleBuild(source.title) }))
     .sort((a, b) =>

@@ -1,7 +1,7 @@
 """The steps a download goes through, reported to the app as structured data (docs/TAREA-interfaz-nueva.md T12).
 
 The app shows them as a sequence so the player can see why a download takes time to start:
-route (does the server already have it?), probe (how fast is the torrent?), server (the server prepares it),
+pick (several torrents race and the fastest goes on), route (does the server already have it?), probe (how fast is the torrent?), server (the server prepares it),
 download, extract and install. The pipeline names the decisions (route, probe, server); the phases of the
 progress events move the rest along on their own. `statusText` stays as it was for older readers.
 """
@@ -9,7 +9,7 @@ import time
 
 from game_download_manager.ui_text import ui
 
-ORDER = ("route", "probe", "server", "download", "extract", "install")
+ORDER = ("pick", "route", "probe", "server", "download", "extract", "install")
 _PHASE_STEP = {"downloading": "download", "decompressing": "extract", "installing": "install"}
 _DEFAULT_RESULT = {"server": ui("dlDoneServer"), "download": ui("dlDoneDownload"), "extract": ui("dlDoneExtract"), "install": ui("dlDoneInstall")}
 
@@ -52,8 +52,8 @@ class StepTracker:
 
     def follow(self, phase, status_text=""):
         """Moves the sequence along from a progress event."""
-        if self.current and self.current["id"] == "probe" and phase in ("preparing", "downloading"):
-            # While the torrent is measured it already downloads: that is still the measuring step.
+        if self.current and self.current["id"] in ("pick", "probe") and phase in ("preparing", "downloading"):
+            # While the torrents race or one is measured they already download: that is still that step.
             self.detail(status_text)
             return
         step_id = _PHASE_STEP.get(phase)
@@ -67,7 +67,8 @@ class StepTracker:
         if phase == "completed":
             self.finish()
             for step in ORDER:
-                self.skip(step)
+                if step != "pick":  # shown only when torrents raced
+                    self.skip(step)
             return
         self.detail(status_text)
 

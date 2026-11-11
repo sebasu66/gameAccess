@@ -9,7 +9,8 @@ import { gameIsAbandoned } from "./gameLessons";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
-import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions, RaceLane } from "../downloadProvider";
+import type { RaceOrder } from "./sourceRace";
 import { snapshotToManagedStatus } from "../downloadProvider";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { digitalProcessManager } from "./DigitalProcessManager";
@@ -28,7 +29,7 @@ const PHASES: readonly DownloadPhase[] = ["queued", "preparing", "downloading", 
   "cancelling", "cancelled", "interrupted", "external", "completed", "error"];
 const POLL_MS = 1000;
 
-type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
+type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord; race?: RaceOrder };
 
 /**
  * The app's view of the downloads. The launcher's Download Manager owns the queue (which downloads run, wait,
@@ -37,12 +38,21 @@ type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
  * shown in each row, speed history, notices, the desktop shortcut after a download completes.
  */
 
-const STEP_IDS: readonly string[] = ["route", "probe", "server", "download", "extract", "install"];
+const STEP_IDS: readonly string[] = ["pick", "route", "probe", "server", "download", "extract", "install"];
 /** The launcher's current step, if it is well formed. */
 function stepNow(value: unknown): DownloadStepNow | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown };
   return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now() } : null;
+}
+/** The torrents racing, keeping only well-formed lanes. */
+function raceLanes(value: unknown): RaceLane[] | undefined {
+  if (!Array.isArray(value) || !value.length) return undefined;
+  return value.filter(raw => raw && typeof raw === "object").map(raw => ({
+    title: String(raw.title ?? ""), provider: String(raw.provider ?? ""), done: Number(raw.done) || 0, total: Number(raw.total) || 0,
+    speed: Number(raw.speed) || 0, seeds: Number(raw.seeds) || 0,
+    state: raw.state === "won" || raw.state === "out" ? raw.state : "racing",
+  }));
 }
 /** The launcher's finished steps, keeping only well-formed ones. */
 function stepsDone(value: unknown): DownloadStepDone[] {
@@ -182,6 +192,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       installPercent: number("installPercent"),
       checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
       serverPercent: phase === "preparing" ? number("serverPercent") : undefined,
+      race: phase === "preparing" ? raceLanes(status.race) : undefined,
       statusText: text,
       bytesDownloaded: number("bytesDownloaded") ?? 0,
       bytesTotal: number("totalBytes") ?? 0,
@@ -272,6 +283,8 @@ export class DigitalDownloadService implements IDownloadProvider {
         appId, name, source, delivery: accelerated ? "download" : record?.sourceDelivery ?? "download",
         autoInstalled: record?.auto_installed === true, keepArchive: jobOptions?.keepArchive,
         sourceTitle: record?.sourceTitle, sourceProvider: record?.sourceProvider,
+        // The race is only for the source just picked (a retry goes on with the winner the launcher kept).
+        race: jobOptions?.race && jobOptions.race.racers[0]?.source === source ? jobOptions.race : undefined,
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

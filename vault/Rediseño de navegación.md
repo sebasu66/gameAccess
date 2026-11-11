@@ -147,7 +147,8 @@ Fuente de datos: la ficha actual (`LibraryDetailPanel.tsx`: `SteamFacts`, `Ratin
 
 ### 5.10 Librería › Descargas (asistente de cinco etapas)
 - La descarga no es solo bajar: son cinco etapas, cada una con sus pasos, sus datos, sus acciones y su registro. Base en `downloadStepModel.ts` (route, probe, server, download, extract, install).
-  - **Preparar** — encontrar de dónde y cómo bajarlo: buscar la ruta más rápida, medir el torrent, preparar en el servidor.
+  - **Antes de empezar (opcional)** — el jugador lo deja en automático o restringe la fuente: palabras o un número de versión que el título debe tener, y un proveedor (Seba, 2026-11-11; `SourcePreference` en `catalog/sourceRace.ts`). Si ninguna fuente cumple, se le dice y puede aflojar las condiciones.
+  - **Preparar** — encontrar de dónde y cómo bajarlo: **elegir la mejor fuente** (paso `pick`, Seba, 2026-11-11: varios torrents del juego bajan a la vez —el servidor elige cuáles por sus semillas y fija cuántos y cuánto tiempo según el plan— y al minuto o dos sigue el que más bajó, sin perder lo que bajó; se ve como carriles en vivo con título, velocidad, semillas y bytes), buscar la ruta más rápida, medir el torrent, preparar en el servidor. El paso `pick` aparece solo cuando hubo carrera.
   - **Descargar** — reservar espacio, transferir, verificar. Datos: velocidad, falta, pico. Acciones: Pausar, Cancelar.
   - **Instalar** — verificar espacio, descomprimir, mover a la carpeta del juego.
   - **Configurar** — aplicar el fix, instalar librerías que faltan, elegir el ejecutable, excluir del antivirus.

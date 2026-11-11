@@ -1,3 +1,4 @@
+import type { RaceOrder } from "./sourceRace";
 import { invoke } from "@tauri-apps/api/core";
 
 /**
@@ -38,6 +39,8 @@ export interface EnqueueOrder {
   /** The download as its source names it, and where it came from: kept with the install. */
   sourceTitle?: string;
   sourceProvider?: string;
+  /** The torrents that race for this download (catalog/sourceRace.ts); absent: no race. */
+  race?: RaceOrder;
 }
 
 /** The Download Manager refused an order; the message is meant for the player. */

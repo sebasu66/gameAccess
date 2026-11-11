@@ -13,6 +13,7 @@ from game_download_manager.route_decision import SwitchToServer, TorrentProbe
 from game_download_manager.chunked import ChunkSession, ChunkedDownloader, ChunkedDownloadUnavailable, ChunkedDownloadError, SourceWithoutSeeds
 from game_download_manager.client_events import DownloadReporter
 from game_download_manager.ui_text import ui
+from game_download_manager.source_race import RacePlan
 
 # The "-ready" rename: tries and the wait between them (pipeline.set_status).
 READY_RENAME_ATTEMPTS = 6
@@ -35,9 +36,25 @@ class NoSpaceError(RuntimeError):
         super().__init__(room["message"])
 
 
+def load_race_plan(path):
+    """The race plan the queue wrote for this download (--race-file), or None."""
+    if not path:
+        return None
+    import json
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return RacePlan.from_dict(json.load(handle))
+    except (OSError, ValueError):
+        return None
+
+
 class DownloadPipeline:
-    def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives):
+    def __init__(self, context, *, watch_controls, cleanup_on_cancel, download_http, download_torrent, extract_archives,
+                 race_torrents=None, drop_race_winner=None):
         self.context = context
+        # race_torrents(plan, dest_dir, app_id, game_name) -> winner index or None; drop_race_winner() removes it.
+        self.race_torrents = race_torrents
+        self.drop_race_winner = drop_race_winner or (lambda: None)
         self.watch_controls = watch_controls
         self.cleanup_on_cancel = cleanup_on_cancel
         self.download_http = download_http
@@ -72,6 +89,7 @@ class DownloadPipeline:
             context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlStepOf", n=1) + ui("dlRouteFastest"))
             where = self.chunked(chunk_session).peek(download_source, app_id)
             if where:
+                self.drop_race_winner()  # the server streams it: what the race brought down is not needed
                 # The player is never told which service holds it (no provider names in the app).
                 self.step("finish", ui("dlRouteServerHas"))
                 self.step("skip", "probe", ui("dlRouteServerHas"))
@@ -138,6 +156,44 @@ class DownloadPipeline:
                 context.logger.warning("La descarga por fragmentos falló (%s); se usa la descarga normal.", failure)
                 self.report("torrent" if is_torrent else "started", f"falló por el servidor ({failure}); se baja directo")
         return chunk_path or None, None, False
+
+    def pick_source(self, args, download_source, dest_dir, app_id, game_name, prior):
+        """Several torrents of the game race and the fastest one is the source (source_race.py).
+
+        Only when the app sent a race plan (the server's answer for this player). A download that already started
+        from one of the racers goes on with it, without racing again. Returns the source to download."""
+        plan = load_race_plan(getattr(args, "race_file", None))
+        if plan is None or self.race_torrents is None:
+            return download_source
+        context = self.context
+        racers = []
+        for racer in plan.racers:
+            try:
+                racer.source = normalize_download_source(racer.source)
+            except ValueError:
+                continue
+            if is_torrent_source(racer.source):
+                racers.append(racer)
+        plan.racers = racers
+        if len(racers) < 2:
+            return download_source
+        if prior.get("step") == "download" and prior.get("source") in [racer.source for racer in racers]:
+            context.logger.info("AppID %s: la descarga ya había empezado con una de las fuentes; sigue con ella.", app_id)
+            return prior["source"]
+        self.step("start", "pick", ui("dlPickRacing", n=len(racers)))
+        context.logger.info("Carrera entre %s torrents (decide a los %.0f s, como mucho %.0f s).", len(racers), plan.decide_after, plan.give_up_after)
+        winner = self.race_torrents(plan, dest_dir, app_id, game_name)
+        if winner is None:
+            self.step("finish", ui("dlPickNone"), "skipped")
+            return download_source
+        racer = racers[winner]
+        self.step("finish", ui("dlPickWinner", title=racer.title or game_name))
+        self.report("race", f"ganó '{racer.title}' entre {len(racers)}")
+        if racer.title:
+            args.source_title = racer.title
+        if racer.provider:
+            args.source_provider = racer.provider
+        return racer.source
 
     def chunked(self, session):
         return ChunkedDownloader(self.context, session)
@@ -253,6 +309,7 @@ class DownloadPipeline:
             context.logger.info("Fuente manual o de plugin recibida; tipo=%s", "magnet" if download_source.lower().startswith("magnet:") else "archivo")
 
         download_url = None
+        prior = {}
         target_filename = None
         target_content_path = os.path.abspath(args.extract_only) if args.extract_only else None
         if not args.extract_only:
@@ -265,7 +322,7 @@ class DownloadPipeline:
         context.logger.debug("Source validated; torrent=%s delivery=%s", is_torrent, args.source_delivery)
         if remember and not args.extract_only:
             # Already downloaded from this same source (unpacking failed or was cut): go on from the unpacking.
-            resume = storage.resume_point(int(app_id))
+            resume = prior = storage.resume_point(int(app_id))
             same = resume.get("source") in ("", None, download_source, args.download_source) or (
                 bool(getattr(args, "source_title", "")) and resume.get("source_title") == args.source_title)
             if resume.get("step") == "extract" and same:
@@ -291,6 +348,16 @@ class DownloadPipeline:
                     context.logger.info("AppID %s: selected plugin source requires browser download.", app_id)
                     context.emit_progress(app_id, "external", 0, status_text="Fuente abierta en el navegador; el juego todavía no está instalado.")
                     return
+                if is_torrent:
+                    picked = self.pick_source(args, download_source, dest_dir, app_id, game_name, prior)
+                    if context.cancelled.is_set():
+                        self.cleanup_on_cancel()
+                        return
+                    if picked != download_source:
+                        download_source = picked
+                        resume_at("download")  # a retry goes on with the winner
+                        if not args.destination_dir:
+                            storage.set_source(int(app_id), args.source_title, args.source_provider, download_source)
                 chunk_path, torrent_path, cancelled = self.server_or_torrent(args, download_source, is_torrent, dest_dir, app_id, game_name)
                 if cancelled:
                     self.cleanup_on_cancel()

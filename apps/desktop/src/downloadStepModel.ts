@@ -17,7 +17,9 @@ export function downloadSteps(snapshot: DownloadProgressSnapshot): StepView[] {
 function structured(snapshot: DownloadProgressSnapshot): StepView[] {
   const done = new Map((snapshot.steps ?? []).map(step => [step.id, step]));
   const failed = snapshot.phase === "error";
-  return STEP_ORDER.map(id => {
+  // Choosing the best source shows only when torrents raced for it.
+  const raced = done.has("pick") || snapshot.step?.id === "pick";
+  return (raced ? ["pick" as const, ...STEP_ORDER] : STEP_ORDER).map(id => {
     const finished = done.get(id);
     if (finished) return { id, state: finished.state, text: finished.result, ms: finished.ms };
     if (snapshot.step?.id === id) return failed

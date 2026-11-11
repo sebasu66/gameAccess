@@ -175,6 +175,7 @@ def emit_progress(
     status_text: str = "",
     check_percent: float | None = None,
     server_percent: float | None = None,
+    race: list | None = None,
 ):
     """`check_percent`: how far the check of what is already on disk went (a resumed torrent), its own stage.
     `server_percent`: how far the server got the game ready before sending it (PLUS, step 3), its own stage too: the
@@ -214,6 +215,8 @@ def emit_progress(
         "route": g_route,
         **({"checkPercent": round(max(0.0, min(100.0, float(check_percent))), 1)} if check_percent is not None else {}),
         **({"serverPercent": round(max(0.0, min(100.0, float(server_percent))), 1)} if server_percent is not None else {}),
+        # The torrents racing (title, bytes, speed, seeds; the winner marked), for the step's live view.
+        **({"race": race} if race else {}),
         **g_steps.payload(),
     })
 
@@ -344,6 +347,14 @@ def download_direct_torrent(*args, **kwargs):
     return TorrentDownloadTransport(_context()).download_direct_torrent(*args, **kwargs)
 
 
+def race_torrents(*args, **kwargs):
+    return TorrentDownloadTransport(_context()).race(*args, **kwargs)
+
+
+def drop_race_winner():
+    TorrentDownloadTransport(_context()).drop_race_winner()
+
+
 def request_archive_passwords():
     return ArchiveExtractor(_context()).request_archive_passwords()
 
@@ -366,6 +377,7 @@ def main():
     parser.add_argument("--source", "--download-source", dest="download_source", default="", help="Explicit HTTP/HTTPS link or magnet supplied manually or by a plugin")
     parser.add_argument("--source-title", default="", help="The download as its source names it (shown with the install)")
     parser.add_argument("--source-provider", default="", help="Where the source came from (feed or site name)")
+    parser.add_argument("--race-file", default=None, help="JSON with the torrents that race for this download (source_race.py)")
     parser.add_argument("--auto-installed", action="store_true", help="Source policy: omit patch backup/reapply rules")
     parser.add_argument("--install-process", default=None, help="Terminal command sequence to execute post-download")
     parser.add_argument("--destination-dir", default=None, help="Destination folder (default: ./games)")
@@ -386,6 +398,7 @@ def main():
         DownloadPipeline(_context(), watch_controls=watch_controls,
             cleanup_on_cancel=cleanup_on_cancel, download_http=download_segmented,
             download_torrent=download_direct_torrent,
+            race_torrents=race_torrents, drop_race_winner=drop_race_winner,
             extract_archives=extract_archives_in_path).run(args)
     except SystemExit as error:
         if error.code not in (None, 0, 130):
