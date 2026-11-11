@@ -46,7 +46,8 @@ export const READY_TABS: Readonly<Record<string, readonly string[]>> = {
   downloads: ["active", "queued", "completed"],
   manager: ["games"],
   news: ["release", "announcements"],
-  help: ["faq", "contact"],
+  support: ["instructions", "faq", "contact"],
+  subscription: ["plan", "account"],
   general: ["games", "steam", "ai", "mcp", "options"],
   appearance: ["style", "details"],
 };

@@ -44,12 +44,16 @@ export const NAVIGATION = [
         { id: "release", label: "navLatestVersion" },
         { id: "announcements", label: "navAnnouncements" },
       ] },
-      { id: "guide", label: "navHowToUse", desc: "navDescGuide", tabs: [] },
-      { id: "account", label: "navMyAccount", desc: "navDescAccount", tabs: [] },
-      { id: "subscription", label: "navSubscription", desc: "navDescSubscription", tabs: [] },
-      { id: "help", label: "navHelpContact", desc: "navDescHelp", tabs: [
+      // Support gathers how to use it, the questions and contact (Seba, 2026-11-11); the account lives under the
+      // subscription, since without PLUS there is no account to keep.
+      { id: "support", label: "navSupport", desc: "navDescSupport", tabs: [
+        { id: "instructions", label: "navInstructions" },
         { id: "faq", label: "navFaq" },
         { id: "contact", label: "navContactUs" },
+      ] },
+      { id: "subscription", label: "navSubscription", desc: "navDescSubscription", tabs: [
+        { id: "plan", label: "navMyPlan" },
+        { id: "account", label: "navMyAccount" },
       ] },
     ],
   },
@@ -93,6 +97,6 @@ export type LegacyDestination = GameSection | Exclude<AppScreen, "games">;
 export const LEGACY_DESTINATIONS = {
   catalog: { explore: "catalog", smartSearch: "catalog", aiSuggestions: "home", newGames: "home", tasteProfile: "catalog" },
   library: { play: "play", downloads: "downloads", manager: "manager" },
-  gameAccess: { news: "home", guide: "home", account: "home", subscription: "home", help: "home" },
+  gameAccess: { news: "home", support: "home", subscription: "home" },
   settings: { general: "settings", appearance: "settings", plugins: "settings", parental: "kids" },
 } as const satisfies { [M in (typeof NAVIGATION)[number] as M["id"]]: Record<M["sections"][number]["id"], LegacyDestination> };

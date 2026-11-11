@@ -7,7 +7,7 @@ import { useActiveDownloadCount } from "../downloads/useActiveDownloadCount";
 import { openArea, openSection, useGameSection } from "../gameArea";
 import { useI18n } from "../i18n";
 import { NAVIGATION, type NavigationModeId } from "./navigationTree";
-import { CATALOG_ON_HOME, getNavigationSelection, newsDestination, selectNavigationSection, shellMode, useNavigationSelection } from "./navigationSelection";
+import { CATALOG_ON_HOME, getNavigationSelection, selectNavigationTab, newsDestination, selectNavigationSection, shellMode, useNavigationSelection } from "./navigationSelection";
 import { OPEN_NEWS_EVENT } from "../newDownloads";
 import { PLUGIN_SECTION_EVENT } from "../pluginNav";
 import StatusBar from "./StatusBar";
@@ -36,6 +36,12 @@ function openExistingSection(mode: NavigationModeId, section: string) {
   else if (mode === "catalog" && (CATALOG_ON_HOME as readonly string[]).includes(section)) setAppScreen("home");
   else if (mode === "gameAccess") setAppScreen("home");
   else if (mode === "settings") setAppScreen(section === "parental" ? "kids" : "settings");
+}
+
+/** Something outside the plan was asked for: Game Access › Subscription › Plan. */
+export function openPlans() {
+  openExistingSection("gameAccess", "subscription");
+  selectNavigationTab("gameAccess", "subscription", "plan");
 }
 
 const reachable = (mode: NavigationModeId, section: string) => mode === "library"
@@ -90,7 +96,7 @@ export default function NavigationShell() {
   return <div className="ga-nav-shell" data-mode={mode} {...looks}>
     <ModeBar mode={mode} word={look.word} badges={{ library: downloads, gameAccess: unread }} onOpen={openMode} />
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
-    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={() => openExistingSection("gameAccess", "subscription")} />
+    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={openPlans} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
       <div className="ga-nav-brand"><strong>{t("navModeGameAccess")}</strong><span>{t(tier ? "navPlanPlus" : "navPlanBase")}</span></div>
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>

@@ -58,7 +58,7 @@ export default function ContentHeader({ section, plan, unread }: { section: stri
   const facts: Fact[] = section === "downloads"
     ? [{ label: t("navSumActive"), value: String(downloads.count - downloads.queued) }, { label: t("navSumQueued"), value: String(downloads.queued) }, { label: t("navSumSpeed"), value: formatSpeed(downloads.speedBps, locale) }]
     : section === "news" ? [{ label: t("navSumUnread"), value: String(unread) }, ...(version ? [{ label: t("navSumVersion"), value: version }] : [])]
-    : section === "account" || section === "subscription" ? [{ label: t("navSumPlan"), value: plan }]
+    : section === "subscription" ? [{ label: t("navSumPlan"), value: plan }]
     : [];
   const cover = section === "downloads" ? downloads.cover : undefined;
   return <header className="ga-nav-head" aria-label={t("navHeadAria")}>

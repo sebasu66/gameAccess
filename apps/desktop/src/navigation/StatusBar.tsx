@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Bell, Download, HardDrive, Puzzle, RefreshCw } from "lucide-react";
+import { Bell, CircleHelp, Download, HardDrive, Puzzle, RefreshCw } from "lucide-react";
 import BackendStatus from "../BackendStatus";
 import { getPluginStatuses, subscribePluginStatuses } from "../catalog/PluginRuntime";
 import { useNews } from "../centralDialog/useAnnouncements";
@@ -9,10 +9,12 @@ import { openSection } from "../gameArea";
 import { useI18n } from "../i18n";
 import { useLibraryScan } from "../libraryScan";
 import { openPluginSection } from "../pluginNav";
-import { selectNavigationSection } from "./navigationSelection";
+import { selectNavigationSection, selectNavigationTab } from "./navigationSelection";
 import { diskFreePercent, formatSpeed, formatSyncTime, useAppVersion, useCatalogSync } from "./statusBarData";
 
 const openNews = () => { selectNavigationSection("gameAccess", "news"); setAppScreen("home"); };
+/** The Help shortcut: Game Access › Support, on its questions (contact is beside them). */
+const openSupport = () => { selectNavigationSection("gameAccess", "support"); selectNavigationTab("gameAccess", "support", "faq"); setAppScreen("home"); };
 
 /** The shell's status bar (vault/Rediseño de navegación.md §4.5): each part opens its place. */
 export default function StatusBar() {
@@ -46,6 +48,8 @@ export default function StatusBar() {
     </button>
     {version && <><span className="ga-nav-status-sep" aria-hidden="true" />
       <button type="button" className="ga-nav-status-item" onClick={openNews}>{t("navVersion")} <b>{version}</b></button></>}
+    <span className="ga-nav-status-sep" aria-hidden="true" />
+    <button type="button" className="ga-nav-status-item" onClick={openSupport}><CircleHelp aria-hidden="true" />{t("navHelpShortcut")}</button>
     <button type="button" className="ga-nav-status-item ga-nav-status-bell" onClick={openNews} aria-label={t("navNewsUnread", { count: unread })}>
       <Bell aria-hidden="true" />{unread > 0 && <em>{unread}</em>}
     </button>

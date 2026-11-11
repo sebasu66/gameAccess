@@ -6,10 +6,10 @@ beforeEach(resetNavigationSelection);
 
 describe("selección del nuevo panel", () => {
   it("acepta secciones reales y rechaza destinos ajenos al modo", () => {
-    expect(selectNavigationSection("gameAccess", "account")).toBe(true);
-    expect(getNavigationSelection().gameAccess).toBe("account");
+    expect(selectNavigationSection("gameAccess", "support")).toBe(true);
+    expect(getNavigationSelection().gameAccess).toBe("support");
     expect(selectNavigationSection("gameAccess", "downloads")).toBe(false);
-    expect(getNavigationSelection().gameAccess).toBe("account");
+    expect(getNavigationSelection().gameAccess).toBe("support");
   });
 
   it("Sugerencias IA y Juegos nuevos se ven en Inicio como Catálogo; Game Access lo recupera", () => {

@@ -18,7 +18,7 @@ export const useHeaderSearchSlot = () => useSyncExternalStore(subscribe, () => s
 
 /** Which kind of header each section shows: the game search, a search over what is on screen, or a summary. */
 export const GAME_SEARCH_SECTIONS: readonly string[] = ["explore", "newGames", "play", "manager"];
-export const PAGE_SEARCH_SECTIONS: readonly string[] = ["help", "general", "appearance", "plugins", "parental"];
+export const PAGE_SEARCH_SECTIONS: readonly string[] = ["support", "general", "appearance", "plugins", "parental"];
 export type HeaderKind = "games" | "page" | "summary";
 export const headerKind = (section: string): HeaderKind =>
   GAME_SEARCH_SECTIONS.includes(section) ? "games" : PAGE_SEARCH_SECTIONS.includes(section) ? "page" : "summary";

@@ -42,9 +42,12 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
   const newShell = navigationShellEnabled();
   const selection = useNavigationSelection();
   const chosen = selection.gameAccess;
-  // Game Access › News and › Help show the submode chosen in the sections panel.
+  // Game Access › News, › Support and › Subscription show the submode chosen in the sections panel.
   const newsTab = newShell ? sectionTab("news", selection.tabs) : undefined;
-  const helpTab = newShell ? sectionTab("help", selection.tabs) as "faq" | "contact" | undefined : undefined;
+  const supportTab = newShell ? sectionTab("support", selection.tabs) : undefined;
+  const planTab = newShell ? sectionTab("subscription", selection.tabs) : undefined;
+  const inSupport = (tab: string) => !newShell || chosen === "support" && supportTab === tab;
+  const inSubscription = (tab: string) => !newShell || chosen === "subscription" && planTab === tab;
   const openGame = (game: CatalogGame) => { setAppScreen("games"); onOpenGame(game); };
   useEffect(() => {
     if (!notes) return;
@@ -68,7 +71,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
   </GaScreen>;
   return <GaScreen id="ga-home" mode="home" title={t(greetingKey())} subtitle={t("homeSubtitle")} className="ga-home-screen">
     <div className="ga-home-content ga-stack ga-stack-lg">
-      {(!newShell || chosen === "guide") && welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>
+      {inSupport("instructions") && welcome.map(item => <section key={item.id} className="ga-home-card ga-home-welcome" aria-labelledby={`ga-home-welcome-${item.id}`} data-announcement-id={item.id}>
         <h3 id={`ga-home-welcome-${item.id}`} className="ga-home-card-title">{item.title}</h3>
         <div className="ga-home-welcome-body ga-stack"><AnnouncementBody text={item.body} /></div>
       </section>)}
@@ -76,7 +79,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         <h3 id="ga-home-changes-title" className="ga-home-card-title">{t("homeChangesTitle", { version: notes.version })}</h3>
         <div className="ga-home-changes-body ga-stack"><AnnouncementBody text={notes.changes.map(line => `- ${line}`).join("\n")} /></div>
       </section> : null}
-      {(!newShell || chosen === "subscription") ? <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
+      {inSubscription("plan") ? <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
         <div className="ga-stack">
           <h3 id="ga-home-plus-title" className="ga-home-card-title"><Sparkles size={20} aria-hidden="true" />{t(tier ? "homePlusOnTitle" : "homeBaseTitle")}</h3>
           <p>{t(tier ? "homePlusOnText" : "homeBaseText")}</p>
@@ -84,7 +87,7 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         {tier ? null : <GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("homeActivatePlus")}</GaButton>}
       </section> : null}
       {newShell ? null : <AiPicks onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />}
-      {(!newShell || chosen === "account") ? <AccountCard /> : null}
+      {inSubscription("account") ? <AccountCard /> : null}
       {newShell && chosen === "news" && newsTab === "announcements" ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         {projectAnnouncements.map(item => <article key={item.id} className="ga-home-welcome-body ga-stack">
@@ -97,9 +100,9 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         <NewsPanel games={games} onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />
       </section> : null}
-      {(!newShell || chosen === "help") ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
+      {!newShell || chosen === "support" && supportTab !== "instructions" ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
         <h3 id="ga-home-help-title" className="ga-home-card-title">{t("homeHelpTitle")}</h3>
-        <HelpContent part={helpTab} />
+        <HelpContent part={newShell ? supportTab as "faq" | "contact" : undefined} />
       </section> : null}
     </div>
   </GaScreen>;

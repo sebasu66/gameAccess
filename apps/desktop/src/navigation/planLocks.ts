@@ -6,7 +6,8 @@
  * Game Access › Suscripción.
  */
 export const PLUS_SECTIONS: readonly string[] = ["smartSearch", "aiSuggestions", "tasteProfile", "parental"];
-export const PLUS_TABS: Readonly<Record<string, readonly string[]>> = { general: ["mcp"] };
+/** Without PLUS there is no account: nothing is kept but that the player connected (Seba, 2026-11-11). */
+export const PLUS_TABS: Readonly<Record<string, readonly string[]>> = { general: ["mcp"], subscription: ["account"] };
 
 /** Whether a section, or one of its submodes, is locked for a player without PLUS. */
 export function planLocked(plus: boolean, section: string, tab?: string): boolean {

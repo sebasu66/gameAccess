@@ -9,7 +9,7 @@ describe("árbol de navegación", () => {
     expect(NAVIGATION.map(mode => mode.sections.map(section => section.id))).toEqual([
       ["explore", "smartSearch", "aiSuggestions", "newGames", "tasteProfile"],
       ["play", "downloads", "manager"],
-      ["news", "guide", "account", "subscription", "help"],
+      ["news", "support", "subscription"],
       ["general", "appearance", "plugins", "parental"],
     ]);
   });

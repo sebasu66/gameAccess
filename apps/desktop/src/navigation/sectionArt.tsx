@@ -81,21 +81,6 @@ const news = <Art>
   <path d="M44 24a10 10 0 0 1 0 16M49 18a18 18 0 0 1 0 28M54 12a26 26 0 0 1 0 40" />
 </Art>;
 
-/** Guide: an open book with lines and a ribbon. */
-const guide = <Art>
-  <path className="f" d="M32 14c-6-4-16-5-25-3v39c9-2 19-1 25 3z" /><path className="f" d="M32 14c6-4 16-5 25-3v39c-9-2-19-1-25 3z" />
-  <path d="M32 14v39M12 19c5-1 10-1 15 1M12 25c5-1 10-1 15 1M12 31c5-1 10-1 15 1" />
-  <path d="M37 20c5-2 10-2 15-1M37 26c5-2 10-2 15-1M37 32c5-2 10-2 15-1M37 38c5-2 10-2 15-1M37 44c4-1.5 8-1.5 11-1" />
-  <path className="s" d="M45 10.5v12l3-2 3 2v-12.5z" />
-</Art>;
-
-/** Account: an ID card with the player's picture and lines. */
-const account = <Art>
-  <rect className="f" x="5" y="13" width="54" height="38" rx="4" /><path d="M5 21h54" />
-  <circle cx="20" cy="33" r="5.5" /><path d="M11 47c1-5.5 4.5-8.5 9-8.5s8 3 9 8.5" />
-  <path d="M35 29h17M35 35h12M35 41h16M35 46h9" /><path className="s" d="M47 15.5h8v3h-8z" /><circle cx="11" cy="17" r="1.3" />
-</Art>;
-
 /** Subscription: a crown with its jewels. */
 const subscription = <Art>
   <path className="f" d="M9 45L5 18l14 12 13-19 13 19 14-12-4 27z" /><path className="s" d="M9 45h46v8H9z" />
@@ -104,8 +89,8 @@ const subscription = <Art>
   <path d="M32 27l3 4-3 4-3-4z" /><path d="M50 8l2-3M55 11h3" />
 </Art>;
 
-/** Help: a life ring with its bands and rope. */
-const help = <Art>
+/** Support: a life ring with its bands and rope. */
+const support = <Art>
   <circle className="f" cx="32" cy="32" r="24" /><circle cx="32" cy="32" r="11" />
   <path className="s" d="M11.2 20A24 24 0 0 1 20 11.2l6.5 11.3a11 11 0 0 0-4 4zM44 11.2a24 24 0 0 1 8.8 8.8l-11.3 6.5a11 11 0 0 0-4-4zM52.8 44a24 24 0 0 1-8.8 8.8l-6.5-11.3a11 11 0 0 0 4-4zM20 52.8a24 24 0 0 1-8.8-8.8l11.3-6.5a11 11 0 0 0 4 4z" />
   <path d="M32 4.5c3 2 3 4 0 6M59.5 32c-2 3-4 3-6 0" />
@@ -143,5 +128,5 @@ const parental = <Art>
 
 export const SECTION_ART: Readonly<Record<string, ReactNode>> = {
   explore, smartSearch, aiSuggestions, newGames, tasteProfile, play, downloads, manager,
-  news, guide, account, subscription, help, general, appearance, plugins, parental,
+  news, support, subscription, general, appearance, plugins, parental,
 };
