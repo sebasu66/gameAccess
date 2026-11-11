@@ -55,7 +55,7 @@ export function Chevrons({ big }: { big?: boolean }) {
 /** The mode's image under its tint, shade and scan lines, with the three stripes in the corner. */
 export function PanelArt() {
   return <div className="ga-nav-panel-art" aria-hidden="true">
-    <i className="ga-nav-panel-image" /><i className="ga-nav-panel-tint" /><i className="ga-nav-panel-shade" /><i className="ga-nav-panel-scan" />
+    <i className="ga-nav-panel-image" /><i className="ga-nav-panel-tint" /><i className="ga-nav-panel-shade" /><i className="ga-nav-panel-fade" /><i className="ga-nav-panel-scan" />
   </div>;
 }
 
