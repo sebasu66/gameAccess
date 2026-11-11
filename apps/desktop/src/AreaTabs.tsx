@@ -10,7 +10,7 @@ import "./area-tabs.css";
 const SECTION_KEYS = { catalog: "sectionBrowse", downloads: "downloadsTitle", play: "sectionPlay", manager: "libraryManagerButton" } as const satisfies Record<GameSection, string>;
 
 /**
- * The sections of the area on screen (gameArea.ts): Catalog › Explore, Library › Play | Downloads | Manager. Drawn with
+ * The sections of the area on screen (gameArea.ts): Library › Play | Downloads | Manager (the Catalog has one, so no tabs). Drawn with
  * the tabs template (tabs.css, `.ga-tabs-list` and `.ga-tab`) as links between sections, not as a tab panel.
  */
 export default function AreaTabs({ area }: { area?: GameArea }) {
@@ -21,6 +21,8 @@ export default function AreaTabs({ area }: { area?: GameArea }) {
   const screen = useAppScreen();
   // Without an area of its own it is the games' top bar copy, shown only over the grid (a screen draws its own).
   if (!shown || (!area && screen !== "games")) return null;
+  // An area with one section (the Catalog since Downloads moved to the Library) has nothing to choose between.
+  if (AREA_SECTIONS[shown].length < 2) return null;
   return <nav className="ga-tabs ga-area-tabs" aria-label={t("areaSectionsAria", { area: t(shown === "catalog" ? "areaCatalog" : "areaLibrary") })}>
     <div className="ga-tabs-list">
       {AREA_SECTIONS[shown].map((section, index) => {

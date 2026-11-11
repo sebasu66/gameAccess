@@ -1,3 +1,5 @@
+import type { AppScreen } from "../appScreen";
+import type { GameSection } from "../gameArea";
 import type { TranslationKey } from "../i18n";
 
 /** Canonical hierarchy from vault/Rediseño de navegación.md §2. */
@@ -80,10 +82,16 @@ export const NAVIGATION = [
 
 export type NavigationModeId = (typeof NAVIGATION)[number]["id"];
 
-/** Existing destinations that must keep working while the new presentation is integrated. */
+/** Where each section of the tree is today (a section of the games' area or a screen of its own). */
+export type LegacyDestination = GameSection | Exclude<AppScreen, "games">;
+
+/**
+ * Existing destinations that must keep working while the new presentation is integrated: every section of the tree
+ * has one (checked by the type: a missing section or a destination that does not exist does not compile).
+ */
 export const LEGACY_DESTINATIONS = {
   catalog: { explore: "catalog", smartSearch: "catalog", aiSuggestions: "home", newGames: "catalog", tasteProfile: "catalog" },
   library: { play: "play", downloads: "downloads", manager: "manager" },
   gameAccess: { news: "home", guide: "home", account: "home", subscription: "home", help: "home" },
   settings: { general: "settings", appearance: "settings", plugins: "settings", parental: "kids" },
-} as const;
+} as const satisfies { [M in (typeof NAVIGATION)[number] as M["id"]]: Record<M["sections"][number]["id"], LegacyDestination> };

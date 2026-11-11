@@ -9,7 +9,9 @@ import type { CatalogGame } from "./types";
 import "./downloads-screen.css";
 
 /**
- * Downloads belongs to Library in the navigation redesign (vault/Rediseño de navegación.md §2).
+ * The Download Manager as a section of the Library (vault/Rediseño de navegación.md §2): every download, from the
+ * first step to installed, is followed here and only here. A finished game shows in Library › Play; Play and the
+ * Library Manager do not show downloads.
  */
 export default function DownloadsScreen({ games, onPlay, onOpenGame }: { games: CatalogGame[]; onPlay?: (game: CatalogGame) => void | Promise<void>; onOpenGame?: (game: CatalogGame) => void }) {
   const { t } = useI18n();
