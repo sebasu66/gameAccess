@@ -23,7 +23,7 @@
   --ga-nav-scan-fill: repeating-linear-gradient(0deg, #00000042 0 1px, transparent 1px 3px);
   --ga-nav-hero-scan-fill: repeating-linear-gradient(0deg, #0000002e 0 1px, transparent 1px 3px);
   --ga-nav-title-shadow: 0 2px 0 #00000073; --ga-nav-icon-drop: drop-shadow(0 2px 0 #00000059);
-  --ga-nav-tab-hover: #1e2428d9;
+  --ga-nav-tab-line: #f3f6f873;
   --ga-nav-band-rest: brightness(.82) saturate(.9); --ga-nav-band-hover: brightness(1.15) saturate(1.1);
   --ga-nav-glass: #ffffff59; --ga-nav-glass-shine: #ffffff47; --ga-nav-glass-clear: #ffffff00; --ga-nav-duotone: #00000052; --ga-nav-neon: #ffffff;
   /* The mode bar's 2D graphic per choice (§4.1; no imitated materials). */

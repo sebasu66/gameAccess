@@ -51,6 +51,8 @@ export default function SectionPanel({ mode, selected, reachable, onOpen }: { mo
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(root);
+    // A name's room can change without the panel resizing (a new layout rule): watch each fitted name too.
+    root.querySelectorAll<HTMLElement>("[data-fit]").forEach(el => observer.observe(el));
     // A new style or font changes the measures without resizing anything: fit again once it is drawn and loaded.
     const restyled = () => requestAnimationFrame(() => { fit(); void document.fonts?.ready.then(fit); });
     window.addEventListener(SHELL_LOOK_EVENT, restyled);
