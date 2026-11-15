@@ -39,7 +39,7 @@ export default function StatusBar() {
     </button>
     <span className="ga-nav-status-sep" aria-hidden="true" />
     <button type="button" className="ga-nav-status-item ga-nav-status-accent" onClick={() => openSection("downloads")}>
-      <Download aria-hidden="true" />{t("navDownloads")} <b>{t("navDownloadsActive", { count: downloads.count })}{downloads.speedBps > 0 ? ` · ${formatSpeed(downloads.speedBps, locale)}` : ""}</b>
+      <Download aria-hidden="true" />{t("navDownloads")} <b>{t("navDownloadsActive", { count: downloads.inProgress })} · {formatSpeed(downloads.speedBps, locale)}</b>
       {downloads.speedBps > 0 && <span className="ga-nav-meter" aria-hidden="true"><i /><i /><i /><i /></span>}
     </button>
     <span className="ga-nav-status-grow" />

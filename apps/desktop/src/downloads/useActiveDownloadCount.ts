@@ -3,7 +3,7 @@ import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import type { DownloadProgressSnapshot } from "../downloadProvider";
 import { activeDownloadService } from "./activeService";
 
-export type ActiveDownloads = { count: number; queued: number; speedBps: number; cover?: string };
+export type ActiveDownloads = { count: number; queued: number; inProgress: number; speedBps: number; cover?: string };
 
 /** A download's wide picture, in the order the downloads screen tries them (DigitalDownloadThumb). */
 const wideArt = (game?: { hero_image?: string | null; header_image?: string | null; app_id?: number | null }) =>
@@ -16,7 +16,8 @@ export function readActiveDownloads(entries: readonly { game?: { hero_image?: st
   const moving = active.find(entry => entry.snapshot.phase !== "queued") ?? active[0];
   return {
     count: active.length, queued: active.filter(entry => entry.snapshot.phase === "queued").length,
-    speedBps: active.reduce((sum, entry) => sum + (entry.snapshot.speedBps ?? 0), 0), cover: wideArt(moving?.game),
+    inProgress: active.filter(entry => !["queued", "paused", "cancelling"].includes(entry.snapshot.phase)).length,
+    speedBps: active.reduce((sum, entry) => sum + (entry.snapshot.phase === "downloading" ? entry.snapshot.speedBps ?? 0 : 0), 0), cover: wideArt(moving?.game),
   };
 }
 
@@ -28,7 +29,7 @@ export function useActiveDownloads(): ActiveDownloads {
     const service = activeDownloadService();
     const update = () => {
       const next = read();
-      setState(previous => previous.count === next.count && previous.queued === next.queued && previous.speedBps === next.speedBps && previous.cover === next.cover ? previous : next);
+      setState(previous => previous.count === next.count && previous.queued === next.queued && previous.inProgress === next.inProgress && previous.speedBps === next.speedBps && previous.cover === next.cover ? previous : next);
     };
     update();
     return service.onGlobalUpdate(update);
