@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <meta charset="utf-8">
 <title>GA Árbol de Navegación</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -184,6 +183,18 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .c-art{position:absolute;right:26px;top:0;width:210px;height:104px;background-size:cover;clip-path:polygon(22% 0,100% 0,78% 100%,0 100%);opacity:.9}
 .c-art::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px)}
 .c-body{flex:1;min-height:0;overflow:auto;margin-top:var(--sp-3);padding:4px 14px 28px 0;scrollbar-width:thin;scrollbar-color:#2a3035 transparent}
+/* ═══ CAPA 1 · General: barra de desplazamiento de toda la app (línea fina + círculo; copia de circle-scrollbar.css) ═══ */
+.stage{--ga-scroll-w:28px;--ga-scroll-line:rgba(255,255,255,.08);--ga-scroll-line-on:rgba(255,255,255,.15);--ga-scroll-dot:#c9ced2;--ga-scroll-ring:#111416;--ga-scroll-ring-line:rgba(255,255,255,.3);--ga-scroll-act:var(--acc)}
+[data-ga-scroll]{scrollbar-width:none}[data-ga-scroll]::-webkit-scrollbar{display:none}
+.ga-circle-scrollbar{position:absolute;z-index:6;width:var(--ga-scroll-w);display:flex;justify-content:center;padding:10px 0;box-sizing:border-box;cursor:pointer;touch-action:none}
+.ga-circle-scrollbar[hidden]{display:none}
+.ga-circle-scrollbar-range{position:relative;width:2px;height:100%;border-radius:1px;background:var(--ga-scroll-line);transition:background .25s}
+.ga-circle-scrollbar-range i{position:absolute;left:50%;top:0;width:20px;height:20px;border-radius:50%;transform:translate(-50%,-50%);background:var(--ga-scroll-dot);box-shadow:0 0 0 2px var(--ga-scroll-ring),0 0 0 3.5px var(--ga-scroll-ring-line);transition:transform .3s cubic-bezier(.3,1.6,.5,1),background .2s,box-shadow .2s}
+.ga-circle-scrollbar:hover i,.ga-circle-scrollbar[data-active] i{transform:translate(-50%,-50%) scale(1.35);background:var(--ga-scroll-act);box-shadow:0 0 0 2px var(--ga-scroll-ring),0 0 0 3.5px color-mix(in srgb,var(--ga-scroll-act) 60%,transparent),0 0 16px color-mix(in srgb,var(--ga-scroll-act) 35%,transparent)}
+.ga-circle-scrollbar:hover .ga-circle-scrollbar-range,.ga-circle-scrollbar[data-active] .ga-circle-scrollbar-range{background:var(--ga-scroll-line-on)}
+@media(prefers-reduced-motion:reduce){.ga-circle-scrollbar-range i{transition:background .2s,box-shadow .2s}}
+/* ═══ CAPA 2 · Sabor «Escena»: color de resalte de la sección, tinta blanca o negra según el contraste ═══ */
+.stage[data-nav="scene"]{--ga-scroll-act:var(--sc-c);--ga-scroll-ring:var(--sc-d);--ga-action-bg:var(--sc-c);--ga-action-ink:var(--sc-i);--ga-action-bg-hover:color-mix(in srgb,var(--sc-c) 84%,#fff);--ga-action-on-bg:var(--sc-i);--ga-action-on-ink:var(--sc-c);--ga-close-bg:#be4750;--ga-close-bg-hover:#d65c65;--ga-close-ink:#fff}
 .stack{display:flex;flex-direction:column;gap:var(--sp-3)}
 /* Regla global: una fila de acciones (o un botón suelto) nunca queda pegada a lo anterior */
 .rowf{display:flex;gap:calc(var(--u)*1.5);align-items:center;flex-wrap:wrap}
@@ -1821,6 +1832,228 @@ button.it:hover{border-color:var(--k,var(--orange))}
 .sc-cfgrow b{flex:0 0 150px;font-weight:600}
 .sc-cfgrow .sw input{width:44px;height:32px;padding:0;border:0;border-radius:8px;background:none;cursor:pointer}
 .sc-cfghint{margin:10px 0;opacity:.7;font-size:13px;max-width:60ch}
+/* ── Escena · fondo de los íconos siempre negro ── */
+.sc,.stage[data-nav="scene"] .act{--ik:#0c0d11}
+.scr:not(.on) .ic{background:var(--ik);color:var(--sa);box-shadow:none}
+.scr .lk{background:var(--ik);color:var(--sa)}
+.sc-mh .no{background:var(--ik);color:var(--sa)}
+.sca-job .ty{background:var(--ik);color:var(--sc-c)}
+.sca-g .gh .ty{background:var(--ik)}
+.sca-job:hover .go{background:var(--ik);color:var(--sc-c)}
+/* ── Escena · ficha del juego ── */
+.stage[data-nav="scene"] .gdw{border-radius:38px;overflow:hidden;background:var(--sc-d);font-family:Outfit,system-ui,sans-serif;-webkit-font-smoothing:antialiased;box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px color-mix(in srgb,var(--sc-c) 35%,transparent)}
+.stage[data-nav="scene"] .gdw .gw-scan{display:none}
+.stage[data-nav="scene"] .gdw .gw-bg{opacity:.55;-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent 96%);mask-image:linear-gradient(180deg,#000 30%,transparent 96%)}
+.stage[data-nav="scene"] .gdw .gw-shade{background:radial-gradient(70% 60% at 12% 0,color-mix(in srgb,var(--sc-c) 34%,transparent),transparent 70%),linear-gradient(90deg,var(--sc-d) 8%,color-mix(in srgb,var(--sc-d) 70%,transparent) 55%,color-mix(in srgb,var(--sc-d) 88%,transparent))}
+/* un solo botón de cierre */
+.stage[data-nav="scene"] .gdw .gw-bar [data-close]{display:none}
+.stage[data-nav="scene"] .smoke .sm-x{width:48px;height:48px;border-radius:50%;border:0;background:#0c0d11;color:#fff;font-size:18px;box-shadow:0 0 0 2px var(--sc-c),0 8px 18px rgba(0,0,0,.5);transition:background .2s,color .2s,scale .25s}
+.stage[data-nav="scene"] .smoke .sm-x:hover{background:var(--sc-c);color:var(--sc-i);scale:1.06}
+.stage[data-nav="scene"] .gdw .gw-bar .ex{border-radius:10px;padding:4px 9px;font:700 11px/1 Outfit,system-ui,sans-serif;letter-spacing:.1em}
+.stage[data-nav="scene"] .gdw .gw-bar button{height:40px;padding:0 16px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:rgba(12,13,17,.6);color:#fff;font:700 13px/1 Outfit,system-ui,sans-serif;letter-spacing:.06em}
+.stage[data-nav="scene"] .gdw .gw-bar button:hover{border-color:var(--sc-c);color:var(--sc-c)}
+/* cabecera */
+.stage[data-nav="scene"] .gdw .gw-title{font-family:Outfit,system-ui,sans-serif;font-weight:800;letter-spacing:-.035em;line-height:.95;text-shadow:0 6px 30px rgba(0,0,0,.5)}
+.stage[data-nav="scene"] .gdw .gd-facts{font:600 15px/1 Outfit,system-ui,sans-serif;color:#e9e6ee;margin-top:14px}
+.stage[data-nav="scene"] .gdw .gd-facts .gn{color:var(--sc-c);font-weight:800;letter-spacing:.06em}
+.stage[data-nav="scene"] .gdw .gd-modes span{height:32px;padding:0 14px;border-radius:16px;border:0;background:#0c0d11;color:#fff;font:600 13px/1 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-modes svg{color:var(--sc-c);width:16px;height:16px}
+/* pestañas: un panel plano del color del modo, como el menú */
+/* contenido de cada pestaña */
+.stage[data-nav="scene"] .gdw .gw-pane{font-family:Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-lead{font:500 19px/1.5 Outfit,system-ui,sans-serif;color:#fff;max-width:62ch}
+.stage[data-nav="scene"] .gdw .gw-stats{gap:12px}
+.stage[data-nav="scene"] .gdw .gw-stats>div{border:0;border-radius:22px;padding:16px 18px;background:rgba(255,255,255,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.stage[data-nav="scene"] .gdw .gw-stats small{font:700 11.5px/1 Outfit,system-ui,sans-serif;letter-spacing:.1em;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gw-stats b{font:700 24px/1.15 Outfit,system-ui,sans-serif;letter-spacing:-.01em;color:#fff}
+.stage[data-nav="scene"] .gdw h3{font:800 12px/1 Outfit,system-ui,sans-serif;letter-spacing:.14em;color:#b9b6c2}
+.stage[data-nav="scene"] .gdw .gd-tags span{padding:9px 14px;border:0;border-radius:18px;background:rgba(255,255,255,.08);color:#fff;font:600 14px/1 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-copy p,.stage[data-nav="scene"] .gdw .gd-req ul{font:500 16px/1.6 Outfit,system-ui,sans-serif;color:#dcd9e3}
+.stage[data-nav="scene"] .gdw .gd-req h4{font:800 16px/1.2 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-meta dt{font:700 12px/1.4 Outfit,system-ui,sans-serif;letter-spacing:.08em;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gd-meta dd{font:600 15.5px/1.4 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-meta div{border-bottom-color:rgba(255,255,255,.1);padding:11px 0}
+/* columna derecha: valoración, medios y acciones */
+.stage[data-nav="scene"] .gdw .gw-rate{border:0;border-radius:28px;background:rgba(12,13,17,.72);box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.stage[data-nav="scene"] .gdw .gw-rate small,.stage[data-nav="scene"] .gdw .gw-rate .rt-row small span{font-family:Outfit,system-ui,sans-serif;letter-spacing:.06em}
+.stage[data-nav="scene"] .gdw .gw-rate .ct b,.stage[data-nav="scene"] .gdw .gw-rate .rt-side b{font-family:Outfit,system-ui,sans-serif;font-weight:800;letter-spacing:-.02em}
+.stage[data-nav="scene"] .gdw .rt-bar{border-radius:5px;overflow:hidden}
+.stage[data-nav="scene"] .gdw .rt-side>*{border-radius:16px;border:0;background:rgba(255,255,255,.06)}
+.stage[data-nav="scene"] .gdw .gd-box{border:0;border-radius:26px;box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.stage[data-nav="scene"] .gdw .gd-badge{border-radius:10px;padding:5px 9px;background:var(--sc-c);color:var(--sc-i);font:800 11px/1 Outfit,system-ui,sans-serif;letter-spacing:.08em}
+.stage[data-nav="scene"] .gdw .gd-cap{font:600 13px/1 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-play{background:var(--sc-c);color:var(--sc-i);border:0;box-shadow:0 0 0 8px color-mix(in srgb,var(--sc-c) 25%,transparent)}
+.stage[data-nav="scene"] .gdw .gd-ctl{border-radius:19px;border:0;background:rgba(12,13,17,.8)}
+.stage[data-nav="scene"] .gdw .gd-thumbs{gap:8px}
+.stage[data-nav="scene"] .gdw .gd-thumbs button{border:0;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.stage[data-nav="scene"] .gdw .gd-thumbs button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gd-mbot{font:600 12px/1 Outfit,system-ui,sans-serif;letter-spacing:.04em}
+.stage[data-nav="scene"] .gdw .gw-act{gap:10px}
+/* valoración: el valor actual, como medidor de segmentos */
+.rv{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;padding:20px 22px;font-family:Outfit,system-ui,sans-serif}
+.rv-g{position:relative;width:210px;height:181px}
+.rv-g svg{width:100%;height:100%;overflow:visible}
+.rv-g .sg{fill:rgba(255,255,255,.1);transition:fill .5s,filter .5s}
+.rv-g.on .sg.lit{fill:var(--tone);filter:drop-shadow(0 0 5px color-mix(in srgb,var(--tone) 70%,transparent))}
+.rv-g .dot{fill:#fff;opacity:0;transition:opacity .4s 1s}
+.rv-g.on .dot{opacity:1}
+.rv-g .ct{position:absolute;left:0;right:0;top:54px;text-align:center;color:#fff}
+.rv-g .ct b{display:block;font:800 62px/.9 Outfit,system-ui,sans-serif;letter-spacing:-.04em}
+.rv-g .ct b small{font-size:26px;font-weight:700;margin-left:2px}
+.rv-g .ct i{display:block;margin-top:4px;font:700 12px/1 Outfit,system-ui,sans-serif;font-style:normal;letter-spacing:.12em;text-transform:uppercase;color:#b9b6c2}
+.rv-i{min-width:0;display:flex;flex-direction:column}
+.rv-i strong{font:800 27px/1.05 Outfit,system-ui,sans-serif;letter-spacing:-.02em;color:var(--tone)}
+.rv-i .sub{margin:6px 0 14px;font:500 14px/1.2 Outfit,system-ui,sans-serif;color:#c9c6cf}
+.rv .rt-bar{height:10px;border-radius:5px;overflow:hidden;gap:3px;background:none}
+.rv .rt-bar i{border-radius:5px}
+.rv-lg{display:flex;justify-content:space-between;margin-top:8px;font:700 14px/1 Outfit,system-ui,sans-serif}
+.rv-lg span{display:inline-flex;align-items:center;gap:6px}
+.rv-lg .p{color:var(--ok)}.rv-lg .n{color:var(--bad)}
+.rv-lg svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rv-ch{display:flex;gap:10px;margin-top:16px}
+.rv-ch>div{flex:1;min-width:0;padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.07)}
+.rv-ch small{display:block;font:700 11px/1 Outfit,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#b9b6c2;margin-bottom:6px}
+.rv-ch b{font:800 22px/1 Outfit,system-ui,sans-serif;color:#fff}
+/* la botonera de la ficha va abajo a la izquierda */
+.stage[data-nav="scene"] .gdw>.gw-act{position:absolute;z-index:5;left:110px;bottom:36px;margin:0;padding:0;border:0;display:flex;align-items:center;justify-content:flex-start;gap:10px}
+.stage[data-nav="scene"] .gdw .gw-body{padding-bottom:112px;box-sizing:border-box}
+/* ── Escena · ficha: imagen más presente, acordeón, medios primero ── */
+.stage[data-nav="scene"] .gdw .gw-bg{opacity:1;-webkit-mask-image:linear-gradient(180deg,#000 55%,transparent 100%);mask-image:linear-gradient(180deg,#000 55%,transparent 100%)}
+.stage[data-nav="scene"] .gdw .gw-shade{background:radial-gradient(60% 50% at 8% 0,color-mix(in srgb,var(--sc-c) 26%,transparent),transparent 70%),linear-gradient(90deg,color-mix(in srgb,var(--sc-d) 82%,transparent) 0,color-mix(in srgb,var(--sc-d) 40%,transparent) 42%,transparent 72%),linear-gradient(0deg,var(--sc-d) 22%,color-mix(in srgb,var(--sc-d) 55%,transparent) 48%,transparent 74%)}
+.stage[data-nav="scene"] .gdw .gw-top{height:316px}
+.stage[data-nav="scene"] .gdw .gw-body{height:calc(100% - 316px);grid-template-columns:1fr;gap:0;padding-bottom:116px}
+/* acordeón */
+/* columna derecha: medios arriba, valoración abajo, alineada con la botonera */
+.stage[data-nav="scene"] .gdw .gw-side{top:136px;bottom:36px;gap:16px}
+.stage[data-nav="scene"] .gdw .gw-gal{order:1;flex:none}
+.stage[data-nav="scene"] .gdw .gw-rate{order:2;flex:none;height:auto;margin-top:auto;padding:0;overflow:visible}
+/* ── Escena · ficha en grilla: dos columnas y tres filas compartidas ── */
+.stage[data-nav="scene"] .gdw{display:grid!important;grid-template-columns:minmax(0,1fr) var(--sw);grid-template-rows:300px minmax(0,1fr) auto;column-gap:40px;row-gap:0;padding:0 96px 36px 110px;box-sizing:border-box;align-items:stretch;justify-items:stretch;place-content:stretch}
+.stage[data-nav="scene"] .gdw .gw-top{grid-column:1;grid-row:1;height:auto;padding:0 0 26px;min-width:0}
+.stage[data-nav="scene"] .gdw .gw-bar{top:26px;left:0;right:calc(-1*(var(--sw) + 40px))}
+.stage[data-nav="scene"] .gdw .gw-body{grid-column:1;grid-row:2;display:block;height:auto;min-height:0;min-width:0;padding:0}
+.stage[data-nav="scene"] .gdw>.gw-act{grid-column:1;grid-row:3;position:static;margin:20px 0 0}
+.stage[data-nav="scene"] .gdw .gw-side{grid-column:2;grid-row:2/4;position:static;width:auto;min-height:0;display:grid;grid-template-rows:auto minmax(226px,1fr);gap:16px}
+.stage[data-nav="scene"] .gdw .rv{padding:12px 22px}
+.stage[data-nav="scene"] .gdw .gw-gal{order:1}
+.stage[data-nav="scene"] .gdw .gw-rate{order:2;margin:0;height:auto;min-height:0;display:grid;align-content:center;overflow:hidden}
+/* acordeón: una tabla de una columna; solo los encabezados llevan el color del modo */
+/* sección «Acerca del juego»: un solo texto con scroll, bloques separados por una línea fina */
+/* ── Escena · ficha con pestañas: cabecera / grilla de dos columnas / pie de dos columnas ── */
+.stage[data-nav="scene"] .gdw .gw-body{grid-column:1;grid-row:2;display:flex;flex-direction:column;height:auto;min-height:0;min-width:0;padding:0}
+.stage[data-nav="scene"] .gdw .gw-side{grid-row:2}
+.stage[data-nav="scene"] .gdw>.gw-act{grid-column:1;grid-row:3;margin:22px 0 0}
+.stage[data-nav="scene"] .gdw .gw-played{display:flex;align-items:center;gap:10px;grid-column:2;grid-row:3;height:60px;margin:22px 0 0;font:500 14.5px/1.2 Outfit,system-ui,sans-serif;color:#aeabb8}
+.stage[data-nav="scene"] .gdw .gw-played b{font-weight:700;color:#e9e6ee}
+.stage[data-nav="scene"] .gdw .gw-played span{opacity:.5}
+.gw-played{display:none}
+/* selectores de pestaña: sutiles, con fondo semitransparente */
+.stage[data-nav="scene"] .gdw .gw-tabs{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;flex:none;gap:6px;height:auto;max-height:none;min-height:0;padding:0;margin:0 0 16px;border-radius:0;background:none;box-shadow:none;overflow:visible}
+.stage[data-nav="scene"] .gdw .gw-tabs button{display:flex;align-items:center;gap:8px;flex:none;width:auto;height:38px;padding:0 18px;border:0;border-radius:19px;clip-path:none;background:rgba(255,255,255,.07);color:#d3d0db;font:700 14.5px/1 Outfit,system-ui,sans-serif;letter-spacing:.01em;box-shadow:none;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
+.stage[data-nav="scene"] .gdw .gw-tabs button::before,.stage[data-nav="scene"] .gdw .gw-tabs button::after{display:none;content:none}
+.stage[data-nav="scene"] .gdw .gw-tabs button svg{display:none}
+.stage[data-nav="scene"] .gdw .gw-tabs button span{position:static;margin:0;color:inherit;font:inherit}
+.stage[data-nav="scene"] .gdw .gw-tabs button.none,.stage[data-nav="scene"] .gdw .gw-tabs button.gone{display:none}
+.stage[data-nav="scene"] .gdw .gw-tabs button:hover{background:rgba(255,255,255,.14);color:#fff}
+.stage[data-nav="scene"] .gdw .gw-tabs button[aria-selected="true"]{background:color-mix(in srgb,var(--sc-c) 26%,rgba(255,255,255,.04));color:#fff;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--sc-c) 65%,transparent);cursor:default}
+.stage[data-nav="scene"] .gdw .gw-tabs .st{min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font:700 11.5px/20px Outfit,system-ui,sans-serif;text-align:center;opacity:1;letter-spacing:0}
+.stage[data-nav="scene"] .gdw .gw-tabs .st.ld{background:none;border-radius:50%;min-width:0;width:11px;height:11px;padding:0;opacity:.55}
+/* contenido de la pestaña: scroll propio */
+.stage[data-nav="scene"] .gdw .gw-pane{flex:1 1 0;min-height:0;overflow:auto;margin:0;padding:2px 14px 36px 2px;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--sc-c) 50%,transparent) transparent;-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 40px),transparent)}
+.stage[data-nav="scene"] .gdw .gw-pane h3:first-child{margin-top:0}
+.stage[data-nav="scene"] .gdw .gw-pane .gw-sec+.gw-sec{margin-top:30px;padding-top:24px;border-top:1px solid rgba(255,255,255,.12)}
+.stage[data-nav="scene"] .gdw .gw-pane .gw-sec>h3:first-child{display:block;margin:0 0 14px;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gd-lead.sm{font-size:16px;color:#c9c6d1;margin:0 0 16px}
+/* extra: guías y tutoriales */
+.stage[data-nav="scene"] .gdw .ex-list{display:grid;gap:10px}
+.stage[data-nav="scene"] .gdw .gxi{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 18px;border-radius:18px;background:rgba(255,255,255,.06)}
+.stage[data-nav="scene"] .gdw .gxi-k{font:800 11.5px/1 Outfit,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gxi b{font:600 16px/1.3 Outfit,system-ui,sans-serif;color:#fff}
+.stage[data-nav="scene"] .gdw .gxi small{font:500 13px/1 Outfit,system-ui,sans-serif;color:#aeabb8}
+/* similares */
+.stage[data-nav="scene"] .gdw .sim-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.stage[data-nav="scene"] .gdw .sim{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;aspect-ratio:16/10;padding:12px 14px;border:0;border-radius:18px;overflow:hidden;text-align:left;background:#0c0d11 center/cover;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);transition:transform .25s,box-shadow .25s}
+.stage[data-nav="scene"] .gdw .sim::before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(8,9,12,.92),rgba(8,9,12,.15) 70%)}
+.stage[data-nav="scene"] .gdw .sim>*{position:relative}
+.stage[data-nav="scene"] .gdw .sim b{font:700 16px/1.15 Outfit,system-ui,sans-serif;color:#fff}
+.stage[data-nav="scene"] .gdw .sim small{font:500 12.5px/1 Outfit,system-ui,sans-serif;color:#cfcbd6}
+.stage[data-nav="scene"] .gdw .sim:hover{transform:translateY(-3px);box-shadow:inset 0 0 0 2px var(--sc-c)}
+/* IA */
+.stage[data-nav="scene"] .gdw .ia{padding:20px 24px;border-radius:22px;background:color-mix(in srgb,var(--sc-c) 13%,transparent)}
+.stage[data-nav="scene"] .gdw .ia h4{margin:0 0 10px;font:800 15px/1.2 Outfit,system-ui,sans-serif;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .ia p{margin:0;font:500 17px/1.6 Outfit,system-ui,sans-serif;color:#eceaf1;max-width:62ch}
+.stage[data-nav="scene"] .gdw .ia .ia-n{margin-top:12px;font-size:13px;color:#aeabb8}
+.stage[data-nav="scene"] .gdw .gw-played{position:relative;z-index:5}
+.stage[data-nav="scene"] .gdw{grid-template-rows:296px minmax(0,1fr) auto}
+.stage[data-nav="scene"] .gdw .gw-side{grid-template-rows:auto minmax(188px,1fr);gap:14px}
+/* valoración compacta para que quepa junto al video */
+.stage[data-nav="scene"] .gdw .rv{grid-template-columns:auto minmax(0,1fr);gap:16px;padding:8px 16px}
+.stage[data-nav="scene"] .gdw .rv-g{width:164px;height:141px}
+.stage[data-nav="scene"] .gdw .rv-g .ct{top:42px}
+.stage[data-nav="scene"] .gdw .rv-g .ct b{font-size:48px}
+.stage[data-nav="scene"] .gdw .rv-g .ct b small{font-size:21px}
+.stage[data-nav="scene"] .gdw .rv-g .ct i{font-size:10.5px;margin-top:2px}
+.stage[data-nav="scene"] .gdw .rv-i strong{font-size:22px;line-height:1.05}
+.stage[data-nav="scene"] .gdw .rv-i .sub{margin:4px 0 10px;font-size:12.5px}
+.stage[data-nav="scene"] .gdw .rv-lg{font-size:13px;margin-top:6px}
+.stage[data-nav="scene"] .gdw .rv-ch{margin-top:10px;gap:8px}
+.stage[data-nav="scene"] .gdw .rv-ch>div{padding:7px 12px;border-radius:14px}
+.stage[data-nav="scene"] .gdw .rv-ch small{margin-bottom:4px;font-size:10px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage[data-nav="scene"] .gdw .rv-ch b{font-size:18px}
+.stage[data-nav="scene"] .gdw .gd-coop{padding:18px 20px;border:0;border-radius:22px;background:rgba(255,255,255,.06);font-family:Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-coop .hd h4{font:800 16px/1.2 Outfit,system-ui,sans-serif}
+.stage[data-nav="scene"] .gdw .gd-coop .hd a{font:700 13px/1 Outfit,system-ui,sans-serif;color:var(--sc-c);text-decoration:none}
+.stage[data-nav="scene"] .gdw .gd-coop dl>div{border:0;border-radius:16px;background:rgba(0,0,0,.28)}
+.stage[data-nav="scene"] .gdw .gd-coop dt{font:700 11px/1 Outfit,system-ui,sans-serif;letter-spacing:.08em;color:var(--sc-c)}
+.stage[data-nav="scene"] .gdw .gd-coop dd{font:600 18px/1.3 Outfit,system-ui,sans-serif;color:#fff}
+/* ═══ CAPA 3 · Ficha del juego (Escena): solo lee los roles de las capas 1 y 2 ═══ */
+.stage[data-nav="scene"] .gdw .gw-act .btn,.stage[data-nav="scene"] .gdw .gw-act .gd-ic{border:0;background:var(--ga-action-bg);background-image:none;color:var(--ga-action-ink);box-shadow:none;transition:background .2s,color .2s,translate .2s}
+.stage[data-nav="scene"] .gdw .gw-act .btn{height:60px;min-height:60px;padding:0 34px;border-radius:30px;clip-path:none;font:800 19px/1 Outfit,system-ui,sans-serif;letter-spacing:0}
+.stage[data-nav="scene"] .gdw .gw-act .gd-ic{width:56px;height:56px;border-radius:50%}
+.stage[data-nav="scene"] .gdw .gw-act .btn:hover,.stage[data-nav="scene"] .gdw .gw-act .gd-ic:hover{background:var(--ga-action-bg-hover);color:var(--ga-action-ink);translate:0 -2px;box-shadow:none}
+.stage[data-nav="scene"] .gdw .gw-act .gd-ic[aria-pressed="true"]{background:var(--ga-action-on-bg);color:var(--ga-action-on-ink);box-shadow:0 0 0 2px var(--ga-action-bg)}
+/* barra de desplazamiento de las pestañas: en el espacio libre entre las dos columnas */
+.stage[data-nav="scene"] .gdw .gw-pane{padding-right:6px}
+/* cerrar: a la altura del título, en el borde derecho de la grilla */
+.gw-x{display:none}
+.stage[data-nav="scene"] .smoke:has(.gdw) .sm-x{display:none}
+.stage[data-nav="scene"] .gdw .gw-trow{position:relative}
+.stage[data-nav="scene"] .gdw .gw-x{display:grid;place-items:center;position:absolute;top:50%;right:calc(-1*(var(--sw) + 40px));translate:0 -50%;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:#0c0d11;color:#fff;font:700 19px/1 Outfit,system-ui,sans-serif;box-shadow:0 0 0 2px var(--sc-c),0 8px 18px rgba(0,0,0,.5);cursor:pointer;transition:background .2s,color .2s,scale .25s}
+.stage[data-nav="scene"] .gdw .gw-x:hover{background:var(--ga-action-bg);color:var(--ga-action-ink);scale:1.06}
+/* bajo el título: género y modos, y los datos de la edición (sin repetirlos en la descripción) */
+.stage[data-nav="scene"] .gdw .gw-gl{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:12px}
+.stage[data-nav="scene"] .gdw .gw-gl .gd-facts{margin:0}
+.stage[data-nav="scene"] .gdw .gw-gl .gd-modes{margin:0}
+.stage[data-nav="scene"] .gdw .gw-fx{display:flex;flex-wrap:wrap;gap:6px 34px;margin:12px 0 0;padding:0}
+.stage[data-nav="scene"] .gdw .gw-fx dt{font:600 12.5px/1 Outfit,system-ui,sans-serif;color:#aeabb8;margin:0 0 5px}
+.stage[data-nav="scene"] .gdw .gw-fx dd{font:700 17px/1.15 Outfit,system-ui,sans-serif;color:#fff;margin:0}
+/* el centro deja libre el carril de la barra de desplazamiento circular */
+.stage[data-nav="scene"] .c-body{padding-right:40px}
+/* ficha: video y capturas más grandes, valoración más baja (mismo ancho de columna), más aire bajo la cabecera */
+.stage[data-nav="scene"] .gdw{grid-template-rows:310px minmax(0,1fr) auto}
+.stage[data-nav="scene"] .gdw .gw-top{padding-bottom:40px}
+.stage[data-nav="scene"] .gdw .gw-side{grid-template-rows:auto minmax(132px,1fr);gap:12px}
+.stage[data-nav="scene"] .gdw .rv{gap:14px;padding:6px 14px}
+.stage[data-nav="scene"] .gdw .rv-g{width:128px;height:110px}
+.stage[data-nav="scene"] .gdw .rv-g .ct{top:33px}
+.stage[data-nav="scene"] .gdw .rv-g .ct b{font-size:37px}
+.stage[data-nav="scene"] .gdw .rv-g .ct b small{font-size:17px}
+.stage[data-nav="scene"] .gdw .rv-g .ct i{font-size:9px;margin-top:1px}
+.stage[data-nav="scene"] .gdw .rv-i strong{font-size:19px}
+.stage[data-nav="scene"] .gdw .rv-i .sub{margin:2px 0 6px;font-size:12px}
+.stage[data-nav="scene"] .gdw .rv-lg{font-size:12px;margin-top:4px}
+.stage[data-nav="scene"] .gdw .rv-ch{margin-top:6px;gap:6px}
+.stage[data-nav="scene"] .gdw .rv-ch>div{padding:4px 10px;border-radius:12px}
+.stage[data-nav="scene"] .gdw .rv-ch small{margin-bottom:2px;font-size:9.5px}
+.stage[data-nav="scene"] .gdw .rv-ch b{font-size:15px}
+/* cerrar: rojo, como el cierre de toda la app (rol de la capa 2) */
+.stage[data-nav="scene"] .gdw .gw-x{background:var(--ga-close-bg);color:var(--ga-close-ink);box-shadow:0 8px 18px rgba(0,0,0,.45)}
+.stage[data-nav="scene"] .gdw .gw-x:hover{background:var(--ga-close-bg-hover);color:var(--ga-close-ink)}
+/* íconos de las acciones: rellenos, más gruesos y más grandes */
+.stage[data-nav="scene"] .gdw .gw-act .gd-ic svg{width:28px;height:28px;fill:currentColor;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.stage[data-nav="scene"] .gdw .gw-act .gd-ic svg path+path{fill:none;stroke-width:2.4}
+/* los botones del pie no se desvanecen: el borde inferior de la tarjeta se funde más abajo */
+.stage[data-nav="scene"] .sm-card.gdw{-webkit-mask-image:linear-gradient(90deg,transparent,#000 120px,#000 calc(100% - 120px),transparent),linear-gradient(180deg,transparent,#000 90px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,transparent,#000 120px,#000 calc(100% - 120px),transparent),linear-gradient(180deg,transparent,#000 90px,#000 calc(100% - 28px),transparent)}
 @media (prefers-reduced-motion:reduce){.sc *{transition:none!important;animation:none!important}}
 </style>
 
@@ -2143,17 +2376,18 @@ function accessCards(){const li=(f,no)=>`<li${no?' class="no"':''}><i>${no?'✕'
   </div>`}
 /* ---------- ficha del juego ---------- */
 const GI={
- 'Hades':{g:['Acción','Indie','Rol'],d:'17 sep 2020',sz:'15 GB',pf:'Windows · macOS',m:['solo'],dev:'Supergiant Games',pub:'Supergiant Games',r:98,n:'254.310',lead:'Escapá del inframundo como Zagreo, hijo de Hades: cada intento es distinto, con dioses del Olimpo que te dan poderes y una historia que avanza con cada muerte.',tags:['Roguelike','Hack and slash','Mitología','Buena historia','Difícil'],ach:49,mc:93},
+ 'Hades':{steam:1,g:['Acción','Indie','Rol'],d:'17 sep 2020',sz:'15 GB',pf:'Windows · macOS',m:['solo'],dev:'Supergiant Games',pub:'Supergiant Games',r:98,n:'254.310',lead:'Escapá del inframundo como Zagreo, hijo de Hades: cada intento es distinto, con dioses del Olimpo que te dan poderes y una historia que avanza con cada muerte.',tags:['Roguelike','Hack and slash','Mitología','Buena historia','Difícil'],ach:49,mc:93},
  'Hollow Knight':{g:['Acción','Aventura','Indie'],d:'24 feb 2017',sz:'9 GB',pf:'Windows · macOS · Linux',m:['solo'],dev:'Team Cherry',pub:'Team Cherry',r:97,n:'388.420',lead:'Un metroidvania dibujado a mano: explorá un reino de insectos en ruinas, enfrentá jefes exigentes y descubrí sus secretos a tu ritmo.',tags:['Metroidvania','Plataformas','Exploración','Difícil'],ach:63,mc:87},
  'It Takes Two':{g:['Acción','Aventura'],d:'26 mar 2021',sz:'50 GB',pf:'Windows',m:['coopl','coopo'],dev:'Hazelight Studios',pub:'Electronic Arts',r:95,n:'210.880',lead:'Una aventura hecha para dos: cada nivel cambia las reglas y solo se avanza si los dos cooperan, en el mismo sillón o en línea.',tags:['Cooperativo','Pantalla dividida','Plataformas','Para dos'],ach:20,mc:89,coop:[['En el mismo equipo','2 jugadores'],['En línea','2 jugadores']],coopT:['Campaña cooperativa','Pantalla dividida']},
- 'Portal 2':{g:['Acción','Aventura'],d:'18 abr 2011',sz:'8 GB',pf:'Windows · macOS · Linux',m:['solo','coopl','coopo'],dev:'Valve',pub:'Valve',r:98,n:'412.900',lead:'Puzles con un arma que abre portales, una campaña con mucho humor y un modo cooperativo para dos con sus propios desafíos.',tags:['Puzles','Ciencia ficción','Cooperativo','Humor'],ach:51,mc:95,steam:1,coop:[['En el mismo equipo','2 jugadores'],['En línea','2 jugadores']],coopT:['Campaña cooperativa','Pantalla dividida']},
- 'Baldurs Gate 3':{g:['Rol','Aventura','Estrategia'],d:'3 ago 2023',sz:'150 GB',pf:'Windows · macOS',m:['solo','coopo','lan'],dev:'Larian Studios',pub:'Larian Studios',r:96,n:'640.150',lead:'Un juego de rol enorme basado en Dungeons & Dragons: reuní un grupo, decidí cómo se resuelve cada situación y jugá solo o con amigos.',tags:['Rol por turnos','Fantasía','Decisiones','Cooperativo'],ach:54,mc:96,coop:[['En línea','4 jugadores'],['Red local','4 jugadores']],coopT:['Campaña cooperativa','Entrada y salida libre']},
+ 'Portal 2':{steam:1,g:['Acción','Aventura'],d:'18 abr 2011',sz:'8 GB',pf:'Windows · macOS · Linux',m:['solo','coopl','coopo'],dev:'Valve',pub:'Valve',r:98,n:'412.900',lead:'Puzles con un arma que abre portales, una campaña con mucho humor y un modo cooperativo para dos con sus propios desafíos.',tags:['Puzles','Ciencia ficción','Cooperativo','Humor'],ach:51,mc:95,steam:1,coop:[['En el mismo equipo','2 jugadores'],['En línea','2 jugadores']],coopT:['Campaña cooperativa','Pantalla dividida']},
+ 'Baldurs Gate 3':{steam:1,g:['Rol','Aventura','Estrategia'],d:'3 ago 2023',sz:'150 GB',pf:'Windows · macOS',m:['solo','coopo','lan'],dev:'Larian Studios',pub:'Larian Studios',r:96,n:'640.150',lead:'Un juego de rol enorme basado en Dungeons & Dragons: reuní un grupo, decidí cómo se resuelve cada situación y jugá solo o con amigos.',tags:['Rol por turnos','Fantasía','Decisiones','Cooperativo'],ach:54,mc:96,coop:[['En línea','4 jugadores'],['Red local','4 jugadores']],coopT:['Campaña cooperativa','Entrada y salida libre']},
  'Elden Ring':{g:['Acción','Rol'],d:'25 feb 2022',sz:'60 GB',pf:'Windows',m:['solo','coopo','pvp'],dev:'FromSoftware',pub:'Bandai Namco Entertainment',r:91,n:'720.300',lead:'Un mundo abierto oscuro y desafiante: explorá las Tierras Intermedias, enfrentá jefes enormes y pedí ayuda a otros jugadores cuando haga falta.',tags:['Soulslike','Mundo abierto','Difícil','Fantasía oscura'],ach:42,mc:94,coop:[['En línea','3 jugadores']],coopT:['Modos cooperativos']},
  'Red Dead Redemption 2':{g:['Acción','Aventura'],d:'5 dic 2019',sz:'120 GB',pf:'Windows',m:['solo','mo'],dev:'Rockstar Games',pub:'Rockstar Games',r:90,n:'590.700',lead:'El ocaso del Lejano Oeste visto por Arthur Morgan y su banda: una historia larga, un mundo enorme y un modo en línea aparte.',tags:['Mundo abierto','Western','Buena historia'],ach:51,mc:93},
  'Ghost of Tsushima':{g:['Acción','Aventura'],d:'16 may 2024',sz:'75 GB',pf:'Windows',m:['solo','coopo'],dev:'Sucker Punch Productions',pub:'PlayStation Publishing LLC',r:93,n:'78.400',lead:'Japón, 1274: como el samurái Jin Sakai, defendé la isla de Tsushima de la invasión mongola en un mundo abierto con combate con espada.',tags:['Samuráis','Mundo abierto','Sigilo','Buena historia'],ach:52,mc:null,coop:[['En línea','4 jugadores']],coopT:['Modos cooperativos']}};
 const MODES={solo:['Un jugador','<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>'],coopl:['Cooperativo local','<rect x="3" y="4" width="18" height="12"/><path d="M8 20h8M12 16v4"/>'],coopo:['Cooperativo en línea','<circle cx="9" cy="8.5" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.7"/>'],
   lan:['Cooperativo LAN','<rect x="9" y="3" width="6" height="5"/><rect x="3" y="16" width="6" height="5"/><rect x="15" y="16" width="6" height="5"/><path d="M12 8v4M6 16v-4h12v4"/>'],pvp:['Multijugador en línea','<circle cx="9" cy="8.5" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.7"/>'],mo:['Multijugador en línea','<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/>']};
 const NI='No informado';
+const AICOM=new Set(['Hades','Hollow Knight','Elden Ring','Baldurs Gate 3','Portal 2','Counter-Strike 2']);
 function gInfo(n){const k=GI[n];if(k)return k;let h=0;for(const ch of n)h=h*31+ch.charCodeAt(0)|0;h=Math.abs(h);
   return {g:[['Acción','Aventura','Rol','Estrategia','Simulación'][h%5]],d:NI,sz:NI,pf:'Windows',m:['solo'],dev:NI,pub:NI,r:60+h%38,n:(1000+h%90000).toLocaleString('es-AR'),lead:'Descripción de ejemplo: en la app real llega de la ficha de Steam.',tags:[],ach:null,mc:null}}
 const GD={n:'',i:0,video:false,paused:false,muted:true,timer:0,tok:0};
@@ -2161,12 +2395,14 @@ function openDetail(n){const info=gInfo(n),lib=TREE[S.m].id==='libreria',cat=TRE
   Object.assign(GD,{n,i:0,video:false,paused:false});const shots=[0,1,2,3].map(i=>shotUrl((i+n.length)%4));GD.shots=shots;
   const tone=info.r>=80?'great':info.r>=60?'mixed':'bad',md=k=>`<span><svg viewBox="0 0 24 24">${MODES[k][1]}</svg>${MODES[k][0]}</span>`;
   const meta=[['Tamaño',info.sz],['Género',info.g.join(' · ')],['Valoración',info.r+'% · '+info.n+' reseñas'],['Recomendaciones',info.n],['Idiomas',GI[n]?'Español, inglés y 10 más':NI],['Desarrollador',info.dev],['Editor',info.pub],['Lanzamiento',info.d],['Plataformas',info.pf],['Categorías de Steam',info.m.map(k=>MODES[k][0]).join(' · ')],['Logros',info.ach!=null?String(info.ach):NI],['Metacritic',info.mc!=null?info.mc+'/100':NI]];
-  const primary=lib?`<button class="btn" data-next="play" data-n="${n}">▶ Jugar</button>`:info.steam?`<button class="btn" data-close="1" data-note="Instalar con Steam|${n} está en tu cuenta de Steam: Steam se encarga de instalarlo.">⬇ Instalar con Steam</button>`:dl?`<button class="btn" data-go="libreria/descargas">Ver la descarga</button>`:`<button class="btn" data-next="dl" data-n="${n}">⬇ Descargar</button>`;
+  const primary=lib?`<button class="btn" data-next="play" data-n="${n}">▶ Jugar</button>`:info.steam?`<button class="btn" data-close="1" data-note="Instalar|${n} está en tu biblioteca de Steam: Steam se encarga de instalarlo.">⬇ Instalar</button>`:'';
+  const hh=[...n].reduce((a,c)=>a*31+c.charCodeAt(0)|0,0),hrs=8+Math.abs(hh)%140,dd=1+Math.abs(hh)%27,played=lib?`<p class="gw-played"><b>Has jugado ${hrs} h</b><span>·</span>última partida: hace ${dd} ${dd===1?'día':'días'}</p>`:'';
   const html=`<div class="gw-bg" style="background-image:url(${sceneSet().hero})"></div><div class="gw-scan"></div><div class="gw-shade"></div>
    <header class="gw-top">
     <div class="gw-bar"><span class="ex">EJEMPLO</span><button data-gdrefresh="1" title="Actualizar datos de Steam"><span>↻</span> STEAM</button><button data-close="1" aria-label="Cerrar la ficha">✕ CERRAR · ESC</button></div>
-    <div class="gw-hd"><h2 class="gw-title">${n}</h2>
-     <div class="gw-row"><div><div class="gd-facts"><span class="gn">${info.g.join(' · ')}</span><span>${info.d}</span><span>${info.sz}</span><span>${info.pf}</span></div><div class="gd-modes">${info.m.map(md).join('')}</div></div>
+    <div class="gw-hd"><div class="gw-trow"><h2 class="gw-title">${n}</h2><button class="gw-x" data-close="1" aria-label="Cerrar la ficha">✕</button></div>
+     <div class="gw-row"><div>${navKey()==='scene'?`<div class="gw-gl"><div class="gd-facts"><span class="gn">${info.g.join(' · ')}</span></div><div class="gd-modes">${info.m.map(md).join('')}</div></div>
+      <dl class="gw-fx"><div><dt>Desarrollador</dt><dd>${info.dev}</dd></div><div><dt>Lanzamiento</dt><dd>${info.d}</dd></div><div><dt>Tamaño</dt><dd>${info.sz}</dd></div><div><dt>Plataformas</dt><dd>${info.pf}</dd></div></dl>`:`<div class="gd-facts"><span class="gn">${info.g.join(' · ')}</span><span>${info.d}</span><span>${info.sz}</span><span>${info.pf}</span></div><div class="gd-modes">${info.m.map(md).join('')}</div>`}</div>
 </div></div>
    </header>
    <aside class="gw-side" aria-label="Valoración, medios y acciones">
@@ -2180,16 +2416,16 @@ function openDetail(n){const info=gInfo(n),lib=TREE[S.m].id==='libreria',cat=TRE
       <div class="gd-thumbs">${shots.map((x,i)=>`<button data-gdshot="${i}" aria-label="Ver captura ${i+1}" aria-pressed="${i===0}" style="background-image:url(${x})"></button>`).join('')}</div>
       <div class="gd-mbot"><span>▣ ${shots.length} capturas</span><span class="dots">${shots.map((x,i)=>`<i class="${i?'':'on'}"></i>`).join('')}</span></div></div>
     </div>
-    <div class="gw-act">${primary}<button class="gd-ic" data-note="Steam|Se abre la página de ${n} en Steam." aria-label="Ver en Steam" title="Ver en Steam"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 11h-13z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg></button>
+    <div class="gw-act">${primary}<button class="gd-ic" data-note="Steam|Se abre ${n} en tu perfil de Steam." aria-label="Tienda: ver en Steam" title="Tienda · ver en Steam"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 11h-13z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg></button>
        <button class="gd-ic" data-like="1" aria-pressed="false" aria-label="Me gusta"><svg viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/></svg></button>
        <button class="gd-ic" data-like="-1" aria-pressed="false" aria-label="No me gusta"><svg viewBox="0 0 24 24"><path d="M17 13V4h3v9zM17 13l-4 7c-1.5 0-2.5-1-2.2-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.2 4H17"/></svg></button></div>
    </aside>
    <div class="gw-body">
-    <nav class="gw-tabs" role="tablist" aria-label="Secciones de la ficha" aria-orientation="vertical"></nav>
+    <nav class="gw-tabs" role="tablist" aria-label="Secciones de la ficha" aria-orientation="horizontal"></nav>
     <div class="gw-pane" id="gwpane" role="tabpanel"></div>
-   </div>`;
+   </div>${played}`;
   gwTabs(n,info,{lib,cat,dl,tone,meta});
-  overlay(html,'gd gdw',gdIntro);{const c=slot.lastElementChild,cw=c.clientWidth,ch=c.clientHeight;let sw=Math.round(Math.max(600,Math.min(cw*.3,(ch-520)*1.45,760)));c.style.setProperty('--sw',sw+'px');{const sd=c.querySelector('.gw-side');let v=sw;for(let i=0;i<16&&sd.offsetTop<100&&v>480;i++){v-=20;c.style.setProperty('--sw',v+'px')}sw=v}const tt=c.querySelector('.gw-title');if(tt){tt.dataset.max=Math.min(160,132*Math.max(1,ch/990));fitTitle(tt,+tt.dataset.max,cw-sw-128-110-10)}}gdTimer();gwRender();gwShow('res',true);gwLoad()}
+  overlay(html,'gd gdw',gdIntro);{const c=slot.lastElementChild,cw=c.clientWidth,ch=c.clientHeight;let sw=Math.round(navKey()==='scene'?Math.max(600,Math.min(cw*.4,(ch-420)*1.6,800)):Math.max(600,Math.min(cw*.3,(ch-520)*1.45,760)));c.style.setProperty('--sw',sw+'px');{const sd=c.querySelector('.gw-side');let v=sw;for(let i=0;i<40&&(navKey()==='scene'?sd.scrollHeight>sd.clientHeight+1:sd.offsetTop<100)&&v>(navKey()==='scene'?400:480);i++){v-=(navKey()==='scene'?10:20);c.style.setProperty('--sw',v+'px')}sw=v}const tt=c.querySelector('.gw-title');if(tt){tt.dataset.max=navKey()==='scene'?Math.min(124,100*Math.max(1,ch/990)):Math.min(160,132*Math.max(1,ch/990));fitTitle(tt,+tt.dataset.max,cw-sw-128-110-10)}}{const c=slot.lastElementChild,a=c.querySelector('.gw-act');if(a&&navKey()==='scene'){c.appendChild(a);gaScroll(c.querySelector('.gw-pane'));const fit=()=>{const sd=c.querySelector('.gw-side');if(!sd||!c.isConnected)return;let v=parseFloat(getComputedStyle(c).getPropertyValue('--sw'))||600;for(let i=0;i<60&&sd.scrollHeight>sd.clientHeight+1&&v>380;i++){v-=8;c.style.setProperty('--sw',v+'px')}const tt=c.querySelector('.gw-title');if(tt&&tt.dataset.max)fitTitle(tt,+tt.dataset.max,c.clientWidth-v-246)};fit();requestAnimationFrame(fit);setTimeout(fit,400)}}gdTimer();gwRender();gwShow('res',true);gwLoad()}
 /* entrada por secciones: imagen, título, datos, acciones, columnas */
 /* pestañas de la ficha: cada una se carga por su cuenta (Steam, la fuente, Co-Optimus, la IA) y aparece o se esconde según haya datos */
 const TIC={res:'<path d="M4 5h16M4 10h16M4 15h10M4 20h7"/>',rate:'<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',desc:'<path d="M5 4.5h10.5a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3z"/><path d="M5 16.5a3 3 0 0 1 3-3h10.5"/>',info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>',req:'<rect x="4" y="5" width="16" height="11"/><path d="M8 20h8M12 16v4"/>',src:'<path d="M12 3.5v11.5M7 10l5 5 5-5M5 20h14"/>',coop:'<circle cx="9" cy="8.5" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.7"/>'};
@@ -2198,30 +2434,42 @@ function gwTabs(n,info,x){const tok=++GD.tok,R=info.r,rv=Math.max(0,R-3),tot=par
   const months=['N','D','E','F','M','A','M','J','J','A','S','O'],hist=months.map((m,i)=>{let h=0;for(const ch of n+i)h=h*31+ch.charCodeAt(0)|0;return Math.max(30,Math.min(100,R-8+Math.abs(h)%14))});
   GD.tab='res';GD.tabs=[
    {id:'res',label:'Resumen',ms:0,build:()=>`<p class="gd-lead">${info.lead}</p>
-     <div class="gw-stats"><div><small>Desarrollador</small><b>${info.dev}</b></div><div><small>Lanzamiento</small><b>${info.d}</b></div><div><small>Tamaño</small><b>${info.sz}</b></div></div>
+     ${navKey()==='scene'?'':`<div class="gw-stats"><div><small>Desarrollador</small><b>${info.dev}</b></div><div><small>Lanzamiento</small><b>${info.d}</b></div><div><small>Tamaño</small><b>${info.sz}</b></div></div>`}
      ${info.tags.length?`<h3>Etiquetas</h3><div class="gd-tags">${info.tags.map(t=>`<span>${t}</span>`).join('')}</div>`:''}
-     ${x.cat?`<section class="gd-ai" id="gwai" style="margin-top:var(--sp-4)"><h4>✦ Por qué te lo sugerimos</h4>${GD.ai?`<p>${GD.ai}</p>`:'<div class="sk w8"></div><div class="sk w6"></div>'}</section>`:''}`},
-   {id:'rate',side:1,label:'Valoración',ms:900,build:()=>`<div class="rt" style="--tone:${toneC}">
-      <div class="rt-ring"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="tr" cx="100" cy="100" r="86"/><circle class="tk" cx="100" cy="100" r="74"/><circle class="vl" cx="100" cy="100" r="86" stroke-dasharray="540.35" stroke-dashoffset="540.35" data-v="${R}"/></svg>
-       <div class="ct"><b><span data-count="${R}">0</span><small>%</small></b><span>${toneLab}</span></div></div>
-      <div class="rt-rows">
-       <div class="rt-row"><small><span>Todas las reseñas</span><b>${fmt(tot)}</b></small><div class="rt-bar"><i class="p" data-w="${R}"></i><i class="n" data-w="${100-R}"></i></div><small style="margin:6px 0 0"><span style="color:var(--ok)">👍 ${fmt(pos)}</span><span style="color:var(--bad)">${fmt(neg)} 👎</span></small></div>
-       <div class="rt-row"><small><span>Últimos 30 días</span><b>${rv}%</b></small><div class="rt-bar"><i class="p" data-w="${rv}"></i><i class="n" data-w="${100-rv}"></i></div></div>
-       <div class="rt-row"><small><span>Positivas por mes · último año</span></small><div class="rt-hist">${hist.map((h,i)=>`<i style="--h:${h}%;transition-delay:${i*45}ms" data-m="${months[i]}"></i>`).join('')}</div></div>
-       <div class="rt-side"><div><small>RECOMENDACIONES</small><b>${info.n}</b></div><div><small>METACRITIC</small><b>${info.mc!=null?info.mc:'—'}</b>${info.mc!=null?`<span class="rt-mc">${info.mc>=75?'✓':'~'}</span>`:''}</div></div>
-      </div></div>`},
+     ${x.cat&&navKey()!=='scene'?`<section class="gd-ai" id="gwai" style="margin-top:var(--sp-4)"><h4>✦ Por qué te lo sugerimos</h4>${GD.ai?`<p>${GD.ai}</p>`:'<div class="sk w8"></div><div class="sk w6"></div>'}</section>`:''}`},
+   {id:'rate',side:1,label:'Valoración',ms:900,build:()=>{const N=44,lit=Math.round(R/100*N),seg=Array.from({length:N},(_,i)=>`<rect class="sg${i<lit?' lit':''}" x="-4" y="-92" width="8" height="${i%11===0?26:20}" rx="4" transform="rotate(${-135+i*270/(N-1)})" style="transition-delay:${i*22}ms"/>`).join('');
+      return`<div class="rv" style="--tone:${toneC}">
+      <div class="rv-g"><svg viewBox="-100 -100 200 172" aria-hidden="true">${seg}<circle class="dot" r="5" transform="rotate(${-135+R/100*270}) translate(0 -58)"/></svg>
+       <div class="ct"><b><span data-count="${R}">0</span><small>%</small></b><i>positivas</i></div></div>
+      <div class="rv-i"><strong>${toneLab}</strong><span class="sub">${fmt(tot)} reseñas en Steam, valor actual</span>
+       <div class="rt-bar"><i class="p" data-w="${R}"></i><i class="n" data-w="${100-R}"></i></div>
+       <div class="rv-lg"><span class="p"><svg viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/></svg>${fmt(pos)}</span><span class="n">${fmt(neg)}<svg viewBox="0 0 24 24"><path d="M17 13V4h3v9zM17 13l-4 7c-1.5 0-2.5-1-2.2-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.2 4H17"/></svg></span></div>
+       <div class="rv-ch"><div><small>Metacritic</small><b>${info.mc!=null?info.mc:'—'}</b></div><div><small>Recomendaciones</small><b>${info.n}</b></div></div>
+      </div></div>`}},
    {id:'desc',label:'Descripción',ms:1300,build:()=>`<h3>Acerca del juego</h3><div class="gd-copy"><p>${info.lead}</p><p>Texto de ejemplo: en la app real acá va la descripción completa de Steam, que puede ser larga, con sus imágenes y listas. Al tener su propia pestaña, no empuja hacia abajo al resto de la ficha.</p><p>Las imágenes de la descripción se cargan a medida que aparecen, sin frenar las demás pestañas.</p></div>`},
-   {id:'info',label:'Más información',ms:600,build:()=>`<h3>Más información</h3><dl class="gd-meta" style="grid-template-columns:1fr 1fr;column-gap:32px">${x.meta.map(([k,v])=>`<div><dt>${k}</dt><dd${v===NI?' class="no"':''}>${v}</dd></div>`).join('')}</dl>`},
+   {id:'info',label:'Más información',ms:600,build:()=>`<h3>Más información</h3><dl class="gd-meta" style="grid-template-columns:1fr 1fr;column-gap:32px">${x.meta.filter(([k,v])=>navKey()!=='scene'||(!['Tamaño','Género','Desarrollador','Lanzamiento','Plataformas','Valoración','Recomendaciones','Metacritic'].includes(k)&&v!==NI)).map(([k,v])=>`<div><dt>${k}</dt><dd${v===NI?' class="no"':''}>${v}</dd></div>`).join('')}</dl>`},
    {id:'req',label:'Requisitos',ms:1100,build:()=>`<h3>Requisitos</h3><div class="gd-req"><div><h4>Mínimos</h4><ul><li><b>SO:</b> Windows 10 de 64 bits</li><li><b>Procesador:</b> 4 núcleos</li><li><b>Memoria:</b> 8 GB de RAM</li><li><b>Gráficos:</b> 4 GB de VRAM</li><li><b>Almacenamiento:</b> ${info.sz}</li></ul></div><div><h4>Recomendados</h4><ul><li><b>SO:</b> Windows 11 de 64 bits</li><li><b>Procesador:</b> 8 núcleos</li><li><b>Memoria:</b> 16 GB de RAM</li><li><b>Gráficos:</b> 8 GB de VRAM</li><li><b>Almacenamiento:</b> ${info.sz} en SSD</li></ul></div></div>`},
-   {id:'src',label:'Fuentes',ms:1700,build:()=>!P.plugin||x.lib?null:`<h3>Fuentes de descarga · ejemplo</h3><div class="src">${[['Fuente 1','Torrent · versión completa','1.240 semillas',true],['Fuente 2','Enlace directo · PLUS','Rápida',false],['Fuente 3','Torrent · versión anterior','86 semillas',false]].map(f=>`<div class="${f[3]?'best':''}"><b>${f[0]}<small>${f[1]}</small></b><span>${info.sz}</span><span>${f[2]}</span><button class="btn sm${f[3]?'':' ghost'}" data-next="dl" data-n="${n}">${f[3]?'Mejor opción':'Usar esta'}</button></div>`).join('')}</div>`,count:'3'},
+   {id:'src',label:'Fuentes',ms:1700,build:()=>!P.plugin?null:`<h3>Fuentes de descarga · ejemplo</h3><div class="src">${[['Fuente 1','Torrent · versión completa','1.240 semillas',true],['Fuente 2','Enlace directo · PLUS','Rápida',false],['Fuente 3','Torrent · versión anterior','86 semillas',false]].map(f=>`<div class="${f[3]?'best':''}"><b>${f[0]}<small>${f[1]}</small></b><span>${info.sz}</span><span>${f[2]}</span><button class="btn sm${f[3]?'':' ghost'}" data-next="dl" data-n="${n}">${f[3]?'Mejor opción':'Usar esta'}</button></div>`).join('')}</div>`,count:'3'},
    {id:'coop',label:'Cooperativo',ms:2300,build:()=>info.coop?`<section class="gd-coop"><div class="hd"><h4>Juego cooperativo</h4><a href="https://www.co-optimus.com/" target="_blank" rel="noreferrer">Co-Optimus ↗</a></div><dl>${info.coop.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl><div class="gd-tags">${info.coopT.map(t=>`<span>${t}</span>`).join('')}</div></section>`:null}];
+  /* en Escena: pestañas con lo que aplica a este juego (Descripción, Extra, Similares, IA, Co-Optimus, Descargas) */
+  if(navKey()==='scene'){const by=k=>GD.tabs.find(t=>t.id===k),r0=by('res'),d0=by('desc'),i0=by('info'),q0=by('req'),rate=by('rate'),cp0=by('coop'),src0=by('src'),cut=h=>h.replace(/^\s*<h3>[^<]*<\/h3>/,''),noLead=h=>h.replace(`<p>${info.lead}</p>`,'').replace('Al tener su propia pestaña, no empuja hacia abajo al resto de la ficha.','Todo se lee de corrido en esta pestaña, con su propio desplazamiento.').replace('sin frenar las demás pestañas','sin frenar el resto de la ficha');
+   const multi=info.m.some(k=>k!=='solo'),aiSeen=AICOM.has(n);
+   const dsc={id:'res',label:'Descripción',ms:0,build:()=>`<div class="gw-sec">${r0.build()}</div><section class="gw-sec"><h3>Descripción</h3>${noLead(cut(d0.build()))}</section><section class="gw-sec"><h3>Más información</h3>${cut(i0.build())}</section><section class="gw-sec"><h3>Requisitos</h3>${cut(q0.build())}</section>`};
+   const extra={id:'extra',label:'Extra',ms:700,build:()=>`<p class="gd-lead sm">Guías y tutoriales de otros sitios, reunidos acá.</p><div class="ex-list">${[['Guía','Las primeras horas: qué hacer y qué evitar','Comunidad de Steam'],['Tutorial','Controles y ajustes recomendados','Video'],['Guía','Todos los logros, ordenados por dificultad','Steam'],['Consejos','Trucos que casi nadie te cuenta','Wiki del juego']].map(([k,t,s])=>`<div class="gxi"><span class="gxi-k">${k}</span><b>${t}</b><small>${s} ↗</small></div>`).join('')}</div>`};
+   const sim={id:'sim',label:'Similares',ms:1000,build:()=>{const L=GAMES.filter(g=>g!==n).map(g=>({g,s:gInfo(g).g.filter(x=>info.g.includes(x)).length})).sort((a,b)=>b.s-a.s).slice(0,6);return`<div class="sim-grid">${L.map(({g},i)=>`<button class="sim" data-game="${g}" style="background-image:url(${shotUrl((i+g.length)%4)})"><b>${g}</b><small>${gInfo(g).g[0]} · ${gInfo(g).r}% positivas</small></button>`).join('')}</div>`}};
+   const ia={id:'ia',label:'IA',ms:1300,build:()=>`<section class="ia"><h4>✦ Lo que dice la IA de Game Access</h4><p>Ejemplo: te puede gustar por su ${info.tags[0]?info.tags[0].toLowerCase():'propuesta'} y porque suele terminarse en pocas sesiones. Encaja con lo que jugaste este mes.</p><p class="ia-n">Comentado el 12 nov.</p></section>`};
+   const coop={id:'coop',label:'Co-Optimus',ms:1700,build:()=>info.coop?cp0.build():`<section class="gd-coop"><div class="hd"><h4>Modos para jugar con otros</h4><a href="https://www.co-optimus.com/" target="_blank" rel="noreferrer">Co-Optimus ↗</a></div><dl>${info.m.filter(k=>k!=='solo').map(k=>`<div><dt>${MODES[k][0]}</dt><dd>Sí</dd></div>`).join('')}</dl></section>`};
+   const dls={...src0,label:'Descargas'};
+   GD.tabs=[dsc,extra,sim,...(aiSeen?[ia]:[]),...(multi?[coop]:[]),...(P.plugin?[dls]:[]),rate]}
   GD.tabs.forEach(t=>{t.state=t.ms?'loading':'ready';t.html=t.ms?'':t.build()});GD.ai=null;
   GD.load=()=>{GD.tabs.filter(t=>t.ms).forEach(t=>setTimeout(()=>{if(GD.tok!==tok)return;const h=t.build();if(t.side){t.state='ready';const box=$('gwrate');if(box){box.innerHTML=h;requestAnimationFrame(()=>requestAnimationFrame(()=>gwAnimate(box)))}return}if(h===null){t.state='none'}else{t.state='ready';t.html=h}gwRender();
       if(t.state==='none'&&GD.tab===t.id)gwShow('res');else if(GD.tab===t.id)gwShow(t.id,true)},t.ms));
     if(x.cat)setTimeout(()=>{if(GD.tok!==tok)return;GD.ai=`Ejemplo: te gustan los juegos con buena historia y marcaste ${info.tags[0]||'este género'} como algo que te interesa. Tu IA lo ubica entre tus 10 mejores coincidencias del mes.`;const r=GD.tabs[0];r.html=r.build();const box=$('gwai');if(box)box.innerHTML=`<h4>✦ Por qué te lo sugerimos</h4><p>${GD.ai}</p>`},1900)}}
 function gwLoad(){GD.load&&GD.load()}
 function gwRender(){const nav=document.querySelector('.gdw:last-child .gw-tabs');if(!nav)return;
-  nav.innerHTML=GD.tabs.filter(t=>!t.side).map(t=>`<button role="tab" id="gwt-${t.id}" aria-controls="gwpane" aria-selected="${GD.tab===t.id}" tabindex="${GD.tab===t.id?0:-1}" data-gwtab="${t.id}" class="${t.state==='none'?'none':''}"><svg viewBox="0 0 24 24" aria-hidden="true">${TIC[t.id]}</svg><span>${t.label}</span>${t.state==='loading'?'<i class="st ld" aria-label="cargando"></i>':t.count?`<span class="st">${t.count}</span>`:''}</button>`).join('')}
+  /* en Escena las secciones son un acordeón: el contenido vive debajo de la sección abierta */
+  nav.innerHTML=GD.tabs.filter(t=>!t.side).map(t=>`<button role="tab" id="gwt-${t.id}" aria-controls="gwpane" aria-selected="${GD.tab===t.id}" tabindex="${GD.tab===t.id?0:-1}" data-gwtab="${t.id}" class="${t.state==='none'?'none':''}"><svg viewBox="0 0 24 24" aria-hidden="true">${TIC[t.id]||''}</svg><span>${t.label}</span>${t.state==='loading'?'<i class="st ld" aria-label="cargando"></i>':t.count?`<span class="st">${t.count}</span>`:''}</button>`).join('');
+}
 function gwShow(id,quiet){const t=GD.tabs.find(x=>x.id===id);if(!t||t.state==='none')return;GD.tab=id;gwRender();const pane=document.querySelector('.gdw:last-child .gw-pane');if(!pane)return;
   pane.setAttribute('aria-labelledby','gwt-'+id);
   pane.innerHTML=t.state==='loading'?`<div class="gw-loading"><i></i>Cargando ${t.label.toLowerCase()}…</div>${id==='rate'?'<div class="sk big w6"></div>':''}<div class="sk w8"></div><div class="sk"></div><div class="sk w6"></div><div class="sk w8"></div>`:t.html;
@@ -2229,7 +2477,7 @@ function gwShow(id,quiet){const t=GD.tabs.find(x=>x.id===id);if(!t||t.state==='n
   if(G&&!quiet&&!matchMedia('(prefers-reduced-motion: reduce)').matches)gsap.from(pane.children,{y:14,opacity:0,duration:P.dur*.45,stagger:.05,ease:'power3.out',clearProps:'transform,opacity'})}
 /* gráficos que se llenan cuando llegan los datos: anillo, barras, histograma y el número que cuenta */
 function gwAnimate(pane){const vl=pane.querySelector('.rt-ring .vl');if(vl)vl.style.strokeDashoffset=String(540.35*(1-vl.dataset.v/100));
-  pane.querySelectorAll('[data-w]').forEach(i=>i.style.width=i.dataset.w+'%');const h=pane.querySelector('.rt-hist');if(h)h.classList.add('on');
+  pane.querySelectorAll('[data-w]').forEach(i=>i.style.width=i.dataset.w+'%');const h=pane.querySelector('.rt-hist');if(h)h.classList.add('on');pane.querySelectorAll('.rv-g').forEach(g=>g.classList.add('on'));
   pane.querySelectorAll('[data-count]').forEach(el=>{const to=+el.dataset.count,t0=performance.now(),D=1500;if(matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=to;return}
     const step=now=>{const k=Math.min(1,(now-t0)/D),e=1-Math.pow(1-k,3);el.textContent=Math.round(to*e);if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
 function gdIntro(c,first){const fill=()=>c.querySelectorAll('.gd-rate .bar i').forEach(i=>i.style.width=i.dataset.w+'%');
@@ -2536,6 +2784,27 @@ if(document.fonts){document.fonts.addEventListener('loadingdone',()=>refit());do
 function fitTitle(el,max,room){el.style.fontSize=max+'px';const w=el.scrollWidth;if(w>room)el.style.fontSize=Math.floor(max*room/w)+'px'}
 
 
+/* Barra de desplazamiento general (capa 1): una línea fina con un círculo, igual que CircularScrollbar de la app.
+   Se engancha a cualquier contenedor con scroll; el contenedor conserva la rueda y el tacto nativos. */
+function gaScroll(el,o){o=o||{};if(!el||el._gas)return;el._gas=1;el.setAttribute('data-ga-scroll','');
+  const host=el.parentElement;if(getComputedStyle(host).position==='static')host.style.position='relative';
+  const tr=document.createElement('div');tr.className='ga-circle-scrollbar';tr.setAttribute('role','scrollbar');tr.setAttribute('aria-orientation','vertical');tr.tabIndex=-1;tr.hidden=true;
+  tr.innerHTML='<span class="ga-circle-scrollbar-range" aria-hidden="true"><i></i></span>';host.appendChild(tr);
+  const dot=tr.querySelector('i');let raf=0,settle=0;
+  const upd=()=>{raf=0;const max=el.scrollHeight-el.clientHeight;if(max<=1||!el.clientHeight){tr.hidden=true;return}tr.hidden=false;
+    tr.style.top=el.offsetTop+'px';tr.style.height=el.clientHeight+'px';
+    tr.style.left=(o.inside?el.offsetLeft+el.offsetWidth-tr.offsetWidth-2:el.offsetLeft+el.offsetWidth+(o.gap==null?6:o.gap))+'px';
+    dot.style.top=(Math.max(0,Math.min(1,el.scrollTop/max))*100)+'%';tr.setAttribute('aria-valuenow',Math.round(el.scrollTop));tr.setAttribute('aria-valuemax',Math.round(max))};
+  const sched=()=>{if(!raf)raf=requestAnimationFrame(upd)};
+  el.addEventListener('scroll',()=>{sched();tr.setAttribute('data-active','');clearTimeout(settle);settle=setTimeout(()=>{if(!tr.hasAttribute('data-dragging'))tr.removeAttribute('data-active')},700)},{passive:true});
+  const ro=new ResizeObserver(sched);ro.observe(el);new MutationObserver(()=>{ro.disconnect();ro.observe(el);[...el.children].forEach(c=>ro.observe(c));sched()}).observe(el,{childList:true,subtree:true});
+  addEventListener('resize',sched);
+  const to=y=>{const r=tr.getBoundingClientRect(),k=Math.max(0,Math.min(1,(y-r.top-10)/Math.max(1,r.height-20)));el.scrollTop=k*(el.scrollHeight-el.clientHeight)};
+  tr.addEventListener('pointerdown',e=>{if(e.button)return;e.preventDefault();tr.setPointerCapture(e.pointerId);tr.setAttribute('data-dragging','');tr.setAttribute('data-active','');to(e.clientY)});
+  tr.addEventListener('pointermove',e=>{if(tr.hasPointerCapture(e.pointerId))to(e.clientY)});
+  const end=e=>{if(tr.hasPointerCapture(e.pointerId))tr.releasePointerCapture(e.pointerId);tr.removeAttribute('data-dragging');tr.removeAttribute('data-active')};
+  tr.addEventListener('pointerup',end);tr.addEventListener('pointercancel',end);
+  [60,400,1200].forEach(t=>setTimeout(sched,t));sched()}
 function go(m,s,t,opt){opt=opt||{};if(!TREE[m].secs[s])s=0;if(typeof slot!=='undefined'&&slot.querySelector('.gdw'))closeOverlay();const modeChanged=m!==S.m||opt.first, secChanged=modeChanged||s!==S.s;
   S.m=m;S.s=s;S.t=t||0;const M=TREE[m],X=M.secs[s];last[M.id]=s;stage.style.setProperty('--acc',M.acc);const XC=X.cols?X.cols(S.t):null;if(!XC)PERS=false;scopeTo(XC?colScope(XC):null,opt.first||modeChanged);
   if(modeChanged){
@@ -2761,7 +3030,7 @@ function fit(){const cs=getComputedStyle(document.body),aw=document.body.clientW
   stage.style.transform=`scale(${s})`;frame.style.width=aw+'px';frame.style.height=ah+'px';stage.dataset.w=W}
 let rsz=0;addEventListener('resize',()=>{fit();clearTimeout(rsz);rsz=setTimeout(()=>{const X=TREE[S.m].secs[S.s];if(X.multi&&multiCount(X)!==S.k)go(S.m,S.s,S.t)},160)});fit();applyP();
 let init={m:0,s:0,t:0};try{const v=JSON.parse(localStorage.getItem('ga-nav')||'null');if(v&&TREE[v.m]&&TREE[v.m].secs[v.s])init=v}catch(e){}
-const start=()=>go(init.m,init.s,init.t,{first:true});
+const start=()=>{gaScroll($('cbody'),{inside:true});go(init.m,init.s,init.t,{first:true})};
 (document.fonts&&document.fonts.ready?document.fonts.ready.then(start):start());
 /* ═══ NAVEGADOR: barra de modos + título + selector de páginas en una sola pieza, dibujada en SVG ═══ */
 const NAVS={'escena':'scene','líquido':'goo','militar':'tech','tecnológico':'tech','táctico':'tactico','deportivo':'deportivo','gamer':'gamer','tech':'tech','grunge':'grunge'};
@@ -3078,7 +3347,7 @@ let SC={m:-1,s:-1,H:0,busy:false};
 let SCU={c:[],img:{}};try{const v=JSON.parse(localStorage.getItem('ga-scene')||'null');if(v){SCU={c:v.c||[],img:v.img||{}};SCU.c.forEach((c,i)=>{if(/^#[0-9a-f]{6}$/i.test(c||''))P['scC'+i]=c})}}catch(e){}
 const scSave=()=>{SCU.c=SCM.map((_,i)=>P['scC'+i]);try{localStorage.setItem('ga-scene',JSON.stringify(SCU))}catch(e){notice('No se pudo guardar','La imagen es demasiado grande para guardarla en este navegador.')}};
 const scC=m=>P['scC'+m]||SCM[m].c,scImg=m=>SCU.img[m]||`assets/fig-${SCM[m].k}.webp`;
-const scRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255),scLum=h=>{const[r,g,b]=scRgb(h).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*r+.7152*g+.0722*b},scInkOf=h=>scLum(h)>.3?SCINK:'#ffffff';
+const scRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255),scLum=h=>{const[r,g,b]=scRgb(h).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*r+.7152*g+.0722*b},scInkOf=h=>scLum(h)>.18?SCINK:'#ffffff';
 const scHue=h=>{const[r,g,b]=scRgb(h),mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;if(!d)return 0;const x=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;return(x*60+360)%360};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-scimg]'),x=e.target.closest('[data-scimgx]');
   if(b){const i=+b.dataset.scimg,f=document.createElement('input');f.type='file';f.accept='image/png,image/webp';f.onchange=()=>{const file=f.files[0];if(!file)return;const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const k=Math.min(1,1280/im.naturalHeight),c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);SCU.img[i]=c.toDataURL('image/webp',.86);URL.revokeObjectURL(u);scSave();if(i===SC.m)$('scImg').src=scImg(i);notice('Imagen cambiada',`${TREE[i].name} usa la imagen nueva.`)};im.src=u};f.click()}
@@ -3117,14 +3386,14 @@ function scTabs(){const h=document.querySelector('.c-head');if(!h)return;let box
 const SCLOCK=new Set(['Búsqueda smart','Sugerencias IA','Control parental']),SCLK='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>';
 /* geometría: el panel crece hacia arriba según el menú; la figura y la palabra ocupan lo que queda */
 function scLayout(){const g=$('sc'),H=SC.H,menu=$('scMenu'),pan=$('scPan');if(!g||!H||!menu)return;
-  const cy=H-62,pb=H-128,mh=menu.offsetHeight,pt=Math.round(Math.min(pb-mh-36,pb-300)),cx=scCx(Math.max(0,S.m));SC.F=620;SC.ft=14;
+  const cy=H-62,pb=H-128,mh=menu.offsetHeight,pt=Math.round(Math.min(pb-mh-60,pb-300)),cx=scCx(Math.max(0,S.m));SC.F=620;SC.ft=14;
   menu.style.top=(pt+18)+'px';g.style.setProperty('--pt',pt+'px');{const sm=$('scSmoke');sm.style.top=(pt-250)+'px';sm.style.height='330px'}
   if(pan.dataset.h!=H){pan.dataset.h=H;pan.setAttribute('viewBox',`0 0 ${SCW} ${H}`);
     pan.innerHTML=`<defs><linearGradient id="scPG" gradientUnits="userSpaceOnUse" x1="${SCW*.15}" y1="${H*.42}" x2="${SCW*.8}" y2="${H}"><stop offset="0" style="stop-color:var(--g1)"/><stop offset=".5" style="stop-color:var(--sa)"/><stop offset="1" style="stop-color:var(--g2)"/></linearGradient></defs>
       <mask id="scMk" maskUnits="userSpaceOnUse" x="-40" y="-40" width="${SCW+200}" height="${H+80}"><rect x="-40" y="-40" width="${SCW+200}" height="${H+80}" fill="#fff"/><rect class="band" x="16" width="700" rx="27" fill="#000"/></mask>
       <g filter="url(#scGoo)" style="fill:var(--sc-d,#0c0d11)"><rect class="band" x="16" width="520" rx="27"/><rect class="edge" x="${SCW+42}" width="12" rx="0"/></g>
       <g filter="url(#scGoo)" fill="url(#scPG)"><g mask="url(#scMk)"><rect class="body" x="0" width="${SCW}" rx="40"/></g><g class="nk"><rect class="neck" x="-36" width="72"/><circle cx="0" cy="${cy}" r="61"/></g><g class="nk tail"><circle cx="0" cy="${cy-30}" r="22"/></g></g>`}
-  const q=s=>pan.querySelector(s);q('.body').style.y=pt+'px';q('.body').style.height=(pb-pt)+'px';q('.neck').style.y=(pb-50)+'px';q('.neck').style.height=(cy-pb+50)+'px';
+  const q=s=>pan.querySelector(s);q('.body').style.y=pt+'px';q('.body').style.height=(pb-pt)+'px';q('.neck').style.y=(pb-24)+'px';q('.neck').style.height=(cy-pb+24)+'px';
   pan.querySelectorAll('.nk').forEach(n=>n.style.transform=`translateX(${cx}px)`);
   const act=$('scList').querySelector('.scr.on');if(act){const by=pt+18+$('scRows').offsetTop+act.offsetTop,bh=act.offsetHeight;pan.querySelectorAll('.band').forEach(b=>{b.style.y=by+'px';b.style.height=bh+'px'});const e=q('.edge');e.style.y=(by-70)+'px';e.style.height=(bh+140)+'px'}
   /* la palabra entra en la mitad de arriba */
