@@ -16,6 +16,7 @@
 <nav aria-label="Secciones">
 <a href="#recorrido" data-es="Recorrido" data-en="Explore">Recorrido</a>
 <a href="#ayuda" data-es="Ayuda" data-en="Help">Ayuda</a>
+<a href="../plus/" data-es="Suscripción" data-en="Subscription">Suscripción</a>
 <a href="#descargar" class="header-download" data-es="Descargar" data-en="Download">Descargar</a>
 <button type="button" id="language" aria-label="Switch language">EN</button>
 </nav>
@@ -26,7 +27,8 @@
 <div class="gate-behind">
 <div class="gate-halo">
 </div>
-<img src="assets/escena/catalogo-referencia.png" alt="Vista de navegación del catálogo de Game Access">
+<img src="assets/escena/app-catalogo.webp" alt="Pantalla completa del catálogo de Game Access">
+<video class="story-video" playsinline muted preload="metadata" aria-hidden="true"></video>
 </div>
 <div class="gameaccess-splash gs-gate phase-hold is-sealed" aria-hidden="true">
 <div class="gs-leaf is-left">
@@ -661,91 +663,22 @@
 <div class="gate-copy">
 <span class="gate-eyebrow">GAME ACCESS</span>
 <h1 data-es="Bienvenido a Game Access" data-en="Welcome to Game Access">Bienvenido a Game Access</h1>
-<p data-es="Tu universo de juegos, en un solo lugar." data-en="Your world of games, in one place.">Tu universo de juegos, en un solo lugar.</p>
-<a class="gate-scroll" href="#recorrido">
-<span data-es="Deslizá para entrar" data-en="Scroll to enter">Deslizá para entrar</span>
-<span aria-hidden="true">↓</span>
-</a>
+<p data-es="Encontrá, organizá y jugá." data-en="Find, organize and play.">Encontrá, organizá y jugá.</p>
+<a class="gate-scroll" href="#recorrido"><span data-es="Deslizá para entrar" data-en="Scroll to enter">Deslizá para entrar</span><span aria-hidden="true">↓</span></a>
+</div>
+<div class="story-panel" id="recorrido"><div class="story-copy" aria-live="polite">
+<div class="story-item is-active" data-story="catalogo"><span>01 / 04</span><p class="kicker" data-es="CATÁLOGO" data-en="CATALOG">CATÁLOGO</p><h2 data-es="Descubrí qué jugar." data-en="Discover what to play.">Descubrí qué jugar.</h2><p data-es="Buscá, filtrá y conocé cada juego antes de elegir." data-en="Search, filter and learn about each game before choosing.">Buscá, filtrá y conocé cada juego antes de elegir.</p></div>
+<div class="story-item" data-story="libreria"><span>02 / 04</span><p class="kicker" data-es="LIBRERÍA" data-en="LIBRARY">LIBRERÍA</p><h2 data-es="Tus juegos, listos para jugar." data-en="Your games, ready to play.">Tus juegos, listos para jugar.</h2><p data-es="Reuní tus juegos, seguí las descargas y administrá tu biblioteca." data-en="Bring your games together, follow downloads and manage your library.">Reuní tus juegos, seguí las descargas y administrá tu biblioteca.</p></div>
+<div class="story-item" data-story="gameaccess"><span>03 / 04</span><p class="kicker" data-es="NOVEDADES" data-en="NEWS">NOVEDADES</p><h2 data-es="Novedades y ayuda." data-en="News and help.">Novedades y ayuda.</h2><p data-es="Encontrá instrucciones, noticias y ayuda de la aplicación." data-en="Find instructions, news and help for the app.">Encontrá instrucciones, noticias y ayuda de la aplicación.</p></div>
+<div class="story-item" data-story="config"><span>04 / 04</span><p class="kicker" data-es="CONFIGURACIÓN" data-en="SETTINGS">CONFIGURACIÓN</p><h2 data-es="Configurá la aplicación." data-en="Configure the app.">Configurá la aplicación.</h2><p data-es="Explorá las opciones de apariencia, IA y control parental." data-en="Explore appearance, AI and parental control options.">Explorá las opciones de apariencia, IA y control parental.</p></div>
+</div>
+<div class="story-actions"><span class="story-next" aria-label="Deslizá para continuar"><i class="scroll-chevron" aria-hidden="true"></i></span><a href="#ayuda" data-es="Saltar recorrido" data-en="Skip tour">Saltar recorrido</a></div>
+</div>
+<div class="story-modes" aria-label="Modos de Game Access">
+<img src="assets/escena/btn-catalogo-on.webp" data-mode="catalogo" alt="Catálogo"><img src="assets/escena/btn-libreria-off.webp" data-mode="libreria" alt="Librería"><img src="assets/escena/btn-gameaccess-off.webp" data-mode="gameaccess" alt="Game Access"><img src="assets/escena/btn-config-off.webp" data-mode="config" alt="Configuración">
 </div>
 </div>
 </section>
-<section class="tour-intro" id="recorrido">
-<p class="kicker" data-es="JUGÁ MÁS. JUGÁ MEJOR." data-en="PLAY MORE. PLAY BETTER.">JUGÁ MÁS. JUGÁ MEJOR.</p>
-<h2 data-es="Tu mundo de juegos comienza acá." data-en="Your world of games starts here.">Tu mundo de juegos comienza acá.</h2>
-<p data-es="Explorá la aplicación y descubrí todo lo que podés hacer." data-en="Explore the app and discover what you can do.">Explorá la aplicación y descubrí todo lo que podés hacer.</p>
-</section>
-<div class="tour-chapters">
-<div class="mode-progress" aria-label="Modos de Game Access">
-<img src="assets/escena/btn-catalogo-on.webp" data-mode="catalogo" alt="Catálogo">
-<img src="assets/escena/btn-libreria-off.webp" data-mode="libreria" alt="Librería">
-<img src="assets/escena/btn-gameaccess-off.webp" data-mode="gameaccess" alt="Game Access">
-<img src="assets/escena/btn-config-off.webp" data-mode="config" alt="Configuración">
-</div>
-<section class="chapter chapter-catalogo" data-mode="catalogo" id="catalogo">
-<div class="chapter-inner">
-<div class="chapter-copy">
-<span class="chapter-number">01 / 04</span>
-<p class="kicker" data-es="CATÁLOGO" data-en="CATALOG">CATÁLOGO</p>
-<h2 data-es="Descubrí qué jugar." data-en="Discover what to play.">Descubrí qué jugar.</h2>
-<p data-es="Buscá, explorá y conocé cada juego antes de elegir." data-en="Search, explore and learn about each game before choosing.">Buscá, explorá y conocé cada juego antes de elegir.</p>
-</div>
-<div class="chapter-visual">
-<div class="chapter-halo">
-</div>
-<img class="chapter-figure" src="assets/escena/fig-catalogo.webp" alt="">
-<img class="chapter-screen " src="assets/escena/catalogo-referencia.png" alt="Vista del menú de catálogo" loading="lazy">
-</div>
-</div>
-</section>
-<section class="chapter chapter-libreria" data-mode="libreria" id="libreria">
-<div class="chapter-inner">
-<div class="chapter-copy">
-<span class="chapter-number">02 / 04</span>
-<p class="kicker" data-es="LIBRERÍA" data-en="LIBRARY">LIBRERÍA</p>
-<h2 data-es="Tus juegos, listos para jugar." data-en="Your games, ready to play.">Tus juegos, listos para jugar.</h2>
-<p data-es="Reuní tus juegos, seguí tus descargas y administrá tu biblioteca." data-en="Bring your games together, follow downloads and manage your library.">Reuní tus juegos, seguí tus descargas y administrá tu biblioteca.</p>
-</div>
-<div class="chapter-visual">
-<div class="chapter-halo">
-</div>
-<img class="chapter-figure" src="assets/escena/fig-libreria.webp" alt="">
-<img class="chapter-screen is-art" src="assets/escena/fig-libreria.webp" alt="Personaje de Librería" loading="lazy">
-</div>
-</div>
-</section>
-<section class="chapter chapter-gameaccess" data-mode="gameaccess" id="gameaccess">
-<div class="chapter-inner">
-<div class="chapter-copy">
-<span class="chapter-number">03 / 04</span>
-<p class="kicker" data-es="GAME ACCESS" data-en="GAME ACCESS">GAME ACCESS</p>
-<h2 data-es="Todo lo que necesitás saber." data-en="Everything you need to know.">Todo lo que necesitás saber.</h2>
-<p data-es="Encontrá novedades, instrucciones y ayuda para aprovechar la aplicación." data-en="Find news, instructions and help to get the most out of the app.">Encontrá novedades, instrucciones y ayuda para aprovechar la aplicación.</p>
-</div>
-<div class="chapter-visual">
-<div class="chapter-halo">
-</div>
-<img class="chapter-figure" src="assets/escena/fig-gameaccess.webp" alt="">
-<img class="chapter-screen is-art" src="assets/escena/fig-gameaccess.webp" alt="Personaje de Game Access" loading="lazy">
-</div>
-</div>
-</section>
-<section class="chapter chapter-config" data-mode="config" id="config">
-<div class="chapter-inner">
-<div class="chapter-copy">
-<span class="chapter-number">04 / 04</span>
-<p class="kicker" data-es="CONFIGURACIÓN" data-en="SETTINGS">CONFIGURACIÓN</p>
-<h2 data-es="Tu espacio, a tu manera." data-en="Your space, your way.">Tu espacio, a tu manera.</h2>
-<p data-es="Ajustá la aplicación, descubrí las opciones de IA y el control parental." data-en="Adjust the app and discover AI and parental control options.">Ajustá la aplicación, descubrí las opciones de IA y el control parental.</p>
-</div>
-<div class="chapter-visual">
-<div class="chapter-halo">
-</div>
-<img class="chapter-figure" src="assets/escena/fig-config.webp" alt="">
-<img class="chapter-screen " src="assets/escena/configuracion-referencia.png" alt="Vista del menú de configuración" loading="lazy">
-</div>
-</div>
-</section>
-</div>
 <section class="help" id="ayuda">
 <div>
 <p class="kicker" data-es="EMPEZAR ES SIMPLE" data-en="GETTING STARTED">EMPEZAR ES SIMPLE</p>
@@ -775,8 +708,10 @@
 <p id="release-note" class="release-note">
 </p>
 <a href="../#descargar" data-es="Ayuda con la instalación de Windows" data-en="Windows installation help">Ayuda con la instalación de Windows</a>
+<a href="../plus/" data-es="Conocé los planes de suscripción" data-en="Explore subscription plans">Conocé los planes de suscripción</a>
 </section>
 </main>
+<a class="back-top" href="#inicio" aria-label="Volver arriba" title="Volver arriba">↑</a>
 <footer>GAME ACCESS · <span data-es="Jugá más y mejor." data-en="Play more, play better.">Jugá más y mejor.</span>
 </footer>
 <script src="assets/vendor/gsap.min.js">

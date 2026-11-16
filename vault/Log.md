@@ -617,3 +617,5 @@ elease` cuando la copia de la raíz tiene la etiqueta. Probado: la app abre. Pen
 - 2026-11-15 · Codex: ajustes de Actividad Escena según prototipo (tarjetas, iconos, filtros y espaciado); 10 pruebas, TypeScript y CSS verificados; vista web revisada. Commit de este paso.
 
 - 2026-11-16 · Codex: vista previa local de la web en deploy/website/recorrido: portón real, GSAP/ScrollTrigger, cuatro modos, ayuda y descarga; revisados portada, navegación, idioma y enlace de release en navegador. Capturas y videos definitivos pendientes; no publicada. Commit de este paso.
+
+- 2026-11-16 · Codex: recorrido web en escena fija con apertura automática al primer scroll, panel de vidrio superpuesto, flecha animada, salto, volver arriba y enlace a PLUS. Vista previa y controles revisados en navegador; captura de catálogo de demostración provisional, guion y video real pendientes por pedido de Seba. No publicado. Commit de este paso.

@@ -81,3 +81,60 @@ footer{text-align:center;padding:30px;color:var(--muted);font-size:12px;border-t
 .gate-stage .gameaccess-splash{display:none}
 html.tour-motion .gate-stage .gameaccess-splash{display:block}
 
+/* One pinned scene: the app stays in place while each scroll step changes its explanation. */
+.gate-copy{left:5%;top:13%;width:min(37%,460px);height:auto;padding:0;transform:none;text-align:left}
+.gate-copy h1{font-size:clamp(38px,4.5vw,74px)}
+.gate-scroll{position:static;transform:none;margin-top:42px;display:inline-flex;align-items:center;gap:12px;font-size:11px}
+.gate-behind img{position:absolute;left:29%;top:50%;transform:translateY(-50%);width:68%;height:auto;max-width:none;max-height:82%;object-fit:contain;opacity:1;filter:drop-shadow(0 24px 50px #000b)}
+.story-panel{position:absolute;z-index:5;left:4%;top:50%;width:min(25%,340px);transform:translateY(-50%);padding:26px;border:1px solid #ffffff30;border-radius:20px;background:#101719a8;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 20px 60px #0006;color:#f5f7f7}
+.story-copy{position:relative;min-height:195px}
+.story-item{display:none}.story-item.is-active{display:block}
+.story-item>span,.story-item .kicker{font-size:11px;font-weight:800;letter-spacing:.15em;color:var(--amber)}
+.story-item h2{font-family:"Bebas Neue",sans-serif;font-size:clamp(32px,3.1vw,54px);line-height:1;margin:14px 0}
+.story-item p:last-child{font-size:14px;line-height:1.55;color:#d6dddf}
+.story-actions{display:grid;gap:14px;border-top:1px solid #ffffff24;padding-top:18px;font-size:11px}
+.story-next{display:flex;justify-content:space-between;align-items:center;color:#e5ebeb;letter-spacing:.08em;text-transform:uppercase}.story-next span+span{font-size:20px}
+.story-actions a{color:#c5cece;text-underline-offset:4px;text-decoration-color:#ffffff55}
+.story-modes{position:absolute;z-index:4;right:5%;bottom:5%;display:flex;gap:5px}
+.story-modes img{width:clamp(35px,4vw,58px);height:auto;filter:drop-shadow(0 5px 9px #000b)}
+html.tour-motion .story-panel,html.tour-motion .story-modes{visibility:hidden;opacity:0}
+.back-top{position:fixed;z-index:50;right:25px;bottom:25px;display:grid;place-items:center;width:42px;height:42px;color:white;text-decoration:none;border:1px solid #ffffff55;border-radius:50%;background:#10171999;backdrop-filter:blur(14px);font-size:20px}
+@media(max-width:767px){.gate-copy{left:7%;top:16%;width:78%;padding:0}.gate-copy h1{font-size:clamp(36px,9vw,54px)}.gate-behind img{left:4%;top:36%;transform:none;width:92%;max-height:45%}.story-panel{left:5%;top:auto;bottom:5%;width:90%;transform:none;padding:16px}.story-copy{min-height:0}.story-item h2{font-size:32px;margin:8px 0}.story-item p:last-child{font-size:12px;margin:5px 0}.story-actions{display:flex;justify-content:space-between;align-items:center;padding-top:9px}.story-modes{right:6%;top:28%;bottom:auto}.story-modes img{width:36px}}
+@media(prefers-reduced-motion:reduce){.gate-stage{height:auto}.gate-sticky{height:100svh;min-height:600px}.gate-copy{display:none}.story-panel,.story-modes{visibility:visible;opacity:1}.gate-stage .gameaccess-splash{display:none}}
+.story-panel[data-mode="libreria"]{--amber:var(--red)}
+.story-panel[data-mode="gameaccess"]{--amber:var(--blue)}
+.story-panel[data-mode="config"]{--amber:var(--green)}
+/* The app carries the detail; this panel only identifies each step. */
+.story-panel{width:min(21%,280px);padding:20px;border-radius:16px}
+.story-copy{min-height:145px}
+.story-item h2{font-family:Manrope,system-ui,sans-serif;font-size:clamp(16px,1.35vw,20px);font-weight:800;line-height:1.25;letter-spacing:0;margin:10px 0}
+.story-item p:last-child{font-size:12px;line-height:1.45;margin:0}
+.story-item>span,.story-item .kicker{font-size:10px}
+.story-actions{gap:10px;padding-top:12px;font-size:10px}
+@media(max-width:767px){.tour-header nav{gap:9px;font-size:11px}.tour-header nav>a[href="../plus/"]{display:none}.story-panel{width:90%;padding:14px}.story-copy{min-height:0}.story-item h2{font-size:16px;margin:7px 0}.story-actions{padding-top:9px}}
+/* The narration floats over the application itself; the underlying media keeps its aspect ratio. */
+.gate-behind img,.gate-behind .story-video{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;transform:none;filter:none}
+.story-video:not([src]){display:none}
+.story-panel{left:3%;top:auto;bottom:8%;transform:none;background:#11191cba;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-color:#ffffff45}
+.story-modes{right:4%;bottom:5%}
+@media(max-width:767px){.gate-behind img,.gate-behind .story-video{inset:0;width:100%;height:100%;max-height:none}.story-panel{left:4%;bottom:6%;width:min(80%,300px);padding:14px}.story-modes{top:auto;right:5%;bottom:5%}}
+/* A quiet glass overlay, lit by the current mode. */
+.story-panel{isolation:isolate;overflow:hidden;width:min(22%,282px);padding:20px 21px 16px;border-radius:16px;border:1px solid #d9f6ff36;background:linear-gradient(135deg,#25343ab8,#10191dbd 42%,#091013d9);box-shadow:0 22px 65px #0009,inset 0 1px #ffffff1e;backdrop-filter:blur(26px) saturate(130%);-webkit-backdrop-filter:blur(26px) saturate(130%)}
+.story-panel::before{content:"";position:absolute;z-index:-1;top:0;left:20px;width:60px;height:1px;background:linear-gradient(90deg,var(--amber),transparent);box-shadow:0 0 18px var(--amber)}
+.story-panel::after{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;background:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--amber) 12%,transparent),transparent 58%)}
+.story-copy{min-height:118px}
+.story-item>span{display:block;font:700 10px/1 Manrope,sans-serif;letter-spacing:.18em;color:#cbd4d4}
+.story-item .kicker{margin:14px 0 0;color:var(--amber);font:800 9px/1 Manrope,sans-serif;letter-spacing:.19em}
+.story-item h2{font:800 clamp(15px,1.2vw,18px)/1.25 Manrope,sans-serif;letter-spacing:-.025em;margin:9px 0 7px}
+.story-item p:last-child{font:500 12px/1.5 Manrope,sans-serif;color:#d1dadb;margin:0}
+.story-actions{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #ffffff25;padding-top:14px}
+.story-next{display:grid;place-items:center;width:28px;height:22px}
+.scroll-chevron{position:relative;display:block;width:20px;height:12px;animation:chevron-breathe 1.7s ease-in-out infinite}
+.scroll-chevron::before,.scroll-chevron::after{content:"";position:absolute;top:5px;width:11px;height:1px;background:#edf9f6;border-radius:2px}
+.scroll-chevron::before{left:0;transform:rotate(32deg)}.scroll-chevron::after{right:0;transform:rotate(-32deg)}
+@keyframes chevron-breathe{0%,100%{opacity:.38;transform:translateY(-3px) scale(.92)}50%{opacity:1;transform:translateY(3px) scale(1)}}
+.story-actions a{font:600 10px/1 Manrope,sans-serif;letter-spacing:.025em;text-decoration:none;color:#d4dddd;border-bottom:1px solid #ffffff40;padding-bottom:3px;transition:color .2s,border-color .2s}
+.story-actions a:hover,.story-actions a:focus-visible{color:#fff;border-color:var(--amber)}
+@media(max-width:767px){.story-panel{width:min(78%,280px);padding:14px 16px}.story-copy{min-height:0}.story-item h2{font-size:15px}.story-actions{padding-top:10px}}
+@media(prefers-reduced-motion:reduce){.scroll-chevron{animation:none}}
+@media(max-width:767px){.tour-header nav>a[href="../plus/"]{display:inline}.tour-header nav>a[href="#ayuda"]{display:none}}
