@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ChevronRight, Download, HardDrive, Heart, Info, Library, ListFilter, RefreshCw, ShieldCheck, Snowflake, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { AlertOctagon, AlertTriangle, Check, ChevronDown, ChevronRight, CircleCheck, Download, HardDrive, Heart, Info, Library, List, RefreshCw, ShieldCheck, Snowflake, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import { centralDialog, type TaskView } from "../centralDialog/centralDialog";
 import { activeDownloadService } from "../downloads/activeService";
@@ -168,9 +168,9 @@ function GroupCard({ group, fresh, open, onToggle, onOpen }: { group: ActivityGr
 }
 
 const SCENE_CATEGORIES: { id: ActivitySeverity; label: TranslationKey; icon: LucideIcon }[] = [
-  { id: "error", label: "sceneActivityError", icon: AlertTriangle },
+  { id: "error", label: "sceneActivityError", icon: AlertOctagon },
   { id: "warning", label: "sceneActivityWarning", icon: AlertTriangle },
-  { id: "done", label: "sceneActivityDone", icon: Check },
+  { id: "done", label: "sceneActivityDone", icon: CircleCheck },
   { id: "info", label: "sceneActivityInfo", icon: Info },
 ];
 
@@ -194,12 +194,14 @@ export function SceneHistory({ entries, onOpen }: { entries: ActivityEntry[]; on
       const open = items.length === 1 || expanded.has(category.id);
       const Icon = category.icon;
       return <div className="ga-scene-history-group" data-severity={category.id} key={category.id}>
-        <button type="button" className="ga-scene-history-group-head" aria-expanded={open} onClick={() => toggle(category.id)}>
-          <Icon aria-hidden="true" /><strong>{t(category.label)}</strong><span>{items.length}</span>{items.length > 1 && <ChevronRight aria-hidden="true" />}
-        </button>
+        {items.length > 1 ? <button type="button" className="ga-scene-history-group-head" aria-expanded={open} onClick={() => toggle(category.id)}>
+          <span className="ga-scene-history-kind"><Icon aria-hidden="true" /></span><strong>{t(category.label)}</strong><span className="ga-scene-history-count">{items.length}</span><ChevronDown className="ga-scene-history-chevron" aria-hidden="true" />
+        </button> : <div className="ga-scene-history-group-head">
+          <span className="ga-scene-history-kind"><Icon aria-hidden="true" /></span><strong>{t(category.label)}</strong><span className="ga-scene-history-count">{items.length}</span>
+        </div>}
         <ul>{(open ? items : items.slice(0, 1)).map(entry => {
           const go = entryDestination(entry);
-          const contents = <><strong>{entry.title}</strong>{entry.text && <span>{entry.text}</span>}<time>{when(entry.endedAt ?? entry.startedAt)}</time></>;
+          const contents = <><strong>{entry.title}</strong>{entry.text && <span>{entry.text}</span>}<time>{t(`activityCategory_${activityCategory(entry)}`)} · {when(entry.endedAt ?? entry.startedAt)}</time></>;
           return <li key={entry.id}>{go ? <button type="button" className="ga-scene-history-entry" onClick={() => { onOpen?.(); go(); }}>{contents}</button>
             : <div className="ga-scene-history-entry">{contents}</div>}</li>;
         })}</ul>
@@ -207,7 +209,7 @@ export function SceneHistory({ entries, onOpen }: { entries: ActivityEntry[]; on
       </div>;
     }) : <p className="ga-hint">{t("activityEmpty")}</p>}
     <div className="ga-scene-history-filters" role="group" aria-label={t("activityHistory")}>
-      {finished.length > 0 && <button type="button" aria-label={t("sceneActivityAll")} title={t("sceneActivityAll")} aria-pressed={activeFilter === "all"} onClick={() => setFilter("all")}><ListFilter aria-hidden="true" /></button>}
+      {finished.length > 0 && <button type="button" aria-label={t("sceneActivityAll")} title={t("sceneActivityAll")} aria-pressed={activeFilter === "all"} onClick={() => setFilter("all")}><List aria-hidden="true" /></button>}
       {present.map(category => { const Icon = category.icon; return <button type="button" key={category.id} data-severity={category.id} aria-label={t(category.label)} title={t(category.label)} aria-pressed={activeFilter === category.id} onClick={() => setFilter(category.id)}><Icon aria-hidden="true" /></button>; })}
       <button type="button" aria-label={t("activityClear")} title={t("activityClear")} disabled={!finished.length} onClick={() => { clearActivity(); setFilter("all"); }}><Trash2 aria-hidden="true" /></button>
     </div>

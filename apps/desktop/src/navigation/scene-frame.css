@@ -161,22 +161,31 @@ html.ga-navigation-shell, html.ga-navigation-shell[data-ga-nav-head="games"] { -
 .ga-nav-activity-scroll .ga-activity { min-height: 100%; }
 .ga-scene-activity { display: flex; flex-direction: column; gap: var(--ga-scene-activity-gap); }
 .ga-scene-activity-title { font: 300 var(--ga-scene-activity-title-size)/1 var(--ga-scene-text-family); text-transform: uppercase; }
-.ga-scene-history { flex: 1; display: flex; flex-direction: column; gap: var(--ga-scene-activity-gap); }
+.ga-scene-history { flex: 1; display: flex; flex-direction: column; gap: var(--ga-scene-menu-gap); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { color: var(--ga-scene-activity-ink); }
+.ga-scene-history .ga-label, .ga-scene-activity .ga-label { display: flex; gap: var(--ga-scene-menu-gap); align-items: center; margin: var(--ga-feed-tight) 0 0; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .12em; text-transform: uppercase; }
+.ga-scene-history .ga-label span, .ga-scene-activity .ga-label span { opacity: var(--ga-scene-muted-opacity); letter-spacing: normal; }
 .ga-scene-history .ga-hint { color: var(--ga-scene-activity-ink); }
-.ga-scene-history-group { padding: var(--ga-scene-menu-gap); border-radius: var(--ga-scene-activity-card-radius); background: color-mix(in srgb, var(--ga-scene-ink) 9%, transparent); }
-.ga-scene-history-group-head { display: flex; align-items: center; gap: var(--ga-scene-menu-gap); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.ga-scene-history-group-head > svg:first-child { color: var(--ga-scene-severity); background: var(--ga-scene-ink); border-radius: 50%; padding: var(--ga-feed-tight); box-sizing: content-box; }
+.ga-scene-history-group { overflow: hidden; border-radius: var(--ga-scene-activity-card-radius); background: color-mix(in srgb, var(--ga-scene-activity-ink) 9%, transparent); }
+.ga-scene-history-group-head { box-sizing: border-box; display: flex; align-items: center; gap: var(--ga-scene-menu-gap); width: 100%; padding: var(--ga-scene-activity-head-y) var(--ga-scene-activity-head-x) var(--ga-feed-tight); border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+button.ga-scene-history-group-head { cursor: pointer; }
+.ga-scene-history-kind { flex: none; display: grid; place-items: center; width: var(--ga-scene-activity-head-icon); height: var(--ga-scene-activity-head-icon); color: var(--ga-scene-severity); background: var(--ga-scene-activity-ink); border-radius: 50%; }
 .ga-scene-history-group-head svg, .ga-scene-history-filters svg { flex: none; width: var(--ga-scene-activity-icon); height: var(--ga-scene-activity-icon); }
-.ga-scene-history-group-head strong { flex: 1; }
-.ga-scene-history-group ul { list-style: none; padding: 0; margin: var(--ga-scene-menu-gap) 0 0; }
-.ga-scene-history-entry { display: grid; gap: var(--ga-feed-tight); width: 100%; padding: var(--ga-scene-menu-gap) 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.ga-scene-history-group-head strong { font: 700 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+.ga-scene-history-count { font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
+.ga-scene-history-chevron { margin-left: auto; transition: rotate .3s; }
+.ga-scene-history-group-head[aria-expanded="true"] .ga-scene-history-chevron { rotate: 180deg; }
+.ga-scene-history-group ul { list-style: none; padding: 0; margin: 0; }
+.ga-scene-history-group li + li { border-top: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-scene-activity-ink) 16%, transparent); }
+.ga-scene-history-entry { box-sizing: border-box; display: grid; gap: var(--ga-feed-tight); width: 100%; padding: var(--ga-scene-menu-gap) var(--ga-scene-activity-head-x) var(--ga-scene-menu-gap) var(--ga-scene-activity-entry-inset); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; transition: padding-left .2s; }
 button.ga-scene-history-entry { cursor: pointer; }
-.ga-scene-history-entry strong { font: var(--ga-feed-title-font); }
-.ga-scene-history-entry > span, .ga-scene-history-entry time { font: var(--ga-feed-small-font); opacity: var(--ga-scene-muted-opacity); }
-.ga-scene-history-more { padding: 0; border: 0; background: none; color: inherit; font: var(--ga-feed-small-font); cursor: pointer; }
+.ga-scene-history-entry:hover { padding-left: calc(var(--ga-scene-activity-entry-inset) + var(--ga-scene-activity-move)); }
+.ga-scene-history-entry strong { font: 600 var(--ga-scene-activity-entry-size)/1.25 var(--ga-scene-text-family); }
+.ga-scene-history-entry > span, .ga-scene-history-entry time { font: 500 var(--ga-scene-activity-meta-size)/1.3 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
+.ga-scene-history-more { width: 100%; padding: var(--ga-feed-tight) var(--ga-scene-activity-head-x) var(--ga-scene-activity-head-y) var(--ga-scene-activity-entry-inset); border: 0; background: none; color: inherit; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); text-align: left; opacity: .75; cursor: pointer; }
 .ga-scene-history-filters { position: sticky; bottom: 0; display: flex; gap: var(--ga-feed-tight); flex-wrap: wrap; margin: auto calc(-1 * var(--ga-scene-activity-pad)) 0; padding: var(--ga-scene-activity-pad); border-radius: var(--ga-scene-activity-filter-radius) var(--ga-scene-activity-filter-radius) 0 0; background: var(--ga-scene-activity-bg); }
-.ga-scene-history-filters button { width: var(--ga-scene-activity-filter); height: var(--ga-scene-activity-filter); display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ga-scene-severity, var(--ga-nav-shell-ink)); cursor: pointer; }
+.ga-scene-history-filters button { width: var(--ga-scene-activity-filter); height: var(--ga-scene-activity-filter); display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ga-scene-severity, var(--ga-nav-shell-ink)); cursor: pointer; transition: background .2s, color .2s; }
+.ga-scene-history-filters button:hover:not(:disabled) { background: color-mix(in srgb, var(--ga-nav-shell-ink) 16%, transparent); }
 .ga-scene-history-filters button[aria-pressed="true"] { background: var(--ga-mode); color: var(--ga-scene-ink); }
 .ga-scene-history-filters button:last-child { margin-left: auto; }
 .ga-scene-history-filters button:disabled { opacity: var(--ga-scene-muted-opacity); cursor: default; }

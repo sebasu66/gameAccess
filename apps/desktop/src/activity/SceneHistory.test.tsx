@@ -32,4 +32,15 @@ describe("scene activity history", () => {
     act(() => host.querySelector<HTMLButtonElement>('button[aria-label="sceneActivityAll"]')!.click());
     expect(host.textContent).toContain("done-entry");
   });
+
+  it("expands a group to reveal its other notices", () => {
+    act(() => root.render(<SceneHistory entries={[entry("first", "failed", "error"), entry("second", "failed", "error")]} />));
+    expect(host.textContent).toContain("first");
+    expect(host.textContent).not.toContain("second");
+    const group = host.querySelector<HTMLButtonElement>('.ga-scene-history-group-head')!;
+    expect(group.getAttribute("aria-expanded")).toBe("false");
+    act(() => group.click());
+    expect(host.textContent).toContain("second");
+    expect(group.getAttribute("aria-expanded")).toBe("true");
+  });
 });

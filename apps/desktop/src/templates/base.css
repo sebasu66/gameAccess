@@ -40,6 +40,8 @@
   --ga-scene-heading-size: clamp(30px, 4vh, 46px); --ga-scene-heading-label: 14px; --ga-scene-section-name: 19.5px; --ga-scene-section-desc: 13px;
   --ga-scene-activity-pad: 16px; --ga-scene-activity-gap: 12px; --ga-scene-activity-icon: 18px; --ga-scene-activity-filter: 34px; --ga-scene-activity-radius: 12px;
   --ga-scene-activity-w: clamp(220px, 24vw, 336px); --ga-scene-activity-title-size: 34px; --ga-scene-activity-card-radius: 18px; --ga-scene-activity-filter-radius: 26px;
+  --ga-scene-activity-head-icon: 26px; --ga-scene-activity-entry-inset: 47px; --ga-scene-activity-head-x: 14px; --ga-scene-activity-head-y: 11px;
+  --ga-scene-activity-label-size: 12px; --ga-scene-activity-entry-size: 14.5px; --ga-scene-activity-meta-size: 11.5px; --ga-scene-activity-move: 5px;
   --ga-scene-brand-logo: 46px; --ga-scene-brand-name-w: 65px; --ga-scene-brand-plan-pad: 8px;
   --ga-scene-tabs-gap: 8px; --ga-scene-tab-height: 40px; --ga-scene-tab-pad: 18px; --ga-scene-content-gap: 14px; --ga-scene-rule-width: 1.5px;
   --ga-scene-content-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h));
