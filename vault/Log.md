@@ -615,3 +615,5 @@ elease` cuando la copia de la raíz tiene la etiqueta. Probado: la app abre. Pen
 - 2026-11-15 · Codex: activó Escena por defecto en Tauri y conservó el selector explícito para pruebas web. Integración visual, historial de Actividad y modo oscuro en este commit; copia aislada del índice: TypeScript, check:css, build frontend y 41 pruebas OK. Compilación Tauri del árbol compartido OK; validación visual nativa pendiente. Los demás cambios locales permanecen sin incluir.
 
 - 2026-11-15 · Codex: ajustes de Actividad Escena según prototipo (tarjetas, iconos, filtros y espaciado); 10 pruebas, TypeScript y CSS verificados; vista web revisada. Commit de este paso.
+
+- 2026-11-16 · Codex: vista previa local de la web en deploy/website/recorrido: portón real, GSAP/ScrollTrigger, cuatro modos, ayuda y descarga; revisados portada, navegación, idioma y enlace de release en navegador. Capturas y videos definitivos pendientes; no publicada. Commit de este paso.

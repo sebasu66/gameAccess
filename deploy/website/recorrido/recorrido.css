@@ -1,0 +1,83 @@
+:root{--ink:#eef3f5;--muted:#a8b0b5;--tour-bg:#050607;--amber:#ffc456;--red:#ff5269;--blue:#79c4ff;--green:#6ff0aa}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--tour-bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+.tour-header{position:fixed;z-index:1000;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:18px 4vw;background:linear-gradient(#050607e8,transparent);font-size:13px}
+.tour-header a,.tour-header button{color:inherit;text-decoration:none}
+.tour-brand{font-weight:900;letter-spacing:.12em}
+.tour-brand b{color:var(--amber)}
+.tour-header nav{display:flex;gap:24px;align-items:center}
+.tour-header button{border:0;background:none;cursor:pointer}
+.header-download{border:1px solid #ffffff55;border-radius:40px;padding:10px 19px}
+.gate-stage{position:relative}
+.gate-sticky{height:100svh;min-height:520px;position:relative;overflow:hidden;background:#070a0b}
+.gate-behind{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:#070a0b}
+.gate-behind img{height:85%;max-width:75%;object-fit:contain;opacity:.76;filter:drop-shadow(0 0 48px #ffc45644)}
+.gate-halo{position:absolute;width:65vw;height:65vw;border-radius:50%;background:radial-gradient(circle,#d38a434d,transparent 65%)}
+.gate-stage .gameaccess-splash{position:absolute;z-index:2;--gs-lock:min(34vh,48vw,420px);--gs-open:1s;--gs-draw:1.5s}
+.gate-copy{position:absolute;z-index:4;top:12%;left:50%;transform:translateX(-50%);width:min(90%,750px);text-align:center;text-shadow:0 3px 20px #000}
+.gate-eyebrow,.kicker{font-size:12px;font-weight:900;letter-spacing:.18em}
+.gate-copy h1{font-family:"Bebas Neue",sans-serif;font-size:clamp(42px,6vw,92px);line-height:.95;margin:14px 0}
+.gate-copy p{color:#e2e2e2}
+.gate-scroll{position:fixed;bottom:7%;left:50%;transform:translateX(-50%);display:grid;gap:10px;color:white;text-decoration:none;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.gate-scroll span+span{font-size:24px}
+.tour-intro{padding:100px 7vw 60px;max-width:1100px}
+.tour-intro h2,.chapter h2,.help h2,.download h2{font-family:"Bebas Neue",sans-serif;font-size:clamp(46px,6vw,94px);line-height:.95;margin:16px 0}
+.tour-intro>p:last-child,.chapter-copy>p:last-child,.download>p:not(.kicker){font-size:clamp(16px,1.4vw,20px);line-height:1.6;color:var(--muted);max-width:580px}
+.mode-progress{position:sticky;top:80px;z-index:5;display:flex;gap:5px;justify-content:flex-end;margin:0 5vw -70px;pointer-events:none}
+.mode-progress img{width:54px;height:54px}
+.chapter{--accent:var(--amber);min-height:100svh;display:grid;align-items:center;overflow:hidden;border-top:1px solid #ffffff18}
+.chapter-libreria{--accent:var(--red)}
+.chapter-gameaccess{--accent:var(--blue)}
+.chapter-config{--accent:var(--green)}
+.chapter-inner{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:4vw;align-items:center;width:100%;padding:8vw 7vw}
+.chapter-number{color:var(--accent);font-size:13px;font-weight:800;letter-spacing:.14em}
+.chapter .kicker{color:var(--accent);margin-top:30px}
+.chapter-copy{position:relative;z-index:2}
+.chapter-visual{position:relative;height:min(65vw,680px);min-height:440px;display:grid;place-items:center}
+.chapter-halo{position:absolute;inset:0;background:radial-gradient(ellipse at center,color-mix(in srgb,var(--accent) 24%,transparent),transparent 65%)}
+.chapter-figure{position:absolute;height:100%;max-width:100%;object-fit:contain;opacity:.56;right:0}
+.chapter-screen{position:relative;max-width:80%;max-height:80%;object-fit:contain;border-radius:24px;box-shadow:0 24px 70px #000b}
+.chapter-screen.is-art{opacity:0}
+.help{padding:100px 7vw;display:grid;grid-template-columns:1fr 1fr;gap:32px;border-top:1px solid #ffffff18}
+.help .kicker{color:var(--green)}
+.help ol{padding:0;list-style:none}
+.help li{display:flex;gap:22px;padding:24px 0;border-bottom:1px solid #ffffff20}
+.help li b{color:var(--green)}
+.help a,.download>a:not(.download-button){color:#fff;text-underline-offset:5px}
+.download{text-align:center;padding:120px 7vw;background:radial-gradient(ellipse at 50% 100%,#62401b70,transparent 65%)}
+.download .kicker{color:var(--amber)}
+.download>p:not(.kicker){margin:0 auto 28px}
+.download-button{display:inline-block;border-radius:60px;padding:18px 30px;background:var(--amber);color:#16100a;text-decoration:none;font-weight:900}
+.download .release-note{font-size:13px!important;margin:14px auto!important}
+.download>a:not(.download-button){display:block;margin-top:22px}
+footer{text-align:center;padding:30px;color:var(--muted);font-size:12px;border-top:1px solid #ffffff1c}
+@media(max-width:767px){.tour-header{padding:14px 5vw}
+.tour-header nav{gap:10px}
+.tour-header nav>a:first-child{display:none}
+.gate-copy{top:17%}
+.gate-stage .gameaccess-splash{--gs-lock:min(32vh,58vw)}
+.chapter-inner{grid-template-columns:1fr;padding:85px 7vw}
+.chapter-visual{height:75vw;min-height:300px}
+.chapter-figure{height:100%}
+.chapter-screen{max-height:95%}
+.mode-progress{top:65px;margin-bottom:-50px}
+.mode-progress img{width:40px;height:40px}
+.help{grid-template-columns:1fr}
+.gate-behind img{max-width:90%}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}
+.gate-stage .gameaccess-splash,.gate-copy{display:none}
+.gate-stage{height:60vh}
+.gate-sticky{height:60vh;min-height:0}
+}
+
+.gate-copy{top:0;height:100%;padding-top:12vh}
+.gate-scroll{position:absolute}
+
+@media(max-width:767px){.gate-copy{top:0;padding-top:17vh}
+}
+
+.gate-stage .gameaccess-splash{display:none}
+html.tour-motion .gate-stage .gameaccess-splash{display:block}
+
