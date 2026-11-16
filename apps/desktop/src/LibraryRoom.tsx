@@ -22,6 +22,7 @@ import { applyParentalPolicy } from "./parentalControl";
 import { useParentalState } from "./ParentalControlSection";
 import { useDesktopWindowMaximized } from "./useDesktopWindowMaximized";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { KeyboardEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 
@@ -679,7 +680,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       return;
     }
     if (detailOpen && event.key === "Tab") {
-      const dialog = event.currentTarget.querySelector<HTMLElement>(".ga-detail-overlay");
+      const dialog = navigationShellEnabled() ? document.querySelector<HTMLElement>(".ga-detail-overlay") : event.currentTarget.querySelector<HTMLElement>(".ga-detail-overlay");
       const focusable = Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? []).filter(node => node.getClientRects().length > 0);
       if (focusable.length) {
         const first = focusable[0];
@@ -782,6 +783,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       onAction={onAction}
     />
   ) : null;
+  const placeDetailOverlay = (overlay: React.ReactNode) => navigationShellEnabled() ? createPortal(overlay, document.body) : overlay;
 
   return (
     <section ref={rootRef} className={rootClass} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={markActivity} aria-label={t("uiBiblioteca")}>
@@ -792,7 +794,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
           the catalog/library buttons and the zoom, so going back to the catalog is one click away. */}
       {displayGames.length > 0 || games.length > 0 || catalogQuery.loading || externalDetailGame || !loading ? (
         <>
-          {detailOpen && selectedGame ? <div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
+          {detailOpen && selectedGame ? placeDetailOverlay(<div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
               <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
@@ -800,7 +802,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
               {detailPanel}
             </div>
             {detailMenu ? <GameDetailMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} onDetails={setInfoGame} onLeave={closeGameDetail} /> : null}
-          </div> : null}
+          </div>) : null}
           {infoGame ? <GameInfoCard game={infoGame} onClose={() => setInfoGame(null)} /> : null}
           <RenderProbe id="CatalogPanel"><DownloadCatalogPanel onOpenGame={setOwnDetailGame} isInstalled={isInstalledGame} toolbarTarget={toolbarTarget} actionsTarget={actionsTarget} games={displayGames} allGames={games} searchQuery={searchValue} onSearchQueryChange={onSearchQueryChange} searchFilters={searchFilters} onSearchFiltersChange={onSearchFiltersChange} section={catalogCollection} view={libraryView} onViewChange={setLibraryView} catalogSort={catalogSort} onCatalogSortChange={setCatalogSort} hasInstalled={hasInstalledGames} hasFavorites={hasFavoriteGames} catalogUnavailable={catalogUnavailable} catalogTotal={isCatalog ? catalogCollection.total : undefined} catalogLoading={isCatalog ? (aiMode ? Boolean(aiResult?.busy) : catalogQuery.loading) : undefined} lead={aiMode ? <AiSearchAnswer busy={aiResult?.busy ?? false} reply={aiResult?.answer?.reply ?? ""} count={aiResult?.answer?.picks.length ?? 0} error={aiResult?.error ?? null} idle={aiResult?.idle ?? false} connected={aiSearch.connected} /> : undefined} aiReasons={aiReasons} downloads={effectiveDownloads} selectedIndex={selectedIndex} gridRef={gridRef} pinnedAppIds={pinnedAppIds} preferences={preferences} history={history} onSelect={onSelectGame} onInstall={onDownload} onPlay={playGame} onPreference={onPreference} /></RenderProbe>
         </>

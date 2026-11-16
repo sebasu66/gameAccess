@@ -11,6 +11,7 @@
  *    below is the reliable path and the text patterns only cover records that
  *    predate it.
  */
+import { steamFreeKind } from "./freeSteamGames";
 import { normalizeSearchText } from "./libraryText";
 import type { CatalogGame } from "./types";
 
@@ -31,6 +32,10 @@ export type LibraryFeatureKey =
   | "pve"
   | "cross_platform"
   | "has_downloads"
+  /** Free on Steam: free to play, a free demo, or a giveaway to keep right now (freeSteamGames.ts). A requirement. */
+  | "free"
+  /** A free demo on Steam. A requirement; with "free" too, both hold (a demo is free). */
+  | "demo"
   /**
    * The generic `Co-op` category alone, without the Online/LAN/Split variants.
    * The panel's "Co-op / PvE" branch requires this, while the general `coop`
@@ -75,6 +80,11 @@ export function gameMatchesLibraryFeature(game: CatalogGame, feature: LibraryFea
   // Download availability follows the plugins and changes while the app runs, so
   // it is read live. Everything else is evidence from the catalog record.
   if (feature === "has_downloads") return game.has_downloads === true;
+  // A giveaway lasts a few days: read against the clock, never cached with the record's features.
+  if (feature === "free" || feature === "demo") {
+    const kind = steamFreeKind(game);
+    return feature === "demo" ? kind === "demo" : kind === "free_to_play" || kind === "free_to_keep" || kind === "demo";
+  }
   return gameFeatures(game).has(feature);
 }
 
@@ -189,6 +199,8 @@ function computeGameFeatures(game: CatalogGame): Set<LibraryFeatureKey> {
     || hasAny("Single-player", "Un jugador", "Solo", "Einzelspieler", "Um jogador", "单人");
   const predicates: Record<LibraryFeatureKey, () => boolean> = {
     has_downloads: () => game.has_downloads === true,
+    free: () => false,      // read live in gameMatchesLibraryFeature (a giveaway ends)
+    demo: () => false,
     // A requirement per concept, never a same-category assertion: "Co-op + LAN"
     // means the game has co-op and has LAN, and a `LAN Co-op` satisfies both.
     lan: lanAny,

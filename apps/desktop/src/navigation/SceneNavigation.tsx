@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useGSAP } from "@gsap/react";
 import { useI18n, type TranslationKey } from "../i18n";
 import { usePlus } from "../kidMode";
@@ -8,12 +8,15 @@ import { NAVIGATION, type NavigationModeId } from "./navigationTree";
 import { planLocked } from "./planLocks";
 import { PlanLock } from "./pieces";
 import { SCENE_SECTION_ICONS } from "./sceneSectionIcons";
+import { useFigureSrc } from "./sceneLook";
+import SceneLookMenu, { type SceneMenuRequest } from "./SceneLookMenu";
+import { useShellLook } from "./shellLook";
 
-const scene: Record<NavigationModeId, { image: string; phrase: TranslationKey }> = {
-  catalog: { image: "catalogo", phrase: "sceneCatalogPhrase" },
-  library: { image: "libreria", phrase: "sceneLibraryPhrase" },
-  gameAccess: { image: "gameaccess", phrase: "sceneGameAccessPhrase" },
-  settings: { image: "config", phrase: "sceneSettingsPhrase" },
+const scene: Record<NavigationModeId, { phrase: TranslationKey }> = {
+  catalog: { phrase: "sceneCatalogPhrase" },
+  library: { phrase: "sceneLibraryPhrase" },
+  gameAccess: { phrase: "sceneGameAccessPhrase" },
+  settings: { phrase: "sceneSettingsPhrase" },
 };
 gsap.registerPlugin(useGSAP);
 
@@ -50,6 +53,11 @@ export default function SceneNavigation({ mode, selected, reachable, onOpen, onL
   const frontWord = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const previousMode = useRef(mode);
+  // The player's figure for this mode (Settings › Appearance) and the right-click menus (SceneLookMenu).
+  const figure = useShellLook().scene.figures[mode];
+  const figureSrc = useFigureSrc(mode, figure?.image);
+  const figureStyle = figure ? { "--ga-scene-figure-scale": figure.scale, "--ga-scene-figure-x": `${figure.x}%`, "--ga-scene-figure-y": `${figure.y}%` } as CSSProperties : undefined;
+  const [lookMenu, setLookMenu] = useState<SceneMenuRequest | null>(null);
   useEffect(() => {
     const scene = root.current;
     const stage = scene?.closest<HTMLElement>(".ga-nav-shell");
@@ -148,13 +156,18 @@ export default function SceneNavigation({ mode, selected, reachable, onOpen, onL
     void queueTransition(enter, "scene-mode-enter");
     return () => { live = false; };
   }, { scope: root, dependencies: [mode], revertOnUpdate: true });
-  return <nav className="ga-scene-navigation" ref={root} aria-label={t("navSectionsAria")}>
+  return <nav className="ga-scene-navigation" ref={root} aria-label={t("navSectionsAria")} onContextMenu={event => {
+    event.preventDefault();
+    // On the menu: its colours; anywhere above it (the figure, the word): the figure.
+    const kind = (event.target as Element).closest(".ga-scene-menu") ? "colors" : "figure";
+    setLookMenu({ kind, x: event.clientX, y: event.clientY, mode });
+  }}>
     <div className="ga-scene-art" aria-hidden="true">
       <span className="ga-scene-art-glow" />
       <span className="ga-scene-art-number">{number}</span>
       <span className="ga-scene-word" ref={word}>{[...t(current.label)].map((character, index) => <span key={index}>{character === " " ? " " : character}</span>)}</span>
       <span className="ga-scene-ring"><svg viewBox="0 0 300 300" aria-hidden="true"><circle className="ga-scene-ring-main" cx="150" cy="150" r="132" pathLength="100" /><g className="ga-scene-ring-orbit"><circle cx="150" cy="150" r="147" /><path d="M297 150a147 147 0 0 0-147-147" /></g></svg></span>
-      <img src={`/styles/escena/fig-${scene[mode].image}.webp`} alt="" />
+      <img src={figureSrc} alt="" style={figureStyle} />
       <span className="ga-scene-word ga-scene-word-front" ref={frontWord}>{[...t(current.label)].map((character, index) => <span key={index} data-under={index >= 2 && index % 2 === 0 || undefined}>{character === " " ? " " : character}</span>)}</span>
     </div>
     <span className="ga-scene-particles" aria-hidden="true">{particles.map((style, index) => <i key={index} className={index % 3 === 0 ? "is-near" : "is-far"} style={style} />)}</span>
@@ -199,5 +212,6 @@ export default function SceneNavigation({ mode, selected, reachable, onOpen, onL
       })}</ul>
     </div>
     <div className="ga-scene-wipe" aria-hidden="true"><div className="ga-scene-wipe-liquid"><i /><i /><i /></div></div>
+    {lookMenu && <SceneLookMenu request={lookMenu} onClose={() => setLookMenu(null)} />}
   </nav>;
 }

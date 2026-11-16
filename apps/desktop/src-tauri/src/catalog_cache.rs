@@ -949,9 +949,18 @@ pub struct CatalogQueryParams {
 const MULTIPLAYER_CATEGORY_SQL: &str = "EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Multi-player','Multijugador','Multijoueur','Multigiocatore','Mehrspieler','Wieloosobowa','Multijogador','多人','Багатокористувацька гра','Co-op','Cooperativo','Кооперативна гра','PvP','JcJ','JxJ','Гравець проти гравця','Online PvP','JcJ en línea','Online-PvP','Гравець проти гравця в мережі','Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','Shared/Split Screen','Pantalla partida/compartida','Tela compartilhada/dividida','Geteilter Bildschirm','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada','Shared/Split Screen PvP','LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN','LAN PvP','JcJ en rede local (LAN)','JxJ em rede local (LAN)','MMO','Multijugador masivo','Massively Multiplayer','Cross-Platform Multiplayer','Multijugador multiplataforma','Multijogador entre plataformas','Кросплатформова гра'))";
 
 /// SQL condition for one library feature key, or None for keys the query does not know.
+/** The Free to Play genre and tag as the catalog spells them (genreConcepts.json, free_to_play). */
+const FREE_TO_PLAY_NAMES_SQL: &str = "'Free to Play','Free To Play','Gratis','Gratuito'";
+
 fn feature_clause(feat: &str) -> Option<String> {
     Some(match feat {
         "has_downloads" => "EXISTS (SELECT 1 FROM game_sources gs WHERE gs.app_id = g.app_id)".to_string(),
+        // Free on Steam (freeSteamGames.ts): the Free to Play genre or tag, Steam's own flag, a free demo, or a
+        // giveaway to keep that is on now. A requirement, as every feature here.
+        "free" => format!("(EXISTS (SELECT 1 FROM game_genre gg WHERE gg.game_id = g.id AND gg.name IN ({names}))             OR EXISTS (SELECT 1 FROM game_tag gt WHERE gt.game_id = g.id AND gt.name IN ({names}))             OR EXISTS (SELECT 1 FROM catalog_game cf WHERE cf.id = g.id AND (json_extract(cf.payload, '$.is_free') = 1               OR lower(json_extract(cf.payload, '$.product_type')) = 'demo'               OR (json_extract(cf.payload, '$.steam_free_promo.kind') = 'free_to_keep'                 AND COALESCE(json_extract(cf.payload, '$.steam_free_promo.starts_at'), '') <= strftime('%Y-%m-%dT%H:%M:%SZ', 'now')                 AND COALESCE(json_extract(cf.payload, '$.steam_free_promo.ends_at'), '9999') > strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))))",
+            names = FREE_TO_PLAY_NAMES_SQL),
+        // A free demo: the catalog marks it in the record (product_type); the daily discovery adds Steam's most relevant demos.
+        "demo" => "EXISTS (SELECT 1 FROM catalog_game cf WHERE cf.id = g.id AND lower(json_extract(cf.payload, '$.product_type')) = 'demo')".to_string(),
         "single_player" => "(m.single_player = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Single-player','Un jugador','Solo','Einzelspieler','Um jogador','单人')))".to_string(),
         "multiplayer" => format!("(m.multiplayer = 1 OR m.coop = 1 OR m.online_coop = 1 OR m.local_coop = 1 OR m.shared_split_screen = 1 OR m.mmo = 1 OR m.pvp = 1 OR m.lan = 1 OR {})", MULTIPLAYER_CATEGORY_SQL),
         "coop" | "pve" => "(m.coop = 1 OR m.online_coop = 1 OR m.local_coop = 1 OR EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = g.id AND gc.name IN ('Co-op','Cooperativo','Кооперативна гра','Online Co-op','Cooperativo en línea','Cooperativo online','Мережева кооперативна гра','LAN Co-op','Cooperativo em rede local (LAN)','Cooperativo en LAN','Shared/Split Screen Co-op','Coop. a pantalla (com)partida','Cooperativo em tela dividida/compartilhada')))".to_string(),
@@ -1483,6 +1492,14 @@ pub fn query_catalog_conn(conn: &Connection, params: &CatalogQueryParams) -> Res
             "NOT {} AND NOT EXISTS (SELECT 1 FROM catalog_game ag WHERE ag.id = g.id AND json_valid(ag.payload) AND (json_extract(ag.payload, '$.adult_only') = 1 OR CAST(COALESCE(json_extract(ag.payload, '$.required_age'), 0) AS INTEGER) >= 18))",
             descriptor_exists_sql(&list)
         ));
+    }
+
+    // Demos are in the catalog only for the Demos filter: every other search and shelf leaves them out. A lookup by
+    // id (the player's library, a game they opened) is left alone.
+    let wants_demos = params.features.as_ref().is_some_and(|features| features.iter().any(|f| f == "demo"));
+    let by_id = params.game_ids.is_some() || params.app_ids.as_ref().is_some_and(|ids| !ids.is_empty());
+    if !wants_demos && !by_id {
+        where_clauses.push(format!("NOT ({})", feature_clause("demo").unwrap_or_default()));
     }
 
     if let Some(ref ids) = params.game_ids {
@@ -2365,6 +2382,41 @@ mod tests {
         // Zero means no floor.
         let none = CatalogQueryParams { min_review_count: Some(0), ..Default::default() };
         assert_eq!(ids(&none), vec![1, 2, 3, 4, 5]);
+
+        drop(conn);
+        let _ = fs::remove_dir_all(target.parent().unwrap());
+    }
+
+    #[test]
+    fn test_catalog_query_free_and_demo_are_both_required() {
+        let target = temp_target();
+        let conn = Connection::open(&target).unwrap();
+        conn.execute_batch("
+            CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE catalog_game(id INTEGER PRIMARY KEY, app_id INTEGER, payload TEXT);
+            CREATE TABLE game_detail(game_id INTEGER, language TEXT, country TEXT, payload TEXT, PRIMARY KEY(game_id, language, country));
+            INSERT INTO catalog_game VALUES(1, 10, '{\"id\":1,\"app_id\":10,\"name\":\"Paid\",\"genres\":[\"Action\"]}');
+            INSERT INTO catalog_game VALUES(2, 20, '{\"id\":2,\"app_id\":20,\"name\":\"F2P\",\"genres\":[\"Action\",\"Free to Play\"]}');
+            INSERT INTO catalog_game VALUES(3, 30, '{\"id\":3,\"app_id\":30,\"name\":\"Tagged\",\"genres\":[\"Action\"],\"tags\":[\"Free to Play\"]}');
+            INSERT INTO catalog_game VALUES(4, 40, '{\"id\":4,\"app_id\":40,\"name\":\"Demo\",\"genres\":[\"Action\"],\"product_type\":\"demo\"}');
+            INSERT INTO catalog_game VALUES(5, 50, '{\"id\":5,\"app_id\":50,\"name\":\"Giveaway\",\"genres\":[\"Action\"],\"steam_free_promo\":{\"kind\":\"free_to_keep\",\"ends_at\":\"9000-01-01T00:00:00Z\"}}');
+            INSERT INTO catalog_game VALUES(6, 60, '{\"id\":6,\"app_id\":60,\"name\":\"Ended\",\"genres\":[\"Action\"],\"steam_free_promo\":{\"kind\":\"free_to_keep\",\"ends_at\":\"2000-01-01T00:00:00Z\"}}');
+        ").unwrap();
+        ensure_normalized_schema(&conn).unwrap();
+        let ids = |features: &[&str]| {
+            let found = query_catalog_conn(&conn, &CatalogQueryParams { features: Some(features.iter().map(|f| f.to_string()).collect()), ..Default::default() }).unwrap();
+            let mut ids: Vec<i64> = found.items.iter().map(|item| item["id"].as_i64().unwrap()).collect();
+            ids.sort();
+            ids
+        };
+        // Gratis alone is the free games; a demo shows only with the Demos filter on.
+        assert_eq!(ids(&["free"]), vec![2, 3, 5]);
+        assert_eq!(ids(&[]), vec![1, 2, 3, 5, 6]);
+        let by_id = query_catalog_conn(&conn, &CatalogQueryParams { game_ids: Some(vec![4]), ..Default::default() }).unwrap();
+        assert_eq!(by_id.items.len(), 1, "a demo the player opened is still found by its id");
+        assert_eq!(ids(&["demo"]), vec![4]);
+        // Both on: every result holds both.
+        assert_eq!(ids(&["free", "demo"]), vec![4]);
 
         drop(conn);
         let _ = fs::remove_dir_all(target.parent().unwrap());

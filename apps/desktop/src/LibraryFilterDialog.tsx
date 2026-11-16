@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, CirclePlus, Download } from "lucide-react";
+import { ChevronDown, CirclePlus, Download, Gift, MonitorPlay } from "lucide-react";
 import { useOverlayClose } from "./useOverlayClose";
 import OverlayScreenDimmer from "./OverlayScreenDimmer";
 import { useDialogFocus } from "./dialogFocus";
@@ -70,6 +70,12 @@ async function moveMouseTo(x: number, y: number) {
     await getCurrentWindow().setCursorPosition(new LogicalPosition(Math.round(x), Math.round(y)));
   } catch { /* running in a plain browser */ }
 }
+
+/** Free and demos, as required filters (librarySearch REQUIRED_KIND_KEYS). */
+const KIND_FILTERS = [
+  { key: "free", label: "uiFiltroGratis", tip: "uiFiltroGratisTip", Icon: Gift },
+  { key: "demo", label: "uiFiltroDemos", tip: "uiFiltroDemosTip", Icon: MonitorPlay },
+] as const;
 
 export default function LibraryFilterDialog({ games, query, filters, genres, onApply, countFromCatalog = false }: {
   games: CatalogGame[]; query: string; filters: LibrarySearchFilters; genres: string[];
@@ -199,6 +205,11 @@ export default function LibraryFilterDialog({ games, query, filters, genres, onA
                 : <div className="ga-sx-sources">{sourceNames.map(name => <PlusMinus key={name} label={name} state={criterionState(draft, "sources", name)} onSet={state => set("sources", name, state)} />)}</div>}
             </div> : null}
           </div> : null}
+          {/* Free and demos are requirements: each one on must hold for every result (librarySearch REQUIRED_KIND_KEYS). */}
+          {KIND_FILTERS.map(({ key, label, tip, Icon }) =>
+            <span key={key} className={"ga-sx-cat" + (draft.features.includes(key) ? " is-on" : "")}>
+              <button type="button" className="ga-sx-cat-main" aria-pressed={draft.features.includes(key)} title={t(tip)} onClick={() => toggleFeature(key)}><Icon size={14} aria-hidden="true" />{t(label)}</button>
+            </span>)}
           <span className={"ga-sx-cat is-adult" + (adultState !== "off" ? " is-on" : "")} title={parentalLocked ? lockedTitle() : undefined}>
             <PlusMinus label={t("uiContenidoAdulto")} state={parentalLocked ? "exclude" : adultState} disabled={parentalLocked} onSet={setAdult} />
           </span>

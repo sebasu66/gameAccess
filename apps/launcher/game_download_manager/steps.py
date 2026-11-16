@@ -10,6 +10,11 @@ import time
 from game_download_manager.ui_text import ui
 
 ORDER = ("pick", "route", "probe", "server", "download", "extract", "install")
+# A free Steam game (steam_depot): Steam's own install window, then Steam downloads it. No source, route or
+# unpacking: those steps do not exist for it. Through DepotDownloader (depot_tool_download): sign in to Steam,
+# download, hand it to the Steam library, Steam takes it in.
+STEAM_ORDER = ("dialog", "download")
+DEPOT_ORDER = ("signin", "download", "handoff", "adopt")
 _PHASE_STEP = {"downloading": "download", "decompressing": "extract", "installing": "install"}
 _DEFAULT_RESULT = {"server": ui("dlDoneServer"), "download": ui("dlDoneDownload"), "extract": ui("dlDoneExtract"), "install": ui("dlDoneInstall")}
 
@@ -19,6 +24,29 @@ class StepTracker:
         self._clock = clock
         self.current = None
         self.done = {}
+        self.order = ORDER
+        self.phase_step = _PHASE_STEP
+        self.waiting_facts = {}
+
+    def facts(self, values, step_id=None):
+        """What a step works with, for the player to see in it (folder, disk, free and needed space, account…). For a
+        step not started yet they wait for it; a finished or failed one keeps them."""
+        values = {key: value for key, value in (values or {}).items() if value not in (None, "")}
+        if not values:
+            return
+        if step_id is None or (self.current and self.current["id"] == step_id):
+            if self.current:
+                self.current.setdefault("facts", {}).update(values)
+            return
+        if step_id in self.done:
+            self.done[step_id].setdefault("facts", {}).update(values)
+            return
+        self.waiting_facts.setdefault(step_id, {}).update(values)
+
+    def steam(self, kind="client"):
+        """The steps of a free Steam game; the pipeline names each one, only the download follows the progress."""
+        self.order = DEPOT_ORDER if kind == "depot" else STEAM_ORDER
+        self.phase_step = {"downloading": "download"}
 
     def _now(self):
         return int(self._clock() * 1000)
@@ -31,6 +59,8 @@ class StepTracker:
             self.finish()
         self.done.pop(step_id, None)
         self.current = {"id": step_id, "detail": detail, "startedAt": self._now()}
+        if step_id in self.waiting_facts:
+            self.current["facts"] = self.waiting_facts.pop(step_id)
 
     def detail(self, text):
         if self.current and text:
@@ -40,7 +70,8 @@ class StepTracker:
         current, self.current = self.current, None
         if current:
             fallback = _DEFAULT_RESULT.get(current["id"], current["detail"])
-            self.done[current["id"]] = {"id": current["id"], "state": state, "result": result or fallback, "ms": self._now() - current["startedAt"]}
+            self.done[current["id"]] = {"id": current["id"], "state": state, "result": result or fallback, "ms": self._now() - current["startedAt"],
+                                        **({"facts": current["facts"]} if current.get("facts") else {})}
 
     def skip(self, step_id, result=""):
         if step_id not in self.done and not (self.current and self.current["id"] == step_id):
@@ -56,9 +87,9 @@ class StepTracker:
             # While the torrents race or one is measured they already download: that is still that step.
             self.detail(status_text)
             return
-        step_id = _PHASE_STEP.get(phase)
+        step_id = self.phase_step.get(phase)
         if step_id and not (self.current and self.current["id"] == step_id):
-            if step_id == "download":
+            if step_id == "download" and self.order is ORDER:
                 for earlier in ("route", "probe", "server"):
                     if not (self.current and self.current["id"] == earlier):
                         self.skip(earlier)
@@ -66,7 +97,7 @@ class StepTracker:
             return
         if phase == "completed":
             self.finish()
-            for step in ORDER:
+            for step in self.order:
                 if step != "pick":  # shown only when torrents raced
                     self.skip(step)
             return
@@ -74,6 +105,6 @@ class StepTracker:
 
     def payload(self):
         return {
-            "step": dict(self.current) if self.current else None,
-            "steps": [self.done[step] for step in ORDER if step in self.done],
+            "step": {**self.current, **({"facts": dict(self.current["facts"])} if self.current.get("facts") else {})} if self.current else None,
+            "steps": [self.done[step] for step in self.order if step in self.done],
         }

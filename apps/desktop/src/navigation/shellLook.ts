@@ -5,9 +5,12 @@
  * place that draws; a value left alone (null) is the style's or the base's. The mode bar's word keeps the extra choices
  * of the old rail (font, orientation, size, spacing, position and its GSAP animations). Saved like the rest of
  * Appearance: local storage, applied at once, announced with an event.
+ * Escena (Seba 2026-11-16): Styles 2–4 are hidden and kept for later; the shell always uses Style 1 underneath and the
+ * player changes only Escena's gradients, figures and word font (sceneLook.ts), with up to three saved variations.
  */
 import { useEffect, useState } from "react";
 import { setStyleFlavor } from "../templates/flavor";
+import { DEFAULT_SCENE, dropUnusedFigures, normalizeScene, normalizeVariations, sceneVariables, usedImages, type SceneLook, type SceneVariation } from "./sceneLook";
 
 export const SHELL_LOOK_EVENT = "gameaccess:shell-look-changed";
 export const SHELL_LOOK_KEY = "gameaccess:shell-look:v1";
@@ -67,17 +70,23 @@ export interface ShellLook {
   /** Values the player changed; a missing key is the style's. */
   values: Partial<Record<ShellParamKey, string | number>>;
   word: WordPrefs;
+  /** Escena's gradients, figures and word font. */
+  scene: SceneLook;
+  /** Saved Escena variations, three at most. */
+  variations: SceneVariation[];
 }
 
 export const DEFAULT_WORD: WordPrefs = { font: "style", size: null, orientation: "up", tracking: null, align: "center", start: "letters", end: "slide", duration: null };
-export const DEFAULT_SHELL_LOOK: ShellLook = { style: 1, sceneTone: "light", values: {}, word: DEFAULT_WORD };
+export const DEFAULT_SHELL_LOOK: ShellLook = { style: 1, sceneTone: "light", values: {}, word: DEFAULT_WORD, scene: DEFAULT_SCENE, variations: [] };
+/** Styles 2–4 stay in the code and their stylesheets, hidden (Seba 2026-11-16): a saved one becomes Style 1. */
+export const SHOWN_STYLES: readonly ShellStyle[] = [1];
 
 const oneOf = <T extends string>(value: unknown, list: readonly T[], fallback: T): T => (list as readonly unknown[]).includes(value) ? value as T : fallback;
 const clamp = (value: unknown, min: number, max: number): number | null => typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : null;
 
 export function normalizeShellLook(value: unknown): ShellLook {
   const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const style = ([1, 2, 3, 4] as const).find(n => n === raw.style) ?? 1;
+  const style = SHOWN_STYLES.find(n => n === raw.style) ?? 1;
   const values: ShellLook["values"] = {};
   const rawValues = raw.values && typeof raw.values === "object" ? raw.values as Record<string, unknown> : {};
   for (const param of SHELL_PARAMS) {
@@ -97,7 +106,7 @@ export function normalizeShellLook(value: unknown): ShellLook {
     duration: w.duration === null ? null : clamp(w.duration, .15, 1.5),
   };
   const sceneTone = oneOf(raw.sceneTone, ["light", "dark"] as const, "light");
-  return { style, sceneTone, values, word };
+  return { style, sceneTone, values, word, scene: normalizeScene(raw.scene), variations: normalizeVariations(raw.variations) };
 }
 
 /** The CSS each changed value becomes: variable → value with its unit. */
@@ -110,7 +119,7 @@ export function shellLookVariables(look: ShellLook): Record<string, string> {
   }
   if (look.word.font !== "style") out["--ga-nav-word-family"] = `"${look.word.font}", "Arial Narrow", sans-serif`;
   if (look.word.tracking !== null) out["--ga-nav-word-tracking"] = `${look.word.tracking}em`;
-  return out;
+  return { ...out, ...sceneVariables(look.scene) };
 }
 
 let applied: string[] = [];
@@ -141,6 +150,7 @@ export function saveShellLook(look: ShellLook): ShellLook {
   const next = normalizeShellLook(look);
   try { localStorage.setItem(SHELL_LOOK_KEY, JSON.stringify(next)); } catch { /* the look still applies for this session */ }
   window.dispatchEvent(new CustomEvent(SHELL_LOOK_EVENT, { detail: next }));
+  void dropUnusedFigures(usedImages([next.scene, ...next.variations.map(variation => variation.scene)]));
   return next;
 }
 

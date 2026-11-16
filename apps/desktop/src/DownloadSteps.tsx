@@ -4,10 +4,10 @@ import { useI18n } from "./i18n";
 import type { DownloadProgressSnapshot, DownloadStepId } from "./downloadProvider";
 import { downloadSteps, formatElapsed, stepsStarted, timelineSteps, type StepView } from "./downloadStepModel";
 
-export const STEP_TITLES = { pick: "dlStepPick", route: "dlStepRoute", probe: "dlStepProbe", server: "dlStepServer", download: "dlStepDownload", extract: "dlStepExtract", install: "dlStepInstall" } as const satisfies Record<DownloadStepId, string>;
+export const STEP_TITLES = { pick: "dlStepPick", route: "dlStepRoute", probe: "dlStepProbe", server: "dlStepServer", download: "dlStepDownload", extract: "dlStepExtract", install: "dlStepInstall", signin: "dlStepSignin", handoff: "dlStepHandoff", adopt: "dlStepAdopt", dialog: "dlStepSteamDialog" } as const satisfies Record<DownloadStepId, string>;
 
 /** Seconds since a step started, refreshed every second while it runs. */
-function useElapsed(startedAt?: number): string | null {
+export function useElapsed(startedAt?: number): string | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!startedAt) return;

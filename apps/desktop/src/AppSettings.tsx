@@ -59,10 +59,11 @@ function SettingsScreen() {
    { id: "mcp", label: t("mcpTab"), content: <McpSettings /> },
    // The new shell puts language and start with Windows in General › Options (vault/Rediseño de navegación.md §2).
    ...(newShell ? [{ id: "options", label: t("navOptions"), content: options }] : []),
-   // The new shell's Appearance: Style 1–4 and its values, then the mode bar and the sections panel (§5.13).
+   // The new shell's Appearance: Escena's gradients, figures, word font and saved variations (Seba 2026-11-16).
+   // Styles 2–4 and the "details" tab (mode bar, sections panel) are hidden and kept for later: ShellLookSettings.tsx.
    ...(newShell ? [
     { id: "style", label: t("navStyle"), content: <ShellLookSettings tab="style" /> },
-    { id: "details", label: t("navDetails"), content: <ShellLookSettings tab="details" /> },
+    // { id: "details", label: t("navDetails"), content: <ShellLookSettings tab="details" /> },
    ] : []),
    { id: "legacyStyle", label: c.tabStyle, content: <>
     {newShell ? null : options}

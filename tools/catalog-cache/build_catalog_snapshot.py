@@ -100,11 +100,12 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
                 m.steam_review_score, m.steam_review_count,
                 m.header_image, m.capsule_image, m.hero_image, m.steam_url,
                 m.steam_json, m.min_players, m.max_players,
-                m.local_players_max, m.online_players_max, m.players_source
+                m.local_players_max, m.online_players_max, m.players_source,
+                lower(coalesce(m.product_type, '')) AS product_type
             FROM game g
             JOIN game_metadata m ON m.game_id=g.id
             WHERE g.active = true
-              AND lower(coalesce(m.product_type, '')) = 'game'
+              AND lower(coalesce(m.product_type, '')) IN ('game', 'demo')
               AND lower(trim(coalesce(g.name, ''))) <> ('steam ' || CAST(g.app_id AS TEXT))
                 ORDER BY g.id
         """)).mappings().all()
@@ -167,6 +168,8 @@ def build_snapshot(source_url: str, output_dir: Path, github_ref: str) -> tuple[
             "mmo": None if row["mmo"] is None else bool(row["mmo"]),
             "pvp": None if row["pvp"] is None else bool(row["pvp"]),
             **{key: row[key] for key in ("min_players", "max_players", "local_players_max", "online_players_max", "players_source")},
+            # Only demos say what they are, so a whole game's record (and its hash) stays as it was.
+            **({"product_type": "demo"} if row["product_type"] == "demo" else {}),
         }
         encoded = stable_json(payload)
         content_hasher.update(encoded.encode("utf-8"))

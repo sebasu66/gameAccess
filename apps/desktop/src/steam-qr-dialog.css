@@ -1,0 +1,7 @@
+/* The Steam QR code on the smoke (SteamQrDialog.tsx). Screen layer: only its layout; the code's look is the template's
+   (--ga-qr-*): DepotDownloader prints QRCoder's small text code, made for a dark console, so its blocks are the light
+   modules and the quiet zone: light blocks on a dark ground whatever the style, for the phone to read it. */
+.ga-steam-qr .ga-smoke-body { display: grid; gap: var(--ga-space-2); justify-items: center; text-align: center; }
+.ga-steam-qr-title { margin: 0; font: var(--ga-t1-font); color: var(--ga-orange); }
+.ga-steam-qr-code { margin: 0; padding: var(--ga-qr-pad); font: var(--ga-qr-font); letter-spacing: var(--ga-qr-track); color: var(--ga-qr-ink); background: var(--ga-qr-paper); }
+.ga-steam-qr .ga-actions { justify-content: center; }

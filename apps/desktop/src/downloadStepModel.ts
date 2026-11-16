@@ -1,30 +1,42 @@
-import type { DownloadProgressSnapshot, DownloadStepId } from "./downloadProvider";
+import type { DownloadProgressSnapshot, DownloadStepId, StepFacts } from "./downloadProvider";
 
 export const STEP_ORDER: DownloadStepId[] = ["route", "probe", "server", "download", "extract", "install"];
+/** A free Steam game that Steam installs with its own window (apps/launcher/game_download_manager/steps.py STEAM_ORDER). */
+export const STEAM_STEP_ORDER: DownloadStepId[] = ["dialog", "download"];
+/** One brought by DepotDownloader instead (steps.py DEPOT_ORDER). */
+export const DEPOT_STEP_ORDER: DownloadStepId[] = ["signin", "download", "handoff", "adopt"];
+const STEAM_ONLY = new Set<DownloadStepId>(["dialog", "signin", "handoff", "adopt"]);
+const DEPOT_ONLY = new Set<DownloadStepId>(["signin", "handoff", "adopt"]);
+const named = (snapshot: DownloadProgressSnapshot, ids: Set<DownloadStepId>) =>
+  Boolean(snapshot.step && ids.has(snapshot.step.id)) || Boolean(snapshot.steps?.some(step => ids.has(step.id)));
+
+/** The download is a free Steam game's: the launcher named one of its steps (or the app knows its source). */
+export const isSteamDownload = (snapshot: DownloadProgressSnapshot) => named(snapshot, STEAM_ONLY);
 export type StepState = "done" | "current" | "pending" | "skipped" | "failed";
-export interface StepView { id: DownloadStepId; state: StepState; text: string; ms?: number; startedAt?: number }
+export interface StepView { id: DownloadStepId; state: StepState; text: string; ms?: number; startedAt?: number; facts?: StepFacts }
 
 /**
  * The sequence a download goes through (docs/TAREA-interfaz-nueva.md T12), so the player sees why it takes time to
  * start. The launcher sends it as structured data (`step` + `steps`); an older launcher only sends "Paso N de 3 · …"
  * texts, and then the sequence is worked out from the phase and that text.
  */
-export function downloadSteps(snapshot: DownloadProgressSnapshot): StepView[] {
+export function downloadSteps(snapshot: DownloadProgressSnapshot, steam = isSteamDownload(snapshot)): StepView[] {
+  if (steam) return structured(snapshot, named(snapshot, DEPOT_ONLY) ? DEPOT_STEP_ORDER : STEAM_STEP_ORDER);
   if (snapshot.step !== undefined || snapshot.steps !== undefined) return structured(snapshot);
   return fromText(snapshot);
 }
 
-function structured(snapshot: DownloadProgressSnapshot): StepView[] {
+function structured(snapshot: DownloadProgressSnapshot, order = STEP_ORDER): StepView[] {
   const done = new Map((snapshot.steps ?? []).map(step => [step.id, step]));
   const failed = snapshot.phase === "error";
   // Choosing the best source shows only when torrents raced for it.
   const raced = done.has("pick") || snapshot.step?.id === "pick";
-  return (raced ? ["pick" as const, ...STEP_ORDER] : STEP_ORDER).map(id => {
+  return (raced ? ["pick" as const, ...order] : order).map(id => {
     const finished = done.get(id);
-    if (finished) return { id, state: finished.state, text: finished.result, ms: finished.ms };
+    if (finished) return { id, state: finished.state, text: finished.result, ms: finished.ms, facts: finished.facts };
     if (snapshot.step?.id === id) return failed
-      ? { id, state: "failed", text: snapshot.error || snapshot.step.detail }
-      : { id, state: "current", text: snapshot.step.detail || snapshot.statusText || "", startedAt: snapshot.step.startedAt };
+      ? { id, state: "failed", text: snapshot.error || snapshot.step.detail, facts: snapshot.step.facts }
+      : { id, state: "current", text: snapshot.step.detail || snapshot.statusText || "", startedAt: snapshot.step.startedAt, facts: snapshot.step.facts };
     return { id, state: snapshot.phase === "completed" ? "skipped" : "pending", text: "" };
   });
 }

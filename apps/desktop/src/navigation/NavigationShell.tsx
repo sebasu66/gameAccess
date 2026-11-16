@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
 import { useNews } from "../centralDialog/useAnnouncements";
 import { useAppScreen, setAppScreen } from "../appScreen";
@@ -16,6 +17,7 @@ import SceneContentTitle from "./SceneContentTitle";
 import ContentHeader from "./ContentHeader";
 import SceneModeDock from "./SceneModeDock";
 import { useSceneModeExit } from "./useSceneModeExit";
+import { useSideDrawer } from "./sideDrawer";
 import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
 import "../templates/scene-fonts.css";
@@ -65,6 +67,7 @@ export default function NavigationShell() {
   const mode = shellMode(screen, gameSection?.area, navigationSelection.homeMode);
   const shellRef = useRef<HTMLDivElement>(null);
   const changeMode = useSceneModeExit(shellRef, mode, openMode);
+  const drawer = useSideDrawer();
   const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
     : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
     : screen === "home" ? navigationSelection.catalog : "explore";
@@ -104,7 +107,10 @@ export default function NavigationShell() {
   }, []);
 
   return <div className="ga-nav-shell" ref={shellRef} data-mode={mode} {...looks}>
-    <SceneNavigation mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={openPlans} />
+    <SceneNavigation mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => { drawer.chosen(); openExistingSection(mode, section); }} onLocked={openPlans} />
+    {/* The left column's drawer tab (sideDrawer.ts): folds and unfolds it by hand. */}
+    <button type="button" className="ga-nav-drawer-tab" aria-expanded={drawer.state !== "closed"} aria-label={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")}
+      title={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")} onClick={drawer.toggle}><ChevronLeft aria-hidden="true" /></button>
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
     <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
     <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />

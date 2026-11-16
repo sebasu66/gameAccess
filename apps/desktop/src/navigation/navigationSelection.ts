@@ -48,12 +48,13 @@ export const READY_TABS: Readonly<Record<string, readonly string[]>> = {
   newGames: ["downloadable"],
   play: ["recent", "favorites", "alphabetical"],
   downloads: ["active", "queued", "completed"],
-  manager: ["games"],
+  manager: ["games", "accounts"],
   news: ["release", "announcements"],
   support: ["instructions", "faq", "contact"],
   subscription: ["plan", "account"],
   general: ["games", "steam", "ai", "mcp", "options"],
-  appearance: ["style", "details"],
+  // "details" (the old mode bar and sections panel) is hidden with Styles 2–4 (Seba 2026-11-16).
+  appearance: ["style"],
 };
 export const tabReady = (section: string, tab: string) => READY_TABS[section]?.includes(tab) ?? false;
 
@@ -89,14 +90,14 @@ export function shellMode(screen: AppScreen, area: GameArea | undefined, homeMod
   return area ?? "catalog";
 }
 
-/** Where a news item opens: a batch of new downloads in Catalog › New games, any other in Game Access › News. */
+/** Where a news item opens: new downloads or games Steam made free in Catalog › New games, any other in Game Access › News. */
 export const newsDestination = (id: string): { mode: NavigationModeId; section: string } =>
-  id.startsWith("downloads-") ? { mode: "catalog", section: "newGames" } : { mode: "gameAccess", section: "news" };
+  id.startsWith("downloads-") || id.startsWith("steam-free-") ? { mode: "catalog", section: "newGames" } : { mode: "gameAccess", section: "news" };
 
 /** The tabs of the settings screen each Settings section shows (vault/Rediseño de navegación.md §2). */
 export function settingsTabIds(section: string): string[] {
   if (section === "general") return ["games", "steam", "ai", "mcp", "options"];
-  if (section === "appearance") return ["style", "details"];
+  if (section === "appearance") return ["style"]; // "details" hidden with Styles 2–4 (Seba 2026-11-16)
   if (section === "plugins") return ["plugins"];
   return [];
 }

@@ -38,14 +38,15 @@
 }
 
 /* The scene is one navigation piece. Its lower menu sits over the fixed-size character art. */
-.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-scene-catalog); --ga-mode-acc: var(--ga-scene-catalog); }
-.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-scene-library); --ga-mode-acc: var(--ga-scene-library); }
-.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-scene-game-access); --ga-mode-acc: var(--ga-scene-game-access); }
-.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-scene-settings); --ga-mode-acc: var(--ga-scene-settings); }
+.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-scene-catalog); --ga-mode-acc: var(--ga-scene-catalog); --ga-mode-start: var(--ga-scene-catalog-start); --ga-mode-end: var(--ga-scene-catalog-end); --ga-scene-ink: var(--ga-scene-catalog-ink); }
+.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-scene-library); --ga-mode-acc: var(--ga-scene-library); --ga-mode-start: var(--ga-scene-library-start); --ga-mode-end: var(--ga-scene-library-end); --ga-scene-ink: var(--ga-scene-library-ink); }
+.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-scene-game-access); --ga-mode-acc: var(--ga-scene-game-access); --ga-mode-start: var(--ga-scene-game-access-start); --ga-mode-end: var(--ga-scene-game-access-end); --ga-scene-ink: var(--ga-scene-game-access-ink); }
+.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-scene-settings); --ga-mode-acc: var(--ga-scene-settings); --ga-mode-start: var(--ga-scene-settings-start); --ga-mode-end: var(--ga-scene-settings-end); --ga-scene-ink: var(--ga-scene-settings-ink); }
 html[data-ga-scene-tone="dark"] .ga-nav-shell {
   --ga-scene-surface: color-mix(in srgb, var(--ga-mode) 30%, var(--ga-scene-bg));
-  --ga-scene-gradient-start: color-mix(in srgb, var(--ga-mode) 38%, var(--ga-scene-bg));
-  --ga-scene-gradient-end: color-mix(in srgb, var(--ga-mode) 20%, var(--ga-scene-bg));
+  /* The dark tone is derived from the mode's gradient, the player's own included. */
+  --ga-scene-gradient-start: color-mix(in srgb, var(--ga-mode-start) 38%, var(--ga-scene-bg));
+  --ga-scene-gradient-end: color-mix(in srgb, var(--ga-mode-end) 20%, var(--ga-scene-bg));
   --ga-scene-menu-ink: var(--ga-nav-shell-ink);
   --ga-scene-activity-ink: var(--ga-nav-shell-ink);
   --ga-scene-word-ink: color-mix(in srgb, var(--ga-mode) 65%, var(--ga-scene-bg));
@@ -91,8 +92,16 @@ html.ga-navigation-shell body::before {
 .ga-scene-wipe i { position: absolute; left: var(--ga-scene-wipe-x, 50%); bottom: calc(var(--ga-scene-wipe-size) / -2); width: var(--ga-scene-wipe-size); height: var(--ga-scene-wipe-size); margin-left: calc(var(--ga-scene-wipe-size) / -2); border-radius: 50%; background: var(--ga-scene-wipe-color, var(--ga-mode)); }
 .ga-scene-wipe i:nth-child(2) { width: var(--ga-scene-wipe-size-two); height: var(--ga-scene-wipe-size-two); bottom: calc(var(--ga-scene-wipe-size-two) / -2); margin-left: calc(var(--ga-scene-wipe-size-two) / -2 - var(--ga-scene-wipe-offset)); }
 .ga-scene-wipe i:nth-child(3) { width: var(--ga-scene-wipe-size-three); height: var(--ga-scene-wipe-size-three); bottom: calc(var(--ga-scene-wipe-size-three) / -2); margin-left: calc(var(--ga-scene-wipe-size-three) / -2 + var(--ga-scene-wipe-offset)); }
-.ga-scene-art img { position: absolute; top: var(--ga-scene-art-top); right: 0; height: var(--ga-scene-art-height); width: auto; max-width: none; mask-image: linear-gradient(to bottom, currentColor 80%, transparent 99%); }
-.ga-scene-word { position: absolute; top: var(--ga-scene-art-top); left: var(--ga-scene-inner); writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-transform: uppercase; color: var(--ga-scene-word-ink); font: 400 var(--ga-scene-word-size)/.8 var(--ga-scene-display-family); }
+/* The player's scale and offsets (Settings › Appearance) change the figure's size and place, never its transform: GSAP
+   animates that one on every mode change. Scaled around its middle, at four fifths of its height (where it stands). */
+.ga-scene-art img {
+  position: absolute; width: auto; max-width: none;
+  height: calc(var(--ga-scene-art-height) * var(--ga-scene-figure-scale));
+  top: calc(var(--ga-scene-art-top) + var(--ga-scene-figure-y) + (1 - var(--ga-scene-figure-scale)) * var(--ga-scene-art-height) * .8);
+  right: calc(var(--ga-scene-figure-x) * -1 + (1 - var(--ga-scene-figure-scale)) * var(--ga-scene-art-height) / 3);
+  mask-image: linear-gradient(to bottom, currentColor 80%, transparent 99%);
+}
+.ga-scene-word { position: absolute; top: var(--ga-scene-art-top); left: var(--ga-scene-inner); writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-transform: uppercase; color: var(--ga-scene-word-ink); font: 400 var(--ga-scene-word-size)/.8 var(--ga-scene-word-family); }
 .ga-scene-word > span { display: inline-block; }
 .ga-scene-word-front > span[data-under] { visibility: hidden; }
 .ga-scene-ring { position: absolute; top: var(--ga-scene-ring-top); right: var(--ga-scene-inner); width: var(--ga-scene-ring-size); aspect-ratio: 1; }
@@ -150,7 +159,9 @@ html.ga-navigation-shell body::before {
 html.ga-navigation-shell, html.ga-navigation-shell[data-ga-nav-head="games"] { --ga-nav-body-top: calc(var(--ga-scene-content-top, var(--ga-nav-head-h)) + var(--ga-scene-content-gap)); }
 
 /* Escena's activity panel uses the same mode gradient as the navigation panel. */
-@media (min-width: 1101px) { html.ga-navigation-shell { --ga-nav-activity-w: var(--ga-scene-activity-w); } }
+/* Whole or not at all (base.css, --ga-nav-content-min): its full width while the room fits it, else none; the ramp
+   between the two is under a pixel wide, so it never shows squeezed. */
+@media (min-width: 1101px) { html.ga-navigation-shell { --ga-nav-activity-w: clamp(0px, (var(--ga-nav-activity-room) - var(--ga-scene-activity-w)) * 1000, var(--ga-scene-activity-w)); } }
 .ga-nav-activity { border: 0; border-radius: var(--ga-scene-radius); clip-path: none; background: linear-gradient(160deg, var(--ga-scene-gradient-start), var(--ga-scene-surface) 45%, var(--ga-scene-gradient-end)); color: var(--ga-scene-activity-ink); font-family: var(--ga-scene-text-family); }
 .ga-nav-brand { min-height: var(--ga-nav-brand-h); justify-content: flex-start; background: var(--ga-scene-activity-bg); border: 0; border-radius: 0 0 0 var(--ga-scene-radius); color: var(--ga-nav-shell-ink); }
 .ga-nav-brand img { flex: none; width: var(--ga-scene-brand-logo); height: var(--ga-scene-brand-logo); object-fit: contain; }
@@ -197,3 +208,25 @@ button.ga-scene-history-entry { cursor: pointer; }
 .ga-scene-history [data-severity="warning"] { --ga-scene-severity: var(--ga-scene-severity-warning); }
 .ga-scene-history [data-severity="done"] { --ga-scene-severity: var(--ga-scene-severity-done); }
 .ga-scene-history [data-severity="info"] { --ga-scene-severity: var(--ga-scene-severity-info); }
+
+/* The left column as a drawer (sideDrawer.ts, base.css --ga-nav-content-min). Docked it pushes the content and its tab
+   sits in the gap beside it; closed it leaves only the tab at the window's edge and the content takes its place; open
+   it lies over the content. The column keeps its own size in all three: it slides, never squeezes. */
+html.ga-navigation-shell { --ga-nav-drawer-span: calc(var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + var(--ga-nav-column-gap)); --ga-nav-drawer-tab-x: calc(var(--ga-nav-left) + var(--ga-nav-drawer-span) + (var(--ga-scene-column-space) - var(--ga-nav-drawer-tab-w)) / 2); }
+html.ga-navigation-shell:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) { --ga-nav-content-left: calc(var(--ga-frame-left, 0px) + var(--ga-nav-drawer-tab-w) + var(--ga-nav-column-gap)); }
+html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock, .ga-nav-drawer-tab) { translate: calc(var(--ga-frame-left, 0px) - var(--ga-nav-drawer-tab-x)) 0; }
+/* Out of sight once it has slid out: nothing in it is reached with the keyboard. */
+html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock) { visibility: hidden; transition: visibility 0s var(--ga-nav-drawer-time); }
+html:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) .ga-scene-selection-shape { opacity: 0; }
+html:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) .ga-nav-shell::before { display: none; }
+html[data-ga-nav-drawer="open"] :is(.ga-scene-navigation, .ga-scene-dock) { z-index: 8; }
+.ga-nav-drawer-tab {
+  position: absolute; z-index: 9; left: var(--ga-nav-drawer-tab-x); top: calc(var(--ga-nav-top) + var(--ga-scene-inner));
+  width: var(--ga-nav-drawer-tab-w); height: var(--ga-nav-drawer-tab-h); display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: var(--ga-nav-drawer-tab-radius); background: var(--ga-mode); color: var(--ga-scene-ink); cursor: pointer;
+}
+.ga-nav-drawer-tab svg { width: var(--ga-nav-drawer-tab-icon); height: var(--ga-nav-drawer-tab-icon); transition: rotate var(--ga-nav-drawer-time); }
+html[data-ga-nav-drawer="closed"] .ga-nav-drawer-tab svg { rotate: 180deg; }
+.ga-nav-drawer-tab:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
+@media (prefers-reduced-motion: reduce) { .ga-nav-drawer-tab svg { transition: none; } }
+html[data-ga-nav-activity="hidden"] .ga-nav-activity { visibility: hidden; }

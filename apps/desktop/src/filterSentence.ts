@@ -64,7 +64,10 @@ export function dateWords(filters: LibrarySearchFilters, now = new Date().getFul
  */
 export function buildFilterSentence(filters: LibrarySearchFilters, now = new Date().getFullYear(), locale: AppLocale = getAppLocale()): FilterSentence {
   const tr = (key: TranslationKey, params?: Record<string, string | number>) => translate(key, params, locale);
-  const line1: SentencePart[] = [plain(tr("sentenceStart")), plain(tr("sentenceGames")), plain(tr("sentenceGenresLead"))];
+  // Free and demos are requirements: "demos", "juegos gratis".
+  const kind = filters.features ?? [];
+  const line1: SentencePart[] = [plain(tr("sentenceStart")),
+    plain(tr(kind.includes("demo") ? "sentenceDemos" : kind.includes("free") ? "sentenceFreeGames" : "sentenceGames")), plain(tr("sentenceGenresLead"))];
 
   const included = (filters.genres ?? []).map(genreLabel);
   const excluded = (filters.excludeGenres ?? []).map(genreLabel);

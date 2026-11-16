@@ -35,6 +35,8 @@ export function librarySummaryRow(game: LibraryGame) {
     state: game.state,
     installed: game.installed,
     origin: origin(game),
+    // Which library it is in: Game Access's own, or a linked account's (accounts_list), synced whole.
+    library: game.library ? `${game.library.store}:${game.library.account || game.library.account_id}` : "game_access",
     size_gb: gb(game.size_bytes),
     frozen: game.frozen ?? null,
     saved_by_freezing_gb: game.frozen && game.original_bytes && game.frozen_bytes != null ? gb(game.original_bytes - game.frozen_bytes) : null,
@@ -107,11 +109,11 @@ export const libraryTools: McpTool[] = [
   {
     name: "library_list",
     title: "The player's library",
-    description: "The games in the player's library with their size, state (ready, frozen, needs repair...), origin (game_access, linked_folder, steam), plays and when they were last played.",
+    description: "The games in the player's library with their size, state (ready, frozen, needs repair, steam_owned: owned in a linked account but not installed...), origin (game_access, linked_folder, steam), library (game_access, or steam:<account> for a linked account's library, see accounts_list), plays and when they were last played.",
     inputSchema: {
       type: "object",
       properties: {
-        filter: { type: "string", enum: ["installed", "frozen", "needs_repair", "all"], description: "Default: installed." },
+        filter: { type: "string", enum: ["installed", "frozen", "needs_repair", "steam_owned", "all"], description: "Default: installed. steam_owned: games a linked account owns that are not installed (download_game installs them through Steam)." },
         query: { type: "string", description: "Words in the game's name." },
         sort: { type: "string", enum: [...SORTS], description: "Default: name. idle: longest unplayed first." },
         limit: { type: "number", description: "Default 100." },
@@ -131,6 +133,7 @@ export const libraryTools: McpTool[] = [
         if (filter === "installed") return game.installed;
         if (filter === "frozen") return Boolean(game.frozen);
         if (filter === "needs_repair") return game.needs_repair;
+        if (filter === "steam_owned") return game.link_kind === "steam" && game.state === "steam_owned";
         return true;
       }).map(librarySummaryRow);
       const named = await withCatalogNames(games);
@@ -160,7 +163,11 @@ export const libraryTools: McpTool[] = [
         .map(({ game, snapshot }) => ({
           app_id: game.app_id, name: game.name, phase: snapshot.phase, progress: Math.round(snapshot.progress ?? 0),
           download_percent: snapshot.downloadPercent ?? null, install_percent: snapshot.installPercent ?? null,
-          status: snapshot.statusText ?? null, error: snapshot.error ?? null,
+          status: snapshot.statusText ?? null, error: snapshot.error ?? null, error_code: snapshot.errorCode ?? null,
+          // dialog: waiting for the player to confirm Steam's install window; download: Steam (or a source) downloading.
+          step: snapshot.step ? { id: snapshot.step.id, detail: snapshot.step.detail ?? null, facts: snapshot.step.facts ?? null } : null,
+          steps_done: (snapshot.steps ?? []).map(step => ({ id: step.id, state: step.state, result: step.result ?? null })),
+          through_steam: Boolean(snapshot.steps?.some(step => ["dialog", "signin", "handoff", "adopt"].includes(step.id)) || (snapshot.step && ["dialog", "signin", "handoff", "adopt"].includes(snapshot.step.id))),
         }));
       return { count: downloads.length, downloads };
     },

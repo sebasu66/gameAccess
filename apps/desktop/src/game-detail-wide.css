@@ -1,0 +1,183 @@
+/* RN7: layout only. Size roles live in base.css and appearance roles in the flavor. */
+.ga-detail-overlay:has(.ga-game-detail-wide) .ga-detail-dialog {
+  width: calc(100vw - 2 * var(--ga-detail-wide-inset-x));
+  height: calc(100svh - 2 * var(--ga-detail-wide-inset-y));
+  max-width: none;
+}
+.ga-detail-overlay:has(.ga-game-detail-wide) .ga-detail-dialog::after { display: none; }
+.ga-detail-overlay:has(.ga-game-detail-wide) .ga-detail-close,
+.ga-detail-overlay:has(.ga-game-detail-wide) .ga-detail-more { z-index: 25; }
+
+.ga-game-detail.ga-game-detail-wide {
+  --ga-detail-pointer-x: 0;
+  --ga-detail-pointer-y: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--ga-detail-wide-side-w));
+  grid-template-rows: var(--ga-detail-wide-head-h) minmax(0, 1fr);
+  gap: 0 var(--ga-detail-wide-gap);
+  padding: 0 var(--ga-detail-wide-pad) var(--ga-detail-wide-pad);
+  border: 0;
+  border-radius: 0;
+  background: var(--ga-detail-wide-void);
+  box-shadow: none;
+  color: var(--ga-detail-wide-ink);
+  font: var(--ga-detail-wide-body-font);
+  isolation: isolate;
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--ga-detail-wide-mask-ink) var(--ga-detail-wide-mask-x), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-mask-x)), transparent), linear-gradient(to bottom, transparent, var(--ga-detail-wide-mask-ink) var(--ga-detail-wide-mask-y), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-mask-y)), transparent);
+  mask-image: linear-gradient(to right, transparent, var(--ga-detail-wide-mask-ink) var(--ga-detail-wide-mask-x), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-mask-x)), transparent), linear-gradient(to bottom, transparent, var(--ga-detail-wide-mask-ink) var(--ga-detail-wide-mask-y), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-mask-y)), transparent);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.ga-game-detail.ga-game-detail-wide > .library-detail-header-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border: 0;
+}
+.ga-game-detail.ga-game-detail-wide > .library-detail-header-art img {
+  width: calc(100% + 2 * var(--ga-detail-parallax-art));
+  height: calc(100% + 2 * var(--ga-detail-parallax-art));
+  margin: calc(-1 * var(--ga-detail-parallax-art));
+  object-fit: cover;
+  object-position: center;
+  transform: translate(calc(var(--ga-detail-pointer-x) * -1 * var(--ga-detail-parallax-art)), calc(var(--ga-detail-pointer-y) * -1 * var(--ga-detail-parallax-art))) scale(1.04);
+  transition: transform var(--ga-detail-wide-entry) ease-out;
+}
+.ga-wide-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--ga-detail-wide-void), var(--ga-detail-wide-glass-soft) 34%, var(--ga-detail-wide-glass) 70%);
+}
+.ga-wide-heading {
+  position: relative;
+  z-index: 2;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  align-self: end;
+  padding-bottom: var(--ga-space-3);
+  transform: translate(calc(var(--ga-detail-pointer-x) * var(--ga-detail-parallax-title)), calc(var(--ga-detail-pointer-y) * var(--ga-detail-parallax-title)));
+  transition: transform var(--ga-detail-wide-entry) ease-out;
+}
+.ga-wide-heading .ga-detail-heading-tools { display: flex; align-items: center; gap: var(--ga-space-2); }
+.ga-wide-heading .ga-detail-eyebrow { margin: 0; color: var(--ga-detail-wide-accent); font: var(--ga-detail-wide-small-font); }
+.ga-wide-heading .ga-steam-refresh { position: static; }
+.ga-wide-heading .ga-wide-title {
+  width: calc(100% - var(--ga-space-4));
+  margin: var(--ga-space-1) 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--ga-detail-wide-ink);
+  font: var(--ga-detail-wide-title-font);
+  text-overflow: clip;
+}
+.ga-wide-heading .ga-detail-facts { color: var(--ga-detail-wide-muted); }
+.ga-wide-heading .ga-detail-modes { margin: var(--ga-space-2) 0 0; color: var(--ga-detail-wide-ink); }
+.ga-wide-body {
+  position: relative;
+  z-index: 2;
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: var(--ga-detail-wide-tab-w) minmax(0, 1fr);
+  gap: var(--ga-detail-wide-gap);
+  min-width: 0;
+  min-height: 0;
+}
+.ga-wide-tabs { display: flex; flex-direction: column; align-items: stretch; gap: var(--ga-space-1); padding-top: var(--ga-space-3); }
+.ga-wide-tabs button {
+  position: relative;
+  min-height: var(--ga-detail-wide-tab-h);
+  padding: 0 var(--ga-space-2);
+  border: var(--ga-detail-wide-rule) solid var(--ga-detail-wide-line);
+  color: var(--ga-detail-wide-ink);
+  background: var(--ga-detail-wide-tab);
+  clip-path: polygon(0 0, calc(100% - var(--ga-space-2)) 0, 100% 50%, calc(100% - var(--ga-space-2)) 100%, 0 100%);
+  text-align: left;
+  font: var(--ga-detail-wide-tab-font);
+  cursor: pointer;
+  transition: background var(--ga-detail-wide-entry), transform var(--ga-detail-wide-entry);
+}
+.ga-wide-tabs button:hover { transform: translateX(var(--ga-space-1)); }
+.ga-wide-tabs button[aria-selected="true"] { background: var(--ga-detail-wide-tab-on); color: var(--ga-detail-wide-accent); }
+.ga-wide-tabs button:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-accent); outline-offset: var(--ga-space-1); }
+.ga-wide-pane {
+  align-self: start;
+  min-width: 0;
+  min-height: 0;
+  margin-top: var(--ga-space-3);
+  padding: var(--ga-space-3);
+  overflow: auto;
+  overscroll-behavior: contain;
+  max-height: calc(100% - var(--ga-space-3));
+  background: linear-gradient(to right, var(--ga-detail-wide-glass-soft), transparent);
+  backdrop-filter: blur(var(--ga-nav-glass-blur));
+}
+.ga-wide-pane .ga-detail-lead { color: var(--ga-detail-wide-ink); font-size: var(--ga-detail-wide-lead-size); }
+.ga-wide-pane .ga-stack { display: grid; gap: var(--ga-space-3); }
+.ga-wide-summary-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ga-space-2); }
+.ga-wide-summary-facts > div { display: grid; gap: var(--ga-space-1); border-top: var(--ga-detail-wide-rule) solid var(--ga-detail-wide-line); padding-top: var(--ga-space-1); }
+.ga-wide-summary-facts span { color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-small-font); }
+.ga-wide-summary-facts strong { font: var(--ga-detail-wide-body-font); }
+.ga-wide-pane .library-room-game-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ga-wide-source-list { display: grid; gap: var(--ga-space-2); }
+.ga-wide-source-list > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ga-space-2); padding: var(--ga-space-2); background: var(--ga-detail-wide-glass-soft); border: var(--ga-detail-wide-rule) solid var(--ga-detail-wide-line); }
+.ga-wide-source-list .is-best { border-color: var(--ga-detail-wide-accent); }
+.ga-wide-source-list span { color: var(--ga-detail-wide-muted); }
+.ga-wide-side {
+  position: relative;
+  z-index: 2;
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--ga-space-2);
+  min-width: 0;
+  min-height: 0;
+  padding-top: var(--ga-space-2);
+}
+.ga-wide-rating {
+  display: flex;
+  align-items: center;
+  gap: var(--ga-space-3);
+  flex-shrink: 0;
+  padding: var(--ga-space-2);
+  background: var(--ga-detail-wide-glass-soft);
+  backdrop-filter: blur(var(--ga-nav-glass-blur));
+}
+.ga-wide-rating-ring { position: relative; width: var(--ga-detail-wide-rating-size); height: var(--ga-detail-wide-rating-size); flex-shrink: 0; display: grid; place-items: center; }
+.ga-wide-rating-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ga-wide-rating-ring circle { fill: none; stroke-width: var(--ga-detail-wide-ring); }
+.ga-wide-ring-track { stroke: var(--ga-detail-wide-line); }
+.ga-wide-ring-value { stroke: var(--ga-detail-wide-good); stroke-linecap: round; transition: stroke-dashoffset var(--ga-detail-wide-entry) ease-out; }
+.ga-game-detail-wide[data-rating-tone="mixed"] .ga-wide-ring-value { stroke: var(--ga-detail-wide-mixed); }
+.ga-game-detail-wide[data-rating-tone="bad"] .ga-wide-ring-value { stroke: var(--ga-detail-wide-bad); }
+.ga-wide-rating-ring strong { position: absolute; font: var(--ga-detail-wide-title-font); font-size: var(--ga-t2-size); }
+.ga-wide-rating-facts { display: grid; gap: var(--ga-space-1); font: var(--ga-detail-wide-small-font); }
+.ga-wide-rating-facts span + span { color: var(--ga-detail-wide-muted); }
+.ga-wide-media { min-height: 0; overflow: auto; }
+.ga-wide-media .library-detail-media { display: flex; flex-direction: column; gap: var(--ga-space-1); position: relative; }
+.ga-wide-media .library-room-feature-ambient { display: none; }
+.ga-wide-media .library-room-feature-media { position: relative; width: 100%; max-height: var(--ga-detail-wide-media-max); aspect-ratio: 16 / 9; overflow: hidden; background: var(--ga-detail-wide-void); }
+.ga-wide-media .library-room-hero-layer,
+.ga-wide-media .library-room-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.ga-wide-media .ga-media-thumbnails { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ga-space-1); }
+.ga-wide-media .ga-media-thumbnails button { padding: 0; aspect-ratio: 16 / 9; overflow: hidden; background: var(--ga-detail-wide-void); }
+.ga-wide-media .ga-media-thumbnails img { width: 100%; height: 100%; object-fit: cover; }
+.ga-wide-side > .ga-detail-actions { padding: 0; }
+.ga-wide-side .library-room-actions { min-width: 0; }
+.ga-detail-dialog:has(.ga-game-detail-wide) .library-detail-media.is-expanded .library-room-feature-media { position: fixed; inset: var(--ga-detail-wide-inset-y) var(--ga-detail-wide-inset-x); z-index: 40; width: auto; height: auto; max-height: none; aspect-ratio: auto; background: var(--ga-detail-wide-void); }
+
+@media (max-width: 1100px) {
+  .ga-game-detail.ga-game-detail-wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--ga-detail-wide-head-h) minmax(0, 1fr); overflow: auto; }
+  .ga-wide-body, .ga-wide-side { grid-column: 1; grid-row: auto; }
+  .ga-wide-side { padding-bottom: var(--ga-space-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ga-game-detail-wide *, .ga-game-detail-wide *::before, .ga-game-detail-wide *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+}

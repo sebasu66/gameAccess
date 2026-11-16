@@ -55,3 +55,46 @@ def test_a_failure_closes_the_current_step_with_the_error():
     steps.fail("Sin conexión")
     assert steps.payload()["steps"][-1]["state"] == "failed"
     assert steps.payload()["steps"][-1]["result"] == "Sin conexión"
+
+
+def test_each_step_keeps_what_it_worked_with():
+    clock = Clock()
+    steps = StepTracker(clock)
+    # Known before the step starts (where the download goes), it waits for it.
+    steps.facts({"folder": "E:/Temp/game", "drive": "E:"}, "download")
+    steps.start("download")
+    steps.facts({"freeBytes": 10, "neededBytes": 5, "empty": ""}, "download")
+    assert steps.payload()["step"]["facts"] == {"folder": "E:/Temp/game", "drive": "E:", "freeBytes": 10, "neededBytes": 5}
+    steps.start("extract", "checking room")
+    steps.facts({"folder": "D:/Games/game", "drive": "D:", "freeBytes": 1, "neededBytes": 9})
+    steps.fail("no room")
+    done = {step["id"]: step for step in steps.payload()["steps"]}
+    assert done["download"]["facts"]["drive"] == "E:"
+    assert done["extract"]["state"] == "failed" and done["extract"]["facts"]["folder"] == "D:/Games/game"
+
+
+def test_a_free_steam_game_through_depotdownloader_has_only_its_own_steps():
+    clock = Clock()
+    steps = StepTracker(clock)
+    steps.steam("depot")
+    steps.start("signin")
+    steps.facts({"account": "player"})
+    steps.finish("Signed in")
+    steps.follow("downloading", "file.dll")
+    steps.start("handoff")
+    steps.follow("installing", "handing over")       # no unpacking step appears
+    assert steps.payload()["step"]["id"] == "handoff"
+    steps.start("adopt")
+    steps.follow("completed")
+    assert [step["id"] for step in steps.payload()["steps"]] == ["signin", "download", "handoff", "adopt"]
+
+
+def test_a_free_steam_game_that_steam_installs_has_its_window_then_the_download():
+    steps = StepTracker(Clock())
+    steps.steam()
+    steps.start("dialog")
+    steps.finish("Steam started the install")
+    steps.start("download")
+    steps.follow("downloading", "Steam is downloading it")
+    steps.follow("completed")
+    assert [step["id"] for step in steps.payload()["steps"]] == ["dialog", "download"]

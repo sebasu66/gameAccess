@@ -15,6 +15,12 @@ from game_download_manager.client_events import DownloadReporter
 from game_download_manager.ui_text import ui
 from game_download_manager.source_race import RacePlan
 
+STEAM_DEPOT_PREFIX = "steam-depot:"
+# Steam's own install of a free game: how often its appmanifest is read, and how long the player has to confirm
+# Steam's install window before the download gives up (no manifest by then: it was closed without installing).
+STEAM_INSTALL_POLL_SECONDS = 2.0
+STEAM_INSTALL_START_SECONDS = 600.0
+
 # The "-ready" rename: tries and the wait between them (pipeline.set_status).
 READY_RENAME_ATTEMPTS = 6
 READY_RENAME_WAIT_SECONDS = 2.0
@@ -24,6 +30,18 @@ class NotAGameError(RuntimeError):
     def __init__(self, kinds: list[str]):
         self.kinds = kinds
         super().__init__("Lo que se descargó no es un juego: no tiene ningún ejecutable ni instalador.")
+
+
+def drive_of(path):
+    """The disk a folder is on ("D:", or the mount on other systems): a library can span several."""
+    resolved = os.path.abspath(str(path))
+    return os.path.splitdrive(resolved)[0] or os.path.dirname(resolved) or resolved
+
+
+def room_facts(room):
+    """What the player sees in the step that checked the space: free and needed; when short, which folder and disk."""
+    return {"freeBytes": int(room.get("free_bytes") or 0), "neededBytes": int(room.get("needed_bytes") or 0),
+            **({"folder": room["folder"], "drive": room["drive"]} if not room.get("ok") and room.get("folder") else {})}
 
 
 class NoSpaceError(RuntimeError):
@@ -195,6 +213,117 @@ class DownloadPipeline:
             args.source_provider = racer.provider
         return racer.source
 
+    def steam_depot(self, args, app_id, game_name, steam=None, sleep=time.sleep, clock=time.monotonic):
+        """A free Steam game (`steam-depot:<appid>`): Steam installs it with its own window (Seba, 2026-11-16), with the
+        account it has open: no sign-in or QR code of Game Access. The download is followed in Steam's appmanifest.
+        Nothing goes to Game Access's own folders. Without Steam the error says "steam_install" (the app offers it)."""
+        context = self.context
+        from steam_account_manager import SteamAccountManager, client
+        source = str(args.download_source).strip()
+        depot_app = int(source.split(":", 1)[1] or app_id)
+        steam = steam or SteamAccountManager(Path(data_dir()), logger=context.logger)
+        if not steam.root:
+            context.emit_error(app_id, ui("dlDepotNoSteam"), error_code="steam_install")
+            return
+        context.set_route("steam")
+        self.step("steam")
+        state = client.install_state(steam.libraries(), depot_app)
+        if not (state and state["installed"]):
+            self.step("start", "dialog", ui("dlSteamDialog"))
+            context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlSteamDialog"))
+            steam.install(depot_app)
+        started, seen = clock(), False
+        while not (state and state["installed"]):
+            sleep(STEAM_INSTALL_POLL_SECONDS)
+            state = client.install_state(steam.libraries(), depot_app)
+            if state is None:
+                if seen:                        # its manifest went away: the install was cancelled in Steam
+                    context.emit_error(app_id, ui("dlSteamCancelled"), error_code="steam_install")
+                    return
+                if clock() - started > STEAM_INSTALL_START_SECONDS:
+                    context.emit_error(app_id, ui("dlSteamNotStarted"), error_code="steam_install")
+                    return
+                continue
+            if not seen:
+                seen = True
+                self.step("finish", ui("dlSteamDialogDone"))
+                self.step("start", "download", ui("dlSteamInstalling"))
+                self.step("facts", {"folder": state["folder"], "drive": drive_of(state["folder"] or "."), "library": state["library"]}, "download")
+            if not state["installed"]:
+                total = state["total_bytes"]
+                percent = min(99.0, 100.0 * state["done_bytes"] / total) if total else 2.0
+                context.emit_progress(app_id, "downloading", percent, status_text=ui("dlSteamInstalling"),
+                                      **({"bytes_downloaded": state["done_bytes"], "total_bytes": total} if total else {}))
+        if seen:
+            self.step("finish", ui("dlSteamInstalled"))
+        context.emit_progress(app_id, "completed", 100.0, total_bytes=state["size_bytes"], status_text=ui("dlSteamDone"))
+        return {"steam": True, "size_bytes": state["size_bytes"], "folder": state["folder"]}
+
+    def depot_tool_download(self, args, app_id, game_name, steam=None, download=None):
+        """The free Steam game through DepotDownloader, with a remembered account or a QR code, then adopted by
+        Steam. Not on the download path now that Steam installs them itself (steam_depot); kept for a PC without
+        Steam, which still needs a place to put the game."""
+        context = self.context
+        from steam_account_manager import SteamAccountManager
+        from steam_depot import free_download
+        source = str(args.download_source).strip()
+        depot_app = int(source.split(":", 1)[1] or app_id)
+        steam = steam or SteamAccountManager(Path(data_dir()), logger=context.logger)
+        download = download or free_download.download_free_game
+        if not steam.root:
+            context.emit_error(app_id, ui("dlDepotNoSteam"), error_code="steam_install")
+            return
+        accounts = [free_download.Account(a.steam_id64, a.account_name, a.most_recent) for a in steam.accounts()]
+        context.set_route("steam")
+        self.step("steam", "depot")
+        self.step("start", "signin", ui("dlDepotSigningIn"))
+        context.emit_progress(app_id, "preparing", 1.0, status_text=ui("dlDepotSigningIn"))
+        signed = {"account": "", "in": False}
+
+        def status(event, info):
+            if event == "target":
+                # Where DepotDownloader puts it: the Steam library with room (one of several disks, maybe).
+                self.step("facts", {"folder": info.get("folder", ""), "drive": drive_of(info.get("folder", "") or "."), "library": info.get("library", "")}, "download")
+            elif event == "account":
+                signed["account"] = info.get("account", "")
+                self.step("facts", {"account": signed["account"] or "QR"})
+                text = ui("dlDepotQr") if info.get("qr") else ui("dlDepotSigningInAs", account=signed["account"]) if signed["account"] else ui("dlDepotSigningIn")
+                context.emit_progress(app_id, "preparing", 2.0, status_text=text)
+            elif event == "qr":
+                # Only when no remembered account could sign in: the app shows the code for a moment, as a pop-up.
+                context.emit_progress(app_id, "preparing", 2.0, status_text=ui("dlDepotQr"), steam_qr=info.get("lines", []))
+            elif event == "handoff":
+                self.step("start", "handoff", ui("dlDepotHandoff"))
+                self.step("facts", {"library": info.get("library", "")})
+                context.emit_progress(app_id, "installing", 50.0, status_text=ui("dlDepotHandoff"))
+
+        def progress(percent, file):
+            if not signed["in"]:
+                signed["in"] = True
+                self.step("finish", ui("dlDepotSignedIn", account=signed["account"]) if signed["account"] else ui("dlDepotSignedInQr"))
+            context.emit_progress(app_id, "downloading", percent, status_text=file)
+
+        try:
+            result = download(depot_app, game_name, accounts=accounts, libraries=steam.libraries(),
+                              on_progress=progress,
+                              on_status=status, login_id=free_download.depot_tool.LOGIN_ID_BASE + (depot_app & 0xFFFF))
+        except free_download.DepotUnavailable as error:
+            context.logger.info("Depot unavailable for %s: %s", depot_app, error)
+            context.emit_error(app_id, ui("dlDepotUnavailable"), error_code="steam_install")
+            return
+        except Exception as error:              # noqa: BLE001 - every failure reaches the player in words
+            context.logger.warning("Depot download of %s failed: %s", depot_app, error)
+            context.emit_error(app_id, str(error), error_code="steam_install")
+            return
+        self.step("finish", ui("dlDepotHandedOff"))
+        self.step("start", "adopt", ui("dlDepotAdopt"))
+        context.emit_progress(app_id, "installing", 90.0, status_text=ui("dlDepotAdopt"))
+        steam.install(depot_app)                # Steam checks the files and takes the game in
+        self.step("finish", ui("dlDepotAdopted"))
+        context.emit_progress(app_id, "completed", 100.0, total_bytes=result.get("size_bytes", 0),
+                              status_text=ui("dlDepotDone", account=result.get("account", "")))
+        return result
+
     def chunked(self, session):
         return ChunkedDownloader(self.context, session)
 
@@ -205,6 +334,8 @@ class DownloadPipeline:
 
         context.logger.info(f"=== INICIANDO DESCARGA: '{game_name}' (AppID: {app_id}) ===")
         context.reporter = DownloadReporter.from_session(ChunkSession.from_env(os.getenv("GAMEACCESS_CHUNK_SESSION")), app_id, game_name)
+        if str(getattr(args, "download_source", "") or "").strip().lower().startswith(STEAM_DEPOT_PREFIX):
+            return self.steam_depot(args, app_id, game_name)
 
         from game_library_manager.storage import DigitalGameStorage
         storage = DigitalGameStorage()
@@ -222,6 +353,8 @@ class DownloadPipeline:
             context.cancel_hooks.append(lambda: storage.remove_new(int(app_id), game_name, before))
         os.makedirs(game_dir, exist_ok=True)
         os.makedirs(dest_dir, exist_ok=True)
+        # Where each step works, for the player to see in it (the temporary folder may be on another disk).
+        self.step("facts", {"folder": dest_dir, "drive": drive_of(dest_dir)}, "download")
         journal.note(game_dir, "descarga", f"inicio de '{game_name}' (AppID {app_id})")
 
         def set_status(status):
@@ -255,6 +388,7 @@ class DownloadPipeline:
             on_disk_bytes = max(int(on_disk_bytes or 0), min(allocated_size(Path(dest_dir)), int(total_bytes)))
             room = check_download(total_bytes, on_disk_bytes, Path(game_dir).parent, Path(dest_dir))
             journal.note(game_dir, "espacio", f"descarga de {total_bytes} bytes ({on_disk_bytes} ya en disco); libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
+            self.step("facts", room_facts(room), "download")
             if not room["ok"]:
                 raise NoSpaceError(room)
         context.set_room_check(room_check)
@@ -443,11 +577,15 @@ class DownloadPipeline:
             should_delete_archive = bool(storage.preferences.load().get("delete_download_sources", True))  # The declared fix archive is retained either way.
             from disk_space import check_download, folder_size
             downloaded_bytes = folder_size(Path(target_content_path)) if target_content_path and os.path.isdir(target_content_path) else (os.path.getsize(target_content_path) if target_content_path and os.path.isfile(target_content_path) else 0)
-            # The archive is all here: unpacking needs about as much again in the games folder.
+            # The archive is all here: unpacking needs about as much again in the games folder. That check is already
+            # the unpacking's: a lack of room stops this step, not the download that ended.
+            self.step("start", "extract", ui("dlExtractRoom"))
+            self.step("facts", {"folder": game_dir, "drive": drive_of(game_dir), "from": os.path.basename(target_content_path or dest_dir)})
             room = check_download(downloaded_bytes, downloaded_bytes, Path(game_dir).parent, Path(dest_dir))
             # The download ends here; unpacking it is the install, a process of its own (the game's log says where one ends).
             journal.note(game_dir, "descarga", f"terminada; {downloaded_bytes} bytes")
             journal.note(game_dir, "espacio", f"descargado {downloaded_bytes} bytes; libre {room['free_bytes']}; " + ("alcanza" if room["ok"] else "no alcanza"))
+            self.step("facts", room_facts(room))
             if not room["ok"]:
                 raise NoSpaceError(room)
             journal.note(game_dir, "descompresión", "empieza")
@@ -501,8 +639,11 @@ class DownloadPipeline:
             if not args.destination_dir:
                 from game_execution_manager import GameExecutionManager, GameExecutionError
                 try:
+                    # Setting it up to run (a silent setup, the executable) is its own stage for the player: "installing".
+                    context.emit_progress(app_id=app_id, phase="installing", progress_percent=99.0, status_text=ui("dlSetupStarting"))
+                    self.step("facts", {"folder": game_dir, "drive": drive_of(game_dir)})
                     GameExecutionManager(storage, logger=context.logger).prepare(int(app_id), game_name,
-                        lambda text: context.emit_progress(app_id=app_id, phase="decompressing", progress_percent=99.0, status_text=text))
+                        lambda text: context.emit_progress(app_id=app_id, phase="installing", progress_percent=99.0, status_text=text))
                 except GameExecutionError as manager_error:
                     raise RuntimeError(str(manager_error)) from manager_error
             set_status("ready")

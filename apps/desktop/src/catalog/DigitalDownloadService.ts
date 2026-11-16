@@ -9,7 +9,7 @@ import { gameIsAbandoned } from "./gameLessons";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
-import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions, RaceLane } from "../downloadProvider";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions, RaceLane, StepFacts } from "../downloadProvider";
 import type { RaceOrder } from "./sourceRace";
 import { snapshotToManagedStatus } from "../downloadProvider";
 import type { ManagedDownloadStatus } from "../downloadTypes";
@@ -19,6 +19,7 @@ import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } fro
 
 import { getActivationTier } from "../activation";
 import { localizeSnapshot } from "../launcherText";
+import { appendEvents, type DownloadEvent } from "../downloadEvents";
 import { parseDownloadSize } from "../downloadSize";
 
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
@@ -38,12 +39,21 @@ type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord; race?: Ra
  * shown in each row, speed history, notices, the desktop shortcut after a download completes.
  */
 
-const STEP_IDS: readonly string[] = ["pick", "route", "probe", "server", "download", "extract", "install"];
+const STEP_IDS: readonly string[] = ["pick", "route", "probe", "server", "download", "extract", "install", "signin", "handoff", "adopt", "dialog"];
+/** A step's facts, keeping only the known ones with the right type. */
+function stepFacts(value: unknown): StepFacts | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>, facts: StepFacts = {};
+  for (const key of ["folder", "drive", "from", "account", "library"] as const) if (typeof raw[key] === "string" && raw[key]) facts[key] = raw[key] as string;
+  for (const key of ["freeBytes", "neededBytes"] as const) if (typeof raw[key] === "number" && Number.isFinite(raw[key])) facts[key] = raw[key] as number;
+  return Object.keys(facts).length ? facts : undefined;
+}
 /** The launcher's current step, if it is well formed. */
 function stepNow(value: unknown): DownloadStepNow | null {
   if (!value || typeof value !== "object") return null;
-  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown };
-  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now() } : null;
+  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown; facts?: unknown };
+  const facts = stepFacts(raw.facts);
+  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now(), ...(facts ? { facts } : {}) } : null;
 }
 /** The torrents racing, keeping only well-formed lanes. */
 function raceLanes(value: unknown): RaceLane[] | undefined {
@@ -58,7 +68,7 @@ function raceLanes(value: unknown): RaceLane[] | undefined {
 function stepsDone(value: unknown): DownloadStepDone[] {
   if (!Array.isArray(value)) return [];
   return value.filter(raw => raw && STEP_IDS.includes(String(raw.id)) && ["done", "skipped", "failed"].includes(String(raw.state)))
-    .map(raw => ({ id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0 }));
+    .map(raw => { const facts = stepFacts(raw.facts); return { id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0, ...(facts ? { facts } : {}) }; });
 }
 
 export class DigitalDownloadService implements IDownloadProvider {
@@ -74,6 +84,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** The Download Manager keys downloads by AppID; rows are keyed by game id. Usually the same number. */
   private appIds = new Map<number, number>();
   private positions = new Map<number, number>();
+  private events = new Map<number, DownloadEvent[]>();
   private lastState: QueueState | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private polling = false;
@@ -85,6 +96,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** How this game is being fetched (shown as a pill), or undefined when not known. */
   getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
   getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
+  /** The download's log in the wizard (downloadEvents.ts): kept while the app runs. */
+  getEvents(gameId: number): readonly DownloadEvent[] { return this.events.get(gameId) ?? []; }
   get maxParallelDownloads(): number { return this.lastState?.limit ?? (this.plan() === "plus" ? 4 : 1); }
   /** The plan downloads run under (shown as a pill). Without a key the app is in free mode, which is BASE: one
    *  download at a time, torrents only. */
@@ -193,6 +206,7 @@ export class DigitalDownloadService implements IDownloadProvider {
       checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
       serverPercent: phase === "preparing" ? number("serverPercent") : undefined,
       race: phase === "preparing" ? raceLanes(status.race) : undefined,
+      steamQr: phase === "preparing" && Array.isArray(status.steamQr) ? status.steamQr.map(String) : undefined,
       statusText: text,
       bytesDownloaded: number("bytesDownloaded") ?? 0,
       bytesTotal: number("totalBytes") ?? 0,
@@ -221,8 +235,8 @@ export class DigitalDownloadService implements IDownloadProvider {
       const next = this.snapshotOf(gameId, job);
       const previous = this.activeJobs.get(gameId);
       if (!previous || previous.phase !== next.phase || previous.progress !== next.progress || previous.bytesDownloaded !== next.bytesDownloaded
-        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps
-        || previous.step?.id !== next.step?.id || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
+        || previous.statusText !== next.statusText || previous.steamQr?.join() !== next.steamQr?.join() || previous.error !== next.error || previous.speedBps !== next.speedBps
+        || previous.step?.id !== next.step?.id || JSON.stringify(previous.step?.facts) !== JSON.stringify(next.step?.facts) || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
         this.updateSnapshot(next);
       }
     }
@@ -532,6 +546,9 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.speeds.set(snapshot.gameId, samples.slice(-61));
     }
     this.activeJobs.set(snapshot.gameId, snapshot);
+    const log = this.events.get(snapshot.gameId) ?? [];
+    const logged = appendEvents(log, previous, snapshot);
+    if (logged !== log) this.events.set(snapshot.gameId, logged);
     if (snapshot.phase === "completed" && previous?.phase !== "completed" && hasTauriRuntime() && !this.shortcutCreated.has(snapshot.gameId)) {
       const game = this.jobs.get(snapshot.gameId)?.game;
       if (game) {

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
+import { openSteamClientInstall } from "./native";
 import { digitalErrorMessage } from "./digitalErrors";
 import { libraryMembership } from "./libraryMembership";
 import { reportClientError } from "./narrationLog";
@@ -86,6 +87,18 @@ export default function DigitalDownloadErrorDialog() {
           appId: record?.id ?? game?.app_id ?? snapshot.gameId, detail: snapshot.errorDetail });
         const kinds = (snapshot.errorDetail?.length ? snapshot.errorDetail : ["other"]).map(kind => translate(KIND_KEYS[kind as keyof typeof KIND_KEYS] ?? "notAGameKindOther"));
         text = translate("notAGameBody", { kinds: new Intl.ListFormat(getAppLocale() === "es" ? "es-AR" : "en-US", { type: "conjunction" }).format(kinds) });
+      } else if (snapshot.errorCode === "steam_install") {
+        // A free Steam game Steam would not give through DepotDownloader (or no Steam here): Steam's own install.
+        const appId = digitalDownloadService.getRecord(snapshot.gameId)?.id ?? game?.app_id ?? snapshot.gameId;
+        showNotice({
+          game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,
+          activity: { key: downloadActivityKey(snapshot.gameId, "end"), state: "failed" },
+          actions: [
+            { label: translate("dlDepotInstallWithSteam"), kind: "primary", run: () => { hideNotice(); void openSteamClientInstall(Number(appId)).catch(() => undefined); } },
+            { label: translate("close"), kind: "secondary", run: () => hideNotice() },
+          ],
+        });
+        return;
       } else if (snapshot.errorCode === "no_space") {
         // Not the source's fault: another source would not fit either. What was downloaded stays until the player
         // decides: wait paused while making room, cancel (deletes it, after asking), or leave it as it is.
@@ -93,7 +106,7 @@ export default function DigitalDownloadErrorDialog() {
         const failed = (error: unknown) => showNotice({ tone: "error", title: translate("toastActionFailed", { error: String(error instanceof Error ? error.message : error) }) });
         showNotice({
           game: game ? noticeGame(game) : undefined, tone: "error", title: translate("toastDownloadFailed", { name }), text,
-          activity: { key: downloadActivityKey(snapshot.gameId), state: "failed" },
+          activity: { key: downloadActivityKey(snapshot.gameId, "end"), state: "failed" },
           actions: [
             { label: translate("noSpaceKeepPaused"), kind: "primary", run: () => { hideNotice(); void digitalDownloadService.holdPaused(gameId).catch(failed); } },
             { label: translate("noSpaceCancel"), kind: "danger", run: () => void confirmNotice({
@@ -110,7 +123,7 @@ export default function DigitalDownloadErrorDialog() {
       const installFailed = snapshot.resumeStep === "extract" || Boolean(snapshot.steps?.some(step => ["extract", "install"].includes(step.id) && step.state === "failed"));
       showNotice({
         game: game ? noticeGame(game) : undefined, tone: "error", title: translate(installFailed ? "toastInstallFailed" : "toastDownloadFailed", { name }), text,
-        activity: { key: downloadActivityKey(snapshot.gameId), state: "failed" },
+        activity: { key: downloadActivityKey(snapshot.gameId, "end"), state: "failed" },
         details: game ? { label: translate("noticeShowLog"), load: () => failureLog(game) } : undefined,
         actions: [
           ...(game && installFailed ? [{ label: translate("noticeOpenFolder"), kind: "primary" as const, run: () => void digitalProcessManager.openFolder(game).catch(() => digitalProcessManager.openFolder(game, "download")) }] : []),

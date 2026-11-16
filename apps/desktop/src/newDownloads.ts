@@ -8,7 +8,7 @@ import { setAppScreen } from "./appScreen";
  * games that got their first source from a plugin sync (both matched locally, see source_index.rs). Each finding is
  * a news item (News panel, counted on the bell until it is opened) and a notice with OK and More.
  */
-export interface DownloadNews { id: string; date: string; appIds: number[]; origin?: "catalog" | "plugin"; source?: string }
+export interface DownloadNews { id: string; date: string; appIds: number[]; origin?: "catalog" | "plugin" | "steam_free"; source?: string }
 
 export const DOWNLOAD_NEWS_KEY = "gameaccess:download_news";
 /** Shows a news item on Home (NewsPanel.tsx): detail is the news item's id. */
@@ -75,12 +75,38 @@ export function recordNewDownloads(appIds: number[], origin: "catalog" | "plugin
   return item;
 }
 
+/**
+ * Games Steam just made free (a giveaway to keep, a free weekend): a news item of Catalog › New games like the new
+ * downloads, counted on the bell, an entry in Activity and a notice. `known` leaves out the ones already told.
+ */
+export function recordFreeOnSteam(appIds: number[], now = new Date()): DownloadNews | null {
+  const fresh = [...new Set(appIds)].filter(id => Number.isInteger(id) && id > 0);
+  if (!fresh.length) return null;
+  const stored = storedDownloadNews();
+  const item: DownloadNews = { id: `steam-free-${now.getTime()}`, date: now.toISOString().slice(0, 10), appIds: fresh, origin: "steam_free" };
+  try { localStorage.setItem(DOWNLOAD_NEWS_KEY, JSON.stringify([item, ...stored].slice(0, KEEP))); } catch { /* the notice still shows */ }
+  void narrate(`Free on Steam: ${fresh.length} game(s) of the catalog are free now (AppIDs ${fresh.slice(0, 20).join(", ")}).`, { area: "CATALOG" });
+  listeners.forEach(listener => listener());
+  let notice = 0;
+  notice = showNotice({
+    tone: "ok", title: translate("freeSteamNoticeTitleMany", { count: fresh.length }), text: downloadNewsText(fresh.length, item), timer: true,
+    activity: { news: item.id, kind: "news", category: "catalog", text: downloadNewsLine(fresh.length, item) },
+    actions: [
+      { label: translate("noticeOk"), kind: "secondary", run: () => hideNotice(notice) },
+      { label: translate("newDownloadsMore"), kind: "primary", run: () => { hideNotice(notice); openNews(item.id); } },
+    ],
+  });
+  return item;
+}
+
 /** The short line of a batch in the history: "22 games · plugin X". */
 export function downloadNewsLine(count: number, from: Pick<DownloadNews, "origin" | "source">): string {
+  if (from.origin === "steam_free") return translate("freeSteamNewsLine", { count });
   return translate("newDownloadsLine", { count, from: from.origin === "plugin" ? translate("newDownloadsLinePlugin", { name: from.source || "?" }) : translate("newDownloadsLineCatalog") });
 }
 
 export function downloadNewsText(count: number, from?: Pick<DownloadNews, "origin" | "source">): string {
+  if (from?.origin === "steam_free") return count === 1 ? translate("freeSteamNewsTextOne") : translate("freeSteamNewsTextMany", { count });
   const text = count === 1 ? translate("newDownloadsTextOne") : translate("newDownloadsTextMany", { count });
   if (!from?.origin) return text;
   return `${text} ${from.origin === "plugin" ? translate("newDownloadsFromPlugin", { name: from.source || "?" }) : translate("newDownloadsFromCatalog")}`;

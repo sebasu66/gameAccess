@@ -6,6 +6,7 @@ import { usePlus } from "../kidMode";
 import { planLocked } from "./planLocks";
 import { SECTION_ART } from "./sectionArt";
 import { PanelArt, SectionButton, SubmodeTabs, TitlePlate, useFitText } from "./pieces";
+import { useSectionSwap } from "./sectionSwap";
 
 /** The sections panel (vault/Rediseño de navegación.md §4.2): the chosen section as a title that reaches over the content, the others as stepped arrows. */
 export default function SectionPanel({ mode, selected, reachable, onOpen, onLocked }: { mode: NavigationModeId; selected: string; reachable: (section: string) => boolean; onOpen: (section: string) => void; onLocked: () => void }) {
@@ -20,6 +21,8 @@ export default function SectionPanel({ mode, selected, reachable, onOpen, onLock
   if (orders[mode]?.join() !== order.join()) setOrders(previous => ({ ...previous, [mode]: order }));
 
   useFitText(ref, [mode, chosen.id, t]);
+  // Picking another section plays the prototype's swap: the title and the picked arrow trade places (sectionSwap.ts).
+  const pick = useSectionSwap(ref, chosen.id, onOpen);
 
   return <nav className="ga-nav-sections" ref={ref} aria-label={t("navSectionsAria")}>
     <PanelArt />
@@ -29,7 +32,7 @@ export default function SectionPanel({ mode, selected, reachable, onOpen, onLock
       <ul className="ga-nav-section-list">{order.map(id => {
         const section = current.sections.find(item => item.id === id)!;
         const locked = planLocked(plus, id);
-        return <SectionButton key={id} art={SECTION_ART[id]} label={section.label} desc={section.desc} disabled={!reachable(id)} locked={locked} onClick={() => locked ? onLocked() : onOpen(id)} />;
+        return <SectionButton key={id} id={id} art={SECTION_ART[id]} label={section.label} desc={section.desc} disabled={!reachable(id)} locked={locked} onClick={button => locked ? onLocked() : pick(id, button)} />;
       })}</ul>
     </div>
   </nav>;

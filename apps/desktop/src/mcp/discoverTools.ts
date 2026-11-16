@@ -11,6 +11,7 @@ import { applyParentalPolicy } from "../parentalControl";
 import { libraryScanState, scanLibrary } from "../libraryScan";
 import { buildTasteProfile, loadTasteNames, type Ratings } from "../tasteProfile";
 import type { CatalogGame } from "../types";
+import { steamFreeKind } from "../freeSteamGames";
 import { bool, gb, list, num, str, ToolError, type McpTool } from "./tools";
 
 const SORTS = { popularity: "steam-popularity", rating: "steam-review-score", newest: "release-date", name: "name" } as const;
@@ -27,6 +28,9 @@ export function gameSummary(game: CatalogGame) {
     review_score: game.steam_review_score ?? null,
     review_count: game.steam_review_count ?? null,
     downloadable: Boolean(game.has_downloads ?? (game.availableSourceCount ?? game.source_count ?? 0) > 0),
+    // Free on Steam (free_to_play, demo, free_to_keep: a giveaway; free_weekend: played, not kept): Steam installs it.
+    steam_free: steamFreeKind(game),
+    installs_with: steamFreeKind(game) && steamFreeKind(game) !== "free_weekend" ? "steam" : "sources",
     short_description: game.short_description ?? null,
   };
 }
@@ -86,7 +90,7 @@ export const discoverTools: McpTool[] = [
   {
     name: "catalog_search",
     title: "Search the catalog",
-    description: "Search Game Access's game catalog like the catalog screen: text, genres, gameplay features (co-op, multiplayer...), minimum review score, release years. Parental controls apply. Each game says whether it is already installed and whether it can be downloaded. Use catalog_filters first to learn valid genre and feature names.",
+    description: "Search Game Access's game catalog like the catalog screen: text, genres, gameplay features (co-op, multiplayer, free, demo...), minimum review score, release years. features [\"demo\"] gives Steam's free demos and [\"free\"] free games (without demos unless demo is asked too); those are installed by Steam (installs_with). Parental controls apply. Each game says whether it is already installed and whether it can be downloaded. Use catalog_filters first to learn valid genre and feature names.",
     inputSchema: {
       type: "object",
       properties: {

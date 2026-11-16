@@ -61,6 +61,12 @@ export interface CatalogGame {
   shared_split_screen?: boolean | null;
   mmo?: boolean | null;
   pvp?: boolean | null;
+  /** Steam gives it away (free to play, a free demo): Game Access downloads it into the Steam library (freeSteamGames.ts). */
+  is_free?: boolean | null;
+  /** "game", "demo"… as Steam's appdetails says. */
+  product_type?: string | null;
+  /** A time-limited Steam giveaway the server saw on the store (apps/api catalog_artwork.py). */
+  steam_free_promo?: { kind: "free_weekend" | "free_to_keep" | "free_temporarily"; starts_at?: string | null; ends_at?: string | null } | null;
   downloadSource?: string;
   /** Package size supplied by this game's selected plugin source. */
   download_size?: string | null;

@@ -13,6 +13,10 @@ export const ALLOWED_TEXT = new Set([
   "Steam", "GameAccess", "gameAccess", "Game", "Access", "GAME ACCESS", "Co-Optimus ↗", "DIGITAL", "Steam AppID", "12 GB", "Game Access", "PLUS", "GA", "ESC", "Esc", "FPS", "GB", "MB", "KB", "OK", "EN", "ES", "PC",
 ]);
 
+// Lo que queda entre un > y un < y es código, no texto: genéricos de TypeScript (`Props<typeof X>, React.Ref<…>`) y
+// código después de un `/>` (`, running: <Loader2 />`). El texto visible no empieza con , : ( [ ) ni llama funciones.
+const isCode = value => /^[,:()[\]]/.test(value) || /\w\(|\bvoid,|\bas\s+Record\b/.test(value);
+
 export function scanSource(source) {
   const issues = [];
   const lines = source.split(/\r?\n/);
@@ -28,7 +32,7 @@ export function scanSource(source) {
     // texto JSX entre > y <, en una sola línea
     for (const m of line.matchAll(/>([^<>{}=]*[A-Za-zÀ-ÿ][^<>{}]*)</g)) {
       const value = m[1].trim();
-      if (LETTERS.test(value) && !ALLOWED_TEXT.has(value) && !/=>|&&|\|\||\?|;|Promise|Array|CustomEvent|Math\.|document\./.test(value)) issues.push([index + 1, value]);
+      if (LETTERS.test(value) && !ALLOWED_TEXT.has(value) && !/=>|&&|\|\||\?|;|Promise|Array|CustomEvent|Math\.|document\./.test(value) && !isCode(value)) issues.push([index + 1, value]);
     }
     // línea que es solo texto JSX (continuación multilínea)
     if (/^[A-ZÁÉÍÓÚÑa-záéíóúñ¿¡][^<>{}=;()]*[.:!?…]?$/.test(trimmed) && /\s/.test(trimmed) && !/^(return|const|let|if|else|case|export|function|type|import|default)\b/.test(trimmed)) {

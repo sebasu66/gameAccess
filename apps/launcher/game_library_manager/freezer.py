@@ -69,7 +69,16 @@ FREEZE_DAYS, DEEP_DAYS = 30, 90
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 # 7-Zip level of the deep freeze. Measured on a 2.5 GB game: level 5 took 71 s for 1.56 GB, level 3 48 s for 1.60 GB,
 # level 1 24.5 s for 1.62 GB. Level 1: three times faster for 4 % more on disk. (Testing the archive takes 2-3 s.)
-DEEP_LEVEL = 1
+# 7-Zip's strongest level (Seba, 2026-10-30: level 1, the fastest, saved 0.2 % on DiRT Rally 2; the deep freeze will run
+# in the background while the PC is idle). Unpacking takes about the same at any level; only freezing takes longer.
+DEEP_LEVEL = 9
+# Level 9 needs much memory per thread (its dictionary is 64 MB): compressing uses at most this many.
+DEEP_THREADS = 8
+# Below this share saved, a deep freeze is not worth its wait: a sample of the game is compressed first to know.
+MIN_DEEP_SAVING = 0.10
+# The sample: a piece from the middle of each of the largest files, up to this much in all.
+SAMPLE_PIECE = 16 * 1024 * 1024
+SAMPLE_TOTAL = 256 * 1024 * 1024
 BIG_FILE = 64 * 1024 * 1024        # a file this big gets its own line in the console
 SEVEN_ZIP_PROGRESS = re.compile(r"^\s*(\d{1,3})%(?:\s+\d+)?(?:\s+[+=TUR-]\s+(.*?))?\s*$")
 # The steps of each action and their share of the whole bar.
@@ -447,6 +456,34 @@ class GameFreezer:
         finally:
             control.release()
 
+    def estimate_saving(self, files: list[tuple[Path, int]]) -> float | None:
+        """How much a deep freeze would save, from a sample: a piece of the middle of each of the largest files,
+        compressed as the deep freeze would. None when the game is too small to tell (it is then simply frozen)."""
+        import tempfile
+        pieces, total = [], 0
+        for path, size in sorted(files, key=lambda item: item[1], reverse=True):
+            if total >= SAMPLE_TOTAL or size == 0:
+                break
+            length = min(SAMPLE_PIECE, size, SAMPLE_TOTAL - total)
+            pieces.append((path, max(0, size // 2 - length // 2), length))
+            total += length
+        if total < 1024 * 1024:
+            return None
+        with tempfile.TemporaryDirectory(prefix="ga-deep-sample-") as work:
+            sample = Path(work) / "sample.bin"
+            with open(sample, "wb") as out:
+                for path, offset, length in pieces:
+                    with open(path, "rb") as source:
+                        source.seek(offset)
+                        out.write(source.read(length))
+            packed = Path(work) / "sample.7z"
+            # Its own 7-Zip call; if the sample cannot be measured, the freeze simply goes on as it always did.
+            done = subprocess.run([self._tool(), "a", "-t7z", "-m0=lzma2", f"-mx{DEEP_LEVEL}", f"-mmt{min(self.workers, DEEP_THREADS)}", "-y", "-bso0", "-bsp0",
+                                   str(packed), str(sample)], capture_output=True, creationflags=NO_WINDOW)
+            if done.returncode != 0 or not packed.is_file():
+                return None
+            return 1 - packed.stat().st_size / sample.stat().st_size
+
     def deep_freeze(self, app_id: int, name: str) -> dict:
         """One 7-Zip archive inside the game folder; the files are removed only after the archive checks out.
         Cancelled while compressing or checking, the half-made archive is deleted (the game was never touched); the
@@ -455,6 +492,15 @@ class GameFreezer:
         if self.is_deep(app_id):
             raise ValueError("El juego ya está en congelado profundo.")
         tool = self._tool()
+        # Worth it? A game whose files are already compressed (most big ones) hardly shrinks: it is said, and nothing is
+        # touched (Seba, 2026-10-30: 117.6 GB -> 117.4 GB after 40 minutes).
+        files = _payload_files(folder)
+        saving = self.estimate_saving(files)
+        if saving is not None and saving < MIN_DEEP_SAVING:
+            gain = sum(size for _, size in files) * max(saving, 0)
+            self._note(folder, f"congelado profundo no hecho: la muestra se reduce {max(saving, 0):.0%} (unos {gain / 1e9:.1f} GB)")
+            raise ValueError(f"Este juego casi no se comprime: el congelado profundo ahorraría alrededor de {max(saving, 0):.0%} "
+                             f"({gain / 1e9:.1f} GB). No conviene, así que no se congeló.")
         control = self._control(app_id)
         control.acquire("deep")
         progress = self._progress(app_id, "deep", folder)
@@ -475,7 +521,7 @@ class GameFreezer:
             progress.step("compress")
             progress.event("threads", count=self.workers)
             try:
-                self._stream([tool, "a", "-t7z", "-m0=lzma2", f"-mx{DEEP_LEVEL}", f"-mmt{self.workers}", "-y", "-sccUTF-8", "-bso0", "-bsp1",
+                self._stream([tool, "a", "-t7z", "-m0=lzma2", f"-mx{DEEP_LEVEL}", f"-mmt{min(self.workers, DEEP_THREADS)}", "-y", "-sccUTF-8", "-bso0", "-bsp1",
                               str(partial), "*", *excluded], "7-Zip", progress, original, cwd=folder, control=control)
                 progress.event("archived", bytes=partial.stat().st_size)
                 progress.step("verify")

@@ -12,9 +12,19 @@
   --ga-scene-frame-fade: 20%; --ga-scene-frame-end: 40%; --ga-scene-status-tint: 11%; --ga-scene-status-line: 40%;
   --ga-scene-text-family: "Outfit Escena", sans-serif; --ga-scene-display-family: "Anton Escena", sans-serif;
   --ga-scene-catalog: #fec050; --ga-scene-library: #fd5669; --ga-scene-game-access: #5db8fc; --ga-scene-settings: #70f1a5;
-  --ga-scene-ink: #14110c; --ga-scene-bg: #0c0d11; --ga-scene-figure-bg: #0a0b0e; --ga-scene-surround: #000; --ga-scene-ring-ink: #ffffff38;
-  --ga-scene-gradient-start: oklch(from var(--ga-mode) calc(l + .05) c calc(h + 14)); --ga-scene-gradient-end: oklch(from var(--ga-mode) calc(l - .1) calc(c + .02) calc(h - 34));
+  --ga-scene-ink: var(--ga-scene-ink-dark); --ga-scene-bg: #0c0d11; --ga-scene-figure-bg: #0a0b0e; --ga-scene-surround: #000; --ga-scene-ring-ink: #ffffff38;
+  /* Each mode's gradient (derived from its colour) and the ink that reads on it; the player's own gradient replaces
+     these four on the root (navigation/sceneLook.ts), with the ink chosen for contrast. */
+  --ga-scene-ink-dark: #14110c; --ga-scene-ink-light: #ffffff;
+  --ga-scene-catalog-start: oklch(from var(--ga-scene-catalog) calc(l + .05) c calc(h + 14)); --ga-scene-catalog-end: oklch(from var(--ga-scene-catalog) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-catalog-ink: var(--ga-scene-ink-dark);
+  --ga-scene-library-start: oklch(from var(--ga-scene-library) calc(l + .05) c calc(h + 14)); --ga-scene-library-end: oklch(from var(--ga-scene-library) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-library-ink: var(--ga-scene-ink-dark);
+  --ga-scene-game-access-start: oklch(from var(--ga-scene-game-access) calc(l + .05) c calc(h + 14)); --ga-scene-game-access-end: oklch(from var(--ga-scene-game-access) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-game-access-ink: var(--ga-scene-ink-dark);
+  --ga-scene-settings-start: oklch(from var(--ga-scene-settings) calc(l + .05) c calc(h + 14)); --ga-scene-settings-end: oklch(from var(--ga-scene-settings) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-settings-ink: var(--ga-scene-ink-dark);
+  --ga-scene-gradient-start: var(--ga-mode-start, var(--ga-mode)); --ga-scene-gradient-end: var(--ga-mode-end, var(--ga-mode));
   --ga-scene-surface: var(--ga-mode); --ga-scene-menu-ink: var(--ga-scene-ink); --ga-scene-word-ink: var(--ga-mode);
+  --ga-scene-word-family: var(--ga-scene-display-family);
+  --ga-scene-look-bg: var(--ga-dialog-bg); --ga-scene-look-glass: var(--ga-dialog-glass); --ga-scene-look-shadow: var(--ga-dialog-shadow); --ga-scene-look-radius: var(--ga-dialog-radius);
+  --ga-scene-look-ink: var(--ga-white); --ga-scene-look-line: var(--ga-line); --ga-scene-look-pressed: var(--ga-white);
   --ga-scene-smoke-image: url('/styles/escena/smoke.svg'); --ga-scene-smoke-opacity: .5; --ga-scene-ring-orbit-ink: #ffffff38; --ga-scene-ring-arc-ink: #ffffffcc;
   --ga-scene-number-ink: #ffffff17; --ga-scene-particle-white: #fff; --ga-scene-glow-opacity: .34; --ga-scene-glow-low-opacity: .2;
   --ga-scene-wipe-color: var(--ga-mode);
@@ -26,6 +36,23 @@
   --ga-nav-panel-shade: #10191ff2; --ga-nav-panel-shade-clear: #10191f1a;
   --ga-nav-button-rest: #090e12d9; --ga-nav-button-hover: #10191ff2;
   --ga-nav-ok: #6fcfb0; --ga-nav-bad: #ff5d4d; --ga-nav-badge-ink: #090e12; --ga-nav-hover-bright: 1.22;
+  /* The downloads wizard (RN9): states, the log's levels and its type. */
+  --ga-wz-card: #00000038; --ga-wz-line: #ffffff1f; --ga-wz-step-rest: #171c20;
+  --ga-wz-ok: var(--ga-nav-ok); --ga-wz-bad: var(--ga-nav-bad); --ga-wz-warn: #f2b33d; --ga-wz-info: #7cc4ff;
+  --ga-wz-done-fill: color-mix(in srgb, var(--ga-nav-ok) 24%, #111619); --ga-wz-fail-fill: color-mix(in srgb, var(--ga-nav-bad) 42%, #1a0f10);
+  --ga-wz-log-bg: #00000061; --ga-wz-log-line: #ffffff24; --ga-wz-log-ink: #d9e2e4c7;
+  --ga-wz-mono-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; --ga-wz-mono-track: .06em; --ga-wz-eyebrow-track: .14em;
+  --ga-wz-eyebrow-font: 700 11px/1.1 var(--ga-wz-mono-family);
+  --ga-wz-mono-font: 500 11px/1.1 var(--ga-wz-mono-family);
+  --ga-wz-log-font: 500 11px/1.5 var(--ga-wz-mono-family);
+  --ga-wz-title-font: 400 40px/.95 var(--ga-nav-display-family); --ga-wz-chart-area: .28;
+  --ga-wz-text-font: 400 15px/1.45 var(--ga-text-family);
+  --ga-wz-step-number-font: 400 30px/1 var(--ga-nav-display-family);
+  --ga-wz-step-name-font: 800 14px/1.1 var(--ga-text-family);
+  --ga-wz-mark-font: 700 14px/1 var(--ga-wz-mono-family);
+  --ga-wz-sub-font: 700 15px/1.25 var(--ga-text-family);
+  --ga-wz-sub-text-font: 500 13px/1.35 var(--ga-text-family);
+  --ga-wz-figure-font: 800 16px/1.2 var(--ga-text-family);
   --ga-nav-disabled-opacity: .42; --ga-nav-status-hover: #ffffff0d;
   /* The shell's mode bar and sections panel: dark ink on the mode colour, the panel's shade over its image, the lines. */
   --ga-nav-void: #050607; --ga-nav-backdrop: #0c0d0e; --ga-nav-ink-dark: #0a0705; --ga-nav-pale: #d9e2e4; --ga-nav-chevron-dark: #0b0d0f; --ga-nav-hero-end: #0e1113;
@@ -56,6 +83,8 @@
   --ga-t2-weight: 700; --ga-label-weight: 800; --ga-status-weight: 700;
   --ga-t1-font: 400 var(--ga-t1-size)/1 var(--ga-display-family);
   --ga-t2-font: var(--ga-t2-weight) var(--ga-t2-size)/var(--ga-t2-leading) var(--ga-text-family);
+  /* T3, a group's title (an account in Manager › Accounts). */
+  --ga-t3-font: var(--ga-t2-weight) var(--ga-t3-size)/var(--ga-t2-leading) var(--ga-text-family);
   --ga-hint-font: 400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
   --ga-label-font: var(--ga-label-weight) var(--ga-label-size)/var(--ga-label-leading) var(--ga-text-family);
   --ga-status-font: var(--ga-status-weight) var(--ga-status-size)/var(--ga-status-leading) var(--ga-text-family);
@@ -77,6 +106,15 @@
   --ga-files-path-font: 400 var(--ga-text-min)/1.4 var(--ga-text-family); --ga-files-size-font: 600 var(--ga-t4-size)/1.4 var(--ga-text-family);
   --ga-feed-title-font: 700 15px/1.3 var(--ga-text-family); --ga-feed-body-font: 400 14px/1.4 var(--ga-text-family); --ga-feed-small-font: 400 13px var(--ga-text-family);
   --ga-feed-time-font: 700 12px/1.2 var(--ga-text-family); --ga-feed-eyebrow-font: 700 12px var(--ga-text-family); --ga-feed-eyebrow-track: .08em;
+  /* RN7: image-led detail smoke. The colors remain adjustable with each flavor. */
+  --ga-detail-wide-ink: var(--ga-white); --ga-detail-wide-muted: var(--ga-muted); --ga-detail-wide-accent: var(--ga-orange);
+  --ga-detail-wide-void: #080b0ed9; --ga-detail-wide-glass: #11191ddd; --ga-detail-wide-glass-soft: #11191d9c;
+  --ga-detail-wide-line: #ffffff33; --ga-detail-wide-tab: #080b0ec9; --ga-detail-wide-tab-on: #cc833347; --ga-detail-wide-mask-ink: #000;
+  --ga-detail-wide-good: #79d5a8; --ga-detail-wide-mixed: #e7b65e; --ga-detail-wide-bad: #e58880;
+  --ga-detail-wide-title-font: 400 var(--ga-detail-title-size)/.92 var(--ga-display-family);
+  --ga-detail-wide-body-font: 500 var(--ga-text-size)/var(--ga-text-leading) var(--ga-text-family);
+  --ga-detail-wide-small-font: 700 var(--ga-label-size)/var(--ga-label-leading) var(--ga-text-family);
+  --ga-detail-wide-tab-font: 400 clamp(21px, 2.45vh, 27px)/1 var(--ga-display-family);
   --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
   /* RN1 default appearance, shared by the new shell until a numbered flavor is selected. */
   --ga-nav-display-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif;

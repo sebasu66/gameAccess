@@ -6,6 +6,7 @@ import { translate, useI18n, type TranslationKey } from "../i18n";
 import RenameGameDialog from "../RenameGameDialog";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
+import { selectNavigationSection, selectNavigationTab } from "../navigation/navigationSelection";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan, type RunCheck } from "../catalog/DigitalProcessManager";
 import { libraryDemo, libraryScanState, scanLibrary, useLibraryScan } from "../libraryScan";
 import type { CatalogGame } from "../types";
@@ -34,7 +35,7 @@ import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, loadKidFamily
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
-import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
+import { isSteamOwned, steamOwnerLabel } from "../steamLibrary";
 import { activeDownloadService } from "../downloads/activeService";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import ManualLinkDialog from "./ManualLinkDialog";
@@ -365,7 +366,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ] : []),
       // A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved).
       ...(game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? [act(c.steamUninstall, <Trash />, () => setPending({ kind: "steam_uninstall", game }), { tone: "danger", disabled: busy || id == null })] : []),
-      act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null }),
+      // A Steam game is in its account's library while the account owns it: it is never taken out on its own (the
+      // account is, in Manager › Accounts), only uninstalled from the disk (above).
+      ...(game.link_kind === "steam" ? [] : [act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null })]),
     ];
   // The context menu also opens and closes the row; the open row shows the rest beside its log.
   const history = act(open ? c.historyHide : c.history, <Scroll />, () => setExpanded(open ? null : id));
@@ -522,16 +525,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       { label: c.verifyLater, kind: "secondary", run: () => hideNotice() },
     ] });
   };
-  const importSteam = async () => {
-    setBusy(true);
-    rememberKnown();
-    try {
-      const result = await syncSteamLibrary(catalog, { refresh: true });
-      notify(result.found ? t("steamImported", { linked: result.linked.length, owned: result.owned.length }) : t("steamNotFound"), { tone: result.found ? "success" : "error" });
-      notifyLibraryChanged();
-      if (result.found) void suggestVerify();
-    } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
-  };
+  // The Steam accounts' libraries come in whole from Manager › Accounts (AccountLibraries.tsx), never game by game.
+  const openAccounts = () => { selectNavigationSection("library", "manager"); selectNavigationTab("library", "manager", "accounts"); };
   // A game opened from Activity shows its row open: the download's or the process's detail (Seba, 2026-11-03).
   useEffect(() => { if (focusAppId != null) { setFilter("all"); setExpanded(focusAppId); } }, [focusAppId]);
   // Every word of the search in the name, without accents or case, as in the catalog; the game "Manage" opened stays.
@@ -630,7 +625,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   // Uninstall and discard ask in the app's single notice (T3), not in a dialog of their own.
   useEffect(() => {
     if (!pending || pending.kind === "plan") return;
-    const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
+    // A Steam game is uninstalled for real (deleted from disk, as Steam does): it is not "only removed" like a link.
+    const linkedIds = new Set(games.filter(game => game.linked && game.link_kind !== "steam").map(game => game.app_id));
+    const steamIds = new Set(games.filter(game => game.link_kind === "steam").map(game => game.app_id));
+    const anySteam = pending.kind === "uninstall" && pending.ids.some(id => steamIds.has(id));
     const one = pending.kind === "uninstall" && pending.ids.length === 1 ? games.find(game => game.app_id === pending.ids[0]) : pending.kind !== "uninstall" ? pending.game : undefined;
     const allLinked = pending.kind === "uninstall" && pending.ids.every(id => linkedIds.has(id));
     const anyLinked = pending.kind === "uninstall" && pending.ids.some(id => linkedIds.has(id));
@@ -641,7 +639,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     const confirm = () => confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
       title: pending.kind === "linked_move" ? c.linkedMoveTitle(pending.game.name) : pending.kind === "linked_delete" ? c.linkedDeleteTitle(pending.game.name) : pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
-      text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
+      text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : [c.uninstallBody, anyLinked ? c.unlinkNote : "", anySteam ? c.steamUninstallNote : ""].filter(Boolean).join(" ")) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
       confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
@@ -665,6 +663,15 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, member })),
   ].sort(compareRows(sort));
   const columns = 10;
+  // One block per library: Game Access's own first, then each account's (apps/launcher/account_registry.py).
+  const groups = new Map<string, { title: string; hint: string; rows: GridRow[] }>([["gameaccess", { title: c.groupGameAccess, hint: c.groupHint, rows: [] }]]);
+  for (const row of gridRows) {
+    const library = row.game?.library;
+    const key = library ? `${library.store}:${library.account_id}` : "gameaccess";
+    if (!groups.has(key)) groups.set(key, { title: c.groupAccount("Steam", library?.account || library?.account_id || ""), hint: c.groupAccountHint, rows: [] });
+    groups.get(key)!.rows.push(row);
+  }
+  const blocks = [...groups.entries()].filter(([, group]) => group.rows.length);
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
@@ -685,7 +692,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => { rememberKnown(); setImportOpen(true); }}>{c.importGames}</GaButton>
-            <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
+            <GaButton icon={<Gamepad2 size={16} />} onClick={openAccounts}>{t("acctOpenFromManager")}</GaButton>
             <GaButton icon={<Link2 size={16} />} disabled={busy} onClick={() => setLinkOpen(true)}>{t("manualDownloadAdd")}</GaButton>
             {verifying
               ? <GaButton icon={<X size={16} />} onClick={() => { stopVerify.current = true; }} title={c.verifyNote}>{c.verifyRunning(verifying.done, verifying.total, verifying.name)} · {c.verifyCancel}</GaButton>
@@ -718,9 +725,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <SortHeader id="idle" label={t("lmColIdle")} title={t("lmColIdleTitle")} sort={sort} setSort={setSort} t={t} />
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
-              <tbody>
-                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
-              </tbody>
+              {blocks.map(([key, group]) => <tbody key={key} className="lm-group" data-library={key}>
+                {blocks.length > 1 ? <tr className="lm-group-row"><th colSpan={columns} scope="rowgroup"><span className="lm-group-title">{group.title}</span><span className="lm-group-count">{group.rows.length}</span><span className="lm-group-hint">{group.hint}</span></th></tr> : null}
+                {group.rows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
+              </tbody>)}
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />
           </div>

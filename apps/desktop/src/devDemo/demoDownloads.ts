@@ -6,6 +6,7 @@
 import type { DigitalDownloadService } from "../catalog/DigitalDownloadService";
 import type { DownloadProgressSnapshot, DownloadStepDone, DownloadStepId } from "../downloadProvider";
 import type { CatalogGame } from "../types";
+import { appendEvents, type DownloadEvent } from "../downloadEvents";
 
 const game = (id: number, name: string) => ({ id, app_id: id, name } as CatalogGame);
 const GB = 1e9;
@@ -19,11 +20,26 @@ const STAGES: Stage[] = [
   { id: "install", phase: "installing", detail: "Verificando espacio en disco…", result: "Instalado en C:\\Juegos\\ELDEN RING", seconds: 3 },
 ];
 
+
 export function demoDownloadService(): DigitalDownloadService {
   const listeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
   const active = game(1245620, "ELDEN RING"), queued = game(1086940, "Baldur's Gate 3"), finished = game(413150, "Stardew Valley");
   // Downloaded, but the unpacking ran out of disk: it goes on from the unpacking once there is room.
   const stopped = game(1174180, "Red Dead Redemption 2");
+  // A free Steam game: Steam's own install window waits for the player, then Steam downloads it (Game Access reads
+  // its progress from Steam's appmanifest) and it is ready in the Steam library.
+  const free = game(570, "Dota 2");
+  const steamAt = (now: number): DownloadProgressSnapshot => {
+    const t = ((now - begun) / 1000) % 34, at = (s: number) => now - (t - s) * 1000;
+    const where = { folder: "F:\SteamLibrary\steamapps\common\dota 2 beta", drive: "F:", library: "F:\SteamLibrary" };
+    const confirmed = { id: "dialog" as const, state: "done" as const, result: "Steam empezó la instalación", ms: 6000 };
+    if (t < 6) return { gameId: free.id, phase: "preparing", progress: 1, statusText: "Steam abrió su ventana de instalación: elegí dónde instalarlo y confirmá.",
+      step: { id: "dialog", detail: "Steam abrió su ventana de instalación: elegí dónde instalarlo y confirmá.", startedAt: at(0) }, steps: [] };
+    if (t < 30) { const p = (t - 6) / 24 * 99; return { gameId: free.id, phase: "downloading", progress: p * .8, downloadPercent: p, bytesDownloaded: p / 100 * 38 * GB, bytesTotal: 38 * GB,
+      statusText: "Steam lo está descargando…", step: { id: "download", detail: "Steam lo está descargando…", startedAt: at(6), facts: where }, steps: [confirmed] }; }
+    return { gameId: free.id, phase: "completed", progress: 100, downloadPercent: 100, statusText: "Listo en tu biblioteca de Steam", step: null,
+      steps: [confirmed, { id: "download", state: "done", result: "Steam lo instaló", ms: 24000, facts: where }] };
+  };
   const begun = Date.now();
   const total = STAGES.reduce((sum, stage) => sum + stage.seconds, 0) + 4;
   const snapshotAt = (now: number): DownloadProgressSnapshot => {
@@ -43,20 +59,40 @@ export function demoDownloadService(): DigitalDownloadService {
     }
     return { gameId: active.id, phase: "completed", progress: 100, downloadPercent: 100, installPercent: 100, statusText: "¡ELDEN RING listo para jugar!", step: null, steps };
   };
-  window.setInterval(() => { const snapshot = snapshotAt(Date.now()); listeners.forEach(listener => listener(snapshot)); }, 1000);
+  // The wizard's log, written from each update as the real service does (downloadEvents.ts).
+  let log: DownloadEvent[] = [], last: DownloadProgressSnapshot | undefined;
+  // The stopped unpacking's log: which file it unpacked, where, and the disk that ran short.
+  const stoppedAt = { gameId: stopped.id, phase: "error", progress: 50, downloadPercent: 100, resumeStep: "extract", errorCode: "no_space",
+    error: "No hay espacio libre suficiente: hacen falta 128.4 GB libres en la carpeta de juegos y hay 41.0 GB. Liberá espacio y continuá.",
+    statusText: "No hay espacio libre suficiente", step: null, steps: [{ id: "download", state: "done", result: "Descargado", ms: 0, facts: { folder: "E:\\GameAccess\\Temp\\Red Dead Redemption 2", drive: "E:" } },
+      { id: "extract", state: "failed", result: "No hay espacio libre suficiente en D:", ms: 0,
+        facts: { from: "rdr2.part01.rar", folder: "D:\\Juegos\\Red Dead Redemption 2", drive: "D:", freeBytes: 41e9, neededBytes: 128.4e9 } }] } as DownloadProgressSnapshot;
+  const stoppedLog = appendEvents([], undefined, stoppedAt, begun - 60000);
+  // The free Steam game's log, written as it walks its steps.
+  let steamLog: DownloadEvent[] = [], steamLast: DownloadProgressSnapshot | undefined;
+  window.setInterval(() => {
+    const snapshot = snapshotAt(Date.now());
+    // The demo starts over after it ends: so does its log.
+    log = appendEvents(last?.phase === "completed" && snapshot.phase !== "completed" ? [] : log, last, snapshot);
+    last = snapshot;
+    const steam = steamAt(Date.now());
+    steamLog = appendEvents(steamLast?.phase === "completed" && steam.phase !== "completed" ? [] : steamLog, steamLast, steam);
+    steamLast = steam;
+    listeners.forEach(listener => { listener(snapshot); listener(steam); });
+  }, 1000);
   const service = {
     getDownloads: () => [
       { game: active, snapshot: snapshotAt(Date.now()) },
       { game: queued, snapshot: { gameId: queued.id, phase: "queued", progress: 0, statusText: "En cola" } as DownloadProgressSnapshot },
       { game: finished, snapshot: { gameId: finished.id, phase: "completed", progress: 100, statusText: "Listo" } as DownloadProgressSnapshot },
-      { game: stopped, snapshot: { gameId: stopped.id, phase: "error", progress: 50, downloadPercent: 100, resumeStep: "extract", errorCode: "no_space",
-        error: "No hay espacio libre suficiente: hacen falta 128.4 GB libres en la carpeta de juegos y hay 41.0 GB. Liberá espacio y continuá.",
-        statusText: "No hay espacio libre suficiente", step: null, steps: [{ id: "download", state: "done", result: "Descargado", ms: 0 }, { id: "extract", state: "failed", result: "Sin espacio", ms: 0 }] } as DownloadProgressSnapshot },
+      { game: free, snapshot: steamAt(Date.now()) },
+      { game: stopped, snapshot: stoppedAt },
     ],
     onGlobalUpdate: (listener: (snapshot: DownloadProgressSnapshot) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
     getDownloadMethod: (id: number) => id === active.id ? "accelerated" : undefined,
     planTier: () => "plus",
     queuePosition: (id: number) => id === queued.id ? 0 : -1,
+    getEvents: (id: number) => id === active.id ? log : id === free.id ? steamLog : id === stopped.id ? stoppedLog : [],
     // While it downloads, the last minute of speed (one sample every 1.5 s, wavering around 42 MB/s) for the charts.
     getSpeedSamples: () => {
       const now = Date.now();

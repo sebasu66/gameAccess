@@ -35,7 +35,8 @@ import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
-import { navigationShellEnabled } from "./navigation/navigationSelection";
+import { navigationShellEnabled, sectionTab, useNavigationSelection } from "./navigation/navigationSelection";
+import AccountLibraries from "./AccountLibraries";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
@@ -215,6 +216,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const navigationSelection = useNavigationSelection();
   const [infoTarget, setInfoTarget] = useState<HTMLElement | null>(null);
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
@@ -495,6 +497,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
 
   // In the new shell the one game search sits with the filters and sort, under the banner (§4.3, Seba 2026-11-11).
+  // Manager › Accounts (the new shell's tab): the account libraries instead of the games list.
+  const managerTab = navigationShellEnabled() ? sectionTab("manager", navigationSelection.tabs) : "games";
   const gridSearch = navigationShellEnabled() ? <div className="ga-nav-grid-search"><SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} /></div> : null;
   const toolbar = (
       <>
@@ -538,8 +542,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
-            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div></header>
-            <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t(managerTab === "accounts" ? "navAccounts" : "libraryManagerButton")}</h2></div></header>
+            {managerTab === "accounts" ? <AccountLibraries /> : <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />}
           </div>
         ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">
           <h2 id="ga-library-empty-title" className="ga-heading">{t("libraryEmptyTitle")}</h2>

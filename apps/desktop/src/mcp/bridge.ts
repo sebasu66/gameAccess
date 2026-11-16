@@ -4,7 +4,9 @@
  */
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { accountTools } from "./accountTools";
 import { actionTools } from "./actionTools";
+import { appearanceTools } from "./appearanceTools";
 import { devTools, startDevEvents } from "./devTools";
 import { discoverTools } from "./discoverTools";
 import { libraryTools } from "./libraryTools";
@@ -27,7 +29,7 @@ let started = false;
 export function startMcpBridge(): void {
   if (started || !isTauri()) return;
   started = true;
-  registerTools([...discoverTools, ...libraryTools, ...actionTools, ...devTools]);
+  registerTools([...discoverTools, ...libraryTools, ...accountTools, ...actionTools, ...appearanceTools, ...devTools]);
   startDevEvents();
   void listen<McpRequest>("gameaccess:mcp-request", async event => {
     const request = event.payload;

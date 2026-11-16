@@ -1,6 +1,6 @@
 import { useDeskSubtitle } from "./desk/DeskPanel";
 import ManualDownloadForm from "./ManualDownloadForm";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getAppLocale, translate, useI18n } from "./i18n";
 import {formatDownloadBytes,sourceDownloadSize} from "./downloadSize";
 import {downloadMethodLabel, planLabel} from "./downloadMethod";
@@ -20,6 +20,12 @@ import DownloadSpeedSpark from "./DownloadSpeedSpark";
 import { useDialogFocus } from "./dialogFocus";
 import { useOverlayClose } from "./useOverlayClose";
 import { GaBack } from "./components/ga/Buttons";
+import { ArtworkFallback, GameThumb } from "./GameArt";
+import DownloadWizard, { type WizardFigure } from "./navigation/DownloadWizard";
+import DownloadActions, { type DownloadAction } from "./navigation/DownloadActions";
+import { STEAM_DEPOT_PREFIX } from "./freeSteamGames";
+import { openSteamClientInstall } from "./native";
+import type { WizardStage } from "./downloadWizard";
 
 const phaseKeys = {
   queued: "downloadQueued", preparing: "downloadPreparing", downloading: "downloadDownloading", paused: "downloadPaused",
@@ -65,9 +71,14 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     refresh();
     return unsubscribe;
   }, [service]);
-  const active = entries.filter(entry => !terminal(entry) && !["queued", "paused"].includes(entry.snapshot.phase));
+  // In the new shell a download that stopped stays with the ones in progress: its wizard says where and offers to go on.
+  const stoppedHere = (entry: Entry) => Boolean(only) && ["error", "interrupted"].includes(entry.snapshot.phase);
+  const active = entries.filter(entry => (!terminal(entry) || stoppedHere(entry)) && !["queued", "paused"].includes(entry.snapshot.phase));
   const queue = entries.filter(entry => ["queued", "paused"].includes(entry.snapshot.phase));
-  const history = entries.filter(terminal);
+  const history = entries.filter(entry => terminal(entry) && !stoppedHere(entry));
+  // Up to four downloads at once, and only one shows its detail: the one the player opened, else the first.
+  const [openId, setOpenId] = useState<number | null>(null);
+  const shownId = active.some(entry => entry.snapshot.gameId === openId) ? openId : active[0]?.snapshot.gameId ?? null;
   const run = async (id: number, action: () => Promise<void>) => {
     if (pendingActions.current.has(id)) return;
     pendingActions.current.add(id);
@@ -95,6 +106,59 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
     const queueLength = queue.filter(item => item.snapshot.phase === "queued").length;
     const transfer = phase === "downloading";
     const canPause = ["queued", "preparing", "downloading"].includes(phase);
+    if (featured && only) {
+      // The new shell: the download as five stages, each with its lines, figures, actions and log (RN9).
+      const record = service.getRecord?.(gameId) ?? service.getRecord?.(game.app_id ?? gameId);
+      const stopped = ["error", "interrupted"].includes(phase);
+      const fromSteam = Boolean(record?.downloadSource?.startsWith(STEAM_DEPOT_PREFIX));
+      const figures = (stage: WizardStage): WizardFigure[] => {
+        // A free Steam game: no route, plan or source to choose; it comes from Steam into the Steam library.
+        if (fromSteam) switch (stage.id) {
+          case "prepare": return [{ label: t("dlWzSource"), value: "Steam" }, { label: t("dlWzSteamWhere"), value: t("dlWzSteamLibrary") }];
+          case "download": return [
+            { label: t("downloadsSpeed"), value: transfer ? `${formatDownloadBytes(snapshot.speedBps,locale)} / s` : "—" },
+            { label: t("downloadsRemaining"), value: eta(snapshot) },
+            { label: t("downloadsDownloaded"), value: `${formatDownloadBytes(snapshot.bytesDownloaded,locale)} / ${totalSize}` },
+          ];
+          default: return [];
+        }
+        switch (stage.id) {
+          case "prepare": return [
+            ...(methodText ? [{ label: t("downloadsRouteLabel"), value: methodText.label, hint: methodText.hint }] : []),
+            ...(plan ? [{ label: t("downloadsPlanLabel"), value: plan.label, hint: plan.hint }] : []),
+            { label: t("dlWzSource"), value: record?.sourceTitle || t("dlWzSourceAuto"), hint: record?.sourceProvider },
+          ];
+          case "download": return [
+            { label: t("downloadsSpeed"), value: transfer ? `${formatDownloadBytes(snapshot.speedBps,locale)} / s` : "—" },
+            { label: t("downloadsRemaining"), value: eta(snapshot) },
+            { label: t("downloadsDownloaded"), value: `${formatDownloadBytes(snapshot.bytesDownloaded,locale)} / ${totalSize}` },
+          ];
+          case "install": return [{ label: t("downloadsInstallBar"), value: `${Math.round(bars.install)}%` }, { label: t("downloadsSize"), value: totalSize }];
+          default: return [];
+        }
+      };
+      // The same buttons for every download (DownloadActions): its main action, cancel, the folder.
+      const act = (id: string, label: string, icon: ReactNode, action: () => Promise<void>, aria?: string): DownloadAction =>
+        ({ id, label, icon, aria, run: () => void run(gameId, action) });
+      const main = stopped ? act("retry", snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry"),
+          snapshot.resumeStep ? <Play size={16} aria-hidden="true" /> : <RotateCcw size={16} aria-hidden="true" />, () => service.retry(game))
+        : phase === "paused" ? act("resume", t("downloadsResume"), <Play size={16} aria-hidden="true" />, () => service.resume(gameId))
+        : canPause ? act("pause", t("downloadsPause"), <Pause size={16} aria-hidden="true" />, () => service.pause(gameId)) : undefined;
+      const actions = <DownloadActions main={main} disabled={busy.includes(gameId) || phase === "cancelling"}
+        others={[
+          // Steam would not give it through DepotDownloader: Steam's own install, beside the retry.
+          ...(fromSteam && stopped && snapshot.errorCode === "steam_install" ? [act("steam", t("dlDepotInstallWithSteam"), <Download size={16} aria-hidden="true" />, () => openSteamClientInstall(Number(record?.id ?? game.app_id ?? gameId)))] : []),
+          act("cancel", stopped ? t("downloadsAbort") : t("downloadsCancel"), <X size={16} aria-hidden="true" />, () => service.cancel(gameId), t(stopped ? "downloadsAbortAria" : "downloadsCancelAria", { name: game.name }))]}
+        folder={hasFolder(entry) && !fromSteam ? act("folder", t("downloadsOpenFolder"), <FolderOpen size={16} aria-hidden="true" />, async () => { await digitalProcessManager.openFolder(entry.game, "download"); }) : undefined} />;
+      // The wizard's cover is the game's portrait (library 600x900, resolved like the grids), never the wide header cut down.
+      const portrait = <GameThumb appId={currentGame.app_id} image={/library_(capsule|600x900)/.test(currentGame.capsule_image ?? "") ? currentGame.capsule_image : null}
+        fallback={<ArtworkFallback name={currentGame.name} compact />} />;
+      const expanded = gameId === shownId;
+      // A closed one is a single button that opens it, so its cover is only the picture.
+      return <DownloadWizard key={gameId} name={game.name} snapshot={snapshot} events={[...(service.getEvents?.(gameId) ?? [])]} samples={service.getSpeedSamples(gameId)}
+        cover={expanded && onOpenGame ? <button type="button" aria-label={t("downloadsDetailsAria",{name:game.name})} onClick={() => onOpenGame(currentGame)}>{portrait}</button> : portrait}
+        figures={figures} actions={actions} expanded={expanded} onExpand={() => setOpenId(gameId)} fromSteam={fromSteam} />;
+    }
     if (featured) {
       // An active download, top to bottom, with only what matters at this moment: the name and two small icons (the
       // plan: grey arrow BASE, gold arrow PLUS; "+" when the server accelerates it); a small wide picture with the speed

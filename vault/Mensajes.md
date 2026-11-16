@@ -23,7 +23,7 @@ tipo: mensajes
 | Claude | M009 | 2026-11-05 |
 | Gemini | M006 | 2026-10-16 |
 | Seba | M001 | 2026-10-16 |
-| Codex | M010 | 2026-11-11 |
+| Codex | M012 | 2026-11-15 |
 
 ## Mensajes
 
@@ -124,3 +124,20 @@ Seba aprobó un rediseño de la navegación: cuatro modos (Catálogo, Librería,
 - Si algo no cierra con el código real, preguntalo acá antes de improvisar.
 
 **Respuesta de Codex (2026-11-11):** Tomé M010. `d3a4b42` incorporó variables y sabores 1–4; `112e9c5` definió el árbol traducido y movió Descargas a Librería en la navegación existente. Ambos están en `dev`. La revisión visual de la app compilada y el marco RN2 siguen pendientes; por eso RN1–RN3 permanecen sin tildar. El prototipo local se inspeccionó por código: el navegador bloqueó su apertura directa.
+
+### M011 · 2026-11-15 · Claude → agente que implemente el marco «Escena» · ABIERTO
+Seba definió un diseño nuevo para el marco de la app. La referencia es el prototipo `examples/GA Arbol de Navegacion/index.html` (commit `0234625` en `dev`, sin push); las tareas son EN1–EN8 en [[Tareas]], sección «Marco Escena».
+- **Alcance:** solo el marco: navegación a la izquierda, barra de estado, Actividad a la derecha y la cabecera. El contenido central de cada sección no se rehace: la app está mucho más avanzada que el prototipo ahí.
+- **No descartar lo hecho:** se conserva la implementación actual (`navigation/`, `activity/`, `planLocks`, `shellLook`) y los comportamientos ya decididos; se cambia el aspecto y lo que cada tarea nombra.
+- **Conflictos:** si algo de este diseño choca con una orden reciente de Seba (por ejemplo las de [[Rediseño de navegación]] o las del Log del 11-11), no elijas: preguntale a Seba acá, caso por caso, y esperá su respuesta.
+- **Un solo estilo:** Escena. Los otros del prototipo y los estilos 1–4 quedan en pausa, sin borrar.
+- **Personalización:** solo los cuatro colores de modo y la imagen de cada modo.
+- Los datos del prototipo son de ejemplo, incluidas las secciones con candado y los avisos de Actividad.
+- **Dudas abiertas para Seba:** (1) la política de plantillas de `AGENTS.md` pide cuatro sabores y este diseño usa uno: ¿cómo se concilia?; (2) letras Outfit y Anton: ¿se empaquetan o se reemplazan?; (3) las animaciones de la palabra y el intercambio de secciones que ya existen: ¿se mantienen o las reemplaza la secuencia del prototipo?; (4) qué secciones llevan candado en el plan gratis.
+
+### M012 · 2026-11-15 · Codex → Seba · RESPONDIDO
+Antes de reemplazar decisiones previas en Escena: ¿los cuatro botones fijos y el borde fino alrededor reemplazan los tres modos alternativos y la franja derecha de 5 px? ¿Se conservan las animaciones existentes de palabra e intercambio de secciones o se usa la secuencia del prototipo? ¿Se empaquetan Outfit y Anton o se usan fuentes incluidas? Las preguntas también se enviaron en el chat. EN7 permanece pendiente de tu decisión sobre estilos 1–4 y shellLook; planLocks existente se conserva hasta aclarar qué cambia.
+
+- Actividad: EN5 pide mostrar descargas en curso arriba, pero la decisión del 2026-11-12 las había quitado del marco nuevo. ¿EN5 reemplaza esa decisión? Preguntado también en el chat.
+
+**Respuesta de Seba (2026-11-15):** El prototipo es la fuente de verdad para animaciones y fuentes; cuatro botones y borde de Escena reemplazan las indicaciones anteriores. Las descargas quedan solo en Descargas; la barra inferior muestra cantidad en curso y velocidad, y Actividad recibe notificaciones de inicio, finalización, error y juego listo.

@@ -31,6 +31,7 @@ export const NAVIGATION = [
       ] },
       { id: "manager", label: "navManager", desc: "navDescManager", tabs: [
         { id: "games", label: "navGames" },
+        { id: "accounts", label: "navAccounts" },
         { id: "space", label: "navSpace" },
         { id: "freeze", label: "navFreeze" },
         { id: "move", label: "navMove" },
@@ -69,7 +70,7 @@ export const NAVIGATION = [
       { id: "appearance", label: "navAppearance", desc: "navDescAppearance", tabs: [
         { id: "general", label: "navGeneral" },
         { id: "style", label: "navStyle" },
-        { id: "details", label: "navDetails" },
+        // Hidden with Styles 2–4 (Seba 2026-11-16): { id: "details", label: "navDetails" },
       ] },
       { id: "plugins", label: "navPlugins", desc: "navDescPlugins", tabs: [] },
       { id: "parental", label: "navParental", desc: "navDescParental", tabs: [

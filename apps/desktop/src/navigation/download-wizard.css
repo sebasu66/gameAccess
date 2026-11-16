@@ -1,0 +1,127 @@
+/* Library › Downloads as five stages (vault/Rediseño de navegación.md §5.10, RN9). Layout only: sizes come from
+   templates/base.css (--ga-wz-*), colours and type from the flavor (docs/GUI_DESIGN.md §0c). */
+.ga-wz { container-type: inline-size; display: grid; gap: var(--ga-wz-gap); padding: var(--ga-wz-pad); background: var(--ga-wz-card); border: 1px solid var(--ga-wz-line); color: var(--ga-nav-shell-ink); }
+.ga-wz + .ga-wz { margin-block-start: var(--ga-wz-gap); }
+.ga-wz-eyebrow { display: block; font: var(--ga-wz-eyebrow-font); letter-spacing: var(--ga-wz-eyebrow-track); text-transform: uppercase; color: var(--ga-mode-acc); }
+
+.ga-wz-top { display: grid; grid-template-columns: var(--ga-wz-cover-w) minmax(0, 1fr) auto; gap: var(--ga-wz-gap); align-items: center; }
+.ga-wz-cover { aspect-ratio: 2 / 3; overflow: hidden; background: var(--ga-wz-step-rest); }
+.ga-wz-cover :is(img, picture, .ga-art-fallback) { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.ga-wz-cover button { display: block; inline-size: 100%; block-size: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.ga-wz-name { margin: var(--ga-wz-title-gap) 0; font: var(--ga-wz-title-font); text-transform: var(--ga-nav-display-case); letter-spacing: var(--ga-wz-title-track); overflow-wrap: anywhere; }
+.ga-wz-lead { margin: 0; font: var(--ga-wz-text-font); color: var(--ga-nav-shell-muted); }
+
+/* The stages as arrows that overlap a little, like the prototype. */
+.ga-wz-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ga-wz-steps li { margin-inline-start: calc(var(--ga-wz-step-overlap) * -1); min-inline-size: 0; }
+.ga-wz-steps li:first-child { margin-inline-start: 0; }
+.ga-wz-step { inline-size: 100%; block-size: var(--ga-wz-step-h); border: 0; padding: 0 var(--ga-wz-step-pad-end) 0 var(--ga-wz-step-pad); display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--ga-wz-step-gap); align-items: center; align-content: center; text-align: start; cursor: pointer;
+  background: var(--ga-wz-step-rest); color: var(--ga-nav-shell-muted); font: inherit;
+  clip-path: polygon(0 0, calc(100% - var(--ga-wz-step-tip)) 0, 100% 50%, calc(100% - var(--ga-wz-step-tip)) 100%, 0 100%, var(--ga-wz-step-tip) 50%); }
+.ga-wz-steps li:first-child .ga-wz-step { clip-path: polygon(0 0, calc(100% - var(--ga-wz-step-tip)) 0, 100% 50%, calc(100% - var(--ga-wz-step-tip)) 100%, 0 100%); padding-inline-start: var(--ga-wz-step-pad-first); }
+.ga-wz-step span { font: var(--ga-wz-step-number-font); }
+.ga-wz-step b { font: var(--ga-wz-step-name-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The state is the step's colour alone (Seba, 2026-11-12): no mark and no word beside its number and name. */
+.ga-wz-step.is-done { background: var(--ga-wz-done-fill); color: var(--ga-nav-shell-ink); }
+.ga-wz-step.is-done span { color: var(--ga-wz-ok); }
+.ga-wz-step.is-current { background: var(--ga-mode-acc); color: var(--ga-nav-ink-dark); }
+.ga-wz-step.is-failed { background: var(--ga-wz-fail-fill); color: var(--ga-nav-shell-ink); }
+.ga-wz-step[aria-current="step"] { filter: brightness(var(--ga-nav-hover-bright)); }
+.ga-wz-step[aria-current="step"] b { text-decoration: underline; text-underline-offset: var(--ga-wz-underline); }
+.ga-wz-step:hover, .ga-wz-step:focus-visible { filter: brightness(var(--ga-nav-hover-bright)); }
+.ga-wz-step:focus-visible { outline: var(--ga-wz-focus) solid var(--ga-nav-shell-ink); outline-offset: calc(var(--ga-wz-focus) * -2); }
+
+/* The stage keeps one height: its lines scroll inside, the log fills the side, the actions stay below both. */
+.ga-wz-body { display: grid; grid-template-columns: minmax(0, var(--ga-wz-main-share)) minmax(0, 1fr); gap: var(--ga-wz-body-gap); block-size: var(--ga-wz-body-h); min-block-size: 0; }
+.ga-wz-main { display: grid; align-content: start; gap: var(--ga-wz-row-gap); min-inline-size: 0; min-block-size: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-inline-end: var(--ga-wz-sub-gap); }
+.ga-wz-logbox { display: grid; grid-template-rows: auto minmax(0, 1fr); min-block-size: 0; }
+.ga-wz-bar { inline-size: 100%; block-size: var(--ga-wz-bar-h); appearance: none; border: 0; background: var(--ga-wz-step-rest); }
+.ga-wz-bar::-webkit-progress-bar { background: var(--ga-wz-step-rest); }
+.ga-wz-bar::-webkit-progress-value { background: var(--ga-mode-acc); box-shadow: var(--ga-wz-bar-glow) var(--ga-mode-acc); }
+.ga-wz-bar::-moz-progress-bar { background: var(--ga-mode-acc); }
+.ga-wz.is-failed .ga-wz-bar::-webkit-progress-value { background: var(--ga-wz-bad); box-shadow: var(--ga-wz-bar-glow) var(--ga-wz-bad); }
+.ga-wz.is-failed .ga-wz-bar::-moz-progress-bar { background: var(--ga-wz-bad); }
+
+.ga-wz-subs { list-style: none; margin: 0; padding: 0; }
+.ga-wz-sub { display: grid; grid-template-columns: var(--ga-wz-mark-w) minmax(0, 1fr) auto; gap: var(--ga-wz-sub-gap); align-items: center; padding-block: var(--ga-wz-sub-pad); border-block-end: 1px solid var(--ga-wz-line); }
+.ga-wz-sub i { font: var(--ga-wz-mark-font); font-style: normal; text-align: center; color: var(--ga-nav-shell-muted); }
+.ga-wz-sub b { display: block; font: var(--ga-wz-sub-font); }
+.ga-wz-sub small { display: block; font: var(--ga-wz-sub-text-font); color: var(--ga-nav-shell-muted); overflow-wrap: anywhere; }
+.ga-wz-sub > span { font: var(--ga-wz-mono-font); color: var(--ga-nav-shell-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ga-wz-sub.is-done i { color: var(--ga-wz-ok); }
+.ga-wz-sub.is-current i, .ga-wz-sub.is-current b { color: var(--ga-mode-acc); }
+.ga-wz-sub.is-failed :is(i, b, > span) { color: var(--ga-wz-bad); }
+.ga-wz-sub.is-pending b, .ga-wz-sub.is-skipped b { color: var(--ga-nav-shell-muted); }
+
+.ga-wz-race { display: grid; gap: var(--ga-wz-row-gap); }
+.ga-wz-race ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ga-wz-lane-gap); }
+.ga-wz-race li { display: grid; gap: var(--ga-wz-lane-inner); }
+.ga-wz-lane-head { display: flex; justify-content: space-between; gap: var(--ga-wz-sub-gap); font: var(--ga-wz-sub-font); }
+.ga-wz-lane-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-wz-lane-head span { font: var(--ga-wz-mono-font); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ga-wz-lane-bar { block-size: var(--ga-wz-lane-h); background: var(--ga-wz-step-rest); }
+.ga-wz-lane-bar u { display: block; block-size: 100%; background: var(--ga-mode-acc); transition: inline-size var(--ga-nav-transition-time) ease; }
+.ga-wz-race small { font: var(--ga-wz-sub-text-font); color: var(--ga-nav-shell-muted); }
+.ga-wz-race li.is-won .ga-wz-lane-bar u { background: var(--ga-wz-ok); }
+.ga-wz-race li.is-won .ga-wz-lane-head span { color: var(--ga-wz-ok); }
+.ga-wz-race li.is-out { opacity: var(--ga-nav-disabled-opacity); }
+
+
+.ga-wz-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ga-wz-sub-gap); margin: 0; }
+.ga-wz-figures div { border-inline-start: var(--ga-wz-figure-edge) solid var(--ga-wz-line); padding-inline-start: var(--ga-wz-sub-gap); min-inline-size: 0; }
+.ga-wz-figures dt { font: var(--ga-wz-eyebrow-font); letter-spacing: var(--ga-wz-eyebrow-track); text-transform: uppercase; color: var(--ga-nav-shell-muted); margin-block-end: var(--ga-wz-lane-inner); }
+.ga-wz-figures dd { margin: 0; font: var(--ga-wz-figure-font); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* The buttons are the template's (GaButton); this only places them. */
+.ga-wz-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--ga-wz-sub-gap); padding-block-start: var(--ga-wz-row-gap); border-block-start: 1px solid var(--ga-wz-line); }
+.ga-wz-none-chip { font: var(--ga-wz-sub-text-font); color: var(--ga-nav-shell-muted); padding: var(--ga-wz-lane-inner) var(--ga-wz-sub-gap); border: 1px dashed var(--ga-wz-line); }
+
+/* The last minute of speed in the Download stage: the line in the mode colour over its faded area. */
+.ga-wz-chart { display: grid; gap: var(--ga-wz-lane-inner); margin: 0; }
+.ga-wz-chart figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: var(--ga-wz-sub-gap); font: var(--ga-wz-mono-font); letter-spacing: var(--ga-wz-mono-track); color: var(--ga-nav-shell-muted); }
+.ga-wz-chart svg { display: block; inline-size: 100%; block-size: var(--ga-wz-chart-h); }
+.ga-wz-chart-grid { fill: none; stroke: var(--ga-wz-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ga-wz-chart-area { fill: var(--ga-mode-acc); fill-opacity: var(--ga-wz-chart-area); }
+.ga-wz-chart-line { fill: none; stroke: var(--ga-mode-acc); stroke-width: var(--ga-wz-chart-stroke); vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.ga-wz.is-failed .ga-wz-chart-area { fill: var(--ga-wz-bad); }
+.ga-wz.is-failed .ga-wz-chart-line { stroke: var(--ga-wz-bad); }
+
+/* A download whose detail is closed: the same head as an open one, its speed and percent, the button that opens it,
+   and its bar under it. */
+.ga-wz.is-collapsed .ga-wz-top { cursor: pointer; }
+.ga-wz-open { display: flex; align-items: center; gap: var(--ga-wz-sub-gap); }
+.ga-wz-row-state { font: var(--ga-wz-mono-font); letter-spacing: var(--ga-wz-mono-track); color: var(--ga-nav-shell-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* The log: small and quiet, like a system terminal; newest on top with a blinking cursor, older lines dimming. */
+.ga-wz-logh { display: flex; justify-content: space-between; align-items: baseline; margin-block-end: var(--ga-wz-lane-inner); font: var(--ga-wz-eyebrow-font); letter-spacing: var(--ga-wz-eyebrow-track); text-transform: uppercase; color: var(--ga-nav-shell-muted); }
+.ga-wz-logh .is-live { color: var(--ga-wz-ok); }
+.ga-wz-logh .is-error { color: var(--ga-wz-bad); }
+.ga-wz-log { min-block-size: 0; overflow: auto; padding: var(--ga-wz-log-pad); background: var(--ga-wz-log-bg); border: 1px solid var(--ga-wz-log-line); font: var(--ga-wz-log-font); color: var(--ga-wz-log-ink); scrollbar-width: thin;
+  mask-image: linear-gradient(black var(--ga-wz-log-fade), transparent); }
+.ga-wz-line { display: grid; grid-template-columns: auto var(--ga-wz-level-w) minmax(0, 1fr); gap: 0 var(--ga-wz-sub-gap); align-items: baseline; padding-block: var(--ga-wz-line-pad);
+  animation: ga-wz-in var(--ga-wz-line-in) var(--ga-wz-ease) both; animation-delay: calc(var(--ga-wz-i, 0) * var(--ga-wz-line-stagger)); }
+.ga-wz-line time { color: var(--ga-nav-shell-muted); white-space: nowrap; }
+.ga-wz-level { font-weight: var(--ga-label-weight); color: var(--ga-wz-level); }
+.ga-wz-line.is-INF { --ga-wz-level: var(--ga-wz-info); }
+.ga-wz-line.is-OK { --ga-wz-level: var(--ga-wz-ok); }
+.ga-wz-line.is-WRN { --ga-wz-level: var(--ga-wz-warn); }
+.ga-wz-line.is-ERR { --ga-wz-level: var(--ga-wz-bad); }
+.ga-wz-line:nth-child(n + 7) { opacity: var(--ga-wz-old-line); }
+.ga-wz-line.is-new > span:last-child { color: var(--ga-nav-pale); }
+.ga-wz-line.is-new > span:last-child::after { content: "▍"; color: var(--ga-wz-level); margin-inline-start: var(--ga-wz-lane-inner); animation: ga-wz-blink 1s steps(1) infinite; }
+.ga-wz-none { color: var(--ga-nav-shell-muted); }
+@keyframes ga-wz-in { from { opacity: 0; transform: translateY(calc(var(--ga-wz-line-pad) * -2)); } }
+@keyframes ga-wz-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ga-wz-line, .ga-wz-line.is-new > span:last-child::after { animation: none; } }
+
+/* A short window: the line under the name goes, the stage and its actions stay in view. */
+@media (max-height: 820px) { .ga-wz-lead { display: none; } }
+/* A narrow card: lines over the log in the same height, and only the stage being looked at keeps its name. */
+@container (max-width: 860px) {
+  .ga-wz-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
+  .ga-wz-steps { display: flex; }
+  .ga-wz-steps li { flex: 1 1 0; }
+  .ga-wz-steps li:has([aria-current="step"]) { flex-grow: 3; }
+  .ga-wz-step:not([aria-current="step"]) b { display: none; }
+  .ga-wz-minor > span { display: none; }
+}

@@ -132,7 +132,6 @@ class LinkedGames:
         write_json(self.dir / f"{int(app_id)}.json", record)
         self.log_dir(app_id).mkdir(parents=True, exist_ok=True)
         journal.note(self.log_dir(app_id), "vinculado", f"{kind}: {record['path']}")
-        self.unhide(app_id)
         return record
 
     def set_command(self, app_id: int, command: str) -> dict:
@@ -165,29 +164,10 @@ class LinkedGames:
                                                                   f"administrador: {'sí' if record['administrator'] else 'no'}"]))
         return record
 
-    def unlink(self, app_id: int, hide: bool = True) -> None:
-        """Forget the link and its history. The game itself is never touched. A Steam game the user takes out of the
-        library is remembered as hidden, so the automatic Steam import does not bring it back (`hide=False` after an
-        uninstall: the game is gone from disk, and an owned one stays offered to install again)."""
-        record = self.get(app_id)
+    def unlink(self, app_id: int, hide: bool = False) -> None:
+        """Forget the link (its log stays). The game itself is never touched. `hide` is ignored: a Steam game is in the
+        library while its registered account has it installed, and only the Steam sync adds or removes its record."""
         (self.dir / f"{int(app_id)}.json").unlink(missing_ok=True)
-        if hide and record and record.get("kind") == "steam":
-            self.hide(app_id)
-
-    # -- Steam games the user took out of the library ---------------------------------------------------
-    def hidden(self) -> set[int]:
-        try:
-            return {int(i) for i in json.loads((self.dir / "steam_hidden.json").read_text(encoding="utf-8"))}
-        except (OSError, ValueError, TypeError):
-            return set()
-
-    def hide(self, app_id: int) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        write_json(self.dir / "steam_hidden.json", sorted(self.hidden() | {int(app_id)}))
-
-    def unhide(self, app_id: int) -> None:
-        if int(app_id) in self.hidden():
-            write_json(self.dir / "steam_hidden.json", sorted(self.hidden() - {int(app_id)}))
 
     def log_dir(self, app_id: int) -> Path:
         return self.dir / "logs" / str(int(app_id))
@@ -267,6 +247,12 @@ def run_linked(action: str, record: dict, linked: LinkedGames, logger, find_cand
     if action == "status":
         return linked.status(record)
     if action == "uninstall":
+        if record.get("kind") == "steam":
+            # A Steam game is deleted from disk for real (it stays in its account's library), as the Library Manager does.
+            if steam is None:
+                raise ValueError("No es un juego de Steam instalado.")
+            logger.info("AppID %s: uninstalling the Steam game from disk (%s)", app_id, folder)
+            return {"exit_code": 0, "folder": str(folder), **steam.uninstall(app_id, linked)}
         linked.unlink(app_id)
         logger.info("AppID %s: link removed; the game's files were not touched (%s)", app_id, folder)
         return {"exit_code": 0, "unlinked": True}

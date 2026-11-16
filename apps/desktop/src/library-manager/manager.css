@@ -318,3 +318,24 @@
 .lm-menu { position: fixed; z-index: 4000; display: grid; gap: 10px; width: 240px; max-height: calc(100vh - 16px); overflow: auto; padding: 12px;
   border-radius: 10px; border: 1px solid var(--ga-line); background: color-mix(in srgb, var(--ga-panel) 94%, transparent); backdrop-filter: blur(14px);
   box-shadow: var(--ga-dialog-shadow); }
+
+/* One block per library (Game Access's own, then each account's): its title row. Variables only (GUI_DESIGN §0c). */
+.lm-grid .lm-group-row > th { height: auto; padding: var(--ga-space-2) var(--ga-space-1) var(--ga-space-1); border-bottom: 1px solid var(--ga-line); background: var(--ga-surface); text-transform: none; letter-spacing: 0; }
+.lm-group-row > th > span { margin-right: var(--ga-space-1); }
+.lm-group-title { color: var(--ga-orange); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.lm-group-count { color: var(--ga-white); font: var(--ga-status-font); }
+.lm-group-hint { color: var(--ga-muted); font: var(--ga-hint-font); }
+/* The top of the Manager in a narrow content column (Escena's centre keeps --ga-nav-content-min): it rearranges
+   instead of overlapping. Two columns (disk and actions, the activity under both), then one. */
+.lm-content { container: lm-content / inline-size; }
+@container lm-content (max-width: 1000px) {
+  .lm-top { grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); }
+  .lm-top > .lm-summary { grid-column: 1; grid-row: 1; }
+  .lm-top > .lm-actions { grid-column: 2; grid-row: 1; }
+  .lm-top > .lm-activity { grid-column: 1 / -1; grid-row: 2; }
+}
+@container lm-content (max-width: 640px) {
+  .lm-top { grid-template-columns: minmax(0, 1fr); }
+  .lm-top > :is(.lm-summary, .lm-actions, .lm-activity) { grid-column: 1; grid-row: auto; }
+  .lm-donut-wrap { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+}

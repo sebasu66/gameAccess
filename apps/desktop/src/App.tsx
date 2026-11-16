@@ -63,10 +63,13 @@ import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
+import SteamQrDialog from "./SteamQrDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
-import { installThroughSteam, isSteamOwned, syncSteamOnStartup } from "./steamLibrary";
+import { requestSteamSync, syncSteamOnStartup, startSteamSync } from "./steamLibrary";
+import { STEAM_DEPOT_PREFIX, watchGiveaways } from "./freeSteamGames";
+import { recordFreeOnSteam } from "./newDownloads";
 import { GaIconButton } from "./components/ga/Buttons";
 import AntivirusGate from "./AntivirusDialog";
 let visualDebugStarted = false;
@@ -79,6 +82,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
   // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
+  // Then it stays in step: every few minutes, on coming back to the app, and as soon as the import is turned on.
+  useEffect(() => getCatalogMode() === "digital" ? startSteamSync() : undefined, []);
   const downloadsOpen = useDesk().includes("downloads");
   const [unfinishedDownloads, setUnfinishedDownloads] = useState(0);
   // The frame's Activity button: how many entries are unseen, and a light while something runs.
@@ -106,6 +111,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   useCatalogSources(games, setGames);
+  // A free Steam game downloaded into the Steam library joins Game Access's library through the Steam sync.
+  useEffect(() => digitalDownloadService.onGlobalUpdate(snapshot => {
+    if (snapshot.phase === "completed" && digitalDownloadService.getRecord(snapshot.gameId)?.downloadSource?.startsWith(STEAM_DEPOT_PREFIX)) requestSteamSync();
+  }), []);
+  // Steam giveaways that just started go to Catalog › New games as a news item, and are a notification too.
+  useEffect(() => {
+    if (getCatalogMode() !== "digital") return;
+    watchGiveaways(games, fresh => { recordFreeOnSteam(fresh.map(game => game.app_id).filter((id): id is number => typeof id === "number")); });
+  }, [games]);
   useCoverDiagnostics();
   useEffect(() => {
     const changed = () => void digitalDownloadService.refreshParallelLimit();
@@ -531,13 +545,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
-    // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
-    const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
-    if (isSteamOwned(steamEntry)) {
-      try { await installThroughSteam(game); setToast(t("steamInstallHandedOff", { name: game.name })); }
-      catch (err) { setToast(err instanceof Error ? err.message : String(err)); }
-      return;
-    }
+    // A Steam game a linked account owns goes through the same queue: Steam installs it (DigitalCatalog.download).
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -722,6 +730,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
+      <SteamQrDialog />
       <AntivirusGate />
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
     </div>

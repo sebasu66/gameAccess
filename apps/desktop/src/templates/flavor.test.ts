@@ -6,7 +6,7 @@ import { numberedStyleFlavors, setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css") + css("game-detail-wide.css") + css("navigation/download-wizard.css") + css("account-libraries.css") + css("navigation/scene-look.css");
 
 describe("capas de estilo", () => {
   it("Escena usa recursos locales y las variables de sus plantillas", () => {
@@ -91,5 +91,23 @@ describe("capas de estilo", () => {
 
   it("la tarjeta de propiedades no escribe fuentes ni colores propios", () => {
     expect(css("game-info-card.css")).not.toMatch(/Manrope|rgba?\(/);
+  });
+
+  it("la ficha ancha toma todas sus medidas y colores de las plantillas", () => {
+    const code = css("game-detail-wide.css").replace(/\/\*[\s\S]*?\*\//g, "").replace(/@media\s*\([^)]*\)/g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}\b|(?<![\d.])\d+px/i);
+    const roles = [...code.matchAll(/var\((--ga-detail-[\w-]+)/g)].map(match => match[1]);
+    expect(roles.length).toBeGreaterThan(20);
+    for (const role of new Set(roles)) expect(`${base}${flavor}${code}`).toContain(`${role}:`);
+  });
+
+  it("el asistente de descargas toma sus colores y tipografías de las plantillas", () => {
+    const code = css("navigation/download-wizard.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|JetBrains|rgba?\(|#[0-9a-f]{3,8}\b/i);
+    // The log line's index (set inline on each line) is the component's, not a template's.
+    const roles = [...code.matchAll(/var\((--ga-wz-[\w-]+)/g)].map(match => match[1]).filter(role => role !== "--ga-wz-i");
+    expect(roles.length).toBeGreaterThan(20);
+    // The level's colour is picked per level inside the screen, from the flavor's colours.
+    for (const role of new Set(roles)) expect(`${base}${flavor}${code}`).toContain(`${role}:`);
   });
 });

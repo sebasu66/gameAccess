@@ -131,15 +131,17 @@ export function SubmodeTabs({ mode, section, onLocked }: { mode: NavigationModeI
 }
 
 /** One section as an arrow: its icon as an oversized watermark on the left, name, description and the chevrons that light on hover. */
-export function SectionButton({ art, label, desc, disabled, locked, onClick }: {
+export function SectionButton({ id, art, label, desc, disabled, locked, onClick }: {
+  /** The section's id, so a transition can find its button (sectionSwap.ts). */
+  id?: string;
   /** The section's line drawing (sectionArt.tsx), shown as a watermark. */
   art: ReactNode; label: TranslationKey; desc: TranslationKey; disabled?: boolean;
   /** Outside the player's plan: drawn as usual with a padlock, and the click opens the plans. */
-  locked?: boolean; onClick: () => void;
+  locked?: boolean; onClick: (button: HTMLButtonElement) => void;
 }) {
   const { t } = useI18n();
   return <li>
-    <button type="button" className="ga-nav-section" data-locked={locked || undefined} disabled={disabled && !locked} onClick={onClick}>
+    <button type="button" className="ga-nav-section" data-section={id} data-locked={locked || undefined} disabled={disabled && !locked} onClick={event => onClick(event.currentTarget)}>
       {/* The icon is a watermark larger than the button, cut by its left edge (inside the shape, which clips it). */}
       <span className="ga-nav-section-shape" aria-hidden="true"><span className="ga-nav-section-mark">{art}</span></span>
       <span className="ga-nav-section-text">

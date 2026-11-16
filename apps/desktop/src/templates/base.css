@@ -17,7 +17,16 @@
   --ga-smoke-w: 860px; --ga-smoke-layer: 12040; --ga-smoke-travel: 96px; --ga-smoke-time: .46s; --ga-smoke-ease: cubic-bezier(.45, 0, .2, 1);
   --ga-mode-rail-w: 112px; --ga-rail-inset: 12px; --ga-rail-gutter: 16px;
   /* New navigation shell (RN1). Kept separate from the existing rail until RN2 replaces its layout. */
+  /* The side columns keep their own size (they never squeeze: their content would deform). The content column keeps
+     at least --ga-nav-content-min: when the window lacks that width, the activity column steps aside whole
+     (--ga-nav-activity-room: what is left for it once the content, the other columns, margins and gaps are counted). */
+  --ga-nav-content-min: 600px;
+  /* Then the left column folds into a drawer (navigation/sideDrawer.ts) that leaves its tab at the window's edge:
+     --ga-nav-drawer-room is what would be left with it docked and no activity column (negative: it does not fit). */
+  --ga-nav-drawer-tab-w: 28px; --ga-nav-drawer-tab-h: 76px; --ga-nav-drawer-tab-icon: 18px; --ga-nav-drawer-tab-radius: 14px; --ga-nav-drawer-time: .32s;
+  --ga-nav-drawer-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
   --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
+  --ga-nav-activity-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
   --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px; --ga-nav-status-gap: var(--ga-nav-column-gap);
   --ga-scene-frame-inset: 8px; --ga-scene-frame-radius: 34px; --ga-scene-frame-width: 1.5px; --ga-scene-frame-first-stop: 30%; --ga-scene-frame-clear-stop: 55%;
   --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
@@ -25,6 +34,10 @@
   --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-lock-size: 30px;
   --ga-scene-row-pad: 10px; --ga-scene-row-gap: 13px; --ga-scene-list-gap: 2px; --ga-scene-list-top: 10px; --ga-scene-copy-gap: 3px; --ga-scene-icon-drawing: 19px; --ga-scene-icon-stroke: 2.2px;
   --ga-scene-menu-head-gap: 12px; --ga-scene-menu-head-side: 6px; --ga-scene-menu-head-bottom: 14px; --ga-scene-menu-head-size: 21px;
+  /* The figure's place; the player's scale and offsets (Settings › Appearance) replace these on the figure. */
+  /* The look editor on right-click and in Settings › Appearance (navigation/scene-look.css). */
+  --ga-scene-look-w: 400px; --ga-scene-look-swatch: 28px; --ga-scene-look-thumb: 72px; --ga-scene-look-ring-w: 2px; --ga-scene-look-z: 1200;
+  --ga-scene-figure-scale: 1; --ga-scene-figure-x: 0%; --ga-scene-figure-y: 0%;
   --ga-scene-art-height: 620px; --ga-scene-art-top: 14px; --ga-scene-word-size: 150px; --ga-scene-ring-size: 268px; --ga-scene-ring-top: 60px;
   --ga-scene-smoke-rise: 250px; --ga-scene-smoke-height: 330px; --ga-scene-smoke-bleed: 120px; --ga-scene-smoke-blur: 12px; --ga-scene-smoke-time: 40s; --ga-scene-smoke-color-time: 58s; --ga-scene-ring-time: 46s;
   --ga-scene-number-size: 360px; --ga-scene-number-top: 150px; --ga-scene-number-right: -14px; --ga-scene-number-stroke: 2px;
@@ -45,6 +58,20 @@
   --ga-scene-brand-logo: 46px; --ga-scene-brand-name-w: 65px; --ga-scene-brand-plan-pad: 8px;
   --ga-scene-tabs-gap: 8px; --ga-scene-tab-height: 40px; --ga-scene-tab-pad: 18px; --ga-scene-content-gap: 14px; --ga-scene-rule-width: 1.5px;
   --ga-scene-content-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h));
+  /* Library › Downloads as five stages (navigation/download-wizard.css, RN9). */
+  --ga-wz-gap: 18px; --ga-wz-pad: 22px; --ga-wz-body-gap: 28px; --ga-wz-row-gap: 12px; --ga-wz-main-share: 1.45fr;
+  --ga-wz-cover-w: 64px; --ga-wz-title-gap: 4px; --ga-wz-title-track: .02em;
+  --ga-wz-step-h: clamp(54px, 6.4vh, 66px); --ga-wz-step-tip: 20px; --ga-wz-step-overlap: 14px; --ga-wz-step-pad: 30px; --ga-wz-step-pad-end: 26px; --ga-wz-step-pad-first: 16px; --ga-wz-step-gap: 12px; --ga-wz-step-row-gap: 6px; --ga-wz-underline: 3px; --ga-wz-focus: 2px;
+  --ga-wz-chart-h: clamp(56px, 7vh, 84px); --ga-wz-chart-stroke: 2px;
+  --ga-wz-bar-h: 8px; --ga-wz-bar-glow: 0 0 12px;
+  --ga-wz-mark-w: 22px; --ga-wz-sub-gap: 10px; --ga-wz-sub-pad: 9px; --ga-wz-figure-edge: 2px;
+  --ga-wz-lane-gap: 10px; --ga-wz-lane-inner: 5px; --ga-wz-lane-h: 6px;
+  /* A QR code printed as text (the Steam sign-in, SteamQrDialog.tsx): always monospace, whatever the style; a block is
+     .6em wide and a line holds two rows of modules, so the tracking makes them square. */
+  --ga-qr-pad: 16px; --ga-qr-paper: var(--ga-bg); --ga-qr-ink: var(--ga-white); --ga-qr-font: 400 14px/1 "JetBrains Mono", "Cascadia Mono", Consolas, monospace; --ga-qr-track: -.1em;
+  /* The stage's height leaves room for the card's head and actions inside the panel, so the actions show without scrolling. */ --ga-wz-body-h: clamp(150px, calc(100vh - 620px), 380px);
+  --ga-wz-log-pad: 10px 12px; --ga-wz-log-fade: 72%; --ga-wz-level-w: 4ch; --ga-wz-line-pad: 2px; --ga-wz-old-line: .6;
+  --ga-wz-line-in: .45s; --ga-wz-line-stagger: 50ms; --ga-wz-ease: cubic-bezier(.2, .8, .2, 1);
   --ga-nav-content-pad: 28px; --ga-nav-content-pad-end: var(--ga-nav-column-gap); --ga-nav-section-pad: 22px; --ga-nav-card-pad: 22px;
   --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px;
   --ga-nav-title-size: 70px; --ga-nav-button-h: 42px; --ga-nav-button-pad-x: 18px;
@@ -88,7 +115,19 @@
   /* Games of a news item past its covers, as links: the least width of one column. */
   --ga-news-link-col: 220px;
   --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
+  /* RN7: wide game detail, scaled from the short edge and allowed to fill ultrawide windows. */
+  --ga-detail-wide-inset-x: clamp(22px, 3vw, 66px); --ga-detail-wide-inset-y: clamp(28px, 4vh, 58px);
+  --ga-detail-wide-pad: clamp(28px, 3vw, 56px); --ga-detail-wide-head-h: clamp(190px, 29vh, 310px);
+  --ga-detail-wide-side-w: clamp(420px, 34vw, 760px); --ga-detail-wide-gap: clamp(22px, 2.2vw, 44px);
+  --ga-detail-wide-tab-w: clamp(180px, 12vw, 250px); --ga-detail-wide-tab-h: clamp(46px, 5.5vh, 62px);
+  --ga-detail-wide-rating-size: clamp(100px, 12vh, 140px); --ga-detail-wide-media-max: 300px;
+  --ga-detail-title-size: clamp(56px, 7.4vh, 102px); --ga-detail-title-min: 36px;
+  --ga-detail-wide-mask-x: 120px; --ga-detail-wide-mask-y: 90px; --ga-detail-parallax-art: 18px; --ga-detail-parallax-title: 8px;
+  --ga-detail-wide-ring: 9px; --ga-detail-wide-rule: var(--ga-nav-line-w); --ga-detail-wide-entry: .55s;
+  --ga-detail-wide-lead-size: clamp(18px, 2.2vh, 23px);
 }
+/* A short window: the downloads wizard's cover gets smaller so the card fits above its actions. */
+@media (max-height: 820px) { :root { --ga-wz-cover-w: 44px; } }
 @media (max-width: 1100px) {
   :root {
     --ga-nav-mode-w: 76px; --ga-nav-sections-w: min(260px, 30vw); --ga-nav-activity-w: 0px;

@@ -253,12 +253,16 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(steam_manager_module.os, "startfile", started.append, raising=False)
     switched = FakeSteam(active=39734273)
     steam = SteamAccountManager(launcher, steam_root=root, logger=Log(), switcher=switched.switcher())
+    # The user registered both accounts by signing in with Steam (account_registry.py).
+    steam.registry.add("steam", OWNER)
+    steam.registry.add("steam", OTHER)
     return steam, storage, started, switched
 
 
-def test_only_remembered_accounts_and_their_games(setup):
+def test_only_registered_accounts_and_their_games(setup):
     steam, storage, *_ = setup
     assert [a.account_name for a in steam.accounts()] == ["owner_acc", "other_acc"]
+    assert steam.suggestions() == []
     assert steam.public_settings() == {"auto_import": True, "switch_accounts": True}
     assert steam.save_settings({"auto_import": False, "api_key": "x"}) == {"auto_import": False, "switch_accounts": True}
     steam.save_settings({"auto_import": True})
@@ -274,9 +278,54 @@ def test_sync_links_installed_games_once_and_skips_unfinished_hidden_and_own(set
     assert {g["app_id"]: g["owner_name"] for g in result["linked"]} == {10: "owner_acc", 20: "other_acc"}
     assert storage.linked.get(10)["kind"] == "steam"
     assert library.steam_sync()["linked"] == []
-    storage.uninstall(20, "Beta")                       # the user takes it out of the library
-    assert 20 in storage.linked.hidden()
-    assert library.steam_sync()["linked"] == []
+    # A Steam game is not taken out of the library on its own: its record is the account sync's, and comes back.
+    storage.linked.unlink(20)
+    assert [g["app_id"] for g in library.steam_sync()["linked"]] == [20]
+
+
+def test_a_remembered_account_is_only_a_suggestion_until_it_is_registered(setup):
+    steam, storage, *_ = setup
+    library = GameLibraryManager(storage, steam=steam)
+    steam.registry.remove("steam", OTHER)
+    assert [s["account_name"] for s in steam.suggestions()] == ["other_acc"]      # never the one without "Remember me"
+    library.steam_sync()
+    assert storage.linked.get(20) is None and storage.linked.get(10)["kind"] == "steam"
+    assert 20 not in {g["app_id"] for g in library.list_games(with_sizes=False)}
+
+
+def test_removing_an_account_takes_its_whole_library_out_and_touches_nothing_on_disk(setup):
+    steam, storage, *_ = setup
+    library = GameLibraryManager(storage, steam=steam)
+    library.steam_sync()
+    folder = Path(storage.linked.get(20)["path"])
+    assert steam.remove_account(OTHER, storage.linked) == {"removed": True}
+    assert storage.linked.get(20) is None and storage.linked.get(10) is not None and folder.is_dir()
+    assert 20 not in {g["app_id"] for g in library.list_games(with_sizes=False)}
+    row = next(g for g in library.list_games(with_sizes=False) if g["app_id"] == 10)
+    assert row["library"] == {"store": "steam", "account_id": OWNER, "account": 'Owner "Big" One'}
+
+
+def test_registering_an_account_through_steam_sign_in(setup):
+    steam, storage, started, _ = setup
+    steam.registry.remove("steam", OTHER)
+    answers = {"/steam/link/start": {"state": "s" * 24, "url": SERVER + "/steam/link/go/" + "s" * 24, "expires_in": 600},
+               "/steam/link/result/" + "s" * 24: {"status": "done", "steam_id": OTHER, "persona": "Other One"}}
+
+    class Answer(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    steam.opener = lambda request, timeout: Answer(json.dumps(answers[request.full_url[len(SERVER):]]).encode())
+    assert steam.link_start(SERVER)["url"].endswith("/steam/link/go/" + "s" * 24)
+    assert started == [SERVER + "/steam/link/go/" + "s" * 24]           # the browser opens on the server's page
+    done = steam.link_poll(SERVER, "s" * 24)
+    assert done["status"] == "done" and done["account"]["name"] == "Other One"
+    assert [a.steam_id64 for a in steam.accounts()] == [OWNER, OTHER]
+    with pytest.raises(ValueError):
+        steam.link_poll(SERVER, "../../bad")
 
 
 def test_owned_games_not_installed_become_library_rows_without_network(setup, monkeypatch):
@@ -294,8 +343,20 @@ def test_owned_games_not_installed_become_library_rows_without_network(setup, mo
     assert rows[10]["steam_owner"] == {"id64": OWNER, "account": "owner_acc", "persona": 'Owner "Big" One', "remembered": True}
     assert library.list_games()[0]["size_bytes"] in (1234, None) and {g["app_id"]: g["size_bytes"] for g in library.list_games()}[10] == 1234
     assert library.batch("repair", [50])[0]["ok"] is False
-    assert library.batch("uninstall", [50]) == [{"app_id": 50, "ok": True}]
-    assert 50 not in {g["app_id"] for g in library.list_games(with_sizes=False)}
+    # Not installed: nothing to delete, so "Uninstall" says so and the game stays in its account's library.
+    skipped = library.batch("uninstall", [50])[0]
+    assert skipped["ok"] is False and skipped["skipped"] is True
+    assert 50 in {g["app_id"] for g in library.list_games(with_sizes=False)}
+
+
+def test_uninstall_of_an_installed_steam_game_deletes_it_from_disk(setup):
+    steam, storage, *_ = setup
+    library = GameLibraryManager(storage, steam=steam)
+    library.steam_sync()
+    folder = Path(storage.linked.get(10)["path"])
+    done = library.batch("uninstall", [10])[0]
+    assert done["ok"] is True and not folder.exists()                  # really gone from disk, as Steam does
+    assert storage.linked.get(10) is None
 
 
 def test_a_steam_game_uninstalled_in_steam_waits_to_be_installed_again(setup):
@@ -333,7 +394,7 @@ def test_no_steam_means_nothing_to_import(tmp_path, monkeypatch):
     steam = SteamAccountManager(tmp_path, steam_root=False, logger=Log())
     assert steam.status()["found"] is False and steam.accounts() == []
     storage = DigitalGameStorage(tmp_path)
-    assert GameLibraryManager(storage, steam=steam).steam_sync() == {"found": False, "linked": [], "owned": []}
+    assert GameLibraryManager(storage, steam=steam).steam_sync() == {"found": False, "linked": [], "removed": [], "owned": [], "games": []}
 
 
 def test_steam_running_reads_tasklist_in_any_code_page(monkeypatch):
@@ -362,7 +423,7 @@ def test_uninstall_deletes_a_steam_game_without_its_account_and_closes_steam_fir
     assert not (steamapps / "workshop" / "content" / "20").exists() and not (steamapps / "workshop" / "appworkshop_20.acf").exists()
     assert not (steamapps / "shadercache" / "20").exists()
     assert (steamapps / "common" / "Gamma").is_dir() and (steamapps / "appmanifest_30.acf").is_file()   # the other games stay
-    assert storage.linked.get(20) is None and 20 not in storage.linked.hidden()     # still offered to install again
+    assert storage.linked.get(20) is None     # still offered to install again
 
 
 def test_steam_uninstall_only_for_installed_steam_games(setup):
@@ -415,3 +476,4 @@ def test_a_switch_keeps_steam_off_the_guide_button_only_when_chosen(tmp_path):
     assert '"Controller_CheckGuideButton"\t\t"0"' in local.read_text(encoding="utf-8")
     assert mark.read_text(encoding="utf-8") == "123"
     assert release_guide(tmp_path) == 0
+

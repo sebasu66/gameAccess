@@ -157,3 +157,16 @@ describe("useful catalog facets", () => {
     expect(result.map((item) => item.id)).toEqual([12]);
   });
 });
+
+describe("free and demo filters", () => {
+  it("are both required: with the two on, every result is a free demo", () => {
+    const paid = game(1, "Paid");
+    const f2p = { ...game(2, "F2P"), genres: ["Free to Play"] };
+    const demo = { ...game(3, "Demo"), product_type: "demo" } as CatalogGame;
+    const all = [paid, f2p, demo];
+    const names = (features: string[]) => filterLibraryGames(all, "", { genres: [], categories: [], features: features as never }).map(g => g.name);
+    expect(names(["free"])).toEqual(["F2P", "Demo"]);
+    expect(names(["demo"])).toEqual(["Demo"]);
+    expect(names(["free", "demo"])).toEqual(["Demo"]);
+  });
+});

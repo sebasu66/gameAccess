@@ -1,9 +1,14 @@
 /**
- * Settings › Appearance for the new shell (vault/Rediseño de navegación.md §5.13): "Style" picks Style 1–4 and changes
+ * Settings › Appearance for the new shell. Since Seba 2026-11-16 it shows only Escena (EscenaLookSettings): the light or
+ * dark tone, a palette or each mode's gradient, each mode's figure, the big word's font, up to three saved variations
+ * and the way back to the default. The rest is the same as on right-click on the scene (SceneLookMenu).
+ *
+ * Hidden and kept for later (LegacyShellLookSettings, not mounted): "Style" picks Style 1–4 and changes
  * its values; "Details" sets the mode bar and the sections panel, and the mode bar's word with the old rail's choices
  * (font, size, orientation, spacing, position, GSAP animations). Every change applies at once and is saved
  * (shellLook.ts); each tab can go back to the factory values.
  */
+import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { GaButton } from "../components/ga/Buttons";
 import { Field, Seg, Slider } from "../ModeRailSettings";
@@ -12,6 +17,9 @@ import {
   DEFAULT_WORD, SHELL_PARAMS, WORD_ANIMATIONS, WORD_FONTS, currentCssValue, saveShellLook, useShellLook,
   type ShellLook, type ShellParamKey, type ShellStyle, type WordPrefs,
 } from "./shellLook";
+import { FigureControl, GradientControl, ModeChoice, PaletteControl, VariationsControl, WordFontControl } from "./SceneLookControls";
+import type { SceneMode } from "./sceneLook";
+import { resetScene, setSceneTone } from "./sceneLookActions";
 
 /** A variable's value now, in its unit: a px measure written with clamp() is measured on a probe. */
 function resolved(cssVar: string, unit: string): number {
@@ -30,7 +38,44 @@ function resolved(cssVar: string, unit: string): number {
 const paramLabel = (key: ShellParamKey) => `look_${key}` as TranslationKey;
 const optionLabel = (key: ShellParamKey, option: string) => `look_${key}_${option}` as TranslationKey;
 
-export default function ShellLookSettings({ tab }: { tab: "style" | "details" }) {
+/** Escena's appearance: the only one shown (Seba 2026-11-16). */
+export default function ShellLookSettings(_: { tab: "style" | "details" }) {
+  const { t } = useI18n();
+  const look = useShellLook();
+  const [mode, setMode] = useState<SceneMode>("catalog");
+  return <div className="ga-rail-settings ga-shell-look ga-scene-look">
+    <fieldset>
+      <legend>{t("lookColors")}</legend>
+      <p className="ga-hint ga-rail-wide">{t("lookEscenaHint")}</p>
+      <Field label={t("sceneTone")} wide>
+        <Seg label={t("sceneTone")} value={look.sceneTone} onChange={value => setSceneTone(value === "dark" ? "dark" : "light")}
+          options={[["light", t("sceneToneLight")], ["dark", t("sceneToneDark")]]} />
+        <p className="ga-hint">{t("lookToneHint")}</p>
+      </Field>
+      <PaletteControl />
+      <Field label={t("lookMode")} wide><ModeChoice value={mode} onChange={setMode} /></Field>
+      <div className="ga-rail-wide"><GradientControl mode={mode} /><p className="ga-hint">{t("lookInkAuto")}</p></div>
+    </fieldset>
+    <fieldset>
+      <legend>{t("lookFigures")}</legend>
+      <div className="ga-rail-wide"><FigureControl mode={mode} /></div>
+    </fieldset>
+    <fieldset>
+      <legend>{t("lookWordEscena")}</legend>
+      <WordFontControl />
+    </fieldset>
+    <fieldset>
+      <legend>{t("lookVariations")}</legend>
+      <div className="ga-rail-wide"><VariationsControl /></div>
+    </fieldset>
+    <div className="ga-settings-screen-actions"><p>{t("lookSaved")}</p><div>
+      <GaButton icon={<RotateCcw size={16} />} onClick={resetScene}>{t("lookResetEscena")}</GaButton>
+    </div></div>
+  </div>;
+}
+
+/** Styles 1–4, their values and the mode bar's pieces: hidden with Styles 2–4 (Seba 2026-11-16), kept for later. */
+export function LegacyShellLookSettings({ tab }: { tab: "style" | "details" }) {
   const { t } = useI18n();
   const look = useShellLook();
   const save = (patch: Partial<ShellLook>) => saveShellLook({ ...look, ...patch });

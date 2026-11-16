@@ -429,13 +429,21 @@ class DigitalProcessRunner:
                 if action == "steam-save-settings":
                     return {**result, "ok": True, "settings": steam.save_settings(request)}
                 if action == "steam-sync":
-                    if request.get("auto") and not steam.settings()["auto_import"]:
-                        return {**result, "ok": True, "skipped": True, "linked": [], "owned": []}
                     library = GameLibraryManager(self.storage, steam=steam)
                     return {**result, "ok": True, **library.steam_sync(bool(request.get("refresh")), str(request.get("api") or ""))}
                 if action == "steam-install":
-                    self.storage.linked.unhide(app_id)
                     return {**result, "ok": True, **steam.install(app_id)}
+                # Registering an account: Steam's own sign-in page in the browser, through the GameAccess server.
+                if action == "steam-link-start":
+                    return {**result, "ok": True, **steam.link_start(str(request.get("api") or ""))}
+                if action == "steam-link-poll":
+                    linked = steam.link_poll(str(request.get("api") or ""), str(request.get("state") or ""))
+                    if linked["status"] == "done":
+                        # Its library comes in at once, whole.
+                        GameLibraryManager(self.storage, steam=steam).steam_sync(True, str(request.get("api") or ""))
+                    return {**result, "ok": True, **linked}
+                if action == "steam-account-remove":
+                    return {**result, "ok": True, **steam.remove_account(str(request.get("account_id") or ""), self.storage.linked)}
                 raise ValueError(f"Unknown action '{action}'")
             if action.startswith(("library-", "import-")):
                 library = GameLibraryManager(self.storage, gem.GameExecutionManager(self.storage, extractor=extractor_for(self.storage.launcher, app_id), logger=logger),
@@ -789,7 +797,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install"], required=True)
+    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install", "steam-link-start", "steam-link-poll", "steam-account-remove"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

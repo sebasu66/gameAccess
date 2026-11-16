@@ -176,6 +176,7 @@ def emit_progress(
     check_percent: float | None = None,
     server_percent: float | None = None,
     race: list | None = None,
+    steam_qr: list | None = None,
 ):
     """`check_percent`: how far the check of what is already on disk went (a resumed torrent), its own stage.
     `server_percent`: how far the server got the game ready before sending it (PLUS, step 3), its own stage too: the
@@ -217,6 +218,8 @@ def emit_progress(
         **({"serverPercent": round(max(0.0, min(100.0, float(server_percent))), 1)} if server_percent is not None else {}),
         # The torrents racing (title, bytes, speed, seeds; the winner marked), for the step's live view.
         **({"race": race} if race else {}),
+        # A QR code to scan in the Steam app (a free Steam game signing in, steam_depot), drawn as text lines.
+        **({"steamQr": steam_qr} if steam_qr else {}),
         **g_steps.payload(),
     })
 

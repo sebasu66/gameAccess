@@ -38,16 +38,17 @@ describe("selección del nuevo panel", () => {
 
   it("una tanda de descargas nuevas abre Catálogo › Juegos nuevos; un anuncio, Game Access › Novedades", () => {
     expect(newsDestination("downloads-1794410469335")).toEqual({ mode: "catalog", section: "newGames" });
+    expect(newsDestination("steam-free-1794500193395")).toEqual({ mode: "catalog", section: "newGames" });
     expect(newsDestination("release-2026-11")).toEqual({ mode: "gameAccess", section: "news" });
   });
 
   it("Configuración: idioma e inicio (Opciones) en General, Estilo y Detalles en Apariencia, nada repetido ni perdido", () => {
     expect(settingsTabIds("general")).toEqual(["games", "steam", "ai", "mcp", "options"]);
-    expect(settingsTabIds("appearance")).toEqual(["style", "details"]);
+    expect(settingsTabIds("appearance")).toEqual(["style"]);
     const settings = NAVIGATION.find(mode => mode.id === "settings")!;
     const all = settings.sections.flatMap(section => settingsTabIds(section.id));
     expect(new Set(all).size).toBe(all.length);
-    expect(all.sort()).toEqual(["ai", "details", "games", "mcp", "options", "plugins", "steam", "style"]);
+    expect(all.sort()).toEqual(["ai", "games", "mcp", "options", "plugins", "steam", "style"]);
   });
 });
 

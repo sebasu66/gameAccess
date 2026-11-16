@@ -8,6 +8,7 @@ import { digitalCatalogService } from "../catalog/DigitalCatalog";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import type { LibraryGame } from "../catalog/DigitalProcessManager";
 import { activeDownloadService } from "../downloads/activeService";
+import { digitalProcessManager } from "../catalog/DigitalProcessManager";
 import { startFreezeJob, type FreezeOutcome } from "../freezeJobs";
 import { translate } from "../i18n";
 import { libraryScanState, scanLibrary } from "../libraryScan";
@@ -41,6 +42,7 @@ async function installedGame(appId: number): Promise<{ entry: LibraryGame; game:
   return { entry, game };
 }
 
+const digitalDownloadRecord = (appId: number) => activeDownloadService().getRecord?.(appId)?.downloadSource;
 const downloadOf = (appId: number) => activeDownloadService().getDownloads().find(item => item.game.app_id === appId && !isDownloadHistory(item.snapshot.phase));
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -57,7 +59,7 @@ export const actionTools: McpTool[] = [
   {
     name: "download_game",
     title: "Download a game",
-    description: "Download and install a game from the catalog, as the Download button does (a Steam game the player owns is installed by Steam). The player is asked to allow it in the app. It answers once the download starts; follow it with downloads_list. Check storage_overview first if space may be short.",
+    description: "Download and install a game from the catalog, as the Download button does. A Steam game the player owns, and a free Steam game, are installed by Steam: Steam opens its own install window and the player confirms there (tell them). The player is asked to allow it in the app. It answers once the download starts; follow it with downloads_list. Check storage_overview first if space may be short.",
     inputSchema: { type: "object", properties: { app_id: idArg, reason: reasonArg }, required: ["app_id"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     run: async args => {
@@ -73,7 +75,9 @@ export const actionTools: McpTool[] = [
         const failed = activeDownloadService().getDownloads().find(item => item.game.app_id === appId);
         throw new ToolError(failed?.snapshot.error || `${game.name} did not start downloading. The app shows why in its notice.`);
       }
-      return { app_id: appId, name: game.name, started: true, phase: started.snapshot.phase, status: started.snapshot.statusText ?? null };
+      const throughSteam = started.snapshot.step?.id === "dialog" || Boolean(digitalDownloadRecord(appId)?.startsWith("steam-depot:"));
+      return { app_id: appId, name: game.name, started: true, phase: started.snapshot.phase, status: started.snapshot.statusText ?? null,
+        through_steam: throughSteam, say: throughSteam ? "Steam opened its install window: the player chooses the folder and confirms there. downloads_list follows it." : null };
     },
   },
   {
@@ -106,16 +110,22 @@ export const actionTools: McpTool[] = [
   {
     name: "uninstall_game",
     title: "Uninstall a game",
-    description: "Uninstall a game Game Access installed: its folder is deleted and the room comes back. The player is asked to allow it in the app. Games from a linked folder or installed by Steam are not deleted by Game Access: say so and suggest Steam or freezing instead. Frozen games can be uninstalled too.",
+    description: "Uninstall a game: its folder is deleted and the room comes back. The player is asked to allow it in the app. A Steam game is uninstalled from the disk through Steam and stays in its account's library (installable again). Games from a linked folder are not deleted by Game Access: say so and suggest freezing instead. Frozen games can be uninstalled too.",
     inputSchema: { type: "object", properties: { app_id: idArg, reason: reasonArg }, required: ["app_id"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: true },
     run: async args => {
       const appId = appIdOf(args);
       const { entry, game } = await installedGame(appId);
+      if (entry.link_kind === "steam") {
+        // Steam's game: its files go, it stays in its account's library (the same as the Library Manager's button).
+        await askPlayer(game, "mcpActSteamUninstall", str(args, "reason"));
+        const result = (await digitalProcessManager.libraryBatch("steam_uninstall", [appId])).results?.[0];
+        if (!result?.ok) throw new ToolError(`Uninstalling ${game.name} from Steam failed: ${result?.error || "unknown error"}`);
+        await scanLibrary();
+        return { app_id: appId, name: game.name, uninstalled: true, still_in_steam_account: true, freed_gb: gb(entry.size_bytes) };
+      }
       if (entry.linked) {
-        throw new ToolError(entry.link_kind === "steam"
-          ? `${game.name} was installed by Steam: Game Access does not delete it. The player can uninstall it from Steam.`
-          : `${game.name} is in a folder linked to the library: Game Access does not delete it. The player can remove it from the library in the Library Manager (its files stay).`);
+        throw new ToolError(`${game.name} is in a folder linked to the library: Game Access does not delete it. The player can remove it from the library in the Library Manager (its files stay).`);
       }
       await askPlayer(game, "mcpActUninstall", str(args, "reason"));
       showNotice({ game: noticeGame(game), tone: "info", title: translate("uninstallDeleting"), text: game.name, progress: null });
@@ -192,7 +202,9 @@ export const actionTools: McpTool[] = [
       const launching = appActions().play(game).catch(error => { failure = error; });
       await Promise.race([launching, pause(4000)]);
       if (failure) throw new ToolError(`${game.name} did not start: ${failure instanceof Error ? failure.message : String(failure)}`);
-      return { app_id: appId, name: game.name, launching: true };
+      const entry = await libraryEntry(appId);
+      return { app_id: appId, name: game.name, launching: true, through_steam: entry?.link_kind === "steam",
+        steam_account: entry?.steam_owner ? { name: entry.steam_owner.persona || entry.steam_owner.account, remembered_on_this_pc: entry.steam_owner.remembered } : null };
     },
   },
 ];

@@ -53,6 +53,7 @@ El estilo va en tres capas de **variables CSS** (`--ga-*`). Tailwind queda acota
 
 - **Un sabor nuevo** es un archivo igual al de terminal con `:root[data-ga-flavor="nombre"]`; se activa con `setStyleFlavor("nombre")` (`templates/flavor.ts`). No toca componentes.
 - **Regla para lo nuevo:** si falta una variable para un rol, se agrega a la capa que corresponde y se usa. `npm run check:css` frena colores sueltos; `templates/flavor.test.ts` controla que la base no tenga colores ni tipografías y que las piezas nuevas lean variables definidas.
+- **Ficha ancha del rediseño RN7:** `game-detail-wide.css` define solo su distribución. Los tamaños `--ga-detail-*` viven en `templates/base.css`; su vidrio, tinta, valoración y tipografía viven en el sabor. Se abre desde la ficha existente y reutiliza datos reales de Steam, medios y acciones. Las pestañas de fuentes y cooperativo aparecen únicamente cuando sus consultas aportan datos.
 - **Política (Seba, 2026-11-05):** toda interfaz nueva o que se toque nace lista para las plantillas: primero lo general (`GaButton`, `ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`), después la capa de pantalla, en su propio CSS y solo con distribución. Ningún color, fuente, radio, margen ni alto escrito a mano: si falta una variable se agrega a la base o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`.
 - **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins, Configuración › Plugins y Configuración › IA (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
 
@@ -413,6 +414,26 @@ Los diálogos grandes del centro no son cajas: vidrio esmerilado sobre toda la v
 - La máscara es un degradado radial (`--ga-smoke-mask`) en vez de un PNG: mismo resultado, sin archivo, y cada sabor la puede cambiar. Vidrio y oscuro: `--ga-smoke-glass`, `--ga-smoke-bg`. Recorrido mínimo: `--ga-smoke-travel`.
 - `GaSmoke`: Esc o un clic en el humo cierra; el foco va a lo marcado con `data-autofocus` y vuelve a donde estaba.
 - Primer uso propio: la pregunta antes de jugar en Big Picture (`BigPlayConfirm.tsx`), con la imagen grande, la descripción corta (`short_description`) y Jugar. Los primeros 350 ms no cuentan, así el mismo toque que la abrió no lanza el juego.
+
+### 4.35 Columnas de Escena en una ventana angosta (Seba, 2026-11-16)
+
+- **Las columnas laterales nunca se achican:** su contenido se deformaría. Tienen su tamaño de diseño, que depende del alto de la ventana.
+- **El centro tiene un mínimo** (`--ga-nav-content-min`, `templates/base.css`). Cuando la ventana no da para todo, se retira primero la columna de actividad, entera (nunca a medias), y después la columna izquierda se pliega en un **cajón** (`navigation/sideDrawer.ts`).
+- **El cajón:** plegado deja solo su pestaña (un tirador del color del modo con una flecha) en el borde izquierdo, y el contenido ocupa su lugar. Desplegado con la pestaña en una ventana donde no entra, se abre **encima del contenido** y se cierra al elegir una sección, con Escape o con un clic afuera. En una ventana donde entra, la pestaña lo pliega y despliega a mano y empuja el contenido; esa elección se recuerda.
+- **Ventana más angosta que el mínimo:** el contenido conserva su ancho y se corta en el borde derecho, sin barra de desplazamiento horizontal.
+- Estado en la página: `data-ga-nav-drawer` (`docked`, `closed`, `open`). El deslizamiento pasa por la cola de transiciones.
+
+### 4.36 Apariencia de Escena (Seba, 2026-11-16)
+
+- Los Estilos 2–4 y la pestaña «Detalles» quedan ocultos (el código y sus hojas siguen, sin montarse): el marco usa siempre el Estilo 1 debajo de Escena.
+- Se cambia solo esto, para que el estilo no se rompa: el **degradé de cada modo** (una paleta para los cuatro, uno de los degradés elegidos o dos colores propios; el tono oscuro se deriva solo), la **figura de cada modo** (imagen propia, escala y posición) y la **letra de la palabra grande**.
+- El texto del menú pasa solo a negro o blanco, el que más contraste tenga con el degradé (`inkFor`, `navigation/sceneLook.ts`).
+- Figura propia: PNG o WebP con fondo transparente y la proporción de la original (1024 × 1536); se rechaza con el motivo si no cumple. Se guarda en IndexedDB.
+- Hasta **3 variaciones** guardadas (degradé y figura de cada modo, y la letra) y el botón «Volver al setting por defecto».
+- Clic derecho en la escena: sobre el menú, colores; sobre la figura o la palabra, la figura (`SceneLookMenu`). Los mismos controles en Configuración › Apariencia (`SceneLookControls`).
+- La escala y la posición cambian el tamaño y el lugar de la figura, nunca su `transform`: GSAP lo anima en cada cambio de modo.
+- Variables: tamaños en la base (`--ga-scene-look-*`, `--ga-scene-figure-*`), aspecto en el sabor (`--ga-scene-<modo>-start/end/ink`, `--ga-scene-word-family`, `--ga-scene-look-*`); `scene-look.css` solo distribuye.
+- MCP: `appearance_get`, `appearance_set_colors`, `appearance_set_figure`, `appearance_variations`.
 
 ## 5. Reglas de uso
 

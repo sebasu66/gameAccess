@@ -1,13 +1,14 @@
-"""Steam Account Manager: the user's Steam client, its remembered accounts and the games each one owns.
+"""Steam Account Manager: the user's Steam accounts (account libraries), the Steam client and the games each one owns.
 
     client.py     find Steam, read loginusers.vdf, libraryfolders.vdf and the appmanifest_*.acf files (read-only)
     ownership.py  which account owns each game (LastOwner on disk, the owned list from the GameAccess server)
     switch.py     sign Steam in to the owner and run the game
 
-It talks to the Game Library Manager: installed Steam games become *linked* games (never moved or frozen by Game
-Access; only uninstalled when the player asks), and owned games that are not installed are listed so the library can
-offer "Install", which hands the game to Steam (`steam://install/<appid>`): Steam asks the library folder and checks space.
-Game Access never downloads Steam games through its own download sources."""
+The accounts are the ones the user registered by signing in with Steam (account_registry.py): each one's library is
+shown whole, never game by game. Its installed games are mirrored as *linked* records (how they are played), which the
+sync alone adds and removes; owned games that are not installed are listed so the library can offer "Install", which
+hands the game to Steam (`steam://install/<appid>`): Steam asks the library folder and checks space. The accounts this
+PC's Steam remembers are only suggestions to register. Game Access never downloads Steam games through its own sources."""
 from __future__ import annotations
 import json
 import os
@@ -21,10 +22,16 @@ from . import client
 from .client import SteamAccount
 from .ownership import fetch_owned_games, ownership_table
 from .switch import SteamSwitcher, active_id64
+from account_registry import AccountRegistry
+import re
+import urllib.request
+
+STEAM_ID64 = re.compile(r"^7656119\d{10}$")
+LINK_STATE = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 
 OWNED_MAX_AGE = 12 * 3600
 DEFAULT_SETTINGS = {
-    # Bring the Steam games of the remembered accounts (installed and owned) into the library on its own.
+    # Kept for older settings files; the registered accounts' libraries are always synced whole.
     "auto_import": True,
     # Sign Steam in to the game's owner before playing.
     "switch_accounts": True,
@@ -38,6 +45,7 @@ class SteamAccountManager:
         self.log = logger or app_log.manager_logger("steam")
         self.opener = opener
         self.switcher = switcher
+        self.registry = AccountRegistry(launcher)
 
     # -- settings ------------------------------------------------------------------------------
     def settings(self) -> dict:
@@ -61,10 +69,70 @@ class SteamAccountManager:
         return self.public_settings()
 
     # -- what Steam has ----------------------------------------------------------------------------
+    def local_accounts(self) -> list[SteamAccount]:
+        """The accounts this PC's Steam knows (loginusers.vdf), registered or not."""
+        return client.read_accounts(self.root) if self.root else []
+
     def accounts(self) -> list[SteamAccount]:
-        """Only the accounts Steam signs in to on its own ("Remember me"): Game Access can switch to those without a
-        password. The others are left out entirely, their games too."""
-        return [a for a in client.read_accounts(self.root) if a.remembered] if self.root else []
+        """The registered accounts, with what this PC's Steam knows of each: its sign-in name and whether Steam signs
+        in to it on its own ("Remember me": Game Access can switch to it without a password)."""
+        local = {a.steam_id64: a for a in self.local_accounts()}
+        result = []
+        for row in self.registry.all("steam"):
+            id64 = str(row["account_id"])
+            known = local.get(id64)
+            result.append(SteamAccount(id64, known.account_name if known else "", row.get("name") or (known.persona_name if known else ""),
+                                       bool(known and known.remembered), bool(known and known.most_recent)))
+        return result
+
+    def suggestions(self) -> list[dict]:
+        """Accounts this PC's Steam remembers that are not registered: offered to sign in and add, never added alone."""
+        registered = set(self.registry.ids("steam"))
+        return [a.to_dict() for a in self.local_accounts() if a.remembered and a.steam_id64 not in registered]
+
+    # -- registering an account: Steam's own sign-in page, through the GameAccess server ---------------------
+    def _server(self, api_url: str, path: str, data: bytes | None = None) -> dict:
+        if not api_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
+            raise ValueError("Dirección del servidor de Game Access inválida.")
+        request = urllib.request.Request(api_url.rstrip("/") + path, data=data, method="POST" if data is not None else "GET",
+                                         headers={"Content-Type": "application/json", "User-Agent": "gameAccess launcher"})
+        opener = self.opener or urllib.request.urlopen
+        with opener(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def link_start(self, api_url: str) -> dict:
+        """{state, url}, with `url` opened in the default browser, where the user signs in on Steam's own page. Only an
+        address of the GameAccess server itself is opened."""
+        answer = self._server(api_url, "/steam/link/start", b"{}")
+        url = str(answer.get("url") or "")
+        if not LINK_STATE.match(str(answer.get("state") or "")) or not url.startswith(api_url.rstrip("/") + "/steam/link/go/"):
+            raise ValueError("El servidor no devolvió una vinculación válida.")
+        os.startfile(url)
+        return {"state": answer["state"], "url": url, "expires_in": int(answer.get("expires_in") or 600)}
+
+    def link_poll(self, api_url: str, state: str) -> dict:
+        """pending / done (the account is registered now) / cancelled / failed / expired."""
+        if not LINK_STATE.match(state or ""):
+            raise ValueError("Vinculación inválida.")
+        answer = self._server(api_url, f"/steam/link/result/{state}")
+        status = str(answer.get("status") or "expired")
+        if status != "done":
+            return {"status": status}
+        id64 = str(answer.get("steam_id") or "")
+        if not STEAM_ID64.match(id64):
+            return {"status": "failed"}
+        local = next((a for a in self.local_accounts() if a.steam_id64 == id64), None)
+        account = self.registry.add("steam", id64, str(answer.get("persona") or "") or (local.persona_name if local else ""))
+        self.log.info("Steam account %s registered", id64)
+        return {"status": "done", "account": account}
+
+    def remove_account(self, id64: str, linked=None) -> dict:
+        """The account's whole library leaves Game Access; Steam and the games on disk are not touched."""
+        removed = self.registry.remove("steam", str(id64))
+        if removed and linked is not None:
+            self.mirror(linked)
+        self.log.info("Steam account %s removed: %s", id64, removed)
+        return {"removed": removed}
 
     def libraries(self) -> list[Path]:
         return client.read_libraries(self.root) if self.root else []
@@ -105,7 +173,7 @@ class SteamAccountManager:
             cached = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
         except (OSError, ValueError):
             cached = {}
-        remembered = {a.steam_id64 for a in self.accounts()}
+        remembered = set(self.registry.ids("steam"))
         kept = {"fetched_at": cached.get("fetched_at", 0), "private": [i for i in cached.get("private", []) if i in remembered],
                 "accounts": {k: v for k, v in cached.get("accounts", {}).items() if k in remembered},
                 "errors": {k: v for k, v in cached.get("errors", {}).items() if k in remembered}}
@@ -127,15 +195,17 @@ class SteamAccountManager:
         return result
 
     def table(self, refresh: bool = False, fetch: bool = True, api_url: str = "") -> tuple[dict[int, dict], dict[int, str]]:
-        """Ownership of every installed or owned game of the remembered accounts, and the name of each one."""
+        """Ownership of every installed or owned game of the registered accounts, and the name of each one."""
         owned = self.owned(refresh, fetch, api_url)
         ids = {id64: [g["app_id"] for g in games] for id64, games in owned["accounts"].items()}
         names = {g["app_id"]: g["name"] for games in owned["accounts"].values() for g in games}
         installed = self.installed()
         names.update({g.app_id: g.name for g in installed})
         table = ownership_table(self.accounts(), installed, ids, active_id64())
-        # A game installed with an account Steam does not remember is not this user's to play through Game Access.
-        return {app_id: info for app_id, info in table.items() if info["owner_name"]}, names
+        # Only the registered accounts' libraries: a game installed with another account is not shown.
+        registered = set(self.registry.ids("steam"))
+        return {app_id: {**info, "owner_name": info["owner_name"] or info["owner_persona"]} for app_id, info in table.items()
+                if info["owner_id64"] in registered}, names
 
     def status(self) -> dict:
         accounts = self.accounts()
@@ -150,25 +220,47 @@ class SteamAccountManager:
                               "error": owned["errors"].get(a.steam_id64, "")} for a in accounts],
                 "libraries": [str(p.parent) for p in self.libraries() if p.is_dir()],
                 "installed_count": len(installed), "owned_count": len({g["app_id"] for v in owned["accounts"].values() for g in v}),
-                "owned_fetched_at": owned["fetched_at"], "settings": self.public_settings()}
+                "owned_fetched_at": owned["fetched_at"], "settings": self.public_settings(), "suggestions": self.suggestions()}
 
     # -- the library connector ---------------------------------------------------------------------
-    def sync(self, linked, refresh: bool = False, exclude: set[int] = frozenset(), api_url: str = "") -> dict:
-        """Link every installed game of a remembered account not in the library yet (and not in `exclude`); return them
-        and the owned ones not installed (asked to the GameAccess server at `api_url`)."""
+    def mirror(self, linked, table: dict[int, dict] | None = None, exclude: set[int] = frozenset()) -> tuple[list[dict], list[int]]:
+        """Make the Steam records exactly the installed games of the registered accounts: add the missing ones, and
+        remove those no longer installed or whose account left (the games themselves are never touched). `exclude`:
+        AppIDs Game Access has a folder of its own for. Returns (added, removed)."""
         if not self.root:
-            return {"found": False, "linked": [], "owned": []}
+            return [], []
+        table = self.table(fetch=False)[0] if table is None else table
+        wanted = {g.app_id: g for g in self.installed()
+                  if g.app_id in table and g.fully_installed and g.app_id not in exclude and Path(g.folder).is_dir()}
+        same = lambda a, b: os.path.normcase(os.path.normpath(str(a))) == os.path.normcase(os.path.normpath(str(b)))
+        added, removed = [], []
+        for record in linked.all():
+            app_id = int(record["app_id"])
+            if record.get("kind") == "steam" and (app_id not in wanted or not same(record.get("path", ""), wanted[app_id].folder)):
+                linked.unlink(app_id, hide=False)
+                removed.append(app_id)
+        for app_id, game in wanted.items():
+            if not linked.get(app_id):
+                linked.link(app_id, game.name, game.folder, "steam")
+                if app_id in removed:
+                    removed.remove(app_id)   # the same game, its folder moved: linked again where it is now
+                else:
+                    added.append({"app_id": app_id, "name": game.name, **table[app_id]})
+        return added, removed
+
+    def sync(self, linked, refresh: bool = False, exclude: set[int] = frozenset(), api_url: str = "") -> dict:
+        """The registered accounts' libraries, whole: their owned lists refreshed from the GameAccess server (`api_url`)
+        and their installed games mirrored (`mirror`). Returns the newly linked, the removed and the owned ones not
+        installed."""
+        if not self.root:
+            return {"found": False, "linked": [], "removed": [], "owned": [], "games": []}
         table, names = self.table(refresh, api_url=api_url)
-        new = []
-        for game in self.installed():
-            if game.app_id not in table or game.app_id in exclude or not game.fully_installed or linked.get(game.app_id) or not Path(game.folder).is_dir():
-                continue
-            linked.link(game.app_id, game.name, game.folder, "steam")
-            new.append({"app_id": game.app_id, "name": game.name, **table.get(game.app_id, {})})
+        new, removed = self.mirror(linked, table, exclude)
         owned = [{"app_id": app_id, "name": names.get(app_id, ""), **info} for app_id, info in table.items()
                  if not info["installed"] and not linked.get(app_id) and app_id not in exclude]
-        self.log.info("Steam sync: %s newly linked, %s owned and not installed", len(new), len(owned))
-        return {"found": True, "linked": new, "owned": owned}
+        self.log.info("Steam sync: %s linked, %s removed, %s owned and not installed", len(new), len(removed), len(owned))
+        # `games`: every game of the registered accounts' libraries now, so the app drops those that left.
+        return {"found": True, "linked": new, "removed": removed, "owned": owned, "games": sorted(table)}
 
     def owner_of(self, app_id: int) -> dict:
         table, _ = self.table(fetch=False)
@@ -190,7 +282,8 @@ class SteamAccountManager:
         user set for it, else rungameid)."""
         info = self.owner_of(app_id)
         outcome = {"steam_owner": info.get("owner_name", ""), "switched": False}
-        if self.root and self.settings()["switch_accounts"] and info.get("owner_name"):
+        # Only an account Steam remembers can be switched to without a password; for another one Steam asks to sign in.
+        if self.root and self.settings()["switch_accounts"] and info.get("remembered") and info.get("owner_name"):
             switcher = self.switcher or SteamSwitcher(Path(self.root) / "steam.exe", self.log)
             outcome.update(switcher.ensure_account(client.id32(info["owner_id64"]), info["owner_name"]))
         command = command or f"steam://rungameid/{int(app_id)}"
