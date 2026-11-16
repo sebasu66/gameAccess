@@ -9,6 +9,13 @@ const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.
 const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css");
 
 describe("capas de estilo", () => {
+  it("Escena usa recursos locales y las variables de sus plantillas", () => {
+    const sheet = css("navigation/scene-frame.css");
+    for (const role of [...sheet.matchAll(/var\((--ga-scene-[\w-]+)/g)].map(match => match[1]))
+      expect(`${base}${flavor}`).toContain(`${role}:`);
+    for (const font of ["Outfit-variable.ttf", "Anton-Regular.ttf", "OFL-Outfit.txt", "OFL-Anton.txt"])
+      expect(existsSync(join(process.cwd(), "public", "fonts", "escena", font))).toBe(true);
+  });
   it("activa y quita un sabor", () => {
     setStyleFlavor("night");
     expect(document.documentElement.getAttribute("data-ga-flavor")).toBe("night");

@@ -63,13 +63,14 @@ export interface WordPrefs {
 
 export interface ShellLook {
   style: ShellStyle;
+  sceneTone: "light" | "dark";
   /** Values the player changed; a missing key is the style's. */
   values: Partial<Record<ShellParamKey, string | number>>;
   word: WordPrefs;
 }
 
 export const DEFAULT_WORD: WordPrefs = { font: "style", size: null, orientation: "up", tracking: null, align: "center", start: "letters", end: "slide", duration: null };
-export const DEFAULT_SHELL_LOOK: ShellLook = { style: 1, values: {}, word: DEFAULT_WORD };
+export const DEFAULT_SHELL_LOOK: ShellLook = { style: 1, sceneTone: "light", values: {}, word: DEFAULT_WORD };
 
 const oneOf = <T extends string>(value: unknown, list: readonly T[], fallback: T): T => (list as readonly unknown[]).includes(value) ? value as T : fallback;
 const clamp = (value: unknown, min: number, max: number): number | null => typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : null;
@@ -95,7 +96,8 @@ export function normalizeShellLook(value: unknown): ShellLook {
     end: oneOf(w.end, WORD_ANIMATIONS, DEFAULT_WORD.end),
     duration: w.duration === null ? null : clamp(w.duration, .15, 1.5),
   };
-  return { style, values, word };
+  const sceneTone = oneOf(raw.sceneTone, ["light", "dark"] as const, "light");
+  return { style, sceneTone, values, word };
 }
 
 /** The CSS each changed value becomes: variable → value with its unit. */
@@ -115,6 +117,7 @@ let applied: string[] = [];
 /** Turns the style on and writes the changed values on the root; whatever an earlier call wrote and this one does not, is removed. */
 export function applyShellLook(look: ShellLook, root: HTMLElement = document.documentElement): void {
   setStyleFlavor(`estilo-${look.style}`);
+  root.dataset.gaSceneTone = look.sceneTone;
   const vars = shellLookVariables(look);
   for (const name of applied) if (!(name in vars)) root.style.removeProperty(name);
   for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
@@ -123,6 +126,7 @@ export function applyShellLook(look: ShellLook, root: HTMLElement = document.doc
 
 /** Takes the shell's look off the root (the old interface). */
 export function clearShellLook(root: HTMLElement = document.documentElement): void {
+  delete root.dataset.gaSceneTone;
   for (const name of applied) root.style.removeProperty(name);
   applied = [];
   setStyleFlavor(null);

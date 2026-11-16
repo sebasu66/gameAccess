@@ -40,6 +40,16 @@ describe("look del marco nuevo (Configuración › Apariencia)", () => {
     expect(loadShellLook()).toEqual(saved);
     expect(shellLookVariables(saved)).toEqual({ "--ga-nav-glow": "0.2" });
   });
+
+  it("conserva y aplica el tono oscuro sin alterar los ajustes anteriores", () => {
+    expect(normalizeShellLook({ style: 2 }).sceneTone).toBe("light");
+    const saved = saveShellLook({ ...DEFAULT_SHELL_LOOK, sceneTone: "dark", style: 3 });
+    expect(loadShellLook()).toEqual(saved);
+    applyShellLook(loadShellLook());
+    expect(document.documentElement.dataset.gaSceneTone).toBe("dark");
+    clearShellLook();
+    expect(document.documentElement.dataset.gaSceneTone).toBeUndefined();
+  });
 });
 
 describe("orden de las secciones en el panel (§4.2)", () => {

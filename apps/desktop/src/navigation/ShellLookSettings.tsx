@@ -40,7 +40,7 @@ export default function ShellLookSettings({ tab }: { tab: "style" | "details" })
   const reset = () => {
     const values = { ...look.values };
     for (const param of params) delete values[param.key];
-    save(tab === "style" ? { values } : { values, word: DEFAULT_WORD });
+    save(tab === "style" ? { values, sceneTone: "light" } : { values, word: DEFAULT_WORD });
   };
 
   const controls = params.map(param => param.kind === "choice"
@@ -55,6 +55,10 @@ export default function ShellLookSettings({ tab }: { tab: "style" | "details" })
   return <div className="ga-rail-settings ga-shell-look">
     {tab === "style" && <fieldset>
       <legend>{t("lookStyle")}</legend>
+      <Field label={t("sceneTone")} wide>
+        <Seg label={t("sceneTone")} value={look.sceneTone} onChange={value => save({ sceneTone: value === "dark" ? "dark" : "light" })}
+          options={[["light", t("sceneToneLight")], ["dark", t("sceneToneDark")]]} />
+      </Field>
       <Field label={t("lookStyle")} wide>
         <Seg label={t("lookStyle")} value={String(look.style)} onChange={value => save({ style: Number(value) as ShellStyle })}
           options={([1, 2, 3, 4] as const).map(n => [String(n), t("lookStyleN", { n })] as [string, string])} />

@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { activityCategory, activityGroups, activitySnapshot, clearActivity, markActivitySeen, recordActivity } from "./activity";
+import { activityCategory, activityGroups, activitySeverity, activitySnapshot, clearActivity, markActivitySeen, recordActivity } from "./activity";
 import { confirmNotice, hideNotice, showNotice } from "../notice/notice";
 
 describe("activity history (docs/GUI_DESIGN.md §4.9)", () => {
   beforeEach(() => { hideNotice(); clearActivity(); });
+
+  it("preserves explicit warning severity and groups older entries from their recorded state", () => {
+    showNotice({ title: "Interrumpida", tone: "error", activity: { state: "failed", severity: "warning" } });
+    recordActivity({ title: "Error", tone: "error", state: "failed" });
+    recordActivity({ title: "Lista", tone: "ok", state: "done" });
+    recordActivity({ title: "Comenzó", tone: "info", state: "info" });
+    expect(activitySnapshot().map(activitySeverity)).toEqual(["info", "done", "error", "warning"]);
+  });
 
   it("keeps one entry per process that changes state, with its start and end", () => {
     recordActivity({ key: "download:1", title: "Descargando Hades", tone: "info", state: "running", appId: 1 });

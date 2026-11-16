@@ -8,8 +8,12 @@ import { NAVIGATION, type NavigationModeId } from "./navigationTree";
  * guide, account, subscription, help) or the Catalog sections that still live there (AI suggestions, new games).
  */
 type Selection = Record<NavigationModeId, string> & { homeMode: HomeMode; tabs: Readonly<Record<string, string>> };
-/** Development entry point for the RN2 shell while legacy pages are being moved into its content zone. */
-export const navigationShellEnabled = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("navigationShell") === "1";
+/** Tauri opens Escena by default; browser previews can opt in or explicitly return to the old shell. */
+export function resolveNavigationShell(search: string, native: boolean): boolean {
+  const option = new URLSearchParams(search).get("navigationShell");
+  return option === "1" || (option !== "0" && native);
+}
+export const navigationShellEnabled = () => typeof window !== "undefined" && resolveNavigationShell(window.location.search, "__TAURI_INTERNALS__" in window);
 
 export type HomeMode = "gameAccess" | "catalog";
 

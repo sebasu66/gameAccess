@@ -1,5 +1,7 @@
 export const es = {
   navModeCatalog: "Catálogo", navModeLibrary: "Librería", navModeGameAccess: "Game Access", navModeSettings: "Configuración",
+  sceneCatalogPhrase: "Descubrí qué jugar.", sceneLibraryPhrase: "Lo que tenés, listo para jugar.", sceneGameAccessPhrase: "La app, tu cuenta y la ayuda.", sceneSettingsPhrase: "Cómo se comporta la app.",
+  sceneActivityAll: "Todos los avisos", sceneActivityError: "Errores", sceneActivityWarning: "Avisos importantes", sceneActivityDone: "Completadas", sceneActivityInfo: "Información", sceneActivityMore: "{{count}} más", sceneActivityNone: "No hay avisos de este tipo.",
   navExplore: "Explorar", navSmartSearch: "Búsqueda smart", navAiSuggestions: "Sugerencias IA", navNewGames: "Juegos nuevos", navTasteProfile: "Perfil de gustos",
   navInCatalog: "En el catálogo", navReadyToDownload: "Listos para descargar",
   navPlay: "Jugar", navLastPlayed: "Última partida", navByGenre: "Por género", navFavorites: "Favoritos", navAlphabetical: "A–Z",
@@ -9,6 +11,7 @@ export const es = {
   navMyAccount: "Mi cuenta", navSubscription: "Suscripción", navFaq: "Preguntas frecuentes", navContactUs: "Contacto",
   navGeneral: "General", navGamesDownloads: "Juegos y descargas", navSteam: "Steam", navArtificialIntelligence: "Inteligencia artificial", navOptions: "Opciones",
   navAppearance: "Apariencia", navStyle: "Estilo", navDetails: "Detalles", navPlugins: "Plugins", navParental: "Control parental", navTime: "Tiempo", navFilter: "Filtro",
+  sceneTone: "Tono del marco", sceneToneLight: "Claro", sceneToneDark: "Oscuro",
   navModesAria: "Modos de Game Access", navSectionsAria: "Secciones del modo", navStatusAria: "Estado de Game Access",
   navDisk: "Disco", navDiskFree: "Disco {{pct}} % libre", navDownloadsActive: "{{count}} en curso", navCatalogUpToDate: "Catálogo al día", navCatalogUpdating: "Actualizando el catálogo…", navCatalogNever: "Catálogo sin actualizar", navVersion: "Versión", navNewsUnread: "Novedades sin leer: {{count}}",
   navDescExplore: "Buscador y filtros", navDescSmartSearch: "Pedilo con tus palabras", navDescAiSuggestions: "Descubrimientos analizados a fondo", navDescNewGames: "En el catálogo y para descargar", navDescTasteProfile: "Lo que te gusta y lo que no", navDescPlay: "Tus juegos instalados", navDescDownloads: "Lo que se está bajando", navDescManager: "Todos tus juegos, instalados o no", navDescNews: "Versión nueva y anuncios del proyecto", navDescSubscription: "Tu plan, BASE o PLUS", navDescGeneral: "Juegos, Steam, IA y la app", navDescAppearance: "Estilos, colores y letras", navDescPlugins: "Fuentes de descarga", navDescParental: "Niños en casa",
@@ -1599,6 +1602,7 @@ export const es = {
   tasksWaiting: "En espera",
   activityRunning: "En curso",
   activityDownload: "Descarga",
+  activityDownloadQueued: "Se añadió {{name}} a la cola de descargas",
   activityDownloadSize: "{{done}} de {{total}}",
   activityOpenManager: "Ver en el Library Manager",
   activityCategory_news: "Nuevos juegos para descargar",

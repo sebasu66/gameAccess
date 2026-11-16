@@ -10,6 +10,7 @@ import type { NoticeTone } from "../notice/notice";
  * Kept on this computer: up to 200 entries, none older than 30 days.
  */
 export type ActivityState = "running" | "done" | "failed" | "info";
+export type ActivitySeverity = "error" | "warning" | "done" | "info";
 /** The groups of the panel: new downloads, new in the catalog, downloads, the library, the app, the taste profile, the rest. */
 export type ActivityCategory = "news" | "catalog" | "downloads" | "library" | "app" | "taste" | "other";
 export interface ActivityEntry {
@@ -20,6 +21,8 @@ export interface ActivityEntry {
   text?: string;
   tone: NoticeTone;
   state: ActivityState;
+  /** Optional explicit severity when it cannot be inferred from the generic state or tone. */
+  severity?: ActivitySeverity;
   /** The game it is about: its row in the Library Manager has the detail. */
   appId?: number;
   name?: string;
@@ -99,6 +102,14 @@ export function activityCategory(entry: ActivityEntry): ActivityCategory {
 }
 
 const entryTime = (entry: ActivityEntry) => entry.endedAt ?? entry.startedAt;
+
+/** Older entries have no explicit severity: preserve their state and tone as the best available evidence. */
+export function activitySeverity(entry: ActivityEntry): ActivitySeverity {
+  if (entry.severity) return entry.severity;
+  if (entry.state === "failed" || entry.tone === "error") return "error";
+  if (entry.tone === "danger") return "warning";
+  return entry.state === "done" || entry.tone === "ok" || entry.tone === "frost" ? "done" : "info";
+}
 
 /** The finished entries by category, like Android's notifications: the group that got something last goes last. */
 export function activityGroups(list: ActivityEntry[]): ActivityGroup[] {

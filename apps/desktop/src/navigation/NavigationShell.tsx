@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
 import { useNews } from "../centralDialog/useAnnouncements";
 import { useAppScreen, setAppScreen } from "../appScreen";
@@ -11,11 +11,15 @@ import { CATALOG_ON_HOME, getNavigationSelection, selectNavigationTab, newsDesti
 import { OPEN_NEWS_EVENT } from "../newDownloads";
 import { PLUGIN_SECTION_EVENT } from "../pluginNav";
 import StatusBar from "./StatusBar";
-import ModeBar from "./ModeBar";
-import SectionPanel from "./SectionPanel";
+import SceneNavigation from "./SceneNavigation";
+import SceneContentTitle from "./SceneContentTitle";
 import ContentHeader from "./ContentHeader";
+import SceneModeDock from "./SceneModeDock";
+import { useSceneModeExit } from "./useSceneModeExit";
 import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
+import "../templates/scene-fonts.css";
+import "./scene-frame.css";
 
 export { navigationShellEnabled } from "./navigationSelection";
 
@@ -59,6 +63,8 @@ export default function NavigationShell() {
   const navigationSelection = useNavigationSelection();
   const [tier, setTier] = useState(getActivationTier);
   const mode = shellMode(screen, gameSection?.area, navigationSelection.homeMode);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const changeMode = useSceneModeExit(shellRef, mode, openMode);
   const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
     : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
     : screen === "home" ? navigationSelection.catalog : "explore";
@@ -71,8 +77,12 @@ export default function NavigationShell() {
   }, [look]);
   useEffect(() => () => clearShellLook(), []);
   // The content zone is outside the shell's layer: the mode goes on the page so the zone takes its colour too (§4.3).
-  useLayoutEffect(() => { document.documentElement.dataset.gaNavMode = mode; }, [mode]);
-  useEffect(() => () => { delete document.documentElement.dataset.gaNavMode; }, []);
+  // Set and removed in the same effect: with two, a remount (hot reload) could run the removal after the setting and
+  // leave the content zone without its mode colour (the running stage of a download lost its fill).
+  useLayoutEffect(() => {
+    document.documentElement.dataset.gaNavMode = mode;
+    return () => { delete document.documentElement.dataset.gaNavMode; };
+  }, [mode]);
 
   useEffect(() => {
     document.documentElement.classList.add("ga-navigation-shell");
@@ -93,12 +103,17 @@ export default function NavigationShell() {
     return () => { window.removeEventListener(PLUGIN_SECTION_EVENT, showPlugins); window.removeEventListener(OPEN_NEWS_EVENT, showNews); };
   }, []);
 
-  return <div className="ga-nav-shell" data-mode={mode} {...looks}>
-    <ModeBar mode={mode} word={look.word} badges={{ library: downloads, gameAccess: unread }} onOpen={openMode} />
+  return <div className="ga-nav-shell" ref={shellRef} data-mode={mode} {...looks}>
+    <SceneNavigation mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={openPlans} />
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
-    <SectionPanel mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => openExistingSection(mode, section)} onLocked={openPlans} />
+    <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
+    <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
-      <div className="ga-nav-brand"><strong>{t("navModeGameAccess")}</strong><span>{t(tier ? "navPlanPlus" : "navPlanBase")}</span></div>
+      <div className="ga-nav-brand">
+        <img src="/brand/app-icon.png" alt="" />
+        <strong>{t("navModeGameAccess")}</strong>
+        <button type="button" onClick={openPlans} aria-label={t("navMyPlan")} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
+      </div>
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>
     </aside>
     <StatusBar />

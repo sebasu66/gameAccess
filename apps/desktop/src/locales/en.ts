@@ -2,6 +2,8 @@ import type { es } from "./es";
 
 export const en: Record<keyof typeof es, string> = {
   navModeCatalog: "Catalog", navModeLibrary: "Library", navModeGameAccess: "Game Access", navModeSettings: "Settings",
+  sceneCatalogPhrase: "Discover what to play.", sceneLibraryPhrase: "Your games, ready to play.", sceneGameAccessPhrase: "The app, your account and help.", sceneSettingsPhrase: "How the app behaves.",
+  sceneActivityAll: "All notices", sceneActivityError: "Errors", sceneActivityWarning: "Important notices", sceneActivityDone: "Completed", sceneActivityInfo: "Information", sceneActivityMore: "{{count}} more", sceneActivityNone: "No notices of this type.",
   navExplore: "Explore", navSmartSearch: "Smart search", navAiSuggestions: "AI suggestions", navNewGames: "New games", navTasteProfile: "Taste profile",
   navInCatalog: "In the catalog", navReadyToDownload: "Ready to download",
   navPlay: "Play", navLastPlayed: "Last played", navByGenre: "By genre", navFavorites: "Favorites", navAlphabetical: "A–Z",
@@ -11,6 +13,7 @@ export const en: Record<keyof typeof es, string> = {
   navMyAccount: "My account", navSubscription: "Subscription", navFaq: "Frequently asked questions", navContactUs: "Contact",
   navGeneral: "General", navGamesDownloads: "Games and downloads", navSteam: "Steam", navArtificialIntelligence: "Artificial intelligence", navOptions: "Options",
   navAppearance: "Appearance", navStyle: "Style", navDetails: "Details", navPlugins: "Plugins", navParental: "Parental controls", navTime: "Time", navFilter: "Filter",
+  sceneTone: "Frame tone", sceneToneLight: "Light", sceneToneDark: "Dark",
   navModesAria: "Game Access modes", navSectionsAria: "Mode sections", navStatusAria: "Game Access status",
   navDisk: "Disk", navDiskFree: "Disk {{pct}}% free", navDownloadsActive: "{{count}} active", navCatalogUpToDate: "Catalog up to date", navCatalogUpdating: "Updating the catalog…", navCatalogNever: "Catalog not updated yet", navVersion: "Version", navNewsUnread: "Unread news: {{count}}",
   navDescExplore: "Search and filters", navDescSmartSearch: "Ask in your own words", navDescAiSuggestions: "Discoveries analysed in depth", navDescNewGames: "In the catalog and ready to download", navDescTasteProfile: "What you like and what you don't", navDescPlay: "Your installed games", navDescDownloads: "What is downloading", navDescManager: "All your games, installed or not", navDescNews: "New version and project news", navDescSubscription: "Your plan, BASE or PLUS", navDescGeneral: "Games, Steam, AI and the app", navDescAppearance: "Styles, colours and type", navDescPlugins: "Download sources", navDescParental: "Kids at home",
@@ -1601,6 +1604,7 @@ export const en: Record<keyof typeof es, string> = {
   tasksWaiting: "Waiting",
   activityRunning: "Running",
   activityDownload: "Download",
+  activityDownloadQueued: "{{name}} was added to the download queue",
   activityDownloadSize: "{{done}} of {{total}}",
   activityOpenManager: "See in the Library Manager",
   activityCategory_news: "New games to download",

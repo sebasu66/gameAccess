@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ChevronRight, Download, HardDrive, Heart, Info, Library, RefreshCw, ShieldCheck, Snowflake, Sparkles, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Download, HardDrive, Heart, Info, Library, ListFilter, RefreshCw, ShieldCheck, Snowflake, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import { centralDialog, type TaskView } from "../centralDialog/centralDialog";
 import { activeDownloadService } from "../downloads/activeService";
 import { GaButton } from "../components/ga/Buttons";
 import { cancelFreezeJob, freezeTitle, useFreezeConsole } from "../freezeJobs";
-import { useI18n } from "../i18n";
+import { useI18n, type TranslationKey } from "../i18n";
 import { setAppScreen } from "../appScreen";
 import { openLibraryManager } from "../libraryManagerNav";
 import { openSection } from "../gameArea";
@@ -14,11 +14,12 @@ import { openReleaseNotes } from "../releaseNotes";
 import { confirmNotice } from "../notice/notice";
 import { noticeGame } from "../notice/noticeGame";
 import { GameThumb } from "../GameArt";
+import { navigationShellEnabled } from "../navigation/navigationSelection";
 import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
 import type { DownloadProgressSnapshot } from "../downloadProvider";
 import { formatDownloadBytes, sourceDownloadSize } from "../downloadSize";
 import type { CatalogGame } from "../types";
-import { activityCategory, activityGroups, clearActivity, markActivitySeen, useActivity, type ActivityCategory, type ActivityEntry, type ActivityGroup } from "./activity";
+import { activityCategory, activityGroups, activitySeverity, clearActivity, markActivitySeen, useActivity, type ActivityCategory, type ActivityEntry, type ActivityGroup, type ActivitySeverity } from "./activity";
 import "./activity.css";
 
 type Running = {
@@ -166,6 +167,53 @@ function GroupCard({ group, fresh, open, onToggle, onOpen }: { group: ActivityGr
   </li>;
 }
 
+const SCENE_CATEGORIES: { id: ActivitySeverity; label: TranslationKey; icon: LucideIcon }[] = [
+  { id: "error", label: "sceneActivityError", icon: AlertTriangle },
+  { id: "warning", label: "sceneActivityWarning", icon: AlertTriangle },
+  { id: "done", label: "sceneActivityDone", icon: Check },
+  { id: "info", label: "sceneActivityInfo", icon: Info },
+];
+
+/** Escena groups actual history by outcome. Filters never delete entries or replace their destinations. */
+export function SceneHistory({ entries, onOpen }: { entries: ActivityEntry[]; onOpen?: () => void }) {
+  const { t } = useI18n();
+  const { when } = useWhen();
+  const [filter, setFilter] = useState<ActivitySeverity | "all">("all");
+  const [expanded, setExpanded] = useState<Set<ActivitySeverity>>(new Set());
+  const finished = entries.filter(entry => entry.state !== "running");
+  const present = SCENE_CATEGORIES.filter(category => finished.some(entry => activitySeverity(entry) === category.id));
+  // If the selected group disappears (for example after clearing), show all surviving notices.
+  const activeFilter = filter !== "all" && !present.some(category => category.id === filter) ? "all" : filter;
+  const toggle = (id: ActivitySeverity) => setExpanded(previous => {
+    const next = new Set(previous); if (!next.delete(id)) next.add(id); return next;
+  });
+  return <section className="ga-scene-history" aria-labelledby="ga-scene-history-title">
+    <h3 id="ga-scene-history-title" className="ga-label">{t("activityHistory")} <span>{finished.length}</span></h3>
+    {present.length ? present.filter(category => activeFilter === "all" || activeFilter === category.id).map(category => {
+      const items = finished.filter(entry => activitySeverity(entry) === category.id);
+      const open = items.length === 1 || expanded.has(category.id);
+      const Icon = category.icon;
+      return <div className="ga-scene-history-group" data-severity={category.id} key={category.id}>
+        <button type="button" className="ga-scene-history-group-head" aria-expanded={open} onClick={() => toggle(category.id)}>
+          <Icon aria-hidden="true" /><strong>{t(category.label)}</strong><span>{items.length}</span>{items.length > 1 && <ChevronRight aria-hidden="true" />}
+        </button>
+        <ul>{(open ? items : items.slice(0, 1)).map(entry => {
+          const go = entryDestination(entry);
+          const contents = <><strong>{entry.title}</strong>{entry.text && <span>{entry.text}</span>}<time>{when(entry.endedAt ?? entry.startedAt)}</time></>;
+          return <li key={entry.id}>{go ? <button type="button" className="ga-scene-history-entry" onClick={() => { onOpen?.(); go(); }}>{contents}</button>
+            : <div className="ga-scene-history-entry">{contents}</div>}</li>;
+        })}</ul>
+        {!open && <button type="button" className="ga-scene-history-more" onClick={() => toggle(category.id)}>{t("sceneActivityMore", { count: items.length - 1 })}</button>}
+      </div>;
+    }) : <p className="ga-hint">{t("activityEmpty")}</p>}
+    <div className="ga-scene-history-filters" role="group" aria-label={t("activityHistory")}>
+      {finished.length > 0 && <button type="button" aria-label={t("sceneActivityAll")} title={t("sceneActivityAll")} aria-pressed={activeFilter === "all"} onClick={() => setFilter("all")}><ListFilter aria-hidden="true" /></button>}
+      {present.map(category => { const Icon = category.icon; return <button type="button" key={category.id} data-severity={category.id} aria-label={t(category.label)} title={t(category.label)} aria-pressed={activeFilter === category.id} onClick={() => setFilter(category.id)}><Icon aria-hidden="true" /></button>; })}
+      <button type="button" aria-label={t("activityClear")} title={t("activityClear")} disabled={!finished.length} onClick={() => { clearActivity(); setFilter("all"); }}><Trash2 aria-hidden="true" /></button>
+    </div>
+  </section>;
+}
+
 /**
  * The Activity panel (docs/GUI_DESIGN.md §4.9 and §4.17): the history as one group per category, the newest at the
  * bottom, where the panel opens; under it what is running (downloads and long tasks, with their bar and cancel), the
@@ -196,8 +244,10 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
   };
 
   const running: Running[] = [
+    // In the new shell the downloads in progress are on Library › Downloads: the history only tells what happened to
+    // them (added to the queue, started, ready or failed; downloadNotifications.ts). Seba, 2026-11-12.
     // A download says it is one, its speed and how much it has of its size: the bar already shows the percent (Seba, 2026-11-03).
-    ...downloads.map(({ game, snapshot }) => ({
+    ...(navigationShellEnabled() ? [] : downloads).map(({ game, snapshot }) => ({
       key: `download:${snapshot.gameId}`, appId: game.app_id ?? snapshot.gameId, title: game.name, percent: snapshot.progress ?? 0, kind: t("activityDownload"),
       waiting: snapshot.phase === "queued" ? t("downloadQueued") : snapshot.phase === "paused" ? t("downloadPaused") : undefined,
       state: snapshot.phase === "downloading" ? `${formatDownloadBytes(snapshot.speedBps ?? 0, locale)}/s` : downloadPhaseLabel(snapshot.phase, locale),
@@ -215,6 +265,15 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
       waiting: step.total ? undefined : step.detail ?? step.label,
     }] : []),
   ];
+
+  if (navigationShellEnabled()) return <div className="ga-activity ga-scene-activity">
+    <div className="ga-scene-activity-title">{t("processesTitle")}</div>
+    <section className="ga-process-tasks" aria-labelledby="ga-scene-running">
+      <h3 id="ga-scene-running" className="ga-label">{t("activityRunning")} <span>{running.length}</span></h3>
+      {running.length > 0 && <ul>{running.map(item => <RunningRow key={item.key} item={item} onOpen={onOpen} />)}</ul>}
+    </section>
+    <SceneHistory entries={activity} onOpen={onOpen} />
+  </div>;
 
   return <div className="ga-activity">
     <section className="ga-activity-history" aria-labelledby="ga-activity-history">

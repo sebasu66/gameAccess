@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { NAVIGATION } from "./navigationTree";
-import { getNavigationSelection, newsDestination, resetNavigationSelection, sectionTab, selectNavigationSection, selectNavigationTab, settingsTabIds, shellMode } from "./navigationSelection";
+import { getNavigationSelection, newsDestination, resetNavigationSelection, resolveNavigationShell, sectionTab, selectNavigationSection, selectNavigationTab, settingsTabIds, shellMode } from "./navigationSelection";
 
 beforeEach(resetNavigationSelection);
 
 describe("selección del nuevo panel", () => {
+  it("activa Escena por defecto en Tauri y conserva opciones explícitas para pruebas", () => {
+    expect(resolveNavigationShell("", true)).toBe(true);
+    expect(resolveNavigationShell("", false)).toBe(false);
+    expect(resolveNavigationShell("?navigationShell=1", false)).toBe(true);
+    expect(resolveNavigationShell("?navigationShell=0", true)).toBe(false);
+  });
   it("acepta secciones reales y rechaza destinos ajenos al modo", () => {
     expect(selectNavigationSection("gameAccess", "support")).toBe(true);
     expect(getNavigationSelection().gameAccess).toBe("support");
