@@ -1,28 +1,31 @@
 /* Home (HomeScreen.tsx, docs/GUI_DESIGN.md §0b and §4.26): one column of cards, the screen's text sizes. */
 .ga-home-content { overflow: auto; padding: var(--ga-space-2) 0 var(--ga-space-3); }
-.ga-home-card { display: grid; gap: var(--ga-space-2); padding: 28px 32px; border-radius: 16px; border: 1px solid var(--ga-line); background: var(--ga-surface); }
-.ga-home-card-title { display: flex; align-items: center; gap: 10px; margin: 0; font: 800 20px var(--ga-text-family); color: var(--ga-white); }
+.ga-home-card { display: grid; gap: var(--ga-space-2); padding: var(--ga-space-2) var(--ga-space-3); border-radius: var(--ga-radius-l); border: 1px solid var(--ga-line); background: var(--ga-surface); }
+.ga-home-card-title { display: flex; align-items: center; gap: var(--ga-row-gap); margin: 0; font: var(--ga-home-title-weight) var(--ga-t2-size)/var(--ga-t2-leading) var(--ga-text-family); color: var(--ga-home-title-ink); }
 .ga-home-plus { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ga-space-3); }
-.ga-home-plus .ga-home-card-title { color: var(--ga-orange-ink); }
-.ga-home-plus.is-on { border-color: var(--ga-orange-line); background: var(--ga-orange-tint); }
-.ga-home-plus p { max-width: 80ch; }
+.ga-home-plus .ga-home-card-title { color: var(--ga-home-warm-ink); }
+.ga-home-plus.is-on { border-color: var(--ga-home-warm-line); background: var(--ga-home-warm-tint); }
+.ga-home-plus p { max-width: var(--ga-home-measure); }
 /* The news and the help keep their own layout; inside a card they need no second frame. */
 .ga-home-card .ga-news { padding: 0; }
-.ga-home-help .ga-help-topic ol { font-size: 16px; }
+.ga-home-help .ga-help-topic ol { font-size: var(--ga-text-size); }
 /* The contact form at the screen's size: nothing under 16 px on a screen (§4.26). */
-.ga-home-help .ga-help-contact { --ga-p-size: 16px; }
-.ga-home-help .ga-field, .ga-home-help .ga-field input, .ga-home-help .ga-field textarea, .ga-home-help .ga-help-check { font-size: 16px; }
+.ga-home-help .ga-help-contact { --ga-p-size: var(--ga-text-size); }
+.ga-home-help .ga-field, .ga-home-help .ga-field input, .ga-home-help .ga-field textarea, .ga-home-help .ga-help-check { font-size: var(--ga-text-size); }
 /* My account (AccountCard.tsx): signed in, the name and PLUS beside "Sign out"; signed out, the form at the screen's size. */
-.ga-home-account { --ga-p-size: 16px; }
+.ga-home-account { --ga-p-size: var(--ga-text-size); }
 .ga-home-account-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ga-space-3); }
-.ga-home-account-form { max-width: 560px; }
-.ga-home-account .ga-field, .ga-home-account .ga-field input { font-size: 16px; }
+.ga-home-account-form { max-width: var(--ga-home-form-w); }
+.ga-home-account .ga-field, .ga-home-account .ga-field input { font-size: var(--ga-text-size); }
 /* The welcome (announcements.json, kind "welcome"): its body at the screen's size, its subheads in the card's orange. */
-.ga-home-welcome { --ga-p-size: 16px; }
-.ga-home-welcome .ga-home-card-title { color: var(--ga-orange-ink); }
-.ga-home-welcome-body { max-width: 80ch; font-size: 16px; }
-.ga-home-welcome-body ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
+.ga-home-welcome { --ga-p-size: var(--ga-text-size); }
+.ga-home-welcome .ga-home-card-title { color: var(--ga-home-warm-ink); }
+.ga-home-welcome-body { max-width: var(--ga-home-measure); font-size: var(--ga-text-size); }
+.ga-home-welcome-body ul { display: grid; gap: var(--ga-space-1); margin: 0; padding-left: var(--ga-space-3); }
 /* What changed in the installed version (releaseNotes.ts, public/changelog.json): bullets at the screen's size. */
-.ga-home-changes { --ga-p-size: 16px; }
-.ga-home-changes-body { max-width: 80ch; font-size: 16px; }
-.ga-home-changes-body ul { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
+.ga-home-changes { --ga-p-size: var(--ga-text-size); }
+.ga-home-changes-body { max-width: var(--ga-home-measure); font-size: var(--ga-text-size); }
+.ga-home-changes-body ul { display: grid; gap: var(--ga-space-1); margin: 0; padding-left: var(--ga-space-3); }
+/* Contact on the page itself (no card): its rule and spacing from the template's scale, not the old panel's. */
+.ga-home-help .ga-help-contact { display: grid; gap: var(--ga-space-2); margin-top: 0; padding: var(--ga-space-2) var(--ga-space-3); border: 1px solid var(--ga-line); border-radius: var(--ga-radius-l); background: var(--ga-surface); }
+.ga-home-help .ga-help-actions { margin-top: 0; gap: var(--ga-row-gap); }

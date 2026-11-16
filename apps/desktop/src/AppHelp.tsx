@@ -88,7 +88,7 @@ export function HelpContent({ part }: { part?: "faq" | "contact" } = {}) {
    <ol>{topic.steps.map(step => <li key={step}>{step}</li>)}</ol>
   </details>)}
   {part === "faq" ? null : <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
-   <h3 id="ga-help-contact-title">{c.contact}</h3>
+   <h3 id="ga-help-contact-title" className="ga-home-card-title">{c.contact}</h3>
    <p>{c.contactText}</p>
    <ContactForm />
    <div className="ga-help-actions">

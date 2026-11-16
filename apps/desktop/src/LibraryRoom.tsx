@@ -30,7 +30,7 @@ import { translate, useI18n } from "./i18n";
 import { DESKTOP_IDLE_TIMEOUT_MS, HIGH_FREQUENCY_ACTIVITY_EVENTS, HIGH_FREQUENCY_ACTIVITY_TRAILING_MS, IMMEDIATE_ACTIVITY_EVENTS } from "./desktopIdle";
 import DownloadCatalogPanel from "./DownloadCatalogPanel";
 import { showNotice } from "./notice/notice";
-import { libraryHasNoGames } from "./libraryScan";
+import { libraryHasNoGames, useLibraryEntry } from "./libraryScan";
 import { bigPictureActive, controllerConnected, setBigPictureActive, setBigPictureInput } from "./bigPicture";
 import { hideForBigPicture, labelOut, showAfterBigPicture, closeGate, openGate } from "./motion/bigPictureMotion";
 import { closeAllPanels } from "./desk/desk";
@@ -112,6 +112,10 @@ function catalogScreenEnd(last: CatalogGame[]): number {
   }
   return Math.max(end, onScreen);
 }
+
+/** Another modal is on top of the game's detail (a dialog it opened, on the smoke): Esc is that one's first. */
+const otherModalOpen = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], [role="alertdialog"]'))
+  .some(node => !node.classList.contains("ga-detail-dialog") && !node.closest(".ga-detail-overlay") && node.getClientRects().length > 0);
 
 export default function LibraryRoom({ externalDetailGame: externalDetailGameProp = null, onDetailClose, toolbarTarget, actionsTarget, games, downloads, busy, onPlay, onDownload, preferences = {}, onPreference = () => undefined, loading = false, catalogUnavailable = false, searchFilters = DEFAULT_LIBRARY_FILTERS, onSearchFiltersChange = () => undefined, searchValue = "", onSearchQueryChange = () => undefined }: LibraryRoomProps) {
   const modeRailOn = useModeRail().enabled;
@@ -441,7 +445,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const installed = gameStateManager.resolve(download).installed;
   const activeDownload = downloadManager.isTracked(download);
   const detailDownload = download;
-  const actions = useMemo(() => buildActions(selectedGame, download, busy), [selectedGame, download, busy]);
+  const selectedEntry = useLibraryEntry(selectedGame?.app_id ?? undefined);
+  const installedHere = Boolean(selectedEntry?.installed);
+  const actions = useMemo(() => buildActions(selectedGame, download, busy, installedHere), [selectedGame, download, busy, installedHere]);
   const currentCompletion = completionQueue[0];
 
 
@@ -639,7 +645,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     if (!detailOpen) return;
     const back = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || event.repeat) return;
-      if (document.querySelector('[role="dialog"][aria-modal="true"]:not(.ga-detail-overlay)')) return;
+      if (otherModalOpen()) return;
       event.preventDefault();
       if (detailMenu) setDetailMenu(null); else closeGameDetail();
     };
@@ -673,6 +679,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     if (bigPictureActive()) return;
     if (event.key === "F11") { event.preventDefault(); void toggleBigScreen(); return; }
     if (event.key === "Escape" && detailOpen) {
+      // A dialog opened from the detail (launch, info card, a confirmation...) closes on its own first.
+      if (otherModalOpen()) return;
       event.preventDefault();
       event.stopPropagation();
       if (detailMenu) setDetailMenu(null);
@@ -781,6 +789,10 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       setFocusZone={setFocusZone}
       setActionIndex={setActionIndex}
       onAction={onAction}
+      {...(navigationShellEnabled() ? {
+        onClose: closeGameDetail, closeRef: detailCloseRef, moreOpen: Boolean(detailMenu),
+        onMore: (anchor: DOMRect) => setDetailMenu(current => current ? null : { game: selectedGame, x: anchor.left, y: anchor.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }),
+      } : {})}
     />
   ) : null;
   const placeDetailOverlay = (overlay: React.ReactNode) => navigationShellEnabled() ? createPortal(overlay, document.body) : overlay;
@@ -797,8 +809,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
           {detailOpen && selectedGame ? placeDetailOverlay(<div className={`ga-detail-overlay${detailMorphs ? " is-morph" : ""}${detailClosing ? " is-closing" : ""}${detailMorphing ? " is-morphing" : ""}`} onMouseDown={(event) => { if (event.target === event.currentTarget) closeGameDetail(); }}>
             <OverlayScreenDimmer panelRef={detailDialogRef} />
             <div ref={detailDialogRef} className="ga-detail-dialog" role="dialog" aria-modal="true" aria-label={t("detailsOfAria", { name: selectedGame.name })} tabIndex={-1}>
-              <button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
-              <button type="button" className="ga-detail-more" aria-label={t("moreOptionsForAria", { name: selectedGame.name })} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button>
+              {/* The new shell's detail carries its own close and options at its title (EN10, LibraryDetailPanel). */}
+              {navigationShellEnabled() ? null : <><button ref={detailCloseRef} type="button" className="ga-detail-close" onClick={closeGameDetail} aria-label={t("uiCerrarDetalles")}><X size={23} strokeWidth={2.5} /></button>
+              <button type="button" className="ga-detail-more" aria-label={t("moreOptionsForAria", { name: selectedGame.name })} aria-haspopup="menu" aria-expanded={Boolean(detailMenu)} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setDetailMenu(current => current ? null : { game: selectedGame, x: rect.left, y: rect.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }); }}><MoreHorizontal size={25} fill="currentColor" /></button></>}
               {detailPanel}
             </div>
             {detailMenu ? <GameDetailMenu request={detailMenu} onClose={() => setDetailMenu(null)} onInstall={onDownload} onPlay={playGame} onDetails={setInfoGame} onLeave={closeGameDetail} /> : null}

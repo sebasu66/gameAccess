@@ -83,7 +83,7 @@ export const actionTools: McpTool[] = [
   {
     name: "download_control",
     title: "Pause, resume, retry or cancel a download",
-    description: "Control one download in the Download Manager. Cancelling stops it and deletes what it downloaded; the player is asked first.",
+    description: "Control one download in the Download Manager. Cancelling stops it and deletes what it downloaded; on a download that stopped (error, interrupted) it aborts it: what it left to go on from is deleted and its row ends as cancelled. The player is asked first.",
     inputSchema: {
       type: "object",
       properties: { app_id: idArg, action: { type: "string", enum: ["pause", "resume", "retry", "cancel"] }, reason: reasonArg },

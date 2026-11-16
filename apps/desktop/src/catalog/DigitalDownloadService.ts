@@ -405,6 +405,10 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.cancelling.add(gameId);
     try {
       this.apply(await this.queue.cancel(this.appIdOf(gameId)));
+    } catch (error) {
+      // A stopped row the Download Manager no longer knows (lost with an older queue): aborting it only takes it off here.
+      if (!(error instanceof QueueRefused) || !["error", "interrupted"].includes(previous.phase)) throw error;
+      this.forget(gameId, { ...previous, phase: "cancelled" });
     } finally {
       this.cancelling.delete(gameId);
     }

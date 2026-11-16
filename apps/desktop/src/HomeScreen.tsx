@@ -100,10 +100,14 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         <h3 id="ga-home-news-title" className="ga-home-card-title">{t("homeNewsTitle")}</h3>
         <NewsPanel games={games} onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />
       </section> : null}
-      {!newShell || chosen === "support" && supportTab !== "instructions" ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
+      {!newShell ? <section className="ga-home-card ga-home-help" aria-labelledby="ga-home-help-title">
         <h3 id="ga-home-help-title" className="ga-home-card-title">{t("homeHelpTitle")}</h3>
-        <HelpContent part={newShell ? supportTab as "faq" | "contact" : undefined} />
+        <HelpContent />
       </section> : null}
+      {/* In the new shell the tab already names it: the topics and the form sit straight on the page, no card around them. */}
+      {newShell && chosen === "support" && supportTab !== "instructions" ? <div className="ga-home-help ga-stack">
+        <HelpContent part={supportTab as "faq" | "contact"} />
+      </div> : null}
     </div>
   </GaScreen>;
 }

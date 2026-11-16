@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
 import { useNews } from "../centralDialog/useAnnouncements";
 import { useAppScreen, setAppScreen } from "../appScreen";
@@ -18,6 +18,7 @@ import ContentHeader from "./ContentHeader";
 import SceneModeDock from "./SceneModeDock";
 import { useSceneModeExit } from "./useSceneModeExit";
 import { useSideDrawer } from "./sideDrawer";
+import { useActivityFold } from "./activityFold";
 import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
 import "./navigation-shell.css";
 import "../templates/scene-fonts.css";
@@ -68,6 +69,7 @@ export default function NavigationShell() {
   const shellRef = useRef<HTMLDivElement>(null);
   const changeMode = useSceneModeExit(shellRef, mode, openMode);
   const drawer = useSideDrawer();
+  const activity = useActivityFold();
   const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
     : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
     : screen === "home" ? navigationSelection.catalog : "explore";
@@ -111,17 +113,17 @@ export default function NavigationShell() {
     {/* The left column's drawer tab (sideDrawer.ts): folds and unfolds it by hand. */}
     <button type="button" className="ga-nav-drawer-tab" aria-expanded={drawer.state !== "closed"} aria-label={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")}
       title={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")} onClick={drawer.toggle}><ChevronLeft aria-hidden="true" /></button>
+    {/* The plan, always in sight: at the first column's top right, or at the content's when that column is folded away. */}
+    <button type="button" className="ga-scene-plan" onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
     <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
     <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
-      <div className="ga-nav-brand">
-        <img src="/brand/app-icon.png" alt="" />
-        <strong>{t("navModeGameAccess")}</strong>
-        <button type="button" onClick={openPlans} aria-label={t("navMyPlan")} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
-      </div>
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>
     </aside>
+    {/* The activity column's handle (activityFold.ts): folds it out to the right and back. */}
+    {activity.fits ? <button type="button" className="ga-nav-activity-tab" aria-expanded={!activity.folded} aria-label={t(activity.folded ? "navActivityOpen" : "navActivityClose")}
+      title={t(activity.folded ? "navActivityOpen" : "navActivityClose")} onClick={activity.toggle}><ChevronRight aria-hidden="true" /></button> : null}
     <StatusBar />
   </div>;
 }

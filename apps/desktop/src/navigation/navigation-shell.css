@@ -170,9 +170,6 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 .ga-nav-section:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
 @media (prefers-reduced-motion: reduce) { .ga-nav-band, .ga-nav-band svg, .ga-nav-section, .ga-nav-section *, .ga-nav-section::after, .ga-nav-chevrons i { transition: none; } }
 .ga-nav-activity { right: var(--ga-nav-right); width: var(--ga-nav-activity-w); display: flex; flex-direction: column; border-left: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); }
-.ga-nav-brand { flex: none; min-height: var(--ga-nav-brand-h); display: flex; align-items: center; justify-content: space-between; gap: var(--ga-nav-section-gap); padding: var(--ga-nav-section-pad); box-sizing: border-box; border-bottom: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); }
-.ga-nav-brand strong { font: 700 var(--ga-t2-size)/1 var(--ga-nav-display-family); text-transform: var(--ga-nav-display-case); }
-.ga-nav-brand span { color: var(--ga-mode-acc); font: 800 var(--ga-nav-caption-size)/1 var(--ga-text-family); }
 .ga-nav-activity-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .ga-nav-activity-scroll .ga-activity { min-width: 0; }
 .ga-nav-status { position: absolute; left: var(--ga-nav-left); right: var(--ga-nav-right); bottom: var(--ga-frame-bottom, 0px); height: var(--ga-nav-status-h); display: flex; align-items: center; gap: var(--ga-feed-tight); padding: 0 var(--ga-nav-status-item-pad); box-sizing: border-box; border-top: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); background: var(--ga-nav-shell-bg); color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-caption-size)/1 var(--ga-text-family); white-space: nowrap; overflow: hidden; }

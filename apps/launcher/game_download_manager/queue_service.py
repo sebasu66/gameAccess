@@ -214,9 +214,15 @@ def stored_resume_point(app_id: int) -> dict:
         return {}
 
 
+def discard_stopped(app_id: int, name: str) -> None:
+    """An aborted download that had stopped: what it left on disk goes (storage.abandon_download)."""
+    from game_library_manager.storage import DigitalGameStorage
+    DigitalGameStorage().abandon_download(app_id, name)
+
+
 def serve(token: str, status_dir: Path = STATUS_DIR, tick_seconds: float = 0.5) -> None:
     workers = ProcessWorkers(status_dir)
-    queue = DownloadQueue(workers, status_dir / "queue.json", resume_point=stored_resume_point)
+    queue = DownloadQueue(workers, status_dir / "queue.json", resume_point=stored_resume_point, discard=discard_stopped)
     queue.restore()
     server = ThreadingHTTPServer(("127.0.0.1", 0), None)
     stopping = threading.Event()

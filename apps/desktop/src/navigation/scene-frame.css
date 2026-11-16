@@ -76,6 +76,11 @@ html.ga-navigation-shell body::before {
 }
 .ga-scene-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--ga-scene-radius); }
 .ga-scene-art-glow { position: absolute; left: var(--ga-scene-glow-left); top: 2%; width: 78%; aspect-ratio: 1; border-radius: 50%; background: var(--ga-mode); filter: blur(var(--ga-scene-glow-blur)); opacity: var(--ga-scene-glow-opacity); animation: ga-scene-glow var(--ga-scene-glow-time) ease-in-out infinite; }
+/* The plan, always in sight at the column's top right, over the art (the number sits lower). */
+.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); background: transparent; color: var(--ga-mode); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time); }
+html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-content-right) + var(--ga-scene-inner)); }
+.ga-scene-plan:hover { background: var(--ga-mode); color: var(--ga-scene-ink); }
+.ga-scene-plan:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-mode); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-art-number { position: absolute; right: var(--ga-scene-number-right); top: var(--ga-scene-number-top); color: transparent; -webkit-text-stroke: var(--ga-scene-number-stroke) var(--ga-scene-number-ink); font: 400 var(--ga-scene-number-size)/.8 var(--ga-scene-display-family); user-select: none; }
 .ga-scene-particles { position: absolute; top: 0; bottom: 0; left: 0; right: calc(-1 * var(--ga-scene-particle-overhang)); pointer-events: none !important; }
 .ga-scene-particles i { position: absolute; border-radius: 50%; background: var(--ga-particle-color); opacity: var(--ga-particle-opacity); filter: blur(var(--ga-particle-blur)); animation: ga-scene-particle var(--ga-particle-duration) ease-in-out var(--ga-particle-delay) infinite alternate; }
@@ -163,15 +168,11 @@ html.ga-navigation-shell, html.ga-navigation-shell[data-ga-nav-head="games"] { -
    between the two is under a pixel wide, so it never shows squeezed. */
 @media (min-width: 1101px) { html.ga-navigation-shell { --ga-nav-activity-w: clamp(0px, (var(--ga-nav-activity-room) - var(--ga-scene-activity-w)) * 1000, var(--ga-scene-activity-w)); } }
 .ga-nav-activity { border: 0; border-radius: var(--ga-scene-radius); clip-path: none; background: linear-gradient(160deg, var(--ga-scene-gradient-start), var(--ga-scene-surface) 45%, var(--ga-scene-gradient-end)); color: var(--ga-scene-activity-ink); font-family: var(--ga-scene-text-family); }
-.ga-nav-brand { min-height: var(--ga-nav-brand-h); justify-content: flex-start; background: var(--ga-scene-activity-bg); border: 0; border-radius: 0 0 0 var(--ga-scene-radius); color: var(--ga-nav-shell-ink); }
-.ga-nav-brand img { flex: none; width: var(--ga-scene-brand-logo); height: var(--ga-scene-brand-logo); object-fit: contain; }
-.ga-nav-brand strong { flex: 1; max-width: var(--ga-scene-brand-name-w); line-height: .9; }
-.ga-nav-brand button { margin-left: auto; padding: var(--ga-scene-brand-plan-pad); border: var(--ga-scene-rule-width) solid var(--ga-nav-shell-line); background: none; color: var(--ga-nav-shell-ink); font: 800 var(--ga-nav-caption-size)/1 var(--ga-scene-text-family); cursor: pointer; }
-.ga-nav-brand button:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-mode); }
 .ga-nav-activity-scroll { padding: var(--ga-scene-activity-pad) var(--ga-scene-activity-pad) 0; }
 .ga-nav-activity-scroll .ga-activity { min-height: 100%; }
 .ga-scene-activity { display: flex; flex-direction: column; gap: var(--ga-scene-activity-gap); }
-.ga-scene-activity-title { font: 300 var(--ga-scene-activity-title-size)/1 var(--ga-scene-text-family); text-transform: uppercase; }
+/* The title takes the big word's lettering (the one the player chose in Appearance, sceneLook.ts). */
+.ga-scene-activity-title { font: 400 var(--ga-scene-activity-title-size)/1 var(--ga-scene-word-family); text-transform: uppercase; }
 .ga-scene-history { flex: 1; display: flex; flex-direction: column; gap: var(--ga-scene-menu-gap); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { color: var(--ga-scene-activity-ink); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { display: flex; gap: var(--ga-scene-menu-gap); align-items: center; margin: var(--ga-feed-tight) 0 0; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .12em; text-transform: uppercase; }
@@ -194,7 +195,8 @@ button.ga-scene-history-entry { cursor: pointer; }
 .ga-scene-history-entry strong { font: 600 var(--ga-scene-activity-entry-size)/1.25 var(--ga-scene-text-family); }
 .ga-scene-history-entry > span, .ga-scene-history-entry time { font: 500 var(--ga-scene-activity-meta-size)/1.3 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
 .ga-scene-history-more { width: 100%; padding: var(--ga-feed-tight) var(--ga-scene-activity-head-x) var(--ga-scene-activity-head-y) var(--ga-scene-activity-entry-inset); border: 0; background: none; color: inherit; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); text-align: left; opacity: .75; cursor: pointer; }
-.ga-scene-history-filters { position: sticky; bottom: 0; display: flex; gap: var(--ga-feed-tight); flex-wrap: wrap; margin: auto calc(-1 * var(--ga-scene-activity-pad)) 0; padding: var(--ga-scene-activity-pad); border-radius: var(--ga-scene-activity-filter-radius) var(--ga-scene-activity-filter-radius) 0 0; background: var(--ga-scene-activity-bg); }
+/* The filters float as a capsule inside the column, clear of its edges, so no dark corner meets its rounded edge. */
+.ga-scene-history-filters { position: sticky; bottom: var(--ga-scene-activity-pad); display: flex; gap: var(--ga-feed-tight); flex-wrap: wrap; margin: auto 0 var(--ga-scene-activity-pad); padding: var(--ga-feed-tight); border-radius: var(--ga-scene-activity-filter-radius); background: var(--ga-scene-activity-bg); box-shadow: var(--ga-scene-activity-float-shadow); }
 .ga-scene-history-filters button { width: var(--ga-scene-activity-filter); height: var(--ga-scene-activity-filter); display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ga-scene-severity, var(--ga-nav-shell-ink)); cursor: pointer; transition: background .2s, color .2s; }
 .ga-scene-history-filters button:hover:not(:disabled) { background: color-mix(in srgb, var(--ga-nav-shell-ink) 16%, transparent); }
 .ga-scene-history-filters button[aria-pressed="true"] { background: var(--ga-mode); color: var(--ga-scene-ink); }
@@ -220,13 +222,32 @@ html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock) { vi
 html:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) .ga-scene-selection-shape { opacity: 0; }
 html:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) .ga-nav-shell::before { display: none; }
 html[data-ga-nav-drawer="open"] :is(.ga-scene-navigation, .ga-scene-dock) { z-index: 8; }
-.ga-nav-drawer-tab {
-  position: absolute; z-index: 9; left: var(--ga-nav-drawer-tab-x); top: calc(var(--ga-nav-top) + var(--ga-scene-inner));
-  width: var(--ga-nav-drawer-tab-w); height: var(--ga-nav-drawer-tab-h); display: grid; place-items: center; padding: 0;
-  border: 0; border-radius: var(--ga-nav-drawer-tab-radius); background: var(--ga-mode); color: var(--ga-scene-ink); cursor: pointer;
+/* The handles (this one and the activity column's) sit halfway down the columns: a quiet grip that takes the mode's
+   colour on hover, and when its column is folded (then it is the only thing left of it). */
+.ga-nav-drawer-tab, .ga-nav-activity-tab {
+  position: absolute; z-index: 9; top: calc((var(--ga-nav-top) + 100vh - var(--ga-nav-bottom)) / 2); margin-top: calc(var(--ga-nav-drawer-tab-h) / -2);
+  height: var(--ga-nav-drawer-tab-h); display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: var(--ga-nav-drawer-tab-radius); background: var(--ga-nav-handle-bg); color: var(--ga-nav-handle-ink); cursor: pointer;
+  transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time), width var(--ga-nav-drawer-time), right var(--ga-nav-drawer-time) ease;
 }
+.ga-nav-drawer-tab { left: var(--ga-nav-drawer-tab-x); width: var(--ga-nav-drawer-tab-w); }
+:is(.ga-nav-drawer-tab, .ga-nav-activity-tab):hover, html[data-ga-nav-drawer="closed"] .ga-nav-drawer-tab, html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab { background: var(--ga-mode); color: var(--ga-scene-ink); }
+.ga-nav-activity-tab svg { width: var(--ga-nav-activity-tab-icon); height: var(--ga-nav-activity-tab-icon); transition: rotate var(--ga-nav-drawer-time); }
 .ga-nav-drawer-tab svg { width: var(--ga-nav-drawer-tab-icon); height: var(--ga-nav-drawer-tab-icon); transition: rotate var(--ga-nav-drawer-time); }
 html[data-ga-nav-drawer="closed"] .ga-nav-drawer-tab svg { rotate: 180deg; }
 .ga-nav-drawer-tab:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
 @media (prefers-reduced-motion: reduce) { .ga-nav-drawer-tab svg { transition: none; } }
 html[data-ga-nav-activity="hidden"] .ga-nav-activity { visibility: hidden; }
+/* The activity column folds (activityFold.ts) with its handle, halfway down.
+   height. Folded, the column slides out to the right, the content takes its room up to the handle at the window's edge. */
+html.ga-navigation-shell[data-ga-nav-activity-fold="closed"] { --ga-nav-content-right: min(calc(var(--ga-nav-right) + var(--ga-nav-drawer-tab-w) + var(--ga-nav-column-gap)), calc(100vw - var(--ga-nav-content-left) - var(--ga-nav-content-min))); }
+html[data-ga-nav-activity-fold="closed"] .ga-nav-activity { translate: calc(100% + var(--ga-nav-right)) 0; visibility: hidden; transition: translate var(--ga-nav-drawer-time) ease, visibility 0s var(--ga-nav-drawer-time); }
+.ga-nav-activity { transition: translate var(--ga-nav-drawer-time) ease; }
+/* Open, the activity handle is set into the column, in its left padding (it covers nothing); folded, it stands at the
+   window's edge at the left drawer tab's width. */
+.ga-nav-activity-tab { right: calc(var(--ga-nav-right) + var(--ga-nav-activity-w) - var(--ga-nav-activity-tab-inset) - var(--ga-nav-activity-tab-gap)); width: var(--ga-nav-activity-tab-inset); background: var(--ga-nav-handle-inset-bg); color: var(--ga-scene-activity-ink); }
+html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab { right: var(--ga-nav-right); width: var(--ga-nav-drawer-tab-w); }
+html[data-ga-nav-activity="hidden"]:not([data-ga-nav-activity-fold]) .ga-nav-activity-tab { display: none; }
+html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
+@media (prefers-reduced-motion: reduce) { .ga-nav-activity, .ga-nav-activity-tab, .ga-nav-activity-tab svg, html[data-ga-nav-activity-fold="closed"] .ga-nav-activity { transition: none; } }
+html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab svg { rotate: 180deg; } 

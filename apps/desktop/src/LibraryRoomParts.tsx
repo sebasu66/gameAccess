@@ -40,16 +40,19 @@ export function libraryRoomClass(focusZone: FocusZone, showcaseMode: boolean, ha
   return `library-room focus-${focusZone}`;
 }
 
-export function buildActions(game: CatalogGame | undefined, status: ManagedDownloadStatus | undefined, busy: boolean): LibraryAction[] {
+/** `installedHere`: the library has it installed (its folder), even when no download says so: then it is Play, like
+ * the detail's "…" menu (GameDetailMenu). */
+export function buildActions(game: CatalogGame | undefined, status: ManagedDownloadStatus | undefined, busy: boolean, installedHere = false): LibraryAction[] {
   if (!game) return [];
   const state = gameStateManager.resolve(status);
+  const play = state.primaryAction === "play" || (installedHere && !state.transferActive && state.primaryAction !== "wait");
 
   if (state.primaryAction === "wait") {
     const label = translate("actionProcessing");
     return [{ label, icon: <Loader2 className="spin" size={23} />, disabled: true, kind: "verify" }];
   }
 
-  if (state.primaryAction === "play") {
+  if (play) {
     return [{
       label: translate("actionPlay"),
       icon: busy ? <Loader2 className="spin" size={23} /> : <Play size={23} fill="currentColor" />,

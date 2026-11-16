@@ -471,15 +471,35 @@ class DigitalGameStorage:
             self.uninstall(app_id, name)
             return kept
         if "transfer" not in kept:
-            temporary_root = Path(self.preferences.load()["temporary_root"]).resolve()
-            for target in (temporary_root.glob(f"{int(app_id)}-*") if temporary_root.is_dir() else []):
-                resolved = target.resolve()
-                if resolved == temporary_root or not resolved.is_relative_to(temporary_root) or target.is_symlink():
-                    continue
-                if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in target.rglob("*")):
-                    continue
-                shutil.rmtree(target)
+            self._remove_transfers(app_id)
         return kept
+
+    def _remove_transfers(self, app_id: int) -> None:
+        """The game's temporary download folders, never through a link out of the temporary root."""
+        temporary_root = Path(self.preferences.load()["temporary_root"]).resolve()
+        for target in (temporary_root.glob(f"{int(app_id)}-*") if temporary_root.is_dir() else []):
+            resolved = target.resolve()
+            if resolved == temporary_root or not resolved.is_relative_to(temporary_root) or target.is_symlink():
+                continue
+            if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in target.rglob("*")):
+                continue
+            shutil.rmtree(target)
+
+    def abandon_download(self, app_id: int, name: str) -> None:
+        """The player aborts a download that stopped (error, interrupted): what it left to go on from goes (the
+        temporary download and where it stopped); the game's folder only when it holds no file, so a game that was
+        already there stays (remove_new)."""
+        self._remove_transfers(app_id)
+        self.clear_resume(app_id)
+        if self.linked.get(app_id):
+            return
+        try:
+            folder = self.folder(app_id, name)
+            empty = folder.is_dir() and not any(item.is_file() for item in folder.rglob("*"))
+        except (OSError, ValueError):
+            return
+        if empty:
+            self.uninstall(app_id, name)
 
     def local_games(self):
         found = {}

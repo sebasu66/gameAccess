@@ -70,8 +70,10 @@ def is_torrent(source: str) -> bool:
 
 class DownloadQueue:
     def __init__(self, workers: Workers, state_file: Path | None = None, clock=time.monotonic,
-                 resume_point: Callable[[int], dict] | None = None):
+                 resume_point: Callable[[int], dict] | None = None, discard: Callable[[int, str], None] | None = None):
         self.workers = workers
+        # Aborting a download that stopped: removes what it left on disk to go on from (storage.abandon_download).
+        self.discard = discard or (lambda app_id, name: None)
         # Where an unfinished download stopped, kept with its install (storage.resume_point plus the game's name):
         # lets a retry go on after the app was closed, without the plugin.
         self.resume_point = resume_point or (lambda app_id: {})
@@ -180,6 +182,14 @@ class DownloadQueue:
         with self.lock:
             job = self._job(app_id)
             if job.state == "done":
+                # Aborting one that stopped (error, interrupted): no worker is left, so its leftovers go from here
+                # and the row says it was cancelled (it used to stay as it was: the abort did nothing).
+                if job.phase in STOPPED_PHASES:
+                    try:
+                        self.discard(app_id, job.name)
+                    finally:
+                        self._finish(job, "cancelled")
+                        self._save()
                 return
             if app_id in self.order:
                 self.order.remove(app_id)
