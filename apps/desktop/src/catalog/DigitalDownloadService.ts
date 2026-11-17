@@ -1,7 +1,7 @@
 import { libraryMembership } from "../libraryMembership";
 import { scanLibrary } from "../libraryScan";
 import { translate } from "../i18n";
-import { confirmNotice } from "../notice/notice";
+import { confirmNotice, getNotice, hideNotice } from "../notice/notice";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
@@ -314,7 +314,11 @@ export class DigitalDownloadService implements IDownloadProvider {
    * downloaded is only unpacked again. The Download Manager knows the source (also after a restart, from what the
    * install remembers), so the plugin is not needed. With nothing to go on with, the download starts over.
    */
-  async retry(game: CatalogGame): Promise<void> {
+  /**
+   * `directOnly`: the normal download, the torrent with this PC's own client and no server: what the player picks when
+   * the accelerated download failed (the server may be down; the torrent is always there).
+   */
+  async retry(game: CatalogGame, options: { directOnly?: boolean } = {}): Promise<void> {
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
     if (previous && !isDownloadHistory(previous.phase)) return;
@@ -328,7 +332,8 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.speeds.delete(id);
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
     try {
-      this.apply(await this.queue.retry(appId));
+      if (options.directOnly) this.methods.set(id, "torrent");
+      this.apply(await this.queue.retry(appId, options.directOnly === true));
     } catch (error) {
       if (!(error instanceof QueueRefused)) {
         if (previous) this.updateSnapshot(previous);
@@ -355,7 +360,15 @@ export class DigitalDownloadService implements IDownloadProvider {
   async pause(gameId: number): Promise<void> {
     const phase = this.activeJobs.get(gameId)?.phase;
     if (!phase || isDownloadHistory(phase) || phase === "paused" || phase === "cancelling") return;
-    this.apply(await this.queue.pause(this.appIdOf(gameId)));
+    // The row says "paused" at once; the Download Manager's answer confirms it (or puts it back if it refused).
+    const previous = this.activeJobs.get(gameId)!;
+    this.updateSnapshot({ ...previous, phase: "paused", speedBps: 0 });
+    try {
+      this.apply(await this.queue.pause(this.appIdOf(gameId)));
+    } catch (error) {
+      this.updateSnapshot(previous);
+      throw error;
+    }
   }
 
   /** A download that stopped (no room, error) waits paused, with what it downloaded, until the player resumes it. */
@@ -398,16 +411,35 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** Position of a queued download (0 = next to start), or -1. */
   queuePosition(gameId: number): number { return this.positions.get(gameId) ?? -1; }
 
+  /**
+   * The player's cancel, from any place (Library › Downloads, the activity panel): the question shows at once, and on
+   * yes the download is marked "cancelling" right away. False when the player kept it.
+   */
+  async confirmCancel(game: CatalogGame, gameId: number, stopped = false): Promise<boolean> {
+    const ok = await confirmNotice({ game: { name: game.name, appId: game.app_id ?? game.id }, kind: "danger",
+      title: translate(stopped ? "abortDownloadTitle" : "cancelDownloadTitle", { name: game.name }), text: translate("cancelDownloadBody"),
+      confirmLabel: translate(stopped ? "downloadsAbort" : "downloadsCancel"), cancelLabel: translate(stopped ? "back" : "keepDownloading") });
+    if (!ok) return false;
+    // The question leaves at once: the row's "cancelling" is the answer.
+    const asked = getNotice();
+    if (asked?.question) hideNotice(asked.id);
+    await this.cancel(gameId);
+    return true;
+  }
+
   private cancelling = new Set<number>();
   async cancel(gameId: number): Promise<void> {
     const previous = this.activeJobs.get(gameId);
     if (!previous || ["completed", "cancelled", "external"].includes(previous.phase) || this.cancelling.has(gameId)) return;
     this.cancelling.add(gameId);
+    // Marked "cancelling" at once, everywhere (Seba, 2026-11-16): the worker may take a while to stop and delete its
+    // files, and the download keeps its place in the queue until it has.
+    this.updateSnapshot({ ...previous, phase: "cancelling", speedBps: 0, statusText: translate("downloadCancelling") });
     try {
       this.apply(await this.queue.cancel(this.appIdOf(gameId)));
     } catch (error) {
       // A stopped row the Download Manager no longer knows (lost with an older queue): aborting it only takes it off here.
-      if (!(error instanceof QueueRefused) || !["error", "interrupted"].includes(previous.phase)) throw error;
+      if (!(error instanceof QueueRefused) || !["error", "interrupted"].includes(previous.phase)) { this.updateSnapshot(previous); throw error; }
       this.forget(gameId, { ...previous, phase: "cancelled" });
     } finally {
       this.cancelling.delete(gameId);

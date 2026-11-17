@@ -3,7 +3,7 @@
  * accelerated download (route, probe, server, download, extract, install) every few seconds, with one game queued and
  * one finished, so the Downloads panel can be seen working without the launcher.
  */
-import type { DigitalDownloadService } from "../catalog/DigitalDownloadService";
+import { DigitalDownloadService } from "../catalog/DigitalDownloadService";
 import type { DownloadProgressSnapshot, DownloadStepDone, DownloadStepId } from "../downloadProvider";
 import type { CatalogGame } from "../types";
 import { appendEvents, type DownloadEvent } from "../downloadEvents";
@@ -68,6 +68,19 @@ export function demoDownloadService(): DigitalDownloadService {
       { id: "extract", state: "failed", result: "No hay espacio libre suficiente en D:", ms: 0,
         facts: { from: "rdr2.part01.rar", folder: "D:\\Juegos\\Red Dead Redemption 2", drive: "D:", freeBytes: 41e9, neededBytes: 128.4e9 } }] } as DownloadProgressSnapshot;
   const stoppedLog = appendEvents([], undefined, stoppedAt, begun - 60000);
+  // A torrent the server was accelerating, stopped because the server did not answer: retry accelerated, or the normal
+  // download with this PC's own torrent client.
+  const viaServer = game(1091500, "Cyberpunk 2077");
+  const viaServerAt = { gameId: viaServer.id, phase: "error", progress: 20, downloadPercent: 40, bytesDownloaded: 26e9, bytesTotal: 65e9, resumeStep: "download",
+    error: "El servidor de aceleración no respondió. Podés reintentar o seguir con la descarga normal.", statusText: "El servidor de aceleración no respondió",
+    step: null, steps: [{ id: "download", state: "failed", result: "El servidor dejó de responder", ms: 0 }] } as DownloadProgressSnapshot;
+  // A cancel takes a few seconds, as a real worker deleting its files: the row says "cancelling" meanwhile.
+  const cancelled = new Map<number, number>();
+  const asCancelled = (snapshot: DownloadProgressSnapshot): DownloadProgressSnapshot => {
+    const at = cancelled.get(snapshot.gameId);
+    if (at === undefined) return snapshot;
+    return Date.now() - at < 5000 ? { ...snapshot, phase: "cancelling", speedBps: 0, statusText: "Cancelando" } : { ...snapshot, phase: "cancelled", statusText: "Cancelada" };
+  };
   // The free Steam game's log, written as it walks its steps.
   let steamLog: DownloadEvent[] = [], steamLast: DownloadProgressSnapshot | undefined;
   window.setInterval(() => {
@@ -78,7 +91,7 @@ export function demoDownloadService(): DigitalDownloadService {
     const steam = steamAt(Date.now());
     steamLog = appendEvents(steamLast?.phase === "completed" && steam.phase !== "completed" ? [] : steamLog, steamLast, steam);
     steamLast = steam;
-    listeners.forEach(listener => { listener(snapshot); listener(steam); });
+    listeners.forEach(listener => { listener(asCancelled(snapshot)); listener(asCancelled(steam)); for (const id of cancelled.keys()) listener(asCancelled({ ...(id === viaServer.id ? viaServerAt : stoppedAt), gameId: id })); });
   }, 1000);
   const service = {
     getDownloads: () => [
@@ -87,9 +100,11 @@ export function demoDownloadService(): DigitalDownloadService {
       { game: finished, snapshot: { gameId: finished.id, phase: "completed", progress: 100, statusText: "Listo" } as DownloadProgressSnapshot },
       { game: free, snapshot: steamAt(Date.now()) },
       { game: stopped, snapshot: stoppedAt },
-    ],
+      { game: viaServer, snapshot: viaServerAt },
+    ].map(entry => ({ ...entry, snapshot: asCancelled(entry.snapshot) })),
+    getRecord: (id: number) => id === viaServer.id ? { id, downloadSource: "magnet:?xt=urn:btih:demo", sourceTitle: "Cyberpunk 2077 v2.1" } : undefined,
     onGlobalUpdate: (listener: (snapshot: DownloadProgressSnapshot) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
-    getDownloadMethod: (id: number) => id === active.id ? "accelerated" : undefined,
+    getDownloadMethod: (id: number) => id === active.id || id === viaServer.id ? "accelerated" : undefined,
     planTier: () => "plus",
     queuePosition: (id: number) => id === queued.id ? 0 : -1,
     getEvents: (id: number) => id === active.id ? log : id === free.id ? steamLog : id === stopped.id ? stoppedLog : [],
@@ -103,7 +118,10 @@ export function demoDownloadService(): DigitalDownloadService {
       });
     },
     remove: async () => undefined, start: async () => undefined, play: async () => undefined, moveInQueue: () => undefined,
-    pause: async () => undefined, resume: async () => undefined, cancel: async () => undefined, retry: async () => undefined,
+    pause: async () => undefined, resume: async () => undefined, retry: async () => undefined,
+    cancel: async (id: number) => { cancelled.set(id, Date.now()); },
   };
+  // The same question as the real service (the confirmation at once, then "cancelling").
+  Object.assign(service, { confirmCancel: DigitalDownloadService.prototype.confirmCancel });
   return service as unknown as DigitalDownloadService;
 }

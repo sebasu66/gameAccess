@@ -132,6 +132,43 @@ fn fetch_json(url: &str) -> Option<serde_json::Value> {
 }
 
 /// The games the Steam store features now (see `featured_ids`), for the catalog banner.
+/// Biggest picture a game's own cover may be (a cover, not a wallpaper).
+const OWN_COVER_MAX: usize = 12 * 1024 * 1024;
+
+/// The picture's media type by its first bytes; None when it is not a picture the card can show.
+fn picture_type(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { Some("image/png") }
+    else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) { Some("image/jpeg") }
+    else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" { Some("image/webp") }
+    else if bytes.starts_with(b"GIF8") { Some("image/gif") }
+    else { None }
+}
+
+/// The cover the player chose in a game's card (gameCard.ts) as a data URL: a picture on this PC or a web address.
+/// Read here because the page may only load Steam's pictures (the window's content policy) and has no file access.
+#[tauri::command]
+pub async fn own_cover_picture(source: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = source.trim();
+        let bytes = if source.starts_with("https://") || source.starts_with("http://") {
+            let response = get_client().get(source).send().map_err(|error| error.to_string())?;
+            if !response.status().is_success() { return Err(format!("HTTP {}", response.status())); }
+            if response.content_length().unwrap_or(0) as usize > OWN_COVER_MAX { return Err("too big".into()); }
+            response.bytes().map_err(|error| error.to_string())?.to_vec()
+        } else {
+            let meta = std::fs::metadata(source).map_err(|error| error.to_string())?;
+            if meta.len() as usize > OWN_COVER_MAX { return Err("too big".into()); }
+            std::fs::read(source).map_err(|error| error.to_string())?
+        };
+        if bytes.len() > OWN_COVER_MAX { return Err("too big".into()); }
+        let kind = picture_type(&bytes).ok_or("not a picture")?;
+        use base64::Engine as _;
+        Ok(format!("data:{kind};base64,{}", base64::engine::general_purpose::STANDARD.encode(&bytes)))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
 pub async fn steam_featured_app_ids() -> Result<Vec<u32>, String> {
     tauri::async_runtime::spawn_blocking(|| {

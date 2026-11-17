@@ -7,7 +7,10 @@ import {downloadMethodLabel, planLabel} from "./downloadMethod";
 import {downloadBars} from "./downloadBars";
 export {formatDownloadBytes} from "./downloadSize";
 import type { CatalogGame } from "./types";
-import { ArrowDown, ArrowDownToLine, ArrowUp, CircleCheck, CircleX, Download, ExternalLink, FolderOpen, Pause, Play, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowDownToLine, ArrowUp, CircleCheck, CircleX, Download, ExternalLink, FolderOpen, Loader2, Pause, Play, Plus, RotateCcw, Search, X } from "lucide-react";
+import { closeDownloadFailureNotice } from "./DigitalDownloadErrorDialog";
+import { findAnotherSource } from "./sourceRescue";
+import { isTorrent } from "./downloadMethod";
 import { digitalProcessManager } from "./catalog/DigitalProcessManager";
 import { digitalDownloadService, type DigitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
@@ -138,17 +141,28 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         }
       };
       // The same buttons for every download (DownloadActions): its main action, cancel, the folder.
-      const act = (id: string, label: string, icon: ReactNode, action: () => Promise<void>, aria?: string): DownloadAction =>
-        ({ id, label, icon, aria, run: () => void run(gameId, action) });
-      const main = stopped ? act("retry", snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry"),
-          snapshot.resumeStep ? <Play size={16} aria-hidden="true" /> : <RotateCcw size={16} aria-hidden="true" />, () => service.retry(game))
+      // Deciding here closes the notice about the same download (one control, not two).
+      const act = (id: string, label: string, icon: ReactNode, action: () => Promise<void>, aria?: string, title?: string): DownloadAction =>
+        ({ id, label, icon, aria, title, run: () => { closeDownloadFailureNotice(gameId); void run(gameId, action); } });
+      // A stopped download (Seba, 2026-11-16): "Retry" goes on from what it had. When it went through the server and the
+      // source is a torrent, the player picks: the accelerated one again, or the normal one (the torrent with this PC's
+      // own client, always there even if the server is down). "Try another source" looks for a different download.
+      const installStopped = snapshot.resumeStep === "extract";
+      const viaServer = method === "accelerated" && isTorrent(record?.downloadSource ?? "");
+      const retryLabel = installStopped ? t("downloadsResumeExtract") : viaServer ? t("downloadsRetryAccelerated") : t("downloadsRetry");
+      const retryHint = installStopped ? t("downloadsResumeExtractHint") : snapshot.resumeStep === "download" ? t("downloadsResumeDownloadHint") : undefined;
+      // Cancelling: one sign that it is under way, and no other button until it is over (Seba, 2026-11-16).
+      const main = phase === "cancelling" ? act("cancelling", t("downloadCancelling"), <Loader2 size={16} className="spin" aria-hidden="true" />, async () => undefined)
+        : stopped ? act("retry", retryLabel, <RotateCcw size={16} aria-hidden="true" />, () => service.retry(game), undefined, retryHint)
         : phase === "paused" ? act("resume", t("downloadsResume"), <Play size={16} aria-hidden="true" />, () => service.resume(gameId))
         : canPause ? act("pause", t("downloadsPause"), <Pause size={16} aria-hidden="true" />, () => service.pause(gameId)) : undefined;
       const actions = <DownloadActions main={main} disabled={busy.includes(gameId) || phase === "cancelling"}
         others={[
           // Steam would not give it through DepotDownloader: Steam's own install, beside the retry.
           ...(fromSteam && stopped && snapshot.errorCode === "steam_install" ? [act("steam", t("dlDepotInstallWithSteam"), <Download size={16} aria-hidden="true" />, () => openSteamClientInstall(Number(record?.id ?? game.app_id ?? gameId)))] : []),
-          act("cancel", stopped ? t("downloadsAbort") : t("downloadsCancel"), <X size={16} aria-hidden="true" />, () => service.cancel(gameId), t(stopped ? "downloadsAbortAria" : "downloadsCancelAria", { name: game.name }))]}
+          ...(stopped && viaServer && !installStopped ? [act("normal", t("downloadsRetryNormal"), <Download size={16} aria-hidden="true" />, () => service.retry(game, { directOnly: true }), undefined, t("downloadsRetryNormalHint"))] : []),
+          ...(stopped && !fromSteam && !installStopped && snapshot.errorCode !== "no_space" ? [act("source", t("rescueTry"), <Search size={16} aria-hidden="true" />, () => findAnotherSource(currentGame), undefined, t("rescueTryHint"))] : []),
+          act("cancel", stopped ? t("downloadsAbort") : t("downloadsCancel"), <X size={16} aria-hidden="true" />, async () => { await service.confirmCancel(game, gameId, stopped); }, t(stopped ? "downloadsAbortAria" : "downloadsCancelAria", { name: game.name }))]}
         folder={hasFolder(entry) && !fromSteam ? act("folder", t("downloadsOpenFolder"), <FolderOpen size={16} aria-hidden="true" />, async () => { await digitalProcessManager.openFolder(entry.game, "download"); }) : undefined} />;
       // The wizard's cover is the game's portrait (library 600x900, resolved like the grids), never the wide header cut down.
       const portrait = <GameThumb appId={currentGame.app_id} image={/library_(capsule|600x900)/.test(currentGame.capsule_image ?? "") ? currentGame.capsule_image : null}
@@ -212,7 +226,7 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         <div className="ga-dl-card-actions">
           {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
           {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
-          <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} /><span className="ga-dl-label">{t("downloadsCancel")}</span></button>
+          <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, async () => { await service.confirmCancel(game, gameId); })}>{phase === "cancelling" ? <Loader2 size={16} className="spin" /> : <X size={16} />}<span className="ga-dl-label">{phase === "cancelling" ? t("downloadCancelling") : t("downloadsCancel")}</span></button>
           {openFolder(entry)}
         </div>
       </article>;
@@ -246,10 +260,10 @@ export default function DigitalDownloadsScreen({ onClose: onClosed, service = di
         {canPause ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.pause(gameId))}><Pause size={16} /><span className="ga-dl-label">{t("downloadsPause")}</span></button> : null}
         {phase === "paused" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.resume(gameId))}><Play size={16} /><span className="ga-dl-label">{t("downloadsResume")}</span></button> : null}
         {/* A stopped download goes on from the step it reached (unpacking again, or the rest of the download). */}
-        {["error", "interrupted"].includes(phase) ? <button className="ga-download-resume" disabled={busy.includes(gameId)} title={snapshot.resumeStep === "extract" ? t("downloadsResumeExtractHint") : snapshot.resumeStep === "download" ? t("downloadsResumeDownloadHint") : undefined} onClick={() => void run(gameId, () => service.retry(game))}>{snapshot.resumeStep ? <Play size={16} /> : <RotateCcw size={16} />}<span className="ga-dl-label">{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : snapshot.resumeStep === "download" ? t("downloadsResumeDownload") : t("downloadsRetry")}</span></button> : null}
+        {["error", "interrupted"].includes(phase) ? <button className="ga-download-resume" disabled={busy.includes(gameId)} title={snapshot.resumeStep === "extract" ? t("downloadsResumeExtractHint") : snapshot.resumeStep === "download" ? t("downloadsResumeDownloadHint") : undefined} onClick={() => void run(gameId, () => service.retry(game))}><RotateCcw size={16} /><span className="ga-dl-label">{snapshot.resumeStep === "extract" ? t("downloadsResumeExtract") : t("downloadsRetry")}</span></button> : null}
         {phase === "cancelled" ? <button disabled={busy.includes(gameId)} onClick={() => void run(gameId, () => service.start(game))}><RotateCcw size={16} /><span className="ga-dl-label">{t("downloadsRetry")}</span></button> : null}
-        {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsAbortAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} /><span className="ga-dl-label">{t("downloadsAbort")}</span></button> : null}
-        {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, () => service.cancel(gameId))}><X size={16} /><span className="ga-dl-label">{t("downloadsCancel")}</span></button> : null}
+        {["error", "interrupted"].includes(phase) ? <button disabled={busy.includes(gameId)} aria-label={t("downloadsAbortAria",{name:game.name})} onClick={() => void run(gameId, async () => { await service.confirmCancel(game, gameId, true); })}><X size={16} /><span className="ga-dl-label">{t("downloadsAbort")}</span></button> : null}
+        {!terminal(entry) ? <button disabled={busy.includes(gameId) || phase === "cancelling"} aria-label={t("downloadsCancelAria",{name:game.name})} onClick={() => void run(gameId, async () => { await service.confirmCancel(game, gameId); })}>{phase === "cancelling" ? <Loader2 size={16} className="spin" /> : <X size={16} />}<span className="ga-dl-label">{phase === "cancelling" ? t("downloadCancelling") : t("downloadsCancel")}</span></button> : null}
         {!["cancelled", "cancelling", "external"].includes(phase) ? openFolder(entry) : null}
       </div>
     </article>;

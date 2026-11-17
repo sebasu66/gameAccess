@@ -8,6 +8,9 @@ import { activeDownloadService } from "../downloads/activeService";
 import { freezeJob } from "../freezeJobs";
 import { queryCatalogCache } from "../catalogCache";
 import { libraryScanState, scanLibrary } from "../libraryScan";
+import { getGameCard, isHiddenGame, setGameCard, type GameCard } from "../gameCard";
+import { deckGenres, genreLabel, primaryGenre } from "../libraryGenres";
+import type { CatalogGame } from "../types";
 import { bool, gb, num, str, ToolError, type McpTool } from "./tools";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -170,6 +173,81 @@ export const libraryTools: McpTool[] = [
           through_steam: Boolean(snapshot.steps?.some(step => ["dialog", "signin", "handoff", "adopt"].includes(step.id)) || (snapshot.step && ["dialog", "signin", "handoff", "adopt"].includes(snapshot.step.id))),
         }));
       return { count: downloads.length, downloads };
+    },
+  },
+];
+
+/** A game's card as the tools show it: what the player set, and what the library does with it. */
+async function cardView(appId: number) {
+  const found = await queryCatalogCache({ app_ids: [appId], limit: 1 }).catch(() => null);
+  const game: CatalogGame | undefined = found?.items[0];
+  const card = getGameCard({ app_id: appId, id: appId });
+  const automatic = game ? primaryGenre(game) : null;
+  const genre = card.genre ?? automatic;
+  return {
+    app_id: appId,
+    store_name: game?.name ?? null,
+    card,
+    shown_name: card.name ?? game?.name ?? null,
+    automatic_genre: automatic,
+    deck: genre ? { id: genre, label: genreLabel(genre) } : null,
+    hidden_in_play: isHiddenGame({ app_id: appId, id: appId }),
+  };
+}
+
+/** Card fields from the tool's arguments: an empty text clears it, "auto" gives the genre back to the automatic one. */
+function cardChanges(args: Record<string, unknown>, current: GameCard): GameCard {
+  const next: GameCard = { ...current };
+  const text = (key: "name" | "cover") => { const value = str(args, key); if (value !== undefined) next[key] = value.trim() || undefined; };
+  text("name"); text("cover");
+  const genre = str(args, "genre");
+  if (genre !== undefined) {
+    const id = genre.trim();
+    if (!id || id === "auto") next.genre = undefined;
+    else if (!deckGenres().includes(id)) throw new ToolError(`Unknown genre "${id}". Use game_card_get's genres list (an id, or "auto").`);
+    else next.genre = id;
+  }
+  const hidden = bool(args, "hidden");
+  if (hidden !== undefined) next.hidden = hidden || undefined;
+  return next;
+}
+
+export const gameCardTools: McpTool[] = [
+  {
+    name: "game_card_get",
+    title: "A game's card",
+    description: "How the library presents one game (Library › Game card): the player's display name, cover (a web address or a picture on this PC), main genre (the deck it is in under Play › By genre; automatic comes from Steam's weighted tags) and whether it is hidden in Play. Also lists the genre ids game_card_set accepts.",
+    inputSchema: { type: "object", properties: { app_id: { type: "number", description: "The game's Steam app id." } }, required: ["app_id"], additionalProperties: false },
+    annotations: { readOnlyHint: true },
+    run: async args => {
+      const appId = num(args, "app_id", { min: 1 });
+      if (appId == null) throw new ToolError('"app_id" is required.');
+      return { ...await cardView(appId), genres: deckGenres().map(id => ({ id, label: genreLabel(id) })) };
+    },
+  },
+  {
+    name: "game_card_set",
+    title: "Change a game's card",
+    description: "Changes how the library presents one game, as its card in the library manager does: display name, cover, main genre (its deck under Play › By genre) and hidden in Play. Only the fields given change; an empty name or cover goes back to Steam's, genre \"auto\" goes back to the automatic one.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        app_id: { type: "number", description: "The game's Steam app id." },
+        name: { type: "string", description: "Name shown in the library; empty for the store's." },
+        cover: { type: "string", description: "Cover: a web address (https://…) or a picture's path on this PC; empty for Steam's." },
+        genre: { type: "string", description: "Genre id from game_card_get's list, or \"auto\"." },
+        hidden: { type: "boolean", description: "true hides it in Library › Play (the library manager still lists it)." },
+      },
+      required: ["app_id"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    run: async args => {
+      const appId = num(args, "app_id", { min: 1 });
+      if (appId == null) throw new ToolError('"app_id" is required.');
+      const key = { app_id: appId, id: appId };
+      setGameCard(key, cardChanges(args, getGameCard(key)));
+      return cardView(appId);
     },
   },
 ];

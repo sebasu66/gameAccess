@@ -57,7 +57,8 @@ describe("submodos de cada sección", () => {
     expect(sectionTab("downloads")).toBe("active");
     expect(selectNavigationTab("library", "downloads", "queued")).toBe(true);
     expect(sectionTab("downloads", getNavigationSelection().tabs)).toBe("queued");
-    expect(selectNavigationTab("library", "play", "genres")).toBe(false);
+    expect(selectNavigationTab("library", "play", "genres")).toBe(true);
+    expect(selectNavigationTab("library", "play", "recent")).toBe(true);
     expect(selectNavigationTab("library", "downloads", "nada")).toBe(false);
     expect(sectionTab("play", getNavigationSelection().tabs)).toBe("recent");
   });

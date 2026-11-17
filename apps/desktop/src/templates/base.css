@@ -6,7 +6,12 @@
   --ga-text-min: 14px; --ga-text-size: 16px; --ga-hint-size: 15px; --ga-text-leading: 1.5;
   --ga-t2-leading: 1.3; --ga-label-size: 13px; --ga-label-leading: 1.3; --ga-label-track: .14em; --ga-status-size: 14px; --ga-status-leading: 1.4;
   /* Margins. */
-  --ga-home-form-w: 560px; --ga-home-measure: 80ch; --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
+  --ga-home-form-w: 560px;
+  /* Genre decks (LibraryGenreDecks.tsx): the grid, the card, and where the fan's four cards sit closed and on hover. */
+  --ga-deck-w: 340px; --ga-deck-pad: 16px; --ga-deck-plate-radius: 2px; --ga-deck-word-col: 78px; --ga-deck-ring-size: 40px; --ga-deck-hold-time: .28s; --ga-deck-hold-lift: -14px; --ga-deck-hold-scale: 1.08; --ga-deck-hold-tilt: -1.2deg; --ga-deck-stone-size: 420px; --ga-deck-word-size: 120px; --ga-deck-word-h: 300px;  --ga-deck-gap-x: 26px; --ga-deck-gap-y: 30px; --ga-deck-card-w: 150px; --ga-deck-card-radius: 14px; --ga-deck-stack-h: 262px; --ga-deck-glow-h: 34px;
+  --ga-deck-paper-pad: 7px; --ga-deck-paper-radius: 16px; --ga-deck-face-radius: 10px; --ga-deck-scratch-size: 360px; --ga-deck-glare-size: 62%; --ga-deck-name-size: 26px; --ga-deck-meta-size: 11px;
+  --ga-deck-fan-0: translate(14px, 16px) rotate(-8deg); --ga-deck-fan-1: translate(24px, 8px) rotate(-3deg); --ga-deck-fan-2: translate(34px, 2px) rotate(4deg); --ga-deck-fan-3: translate(44px, -2px) rotate(9deg);
+  --ga-deck-hover-0: translate(-8px, 8px) rotate(-14deg) scale(.98); --ga-deck-hover-1: translate(30px, -4px) rotate(-5deg); --ga-deck-hover-2: translate(74px, -12px) rotate(4deg) scale(1.03); --ga-deck-hover-3: translate(118px, -6px) rotate(12deg) scale(1.05); --ga-home-measure: 80ch; --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
   /* Sizes. */
   --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
   /* A settings tab: how wide it runs, and the least a group's text column takes before its buttons wrap below it. */
@@ -27,7 +32,7 @@
   --ga-nav-drawer-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
   --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
   --ga-nav-activity-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
-  --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-status-h: 30px; --ga-nav-status-gap: var(--ga-nav-column-gap);
+  --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-activity-gap: 30px; --ga-nav-status-h: 30px; --ga-nav-status-gap: var(--ga-nav-column-gap);
   --ga-scene-frame-inset: 8px; --ga-scene-frame-radius: 34px; --ga-scene-frame-width: 1.5px; --ga-scene-frame-first-stop: 30%; --ga-scene-frame-clear-stop: 55%;
   --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
   --ga-scene-dock-clear: 20px; --ga-scene-cut-radius: 27px; --ga-scene-panel-radius: 40px;
@@ -52,7 +57,7 @@
   --ga-scene-wipe-size: 2600px; --ga-scene-wipe-size-two: 2400px; --ga-scene-wipe-size-three: 2500px; --ga-scene-wipe-offset: 120px; --ga-scene-wipe-x: 50%;
   --ga-scene-heading-size: clamp(30px, 4vh, 46px); --ga-scene-heading-label: 14px; --ga-scene-section-name: 19.5px; --ga-scene-section-desc: 13px;
   --ga-scene-activity-pad: 16px; --ga-scene-activity-gap: 12px; --ga-scene-activity-icon: 18px; --ga-scene-activity-filter: 34px; --ga-scene-activity-radius: 12px;
-  --ga-scene-activity-w: clamp(220px, 24vw, 336px); --ga-scene-activity-title-size: 34px; --ga-scene-activity-card-radius: 18px; --ga-scene-activity-filter-radius: 26px;
+  --ga-scene-activity-w: clamp(220px, 24vw, 336px); --ga-scene-activity-title-size: 34px; --ga-scene-activity-section-size: 17px; --ga-scene-activity-card-radius: 18px; --ga-scene-activity-filter-radius: 26px;
   --ga-scene-activity-head-icon: 26px; --ga-scene-activity-entry-inset: 47px; --ga-scene-activity-head-x: 14px; --ga-scene-activity-head-y: 11px;
   --ga-scene-activity-label-size: 12px; --ga-scene-activity-entry-size: 14.5px; --ga-scene-activity-meta-size: 11.5px; --ga-scene-activity-move: 5px;
   --ga-scene-brand-logo: 46px; --ga-scene-brand-name-w: 65px; --ga-scene-brand-plan-pad: 8px;

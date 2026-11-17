@@ -82,7 +82,7 @@ export function buildLibraryCollection(
   catalogSort: CatalogSort = "steam-popularity",
   libraryIds: ReadonlySet<number> = new Set(),
   /** The new shell's Library › Play submode: last played first, the liked ones, or A–Z (over the library view). */
-  playTab?: "recent" | "favorites" | "alphabetical",
+  playTab?: "recent" | "favorites" | "alphabetical" | "genres",
 ): LibrarySection {
   const hasRecommendations = hasPopularityData(games);
   const hasSteamReviewData = games.some(game => typeof game.steam_review_score === "number" && (game.steam_review_count ?? 0) > 0);

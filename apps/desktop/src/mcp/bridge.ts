@@ -10,7 +10,7 @@ import { actionTools } from "./actionTools";
 import { appearanceTools } from "./appearanceTools";
 import { devTools, startDevEvents } from "./devTools";
 import { discoverTools } from "./discoverTools";
-import { libraryTools } from "./libraryTools";
+import { gameCardTools, libraryTools } from "./libraryTools";
 import { callTool, listTools, registerTools } from "./tools";
 
 interface McpRequest { id: number; method: "tools/list" | "tools/call"; params?: { name?: string; arguments?: Record<string, unknown> } }
@@ -30,7 +30,7 @@ let started = false;
 export function startMcpBridge(): void {
   if (started || !isTauri()) return;
   started = true;
-  registerTools([...discoverTools, ...libraryTools, ...accountTools, ...planTools, ...actionTools, ...appearanceTools, ...devTools]);
+  registerTools([...discoverTools, ...libraryTools, ...gameCardTools, ...accountTools, ...planTools, ...actionTools, ...appearanceTools, ...devTools]);
   startDevEvents();
   void listen<McpRequest>("gameaccess:mcp-request", async event => {
     const request = event.payload;

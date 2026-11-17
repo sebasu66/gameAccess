@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
 import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Link2, Loader2, Pencil, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, EyeSlash, GearSix, IdentificationCard, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import RenameGameDialog from "../RenameGameDialog";
 import { normalizeSearchText } from "../libraryText";
@@ -23,6 +23,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
+import { isHiddenGame, useGameCards } from "../gameCard";
 import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { clock, eventText, stats as jobStats } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
@@ -225,7 +226,7 @@ type RowProps = {
   findCatalogGame: (game: LibraryGame) => CatalogGame | undefined;
   onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
-  retry: (id: number) => void; configure: (game: LibraryGame) => void;
+  retry: (id: number) => void; configure: (game: LibraryGame, card?: boolean) => void;
 };
 
 /** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game on this
@@ -303,6 +304,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   const key = row.key;
   const open = expanded === id;
   const catalogGame = findCatalogGame(game);
+  const cards = useGameCards();
   const unfinished = game.partial || isUnfinished(game);
   const ref = useRef<HTMLTableRowElement>(null);
   const focused = focusId != null && focusId === id;
@@ -347,7 +349,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ...(retryable(game) && id != null ? [act(c.retryProcess, <ArrowClockwise />, () => retry(id), { tone: "accent", disabled: busy })]
         : needsFix(game) && id != null ? [act(c.fix, <MagicWand />, () => void askPlan([id]), { tone: "accent", disabled: busy })] : []),
       ...(canVerify(game) ? [act(c.verify, verifying === id ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />, () => verify(game), { disabled: busy || verifying != null })] : []),
+      // Language and launch only for a game Game Access runs; the card (name, cover, genre, shown in Play) for every game.
       ...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []),
+      ...(id != null ? [act(c.card, <IdentificationCard />, () => configure(game, true), { disabled: busy })] : []),
       act(c.openFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game)), { disabled: libraryDemo() || isSteamOwned(game) }),
       ...(id != null ? [act(translate("renameMenu"), <Pencil size={16} />, () => setRenaming(true), { disabled: busy })] : []),
       ...(game.frozen && !game.linked && id != null ? [act(c.thaw, <PhFlame />, () => setThawing(game, "thaw"), { tone: "frost", disabled: busy })] : []),
@@ -380,6 +384,7 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <GameWideArt game={{ app_id: id, name: game.name }} compact /> : <ArtworkFallback name={game.name} compact />}</span>}</td>
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
+        {id != null && isHiddenGame({ app_id: id, id }, cards) ? <span className="lm-status" title={c.hiddenInPlayTip}><EyeSlash />{c.hiddenInPlay}</span> : null}
       </td>
       <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
@@ -506,6 +511,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
+  const [configuringCard, setConfiguringCard] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   useEffect(() => { void scanLibrary(); }, []);
   useEffect(() => {
@@ -677,7 +683,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
   const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }),
     verify: (game: LibraryGame) => void verifyGames([game]), verdict, verifying: verifying?.id ?? null,
-    retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null };
+    retry: (id: number) => void runBatch("adopt", [id]), configure: (game: LibraryGame, card = false) => { setConfiguringCard(card); setConfiguring(game); }, focusId: focusAppId ?? null };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -737,7 +743,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 
       {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
       {linkOpen ? <ManualLinkDialog onClose={() => setLinkOpen(false)} /> : null}
-      {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} onClose={() => setConfiguring(null)} /> : null}
+      {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} cardOnly={!configurable(configuring)} openOnCard={configuringCard} onClose={() => setConfiguring(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { notifyLibraryChanged(); void suggestVerify(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
     </TooltipProvider>

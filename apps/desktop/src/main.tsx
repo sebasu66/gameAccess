@@ -44,6 +44,7 @@ import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { setAppLocale, translate, useI18n } from "./i18n";
+import "./motion/game-pause.css";
 import "./templates/base.css";
 import "./templates/flavor-terminal.css";
 import "./templates/flavor-1.css";

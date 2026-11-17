@@ -75,5 +75,6 @@ export class DownloadQueueClient {
   remove(appId: number): Promise<QueueState> { return this.request(`/jobs/${appId}/remove`, {}); }
   move(appId: number, delta: -1 | 1): Promise<QueueState> { return this.request(`/jobs/${appId}/move`, { delta }); }
   /** Go on with a stopped download from the step it reached (refused when there is nothing to go on with). */
-  retry(appId: number): Promise<QueueState> { return this.request(`/jobs/${appId}/retry`, {}); }
+  /** `directOnly`: the normal download (the torrent with this PC's client), without the server's help. */
+  retry(appId: number, directOnly = false): Promise<QueueState> { return this.request(`/jobs/${appId}/retry`, directOnly ? { directOnly } : {}); }
 }

@@ -48,6 +48,7 @@ import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
 import LibraryBento, { type LibraryPill } from "./LibraryBento";
+import LibraryGenreDecks from "./LibraryGenreDecks";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -498,6 +499,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
 
   // In the new shell the one game search sits with the filters and sort, under the banner (§4.3, Seba 2026-11-11).
   // Manager › Accounts (the new shell's tab): the account libraries instead of the games list.
+  // Library › Play › By genre shows decks in place of the bento (LibraryGenreDecks.tsx).
+  const genreDecks = navigationShellEnabled() && sectionTab("play", navigationSelection.tabs) === "genres";
   const managerTab = navigationShellEnabled() ? sectionTab("manager", navigationSelection.tabs) : "games";
   const gridSearch = navigationShellEnabled() ? <div className="ga-nav-grid-search"><SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} /></div> : null;
   const toolbar = (
@@ -552,7 +555,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
             <GaButton variant="primary" icon={<FolderInput size={16} aria-hidden="true" />} onClick={() => { setImportOnOpen(true); toggleManager(true); }}>{t("libraryEmptyImport")}</GaButton>
             <GaButton icon={<LayoutGrid size={16} aria-hidden="true" />} onClick={() => onViewChange("catalog")}>{t("tabCatalog")}</GaButton>
           </div>
-        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : aiReasons ? <AiResults games={displaySection.games} reasons={aiReasons} menuGameId={contextMenu?.game.id} renderCard={gameCard} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={gameCard} />}
+        </section> : view !== "catalog" && genreDecks ? <LibraryGenreDecks games={displaySection.games} downloads={props.downloads} indexes={indexes} onSelect={props.onSelect} /> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : aiReasons ? <AiResults games={displaySection.games} reasons={aiReasons} menuGameId={contextMenu?.game.id} renderCard={gameCard} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={gameCard} />}
       </div>
       {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>

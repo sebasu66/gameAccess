@@ -167,7 +167,7 @@ export default function LibraryInputController({ mode, onModeChange }: { mode: C
       // A screen (kids, home, settings) hides the grid: its keys are not the grid's (appScreen.ts).
       // Big picture mode has its own keys (BigScreenControls.tsx).
       if (!libraryRoot() || modal() || document.documentElement.classList.contains("ga-screen-on") || bigPictureActive()) return;
-      if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
+      if (event.target instanceof HTMLElement && event.target.closest(".ga-decks, .library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard, [role='scrollbar']")) return;
       const key = event.key.toLowerCase();
 
       if (key === "tab" && modeRef.current === "digital" && !event.altKey && !event.ctrlKey && !event.metaKey) {

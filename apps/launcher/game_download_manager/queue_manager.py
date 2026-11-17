@@ -46,6 +46,8 @@ class Job:
     source_provider: str = ""
     # The torrents that race for this download, as the server allowed them (source_race.RacePlan); None: no race.
     race: dict | None = None
+    # The player asked for the normal download (the torrent with this PC's own client), without the server's help.
+    direct_only: bool = False
     # waiting: queued for a place; active: a worker is moving data (the only state that takes a place);
     # paused: the player paused it; cancelling: its worker is winding down; done: finished
     state: str = "waiting"
@@ -113,7 +115,7 @@ class DownloadQueue:
     # ------------------------------------------------------------------ orders
     def enqueue(self, app_id: int, name: str, source: str, delivery: str = "download",
                 auto_installed: bool = False, keep_archive: bool = False, source_title: str = "",
-                source_provider: str = "", race: dict | None = None) -> Job:
+                source_provider: str = "", race: dict | None = None, direct_only: bool = False) -> Job:
         with self.lock:
             source = (source or "").strip()
             if not source:
@@ -126,29 +128,30 @@ class DownloadQueue:
             job = Job(app_id=app_id, name=name, source=source, delivery=delivery or "download",
                       auto_installed=auto_installed, keep_archive=keep_archive,
                       source_title=source_title or "", source_provider=source_provider or "",
-                      race=race if isinstance(race, dict) else None)
+                      race=race if isinstance(race, dict) else None, direct_only=direct_only)
             self.jobs[app_id] = job
             self.order.append(app_id)
             self.pump()
             return job
 
-    def retry(self, app_id: int) -> Job:
+    def retry(self, app_id: int, direct_only: bool = False) -> Job:
         """Go on with a download that stopped (error, interrupted, no room): its worker continues from the step it
         reached (an archive already downloaded is only unpacked). Works from the queue's own record or, after a
-        restart, from what the install remembers."""
+        restart, from what the install remembers. `direct_only`: the normal download, without the server (when the
+        accelerated one failed, the player can choose it)."""
         with self.lock:
             job = self.jobs.get(app_id)
             if job and job.state != "done":
                 return job
             if job and job.phase != "cancelled":
                 return self.enqueue(job.app_id, job.name, job.source, job.delivery, job.auto_installed, job.keep_archive,
-                                    job.source_title, job.source_provider)
+                                    job.source_title, job.source_provider, direct_only=direct_only)
             point = self.resume_point(app_id) or {}
             if not point.get("source"):
                 raise QueueError("No hay una descarga sin terminar para continuar; descargalo de nuevo.")
             return self.enqueue(app_id, str(point.get("name") or ""), str(point["source"]), str(point.get("delivery") or "download"),
                                 bool(point.get("auto_installed")), False, str(point.get("source_title") or ""),
-                                str(point.get("source_provider") or ""))
+                                str(point.get("source_provider") or ""), direct_only=direct_only)
 
     def pause(self, app_id: int) -> None:
         with self.lock:
@@ -162,7 +165,8 @@ class DownloadQueue:
                 job.state, job.phase, job.error = "paused", "paused", ""
             elif job.state == "active":
                 self.workers.control(app_id, "pause")
-                job.state = "paused"  # its place goes to the next one; the worker confirms "paused" in its status
+                # Its place goes to the next one; the row says "paused" at once (the worker confirms it in its status).
+                job.state, job.phase = "paused", "paused"
                 self.pump()
             self._save()
 
@@ -195,7 +199,9 @@ class DownloadQueue:
                 self.order.remove(app_id)
             if job.worker_alive:
                 self.workers.control(app_id, "cancel")  # the worker removes what it downloaded and reports "cancelled"
-                job.state, job.phase = "cancelling", "cancelling"  # takes no place while it winds down
+                # It keeps its place until its worker has really stopped (Seba, 2026-11-16): the next download does not
+                # start on top of one still deleting its files.
+                job.state, job.phase = "cancelling", "cancelling"
             else:
                 self._finish(job, "cancelled")
             self.pump()
@@ -222,7 +228,8 @@ class DownloadQueue:
 
     # ------------------------------------------------------------------ scheduling
     def running(self) -> int:
-        return sum(1 for job in self.jobs.values() if job.state == "active")
+        """Places taken: the downloads moving data and the ones still winding down a cancel."""
+        return sum(1 for job in self.jobs.values() if job.state in ("active", "cancelling"))
 
     def pump(self) -> None:
         """Start (or resume) waiting downloads while there are free places."""
@@ -235,7 +242,7 @@ class DownloadQueue:
                 else:
                     job.phase, job.status = "preparing", {}
                     try:
-                        self.workers.start(job, self.chunk_session if self.tier == "plus" else None)
+                        self.workers.start(job, self.chunk_session if self.tier == "plus" and not job.direct_only else None)
                         job.worker_alive = True
                     except Exception as exc:  # noqa: BLE001 - shown to the player
                         self._finish(job, "error", f"No se pudo iniciar la descarga: {exc}")
@@ -254,10 +261,23 @@ class DownloadQueue:
                     if phase in TERMINAL_PHASES:
                         self._finish(job, phase, str(status.get("error") or ""))
                         continue
-                    if job.state != "waiting":
+                    # What the player ordered shows at once and stays until it is over: a worker still writing
+                    # "downloading" for a moment does not take a cancelled or paused row back.
+                    if job.state == "cancelling":
+                        job.phase = "cancelling"
+                    elif job.state == "paused":
+                        job.phase = "paused"
+                    elif job.state != "waiting":
                         job.phase = phase or job.phase
                 if not self.workers.alive(job.app_id):
-                    self._finish(job, "interrupted", "El proceso de descarga se cerró sin terminar. Reintentá la descarga.")
+                    if job.state == "cancelling":
+                        self._finish(job, "cancelled")
+                    else:
+                        self._finish(job, "interrupted", "El proceso de descarga se cerró sin terminar. Reintentá la descarga.")
+                elif job.state == "cancelling" and age is not None and age > STALE_SECONDS:
+                    # A worker that stopped answering while cancelling would hold its place for ever.
+                    self.workers.stop(job.app_id)
+                    self._finish(job, "cancelled")
                 elif job.state == "active" and age is not None and age > STALE_SECONDS:
                     self.workers.stop(job.app_id)
                     self._finish(job, "interrupted", "El motor dejó de actualizar su estado. Reintentá la descarga.")

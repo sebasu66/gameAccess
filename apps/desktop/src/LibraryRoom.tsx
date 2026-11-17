@@ -1,7 +1,7 @@
 import { catalogParamsFromFilters, useCatalogGenreNames } from "./catalogFilterParams";
 import { SCREEN_CHANGE_EVENT, setAppScreen } from "./appScreen";
 import { REQUEST_GAMES_VIEW_EVENT, setGamesView, type GamesView } from "./gameArea";
-import { openLibraryManager } from "./libraryManagerNav";
+import { manageGame } from "./manageGame";
 import { useLibraryDownloads } from "./useLibraryDownloads";
 import RenderProbe from "./RenderProbe";
 import { useLibraryGames } from "./libraryMembership";
@@ -69,6 +69,7 @@ import { uiDemo } from "./devDemo/uiDemo";
 import ViewRail from "./ViewRail";
 import { useModeRail } from "./modeRailPreferences";
 import { gsap, motionOk } from "./motion/gsap";
+import { isHiddenGame, useGameCards, withGameCard } from "./gameCard";
 
 interface LibraryRoomProps {
   toolbarTarget?: HTMLDivElement | null;
@@ -163,7 +164,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
   const [catalogSort, setCatalogSort] = useState<CatalogSort>("steam-popularity");
   // The new shell chooses Play's order in the sections panel (Last played, Favourites, A–Z).
   const chosenPlayTab = useSectionTab("play");
-  const playTab = navigationShellEnabled() ? chosenPlayTab as "recent" | "favorites" | "alphabetical" | undefined : undefined;
+  const playTab = navigationShellEnabled() ? chosenPlayTab as "recent" | "favorites" | "alphabetical" | "genres" | undefined : undefined;
   const isWindowMaximized = useDesktopWindowMaximized();
   const [bigScreen, setBigScreen] = useState(false);
   const [confirmGame, setConfirmGame] = useState<CatalogGame | null>(null);
@@ -324,6 +325,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     const state = gameStateManager.resolve(game.app_id ? effectiveDownloads[game.app_id] : effectiveDownloads[game.id]);
     return state.installed || state.prepared;
   }, [effectiveDownloads]);
+  const gameCards = useGameCards();
   const catalogCollection = useMemo(() => {
     if (aiMode) {
       // Only the AI's games, in the AI's order.
@@ -366,7 +368,9 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
         total: memoryOnly ? sourceItems.length - hiddenByTaste : Math.max(0, catalogQuery.total - hiddenByTaste),
       };
     }
-    const nonCatalogGames = filterLibraryGames(games, activeQuery, visibleFilters);
+    // The library shows each game as the player's card says: its own name, and not in Play when it is hidden.
+    const carded = games.filter(game => !isHiddenGame(game, gameCards)).map(game => withGameCard(game, gameCards));
+    const nonCatalogGames = filterLibraryGames(carded, activeQuery, visibleFilters);
     return buildLibraryCollection(
       downloadManager.pinGames(nonCatalogGames, effectiveDownloads, trackedAppIds),
       effectiveDownloads,
@@ -377,7 +381,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       libraryIds,
       playTab,
     );
-  }, [playTab, libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring, aiMode, aiResult]);
+  }, [gameCards, playTab, libraryView, catalogQuery.items, catalogQuery.total, catalogQuery.error, catalogSort, games, activeQuery, visibleFilters, effectiveDownloads, trackedAppIds, preferences, history, libraryIds, locale, isInstalledGame, taste, tasteParams, tasteCandidates.items, catalogBase, tailoring, aiMode, aiResult]);
   const displayGames = catalogCollection.games;
   const selectedIndexRaw = displayGames.findIndex((game) => game.id === selectedGameId);
   const selectedIndex = selectedIndexRaw >= 0 ? selectedIndexRaw : 0;
@@ -667,9 +671,8 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       else void onDownload(selectedGame);
     }
     else if (action.kind === "manage") {
-      const appId = selectedGame.app_id ?? undefined;
       closeGameDetail();
-      openLibraryManager(appId);
+      manageGame(selectedGame.app_id, selectedGame.id);
     }
   };
   const activateAction = () => onAction(actionIndex);
@@ -701,7 +704,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
     // Detail controls use native button/scroll keyboard behavior, without moving the grid.
     if (detailOpen) return;
     if (event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable=true]"))) return;
-    if (event.target instanceof HTMLElement && event.target.closest(".library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard")) return;
+    if (event.target instanceof HTMLElement && event.target.closest(".ga-decks, .library-section-heading button, .library-section-pages button, .library-catalog-toolbar button, .library-catalog-filter-actions, .ga-big-screen-toggle, .ga-pad-keyboard")) return;
     markActivity();
     const letterIndex = findLibraryLetter(displayGames, event.key, selectedIndex);
     if (letterIndex >= 0) {

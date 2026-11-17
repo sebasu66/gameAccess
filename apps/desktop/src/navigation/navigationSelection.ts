@@ -46,7 +46,7 @@ export function selectNavigationSection(mode: NavigationModeId, section: string)
  */
 export const READY_TABS: Readonly<Record<string, readonly string[]>> = {
   newGames: ["downloadable"],
-  play: ["recent", "favorites", "alphabetical"],
+  play: ["recent", "genres", "favorites", "alphabetical"],
   downloads: ["active", "queued", "completed"],
   manager: ["games", "accounts"],
   news: ["release", "announcements"],

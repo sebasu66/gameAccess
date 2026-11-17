@@ -14,6 +14,7 @@
 }
 .ga-nav-activity { border-right: 0; }
 .ga-nav-status {
+  left: var(--ga-frame-left, 0px); right: var(--ga-frame-right, 0px); padding-inline: calc(var(--ga-nav-outer-pad) + var(--ga-nav-status-item-pad));
   border-top-color: color-mix(in srgb, var(--ga-mode) var(--ga-scene-status-line), transparent);
   background: color-mix(in srgb, var(--ga-mode) var(--ga-scene-status-tint), var(--ga-nav-shell-bg));
 }
@@ -38,10 +39,10 @@
 }
 
 /* The scene is one navigation piece. Its lower menu sits over the fixed-size character art. */
-.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-scene-catalog); --ga-mode-acc: var(--ga-scene-catalog); --ga-mode-start: var(--ga-scene-catalog-start); --ga-mode-end: var(--ga-scene-catalog-end); --ga-scene-ink: var(--ga-scene-catalog-ink); }
-.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-scene-library); --ga-mode-acc: var(--ga-scene-library); --ga-mode-start: var(--ga-scene-library-start); --ga-mode-end: var(--ga-scene-library-end); --ga-scene-ink: var(--ga-scene-library-ink); }
-.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-scene-game-access); --ga-mode-acc: var(--ga-scene-game-access); --ga-mode-start: var(--ga-scene-game-access-start); --ga-mode-end: var(--ga-scene-game-access-end); --ga-scene-ink: var(--ga-scene-game-access-ink); }
-.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-scene-settings); --ga-mode-acc: var(--ga-scene-settings); --ga-mode-start: var(--ga-scene-settings-start); --ga-mode-end: var(--ga-scene-settings-end); --ga-scene-ink: var(--ga-scene-settings-ink); }
+.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-scene-catalog); --ga-mode-acc: var(--ga-accent); --ga-mode-start: var(--ga-scene-catalog-start); --ga-mode-end: var(--ga-scene-catalog-end); --ga-scene-ink: var(--ga-scene-catalog-ink); }
+.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-scene-library); --ga-mode-acc: var(--ga-accent); --ga-mode-start: var(--ga-scene-library-start); --ga-mode-end: var(--ga-scene-library-end); --ga-scene-ink: var(--ga-scene-library-ink); }
+.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-scene-game-access); --ga-mode-acc: var(--ga-accent); --ga-mode-start: var(--ga-scene-game-access-start); --ga-mode-end: var(--ga-scene-game-access-end); --ga-scene-ink: var(--ga-scene-game-access-ink); }
+.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-scene-settings); --ga-mode-acc: var(--ga-accent); --ga-mode-start: var(--ga-scene-settings-start); --ga-mode-end: var(--ga-scene-settings-end); --ga-scene-ink: var(--ga-scene-settings-ink); }
 html[data-ga-scene-tone="dark"] .ga-nav-shell {
   --ga-scene-surface: color-mix(in srgb, var(--ga-mode) 30%, var(--ga-scene-bg));
   /* The dark tone is derived from the mode's gradient, the player's own included. */
@@ -77,10 +78,10 @@ html.ga-navigation-shell body::before {
 .ga-scene-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--ga-scene-radius); }
 .ga-scene-art-glow { position: absolute; left: var(--ga-scene-glow-left); top: 2%; width: 78%; aspect-ratio: 1; border-radius: 50%; background: var(--ga-mode); filter: blur(var(--ga-scene-glow-blur)); opacity: var(--ga-scene-glow-opacity); animation: ga-scene-glow var(--ga-scene-glow-time) ease-in-out infinite; }
 /* The plan, always in sight at the column's top right, over the art (the number sits lower). */
-.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); background: transparent; color: var(--ga-mode); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time); }
+.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); background: transparent; color: var(--ga-accent); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time); }
 html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-content-right) + var(--ga-scene-inner)); }
-.ga-scene-plan:hover { background: var(--ga-mode); color: var(--ga-scene-ink); }
-.ga-scene-plan:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-mode); outline-offset: var(--ga-scene-dock-focus); }
+.ga-scene-plan:hover { background: var(--ga-accent); color: var(--ga-accent-ink); }
+.ga-scene-plan:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-accent); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-art-number { position: absolute; right: var(--ga-scene-number-right); top: var(--ga-scene-number-top); color: transparent; -webkit-text-stroke: var(--ga-scene-number-stroke) var(--ga-scene-number-ink); font: 400 var(--ga-scene-number-size)/.8 var(--ga-scene-display-family); user-select: none; }
 .ga-scene-particles { position: absolute; top: 0; bottom: 0; left: 0; right: calc(-1 * var(--ga-scene-particle-overhang)); pointer-events: none !important; }
 .ga-scene-particles i { position: absolute; border-radius: 50%; background: var(--ga-particle-color); opacity: var(--ga-particle-opacity); filter: blur(var(--ga-particle-blur)); animation: ga-scene-particle var(--ga-particle-duration) ease-in-out var(--ga-particle-delay) infinite alternate; }
@@ -136,25 +137,25 @@ html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-cont
 @media (prefers-reduced-motion: reduce) { .ga-scene-liquid-neck, .ga-scene-liquid-lobe, .ga-scene-liquid-cut, .ga-scene-liquid-edge { transition: none; } }
 .ga-scene-menu-head { position: relative; display: flex; align-items: center; gap: var(--ga-scene-menu-head-gap); padding: 0 var(--ga-scene-menu-head-side) var(--ga-scene-menu-head-bottom); }
 .ga-scene-menu-head::after { content: ""; position: absolute; bottom: 0; left: var(--ga-scene-rule-inset); right: var(--ga-scene-rule-inset); height: var(--ga-scene-rule-width); background: color-mix(in srgb, var(--ga-scene-menu-ink) 20%, transparent); }
-.ga-scene-menu-head span { display: grid; place-items: center; height: var(--ga-scene-lock-size); min-width: var(--ga-scene-lock-size); padding-inline: var(--ga-scene-menu-gap); border-radius: var(--ga-scene-lock-size); background: var(--ga-scene-ink); color: var(--ga-mode); font-weight: 800; }
+.ga-scene-menu-head span { display: grid; place-items: center; height: var(--ga-scene-lock-size); min-width: var(--ga-scene-lock-size); padding-inline: var(--ga-scene-menu-gap); border-radius: var(--ga-scene-lock-size); background: var(--ga-scene-icon-black); color: var(--ga-accent); font-weight: 800; }
 .ga-scene-menu-head strong { font-size: var(--ga-scene-menu-head-size); }
 .ga-scene-list { display: flex; flex-direction: column; gap: var(--ga-scene-list-gap); list-style: none; margin: var(--ga-scene-list-top) 0 0; padding: 0; }
 .ga-scene-section { width: 100%; min-height: var(--ga-scene-row-height); display: flex; align-items: center; gap: var(--ga-scene-row-gap); padding: 0 var(--ga-scene-row-pad); border: 0; border-radius: var(--ga-scene-row-height); background: transparent; color: inherit; text-align: left; cursor: pointer; font-family: inherit; }
 .ga-scene-section[aria-current="page"] { width: calc(100% + var(--ga-scene-menu-pad)); border-radius: var(--ga-scene-row-height) 0 0 var(--ga-scene-row-height); background: transparent; color: var(--ga-nav-shell-ink); }
 .ga-scene-section:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--ga-scene-ink) var(--ga-scene-icon-tint), transparent); }
 .ga-scene-section:focus-visible { outline: var(--ga-scene-dock-focus) solid currentColor; }
-.ga-scene-section-icon { flex: none; width: var(--ga-scene-icon-size); height: var(--ga-scene-icon-size); display: grid; place-items: center; border-radius: 50%; background: var(--ga-scene-ink); color: var(--ga-mode); }
+.ga-scene-section-icon { flex: none; width: var(--ga-scene-icon-size); height: var(--ga-scene-icon-size); display: grid; place-items: center; border-radius: 50%; background: var(--ga-scene-icon-black); color: var(--ga-accent); }
 .ga-scene-section[aria-current="page"] .ga-scene-section-icon { background: var(--ga-mode); color: var(--ga-scene-ink); }
 .ga-scene-section-icon svg { width: var(--ga-scene-icon-drawing); height: var(--ga-scene-icon-drawing); fill: none; stroke: currentColor; stroke-width: var(--ga-scene-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
 .ga-scene-section-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--ga-scene-copy-gap); }
 .ga-scene-section-copy strong, .ga-scene-section-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ga-scene-section-copy strong { font-size: var(--ga-scene-section-name); line-height: 1.1; }
 .ga-scene-section-copy small { font-size: var(--ga-scene-section-desc); font-weight: 500; line-height: 1.2; opacity: var(--ga-scene-muted-opacity); }
-.ga-scene-section .ga-nav-lock { width: var(--ga-scene-lock-size); height: var(--ga-scene-lock-size); border-radius: 50%; background: var(--ga-scene-ink); color: var(--ga-mode); }
+.ga-scene-section .ga-nav-lock { width: var(--ga-scene-lock-size); height: var(--ga-scene-lock-size); border-radius: 50%; background: var(--ga-scene-icon-black); color: var(--ga-accent); }
 .ga-scene-section .ga-nav-lock svg { width: var(--ga-scene-lock-icon-size); height: var(--ga-scene-lock-icon-size); }
 .ga-scene-content-title { position: absolute; z-index: 2; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); left: calc(var(--ga-nav-content-left) + var(--ga-nav-content-pad)); right: calc(var(--ga-nav-content-right) + var(--ga-nav-content-pad)); display: flex; flex-direction: column; gap: var(--ga-scene-tabs-gap); font-family: var(--ga-scene-text-family); }
 .ga-scene-content-heading { min-height: var(--ga-nav-hero-h); max-width: 50%; overflow: hidden; }
-.ga-scene-content-heading span { color: var(--ga-mode); font-size: var(--ga-scene-heading-label); font-weight: 600; }
+.ga-scene-content-heading span { color: var(--ga-accent); font-size: var(--ga-scene-heading-label); font-weight: 600; }
 .ga-scene-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 var(--ga-scene-heading-size)/1 var(--ga-scene-text-family); }
 .ga-scene-content-title .ga-nav-tabs { padding: 0; gap: var(--ga-scene-tabs-gap); }
 .ga-scene-content-title .ga-nav-tab { height: var(--ga-scene-tab-height); padding: 0 var(--ga-scene-tab-pad); border: var(--ga-scene-rule-width) solid var(--ga-nav-shell-line); border-radius: var(--ga-scene-tab-height); font-family: var(--ga-scene-text-family); }
@@ -172,26 +173,31 @@ html.ga-navigation-shell, html.ga-navigation-shell[data-ga-nav-head="games"] { -
 .ga-nav-activity-scroll .ga-activity { min-height: 100%; }
 .ga-scene-activity { display: flex; flex-direction: column; gap: var(--ga-scene-activity-gap); }
 /* The title takes the big word's lettering (the one the player chose in Appearance, sceneLook.ts). */
-.ga-scene-activity-title { font: 400 var(--ga-scene-activity-title-size)/1 var(--ga-scene-word-family); text-transform: uppercase; }
+.ga-scene-activity-title { padding-inline: var(--ga-scene-activity-gap); font: 400 var(--ga-scene-activity-title-size)/1 var(--ga-scene-word-family); text-transform: uppercase; }
+/* Both sections are dark rounded blocks, like the main menu's; the light text is the shell's, not the mode's. */
+.ga-scene-activity > :is(.ga-process-tasks, .ga-scene-history) { padding: var(--ga-scene-activity-gap); border-radius: var(--ga-scene-activity-card-radius); background: var(--ga-scene-activity-bg); color: var(--ga-nav-shell-ink); }
 .ga-scene-history { flex: 1; display: flex; flex-direction: column; gap: var(--ga-scene-menu-gap); }
-.ga-scene-history .ga-label, .ga-scene-activity .ga-label { color: var(--ga-scene-activity-ink); }
+.ga-scene-history .ga-label, .ga-scene-activity .ga-label { color: inherit; }
+/* Each section's title (En curso, Historial): larger, with a rule under it and room before its content. */
+.ga-scene-activity :is(.ga-process-tasks, .ga-scene-history) > .ga-label { margin: 0 0 var(--ga-scene-activity-gap); padding-bottom: var(--ga-scene-activity-gap); border-bottom: var(--ga-scene-rule-width) solid var(--ga-scene-activity-card-line); font-size: var(--ga-scene-activity-section-size); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { display: flex; gap: var(--ga-scene-menu-gap); align-items: center; margin: var(--ga-feed-tight) 0 0; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .12em; text-transform: uppercase; }
 .ga-scene-history .ga-label span, .ga-scene-activity .ga-label span { opacity: var(--ga-scene-muted-opacity); letter-spacing: normal; }
-.ga-scene-history .ga-hint { color: var(--ga-scene-activity-ink); }
-.ga-scene-history-group { overflow: hidden; border-radius: var(--ga-scene-activity-card-radius); background: color-mix(in srgb, var(--ga-scene-activity-ink) 9%, transparent); }
+.ga-scene-history .ga-hint { color: inherit; }
+.ga-scene-history-group { display: grid; gap: var(--ga-scene-menu-gap); }
 .ga-scene-history-group-head { box-sizing: border-box; display: flex; align-items: center; gap: var(--ga-scene-menu-gap); width: 100%; padding: var(--ga-scene-activity-head-y) var(--ga-scene-activity-head-x) var(--ga-feed-tight); border: 0; background: none; color: inherit; font: inherit; text-align: left; }
 button.ga-scene-history-group-head { cursor: pointer; }
-.ga-scene-history-kind { flex: none; display: grid; place-items: center; width: var(--ga-scene-activity-head-icon); height: var(--ga-scene-activity-head-icon); color: var(--ga-scene-severity); background: var(--ga-scene-activity-ink); border-radius: 50%; }
+.ga-scene-history-kind { flex: none; display: grid; place-items: center; width: var(--ga-scene-activity-head-icon); height: var(--ga-scene-activity-head-icon); color: var(--ga-scene-severity); background: var(--ga-scene-icon-black); border-radius: 50%; }
 .ga-scene-history-group-head svg, .ga-scene-history-filters svg { flex: none; width: var(--ga-scene-activity-icon); height: var(--ga-scene-activity-icon); }
 .ga-scene-history-group-head strong { font: 700 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
 .ga-scene-history-count { font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
 .ga-scene-history-chevron { margin-left: auto; transition: rotate .3s; }
 .ga-scene-history-group-head[aria-expanded="true"] .ga-scene-history-chevron { rotate: 180deg; }
-.ga-scene-history-group ul { list-style: none; padding: 0; margin: 0; }
-.ga-scene-history-group li + li { border-top: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-scene-activity-ink) 16%, transparent); }
-.ga-scene-history-entry { box-sizing: border-box; display: grid; gap: var(--ga-feed-tight); width: 100%; padding: var(--ga-scene-menu-gap) var(--ga-scene-activity-head-x) var(--ga-scene-menu-gap) var(--ga-scene-activity-entry-inset); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; transition: padding-left .2s; }
+.ga-scene-history-group ul { display: grid; gap: var(--ga-scene-menu-gap); list-style: none; padding: 0; margin: 0; }
+/* Every notice keeps its own body and border, grouped or not: they collapse together but never merge into a wall of text. */
+.ga-scene-history-group li { overflow: hidden; border: var(--ga-nav-line-w) solid var(--ga-scene-activity-card-line); border-radius: var(--ga-scene-activity-radius); background: var(--ga-scene-activity-card-bg); }
+.ga-scene-history-entry { box-sizing: border-box; display: grid; gap: var(--ga-feed-tight); width: 100%; padding: var(--ga-scene-menu-gap) var(--ga-scene-activity-head-x); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; transition: padding-left .2s; }
 button.ga-scene-history-entry { cursor: pointer; }
-.ga-scene-history-entry:hover { padding-left: calc(var(--ga-scene-activity-entry-inset) + var(--ga-scene-activity-move)); }
+.ga-scene-history-entry:hover { background: var(--ga-scene-activity-card-line); }
 .ga-scene-history-entry strong { font: 600 var(--ga-scene-activity-entry-size)/1.25 var(--ga-scene-text-family); }
 .ga-scene-history-entry > span, .ga-scene-history-entry time { font: 500 var(--ga-scene-activity-meta-size)/1.3 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
 .ga-scene-history-more { width: 100%; padding: var(--ga-feed-tight) var(--ga-scene-activity-head-x) var(--ga-scene-activity-head-y) var(--ga-scene-activity-entry-inset); border: 0; background: none; color: inherit; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); text-align: left; opacity: .75; cursor: pointer; }
@@ -205,7 +211,7 @@ button.ga-scene-history-entry { cursor: pointer; }
 .ga-scene-activity .ga-process-task-open { border: 0; background: color-mix(in srgb, var(--ga-scene-ink) 9%, transparent); color: var(--ga-scene-ink); }
 .ga-scene-activity .ga-process-task-state, .ga-scene-activity .ga-process-task-kind { color: var(--ga-scene-ink); }
 .ga-scene-activity .ga-process-task-bar > i { background: var(--ga-scene-ink); }
-.ga-scene-history :is(button):focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-mode); outline-offset: var(--ga-scene-dock-focus); }
+.ga-scene-history :is(button):focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-accent); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-history [data-severity="error"] { --ga-scene-severity: var(--ga-scene-severity-error); }
 .ga-scene-history [data-severity="warning"] { --ga-scene-severity: var(--ga-scene-severity-warning); }
 .ga-scene-history [data-severity="done"] { --ga-scene-severity: var(--ga-scene-severity-done); }
@@ -216,7 +222,7 @@ button.ga-scene-history-entry { cursor: pointer; }
    it lies over the content. The column keeps its own size in all three: it slides, never squeezes. */
 html.ga-navigation-shell { --ga-nav-drawer-span: calc(var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + var(--ga-nav-column-gap)); --ga-nav-drawer-tab-x: calc(var(--ga-nav-left) + var(--ga-nav-drawer-span) + (var(--ga-scene-column-space) - var(--ga-nav-drawer-tab-w)) / 2); }
 html.ga-navigation-shell:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) { --ga-nav-content-left: calc(var(--ga-frame-left, 0px) + var(--ga-nav-drawer-tab-w) + var(--ga-nav-column-gap)); }
-html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock, .ga-nav-drawer-tab) { translate: calc(var(--ga-frame-left, 0px) - var(--ga-nav-drawer-tab-x)) 0; }
+html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock, .ga-nav-drawer-tab) { margin-left: calc(var(--ga-frame-left, 0px) - var(--ga-nav-drawer-tab-x)); }
 /* Out of sight once it has slid out: nothing in it is reached with the keyboard. */
 html[data-ga-nav-drawer="closed"] :is(.ga-scene-navigation, .ga-scene-dock) { visibility: hidden; transition: visibility 0s var(--ga-nav-drawer-time); }
 html:is([data-ga-nav-drawer="closed"], [data-ga-nav-drawer="open"]) .ga-scene-selection-shape { opacity: 0; }

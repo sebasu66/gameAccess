@@ -10,7 +10,7 @@
 import { translate, type AppLocale, type TranslationKey } from "./i18n";
 export type DownloadMethod = "measuring" | "torrent" | "accelerated" | "direct";
 
-function isTorrent(source: string): boolean {
+export function isTorrent(source: string): boolean {
   const value = source.trim().toLowerCase();
   return value.startsWith("magnet:") || /\.torrent(?:$|\?)/.test(value);
 }

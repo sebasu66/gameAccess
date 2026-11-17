@@ -8,7 +8,7 @@ html.ga-navigation-shell {
   --ga-nav-panel-shape: polygon(0 0, 100% 0, 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%);
   --ga-nav-content-left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + 2 * var(--ga-nav-column-gap));
   /* Never narrower than its minimum: a window too narrow even for that cuts the content at its right edge (no scrollbar). */
-  --ga-nav-content-right: min(calc(var(--ga-nav-right) + var(--ga-nav-activity-w) + var(--ga-nav-column-gap)), calc(100vw - var(--ga-nav-content-left) - var(--ga-nav-content-min)));
+  --ga-nav-content-right: min(calc(var(--ga-nav-right) + var(--ga-nav-activity-w) + var(--ga-nav-activity-gap)), calc(100vw - var(--ga-nav-content-left) - var(--ga-nav-content-min)));
   /* The content starts under the header row, level with the section's title (§4.3). */
   --ga-nav-head-h: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h));
 }

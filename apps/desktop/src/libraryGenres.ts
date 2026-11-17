@@ -107,6 +107,43 @@ export function genreStoredName(id: string): string {
   return (BY_ID.get(id) ?? BY_KEY.get(normalizeSearchText(id)))?.canonical ?? genreLabel(id);
 }
 
+/** Labels about how a game is sold or made, not what it is: they never name a deck. */
+const NOT_A_DECK = new Set(["indie", "early_access", "free_to_play"]);
+/** Too broad, or a setting rather than a way to play: a deck only when nothing more telling is there. */
+const WEAK_DECK = new Set(["casual", "massively_multiplayer", "open_world", "fantasy", "sci_fi", "mystery", "adventure"]);
+
+/**
+ * A known concept of the table for a value, without recording community tags it does not know (Steam has hundreds).
+ * Steam's many "… Sim" tags (Farming Sim, Life Sim, Automobile Sim) are simulations.
+ */
+function knownConcept(value: string): GenreConcept | undefined {
+  const key = normalizeSearchText(value);
+  if (NOT_A_GENRE.has(key)) return undefined;
+  return BY_KEY.get(key) ?? (key.endsWith(" sim") ? BY_ID.get("simulation") : undefined);
+}
+
+/**
+ * The one genre a game is mostly, for the library's decks. Steam's own genre list has no weight (it always comes in
+ * Steam's fixed order and a game carries up to seven), but the store's community tags come heaviest first
+ * (`tag_sources["steam-store"]`, ordered by apps/api catalog_artwork.py), so the first tag that is a genre of the table
+ * says what players think the game is. Broad labels and settings (casual, open world, fantasy…) only win when nothing more telling is
+ * there; labels like Indie or Early Access never do. Null for a game with no genre, or software.
+ */
+export function primaryGenre(game: { genres?: readonly string[] | null; tag_sources?: Record<string, string[]> | null }): string | null {
+  const candidates: string[] = [];
+  for (const value of [...game.tag_sources?.["steam-store"] ?? [], ...game.genres ?? []]) {
+    const concept = knownConcept(value);
+    if (concept && !concept.software && !NOT_A_DECK.has(concept.id)) candidates.push(concept.id);
+  }
+  return candidates.find(id => !WEAK_DECK.has(id)) ?? candidates[0] ?? null;
+}
+
+/** The genres a game's deck can be chosen from (the game's card), in the app's alphabetical order. */
+export function deckGenres(): string[] {
+  return CONCEPTS.filter(concept => !concept.software && !NOT_A_DECK.has(concept.id)).map(concept => concept.id)
+    .sort((left, right) => genreLabel(left).localeCompare(genreLabel(right), getAppLocale()));
+}
+
 export function genreIsSoftware(id: string): boolean {
   return BY_ID.get(id)?.software === true;
 }

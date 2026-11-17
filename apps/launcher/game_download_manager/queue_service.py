@@ -192,6 +192,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     app_id, action = int(match.group(1)), match.group(2)
                     if action == "move":
                         queue.move(app_id, -1 if int(body.get("delta") or 0) < 0 else 1)
+                    elif action == "retry":
+                        queue.retry(app_id, direct_only=bool(body.get("directOnly")))
                     else:
                         getattr(queue, action)(app_id)
                 self._reply(200, queue.snapshot())

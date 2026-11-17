@@ -254,8 +254,8 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
       waiting: snapshot.phase === "queued" ? t("downloadQueued") : snapshot.phase === "paused" ? t("downloadPaused") : undefined,
       state: snapshot.phase === "downloading" ? `${formatDownloadBytes(snapshot.speedBps ?? 0, locale)}/s` : downloadPhaseLabel(snapshot.phase, locale),
       detail: downloadSizeText(game, snapshot, locale, t),
-      cancel: () => void confirmNotice({ game: noticeGame(game), title: t("cancelDownloadTitle", { name: game.name }), text: t("cancelDownloadBody"), confirmLabel: t("downloadsCancel"), cancelLabel: t("keepDownloading") })
-        .then(ok => { if (ok) void activeDownloadService().cancel(snapshot.gameId); }),
+      cancelling: snapshot.phase === "cancelling",
+      cancel: () => void activeDownloadService().confirmCancel(game, snapshot.gameId).catch(() => undefined),
     })),
     ...jobs.map(job => ({
       key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name), percent: job.progress?.percent ?? 0,

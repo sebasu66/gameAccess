@@ -276,3 +276,6 @@ html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions svg { width: var(
 @media (prefers-reduced-motion: reduce) {
   .ga-game-detail.ga-game-detail-wide *, .ga-game-detail.ga-game-detail-wide *::before, .ga-game-detail.ga-game-detail-wide *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
 }
+
+/* The detail's buttons take the mode's colour with the ink that contrasts with it (--ga-action-ink), whatever polish.css says for the old Play button. */
+html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions .glass-action:is(.play, .download) { color: var(--ga-action-ink) !important; border-color: transparent !important; filter: none; }

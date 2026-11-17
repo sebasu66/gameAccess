@@ -7,14 +7,14 @@
 import type { ReactNode } from "react";
 import { GaButton } from "../components/ga/Buttons";
 
-export interface DownloadAction { id: string; label: string; icon: ReactNode; run: () => void; aria?: string }
+export interface DownloadAction { id: string; label: string; icon: ReactNode; run: () => void; aria?: string; /** Its tooltip. */ title?: string }
 
 export default function DownloadActions({ main, others = [], folder, disabled = false }: {
   main?: DownloadAction; others?: DownloadAction[]; folder?: DownloadAction; disabled?: boolean;
 }) {
   return <>
-    {main ? <GaButton key={main.id} variant="primary" icon={main.icon} disabled={disabled} aria-label={main.aria} onClick={main.run}><span>{main.label}</span></GaButton> : null}
-    {others.map(action => <GaButton key={action.id} variant="secondary" icon={action.icon} disabled={disabled} aria-label={action.aria} onClick={action.run}><span>{action.label}</span></GaButton>)}
+    {main ? <GaButton key={main.id} variant="primary" icon={main.icon} disabled={disabled} title={main.title} aria-label={main.aria} onClick={main.run}><span>{main.label}</span></GaButton> : null}
+    {others.map(action => <GaButton key={action.id} variant="secondary" icon={action.icon} disabled={disabled} title={action.title} aria-label={action.aria} onClick={action.run}><span>{action.label}</span></GaButton>)}
     {folder ? <GaButton key={folder.id} variant="secondary" className="ga-wz-minor" icon={folder.icon} disabled={disabled} title={folder.label} aria-label={folder.aria ?? folder.label} onClick={folder.run}><span>{folder.label}</span></GaButton> : null}
   </>;
 }

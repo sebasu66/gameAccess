@@ -314,7 +314,7 @@ Codifica: el agente que tome la tarea · Verifica: Claude · Prueba: Seba. Un co
 - [ ] **RN5 · Panel de secciones** (§4.2): imagen por modo, título en flecha, submodos debajo, botones escalonados con hover de chevrones, textos que se achican; **animación de cambio de sección** en el orden de §4.2 por `queueTransition`.
 - [ ] **RN6 · Cabecera y contenido** (§4.3): buscador o resumen en el hueco, imagen en paralelogramo, resplandor del modo, varias pestañas a la vez en pantallas anchas.
 - [ ] **RN7 · Ficha del juego como placa ancha** (§5.8): pestañas verticales que cargan cada una por su cuenta, valoración animada siempre visible, medios, botones abajo a la derecha, parallax, bordes que se funden. Mismos datos que `LibraryDetailPanel`.
-- [ ] **RN8 · Mazos por género** (§5.9).
+- [x] **RN8 · Mazos por género** (§5.9). Hecho 2026-11-16 (Claude): `LibraryGenreDecks.tsx` + `library-decks.css`, pestaña «Por género» de Librería › Jugar; abanico de cuatro cartas, hover, clic abre el mazo a lo ancho con Flip, Esc / «Cerrar» / Enter. Un juego con varios géneros está en cada mazo; los sin género van al final. Queda la duda M010 (el hueco junto al mazo abierto: hoy los demás se acomodan).
 - [ ] **RN9 · Asistente de descarga en cinco etapas + registro tipo terminal** (§5.10), sobre `downloadStepModel.ts` y el log real del launcher.
 - [ ] **RN10 · Manager dentro de Librería** (§5.11).
 - [ ] **RN11 · Suscripción con tarjetas de acceso** (§5.12): textos de BASE y PLUS, sin precios, enlace a `https://gameaccess.site/plus`.

@@ -62,8 +62,8 @@ export function buildActions(game: CatalogGame | undefined, status: ManagedDownl
     }];
   }
 
-  // While it downloads the detail does not cancel: it opens the game's row in the library manager, where pausing and
-  // cancelling are, with their own confirmation (Seba, 2026-11-05).
+  // While it downloads the detail does not cancel: it opens Library › Downloads, where pausing and cancelling are, with
+  // their own confirmation (Seba, 2026-11-05; Downloads, not the library manager: 2026-11-16, manageGame.ts).
   if (state.primaryAction === "cancel") {
     return [{ label: translate("actionManageDownload"), icon: <SlidersHorizontal size={23} />, disabled: false, kind: "manage" }];
   }
