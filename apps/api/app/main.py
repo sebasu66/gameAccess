@@ -149,23 +149,29 @@ from .resolver_routes import router as resolver_router
 from .linkvertise_access import router as linkvertise_access_router
 from .cooptimus import router as cooptimus_router
 from .steam_owned_routes import router as steam_owned_router
+from .steam_link_routes import router as steam_link_router
 from .premium_routes import router as premium_router
 from .game_lessons import router as game_lessons_router
 from .run_fixes import router as run_fixes_router
 from .support import router as support_router
 from .account_routes import router as account_router
+from .payment_routes import router as payment_router
 from .web_install import router as web_install_router
+from .race_plan import router as race_plan_router
 app.include_router(premium_router)
 app.include_router(steam_search_router)
 app.include_router(resolver_router)
 app.include_router(linkvertise_access_router)
 app.include_router(cooptimus_router)
 app.include_router(steam_owned_router)
+app.include_router(steam_link_router)
 app.include_router(game_lessons_router)
 app.include_router(run_fixes_router)
 app.include_router(support_router)
 app.include_router(account_router)
+app.include_router(payment_router)
 app.include_router(web_install_router)
+app.include_router(race_plan_router)
 
 from .request_diagnostics import trace_request
 app.middleware("http")(require_active_installation)

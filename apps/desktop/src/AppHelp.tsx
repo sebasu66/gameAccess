@@ -55,7 +55,7 @@ const copy = {
   title: "Ayuda", subtitle: "Cómo se hacen las cosas", close: "Cerrar", contact: "Contacto", contactText: "¿Algo no funciona o tenés una pregunta? Escribinos y te respondemos por correo.",
   copyMail: "Copiar dirección", copied: "¡Copiada!",
   topics: [
-   { title: "Sumar juegos", steps: ["Abrí «Administrar biblioteca» (abajo a la derecha).", "Los que ya tenés en la PC: «Importar juegos» o «Importar biblioteca de Steam».", "Para bajar uno con un enlace o un magnet: «Agregar un link», elegí de qué juego es y pegá el enlace.", "Se descarga y se prepara solo; después lo encontrás en tu Librería con «Jugar»."] },
+   { title: "Sumar juegos", steps: ["Abrí «Administrar biblioteca» (abajo a la derecha).", "Los que ya tenés en la PC: «Importar juegos». Tus cuentas de Steam: vinculalas en Manager › Cuentas y su biblioteca entra entera.", "Para bajar uno con un enlace o un magnet: «Agregar un link», elegí de qué juego es y pegá el enlace.", "Se descarga y se prepara solo; después lo encontrás en tu Librería con «Jugar»."] },
    { title: "Mi Librería", steps: ["Tocá el botón de la biblioteca sobre la portada para sumar un juego a tu Librería.", "El pulgar arriba o abajo solo cuenta tu gusto; no cambia lo que hay en la Librería.", "Con Tab pasás rápido entre Catálogo y Librería."] },
    { title: "Atajos del teclado", steps: ["Flechas: moverte entre portadas.", "Enter: abrir el juego seleccionado.", "Ctrl + F: buscar. Esc: volver atrás.", "Tab: cambiar entre Catálogo y Librería."] },
    { title: "Mi acceso (BASE y PLUS)", steps: ["El modo BASE es gratis y no vence: catálogo, Librería, descargas y jugar.", "PLUS es la suscripción mensual: descargas completas sin esperar, varias a la vez, y el modo niños.", "Si PLUS vence, Game Access sigue funcionando en BASE; no se borra nada."] },
@@ -66,7 +66,7 @@ const copy = {
   title: "Help", subtitle: "How to do things", close: "Close", contact: "Contact", contactText: "Something not working, or a question? Write to us and we'll answer by email.",
   copyMail: "Copy address", copied: "Copied!",
   topics: [
-   { title: "Add games", steps: ["Open “Manage library” (bottom right).", "Games already on this PC: “Import games” or “Import Steam library”.", "To download one from a link or a magnet: “Add a link”, pick which game it is and paste the link.", "It downloads and gets ready by itself; then you'll find it in your Library with “Play”."] },
+   { title: "Add games", steps: ["Open “Manage library” (bottom right).", "Games already on this PC: “Import games”. Your Steam accounts: link them in Manager › Accounts and their whole library comes in.", "To download one from a link or a magnet: “Add a link”, pick which game it is and paste the link.", "It downloads and gets ready by itself; then you'll find it in your Library with “Play”."] },
    { title: "My Library", steps: ["Press the library button over a cover to add a game to your Library.", "Thumbs up or down only record your taste; they don't change what is in the Library.", "Tab switches quickly between Catalog and Library."] },
    { title: "Keyboard shortcuts", steps: ["Arrows: move between covers.", "Enter: open the selected game.", "Ctrl + F: search. Esc: go back.", "Tab: switch between Catalog and Library."] },
    { title: "My access (BASE and PLUS)", steps: ["BASE mode is free and never expires: catalog, Library, downloads and playing.", "PLUS is the monthly subscription: full downloads without waiting, several at a time, and kid mode.", "If PLUS ends, Game Access keeps working on BASE; nothing is deleted."] },
@@ -76,25 +76,26 @@ const copy = {
 };
 
 /** The help's topics and the contact: in the help dialog and in Home (docs/GUI_DESIGN.md §0b). */
-export function HelpContent() {
+/** Help topics and contact; `part` draws only one of them (the new shell's Help › FAQ / Contact us). */
+export function HelpContent({ part }: { part?: "faq" | "contact" } = {}) {
  const { locale, t } = useI18n(); const c = copy[locale];
  const email = supportEmail();
  const [copied, setCopied] = useState(false);
  const copyMail = () => { void navigator.clipboard?.writeText(email).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }).catch(() => undefined); };
  return <>
-  {c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
+  {part === "contact" ? null : c.topics.map((topic, index) => <details key={topic.title} className="ga-settings-group ga-help-topic" open={index === 0}>
    <summary>{topic.title}</summary>
    <ol>{topic.steps.map(step => <li key={step}>{step}</li>)}</ol>
   </details>)}
-  <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
-   <h3 id="ga-help-contact-title">{c.contact}</h3>
+  {part === "faq" ? null : <div className="ga-help-contact" aria-labelledby="ga-help-contact-title">
+   <h3 id="ga-help-contact-title" className="ga-home-card-title">{c.contact}</h3>
    <p>{c.contactText}</p>
    <ContactForm />
    <div className="ga-help-actions">
     <span className="ga-hint">{t("contactOrMail", { email })}</span>
     <GaButton icon={<Copy size={16} aria-hidden="true" />} onClick={copyMail}>{copied ? c.copied : c.copyMail}</GaButton>
    </div>
-  </div>
+  </div>}
  </>;
 }
 

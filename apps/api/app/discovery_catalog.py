@@ -26,6 +26,10 @@ from .catalog_snapshot import stable_json, steam_assets, write_snapshot
 from .catalog_updates import published_packages, publish_updates
 from .catalog_metadata import CATALOG_ALLOWED_PRODUCT_TYPES
 
+# Whole games, plus the free demos the app shows only when its Demos filter is on (catalog_cache.rs).
+DISCOVERY_PRODUCT_TYPES = CATALOG_ALLOWED_PRODUCT_TYPES | {"demo"}
+STEAM_GAMES, STEAM_DEMOS = 998, 10   # Steam Store search categories
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = REPO_ROOT / "deploy/catalog-cache"
 
@@ -196,6 +200,35 @@ def discover(remote, cutoff: date, today: date, *, popular_limit: int = 5000,
     return list(rows.values()), report
 
 
+def discover_demos(remote, today: date, limit: int) -> tuple[list[dict], dict]:
+    """The most relevant demos on Steam, up to a limit, each marked as a demo.
+
+    Steam has tens of thousands of demos and its newest ones are mostly unknown games, so the
+    search's own relevance order is read: it puts first the demos people actually play.
+    """
+    rows: dict[int, dict] = {}
+    start = 0
+    while start < limit:
+        page = remote.get(STORE + "/search/results/", {
+            "query": "", "start": start, "count": 100, "category1": STEAM_DEMOS, "ignore_preferences": 1,
+            "infinite": 1, "l": "english", "cc": "us", "supportedlang": "",
+        })
+        parsed = parse_search(page)
+        total = int(page.get("total_count", 0))
+        if not parsed and start < total:
+            raise ValueError(f"Steam returned no demo rows at offset {start}")
+        for row in parsed:
+            released = release_date(row["release_date"])
+            if len(rows) < limit and (not released or released <= today):
+                rows.setdefault(row["app_id"], {**row, "product_type": "demo"})
+        start += 100
+        LOG.info("Steam demos offset=%s total=%s collected=%s", start, total, len(rows))
+        if start >= total:
+            break
+    return list(rows.values()), {"demo_limit": limit, "demo_count": len(rows),
+                                 "demo_source": STORE + f"/search/?category1={STEAM_DEMOS}&ignore_preferences=1"}
+
+
 def load_seed(directory: Path):
     manifest = json.loads((directory / "catalog-manifest.json").read_text(encoding="utf-8"))
     compressed = (directory / f"catalog-cache-{manifest['revision']}.sqlite.gz").read_bytes()
@@ -224,6 +257,8 @@ def merge_search(games: dict, rows: list[dict], tag_names: dict):
             next_id += 1
             games[app_id] = game
         game["name"] = row["name"]
+        if row.get("product_type"):
+            game["product_type"] = row["product_type"]
         released = release_date(row["release_date"])
         if released:
             game["release_date"] = released.isoformat()
@@ -255,20 +290,20 @@ def merge_server_games(games: dict, db_path: Path) -> tuple[int, int]:
     a value the catalog already has is never replaced.
 
     The server database is the most complete source we own. Only whole games with a
-    resolved name are added (no demos, DLC, soundtracks or "Steam 1234" placeholders),
+    resolved name are added (and demos, marked as such; no DLC, soundtracks or "Steam 1234" placeholders),
     and anything already in the catalog is left untouched, so this only ever adds.
     """
     if not db_path.exists():
         return 0, 0
     db = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
     try:
-        types = sorted(CATALOG_ALLOWED_PRODUCT_TYPES)
+        types = sorted(DISCOVERY_PRODUCT_TYPES)
         rows = db.execute(
             "SELECT g.id, g.app_id, g.name, g.slug, m.short_description, m.developers_json, m.publishers_json, "
             "m.recommendation_count, m.metacritic_score, m.release_date, m.steam_review_score, m.steam_review_count, "
             "m.single_player, m.multiplayer, m.coop, m.online_coop, m.local_coop, m.shared_split_screen, m.mmo, m.pvp, "
             "m.header_image, m.capsule_image, m.hero_image, m.content_descriptor_ids_json, m.steam_url, "
-            "m.windows, m.mac, m.linux "
+            "m.windows, m.mac, m.linux, lower(coalesce(m.product_type, '')) "
             "FROM game g JOIN game_metadata m ON m.game_id = g.id "
             "WHERE g.active = 1 AND g.app_id IS NOT NULL "
             f"AND lower(coalesce(m.product_type, '')) IN ({', '.join('?' * len(types))}) "
@@ -335,6 +370,8 @@ def merge_server_games(games: dict, db_path: Path) -> tuple[int, int]:
             if value is not None:
                 game[key] = bool(value)
         game.update(extras(row))
+        if row[28] == "demo":
+            game["product_type"] = "demo"
         for field, values in names.get(int(row[0]), {}).items():
             game[field] = sorted(set(values))
         games[app_id] = game
@@ -432,6 +469,10 @@ def refresh(args):
             rows, report = discover(remote, today - timedelta(days=args.days), today, popular_limit=args.popular_limit,
                                     important_since=important_since, important_min_reviews=args.important_min_reviews)
             merge_search(games, rows, names)
+            if getattr(args, "demo_limit", 0):
+                demos, demo_report = discover_demos(remote, today, args.demo_limit)
+                merge_search(games, demos, names)
+                report.update(demo_report)
             report["cooptimus"] = enrich_cooptimus(remote, games, args.cooptimus_limit)
             # Resolve real artwork and official age ratings once here, so no client
             # ever guesses a cover URL or decides adult content from user tags.
@@ -486,6 +527,8 @@ def main():
     parser.add_argument("--important-years", type=int, default=10,
                         help="Also keep games released in the last N years with enough reviews (0 turns it off).")
     parser.add_argument("--important-min-reviews", type=int, default=100)
+    parser.add_argument("--demo-limit", type=int, default=2000,
+                        help="Also keep Steam's most relevant demos, up to this many (0 turns it off).")
     parser.add_argument("--cooptimus-limit", type=int, default=0)
     parser.add_argument("--enrichment-file", type=Path)
     parser.add_argument("--delay", type=float, default=1.1)

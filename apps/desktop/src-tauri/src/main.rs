@@ -38,12 +38,18 @@ mod windows_account;
 mod app_shortcuts;
 mod antivirus;
 mod steam_guide;
+mod mcp_server;
+mod mcp_clients;
 
 use std::{env, sync::Mutex};
 
 fn main() {
+    // An AI app (Claude Desktop, Codex...) talking to the open Game Access (mcp_clients.rs): this process only relays.
+    if env::args().any(|arg| arg == "--mcp-stdio") { mcp_clients::run_stdio_bridge(); return; }
     // The child's desktop (kid_mode.rs): this process only watches the real app.
     if kid_mode::run_shell_if_requested() { return; }
+    // The controller's button with the app closed (steam_guide.rs): this process only reads it.
+    if steam_guide::run_watcher_if_requested() { return; }
     launcher_runtime::configure_launcher_data();
     app_update::run_self_test_if_requested();
     let _plugin_guard = plugin_registry::plugin_shutdown_guard();
@@ -85,6 +91,8 @@ fn main() {
             let launch_args = env::args().collect::<Vec<_>>();
             launch_intent::receive(&launch_args);
             plugin_install::attach(app.handle().clone());
+            // The player's own AI, when they turned it on in Settings (mcp_server.rs). Never a test instance's.
+            if !test_instance { mcp_server::attach(app.handle().clone()); }
             if !test_instance { plugin_install::register_protocol(); }
             plugin_install::receive(&launch_args);
             access_commands::start_access_watchdog(app.handle().clone());
@@ -109,6 +117,9 @@ fn main() {
             game_controllers::game_controllers_connected,
             steam_guide::steam_guide_state,
             steam_guide::steam_guide_release,
+            steam_guide::steam_guide_restart,
+            steam_guide::steam_guide_default,
+            steam_guide::steam_guide_opened_by_button,
             steam_guide::steam_guide_restore,
             steam_guide::steam_guide_listen,
             game_focus::game_focus_watch,
@@ -186,6 +197,7 @@ fn main() {
             steam_commands::steam_metadata_catalog_cache,
             steam_artwork::steam_library_cover,
             steam_artwork::steam_featured_app_ids,
+            steam_artwork::own_cover_picture,
             steam_commands::machine_profile,
             download_events::register_download_job,
             download_events::record_download_completion,
@@ -221,7 +233,19 @@ fn main() {
             app_shortcuts::shortcut_open,
             antivirus::antivirus_probe,
             antivirus::antivirus_add_exclusions,
-            antivirus::antivirus_open_settings
+            antivirus::antivirus_open_settings,
+            mcp_server::mcp_state,
+            mcp_server::mcp_set_enabled,
+            mcp_server::mcp_set_confirm,
+            mcp_server::mcp_set_developer,
+            mcp_server::mcp_screenshot,
+            mcp_server::mcp_access,
+            mcp_server::mcp_new_token,
+            mcp_server::mcp_bridge_ready,
+            mcp_server::mcp_show_window,
+            mcp_server::mcp_reply,
+            mcp_clients::mcp_clients,
+            mcp_clients::mcp_client_setup
         ])
         .run(tauri::generate_context!())
         .expect("error while running gameAccess");

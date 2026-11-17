@@ -9,8 +9,8 @@
 }
 /* Visual order, whatever order React mounted them in. */
 .ga-dock .ga-home-fab { order: -5; }
-.ga-dock .ga-games-fab { order: -4; }
-.ga-dock .ga-manager-fab { order: -3; }
+.ga-dock .ga-catalog-fab { order: -4; }
+.ga-dock .ga-library-fab { order: -3; }
 .ga-dock .ga-settings-fab { order: -2; }
 .ga-dock .ga-kid-fab { order: -1; }
 .ga-dock .digital-download-nav { order: 1; }

@@ -31,7 +31,7 @@ const game = ([appId, name, genres, score, released]: (typeof sample)[number], i
   credit_cost_per_hour: 0, copies_total: 1, copies_available: 1, availability_state: "ready",
   header_image: art(appId, "header.jpg"), capsule_image: art(appId, "library_600x900.jpg"), hero_image: art(appId, "library_hero.jpg"),
   genres, tags: genres, steam_review_score: score, steam_review_count: 50000 - index * 1500, recommendation_count: 90000 - index * 3000,
-  release_date: daysAgo(released), short_description: `${name}.`, has_downloads: true, availableSourceCount: 2,
+  release_date: daysAgo(released), short_description: `${name}: un resumen breve de qué se trata el juego, en dos o tres líneas, para decidir si es el que querías abrir antes de que arranque.`, has_downloads: true, availableSourceCount: 2,
 });
 // `?uiDemo=1&demoCatalog=600` repeats the sample up to that many games (unique ids), to test scrolling a long catalog.
 const demoCatalogSize = () => (typeof window === "undefined" ? 0 : Number(new URLSearchParams(window.location.search).get("demoCatalog")) || 0);

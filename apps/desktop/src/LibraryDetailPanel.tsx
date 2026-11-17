@@ -1,28 +1,31 @@
 import { genreLabels } from "./libraryGenres";
 import {Download, Store} from "lucide-react";
-import { installThroughSteam, isSteamOwned } from "./steamLibrary";
+import { isSteamOwned } from "./steamLibrary";
+import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { useLibraryEntry } from "./libraryScan";
 import { notify } from "./toasts";
 import { openSteamStore } from "./native";
 import { usePluginReady } from "./usePluginReady";
-import CooptimusDetails from "./CooptimusDetails";
+import CooptimusDetails, { CoopFacts, loadCooptimusDetails, type CoopDetails } from "./CooptimusDetails";
 import { AiReasonPanel } from "./AiPicks";
+import { aiWhy } from "./aiSuggestions";
 import PluginDownloadButton from "./PluginDownloadButton";
+import { getPluginSources, type PluginSource } from "./catalog/PluginSources";
 import { cacheMediaImage, useMediaPoster } from "./mediaPosterCache";
 
 
 import {translate, useI18n} from "./i18n";
 import CircularScrollbar from "./CircularScrollbar";
 import { useMagneticButtons } from "./motion/magnetic";
-import { Flip, motionOk } from "./motion/gsap";
+import { Flip, gsap, motionOk } from "./motion/gsap";
 import { scheduleSelectedMedia } from "./selectedMediaDelay";
 import { useSharedMediaAudio } from "./sharedMediaAudio";
 import { cachedLibraryCover } from "./libraryCoverResolver";
 import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
-import { Globe, Image as ImageIcon, Loader2, Maximize2, Minimize2, Monitor, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, RefObject } from "react";
+import { Globe, Image as ImageIcon, Loader2, Maximize2, Minimize2, Monitor, MoreHorizontal, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX, X } from "lucide-react";
 import { hasTauriRuntime } from "./native";
 import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
@@ -42,6 +45,8 @@ import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { FocusZone, LibraryAction } from "./LibraryRoomParts";
 import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 import { useSelectedGameDetails } from "./useSelectedGameDetails";
+import { navigationShellEnabled } from "./navigation/navigationSelection";
+import "./game-detail-wide.css";
 
 const SCREENSHOT_HOLD_MS = 8_000;
 
@@ -192,6 +197,11 @@ export interface FeaturePanelProps {
   setFocusZone: (zone: FocusZone) => void;
   setActionIndex: (index: number) => void;
   onAction: (index: number) => void;
+  /** The new shell's detail (EN10) carries its own close and options, at the title's height. */
+  onClose?: () => void;
+  closeRef?: RefObject<HTMLButtonElement>;
+  onMore?: (anchor: DOMRect) => void;
+  moreOpen?: boolean;
 }
 
 function actionClass(action: LibraryAction, selected: boolean): string {
@@ -215,7 +225,8 @@ function SteamInstallButton({ game, className, buttonRef, onFocus }: { game: Cat
   const [busy, setBusy] = useState(false);
   const install = async () => {
     setBusy(true);
-    try { await installThroughSteam(game); notify(t("steamInstallHandedOff", { name: game.name }), { tone: "success" }); }
+    // The download queue hands it to Steam's own install window and follows it (DigitalCatalog.download).
+    try { await digitalCatalogService.download(game); notify(t("steamInstallHandedOff", { name: game.name }), { tone: "success" }); }
     catch (error) { notify(t("steamInstallError", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); }
     finally { setBusy(false); }
   };
@@ -355,7 +366,7 @@ function useExpandedMedia() {
   const [expanded, setExpanded] = useState(false);
   const flipState = useRef<Flip.FlipState | null>(null);
   const toggle = () => {
-    const media = document.querySelector<HTMLElement>(".ga-detail-gallery .library-room-feature-media");
+    const media = document.querySelector<HTMLElement>(".ga-detail-gallery .library-room-feature-media, .ga-wide-media .library-room-feature-media");
     flipState.current = media && motionOk() ? Flip.getState(media) : null;
     setExpanded(current => !current);
   };
@@ -483,7 +494,8 @@ function useInstallSize(appId: number | null): string {
   return size;
 }
 
-function SteamFacts({ details, game }: { details: GameDetails | null; game: CatalogGame }) {
+/** `edition: false` leaves out what the new detail already shows under its title or in its rating (EN10). */
+function SteamFacts({ details, game, edition = true }: { details: GameDetails | null; game: CatalogGame; edition?: boolean }) {
   const { t, localeTag } = useI18n();
   const steam = details?.steam;
   game = details ?? game;
@@ -507,7 +519,10 @@ function SteamFacts({ details, game }: { details: GameDetails | null; game: Cata
     ["Metacritic", steam?.metacritic?.score != null ? String(steam.metacritic.score) + "/100" : t("notReported")],
     [t("factSteamPrice"), steam?.is_free ? t("factFree") : steam?.price?.final_formatted ?? t("notReported")],
   ];
-  return <dl className="library-room-game-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
+  const shown = edition ? facts : facts.filter(([label, value]) => value !== t("notReported")
+    && ![t("factSize"), t("factGenre"), t("factUserRating"), t("factRecommendations"), t("factDeveloper"), t("factRelease"), t("factPlatforms"), "Metacritic"].includes(label));
+  if (!shown.length) return null;
+  return <dl className="library-room-game-facts">{shown.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 
 function ActiveDownloadFacts({ download }: { download?: ManagedDownloadStatus }) {
@@ -571,5 +586,225 @@ function DesktopFeature(props: FeaturePanelProps) {
 }
 
 export function FeaturePanel(props: FeaturePanelProps) {
-  return <DesktopFeature key={props.game.id} {...props} />;
+  return navigationShellEnabled() ? <WideDetail key={props.game.id} {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
+}
+
+type DetailSection = "description" | "ai" | "coop" | "downloads";
+
+const GAUGE_SEGMENTS = 44;
+
+/** The Steam reviews as a gauge of segments that light up to the share of positive ones (EN10): compact, the media column's width. */
+function RatingGauge({ score, count, recommendations, metacritic }: { score: number | null; count?: number | null; recommendations?: number | null; metacritic?: number | null }) {
+  const { t, localeTag } = useI18n();
+  const percent = score == null ? 0 : Math.max(0, Math.min(100, score));
+  const [shown, setShown] = useState(0);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const counter = { value: 0 };
+    setOn(false);
+    const frame = requestAnimationFrame(() => setOn(true));
+    const tween = gsap.to(counter, { value: percent, duration: motionOk() ? .9 : 0, ease: "power2.out", onUpdate: () => setShown(counter.value) });
+    return () => { cancelAnimationFrame(frame); tween.kill(); };
+  }, [percent]);
+  const tone = score == null ? "unknown" : percent >= 70 ? "good" : percent >= 40 ? "mixed" : "bad";
+  const verdict = score == null ? t("noScore") : percent >= 95 ? t("ratingOverwhelming") : percent >= 80 ? t("ratingVeryPositive") : percent >= 70 ? t("ratingMostlyPositive") : percent >= 40 ? t("ratingMixed") : t("ratingNegative");
+  const lit = Math.round(percent / 100 * GAUGE_SEGMENTS);
+  const total = count ?? 0;
+  const positive = Math.round(total * percent / 100);
+  const number = (value: number) => value.toLocaleString(localeTag);
+  return <section className="ga-wide-rating" data-tone={tone} aria-label={t("uiValoracionDeUsuariosEn")}>
+    <div className={`ga-wide-gauge${on ? " is-on" : ""}`} role="img" aria-label={score == null ? t("noScore") : t("ratingGaugeAria", { percent: Math.round(percent) })}>
+      <svg viewBox="-100 -100 200 172" aria-hidden="true">
+        {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => <rect key={index} className={index < lit ? "is-lit" : undefined} x="-4" y="-92" width="8" height={index % 11 === 0 ? 26 : 20} rx="4"
+          transform={`rotate(${-135 + index * 270 / (GAUGE_SEGMENTS - 1)})`} style={{ "--ga-gauge-i": index } as CSSProperties} />)}
+        {score == null ? null : <circle className="ga-wide-gauge-dot" r="5" transform={`rotate(${-135 + percent / 100 * 270}) translate(0 -58)`} />}
+      </svg>
+      <div className="ga-wide-gauge-value"><b>{score == null ? "—" : Math.round(shown)}{score == null ? null : <small>%</small>}</b><i>{t("ratingPositiveWord")}</i></div>
+    </div>
+    <div className="ga-wide-rating-info">
+      <strong>{verdict}</strong>
+      <span className="ga-wide-rating-sub">{total ? t("ratingReviewsSub", { count: number(total) }) : t("noScore")}</span>
+      {total ? <>
+        <div className="ga-wide-rating-bar" aria-hidden="true"><i className="is-positive" style={{ flexGrow: percent }} /><i className="is-negative" style={{ flexGrow: 100 - percent }} /></div>
+        <div className="ga-wide-rating-legend"><span className="is-positive"><ThumbsUp aria-hidden="true" />{number(positive)}</span><span className="is-negative">{number(total - positive)}<ThumbsDown aria-hidden="true" /></span></div>
+      </> : null}
+      <div className="ga-wide-rating-chips">
+        <div><small>{t("ratingMetacritic")}</small><b>{typeof metacritic === "number" ? metacritic : "—"}</b></div>
+        <div><small>{t("factRecommendations")}</small><b>{typeof recommendations === "number" ? number(recommendations) : "—"}</b></div>
+      </div>
+    </div>
+  </section>;
+}
+
+/** How long ago, in the player's language ("hace 3 días"). */
+function sinceText(iso: string | undefined, localeTag: string): string | null {
+  const when = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(when)) return null;
+  const days = Math.round((when - Date.now()) / 86_400_000);
+  const format = new Intl.RelativeTimeFormat(localeTag, { numeric: "auto" });
+  return Math.abs(days) >= 30 ? format.format(Math.round(days / 30), "month") : format.format(days, "day");
+}
+
+/**
+ * EN10: the game's detail in the new shell. Header: the title with its close (at its height, on the grid's right edge)
+ * and its options; under it the genre, the play modes and the edition (developer, release, size, platforms), which the
+ * description does not repeat. Body: tabs with their own scroll | the trailer and screenshots, then a compact rating
+ * of the same width. Footer: the actions (Play, Install or the store, like, dislike) and, for a game in the library,
+ * how much it was played. A tab only shows when it has something: AI when the AI commented on the game, Co-Optimus
+ * when it has its co-op data, Downloads with the plugin. Extra and Similar of the prototype have no source yet.
+ */
+function WideDetail(props: FeaturePanelProps) {
+  const { t, localeTag } = useI18n();
+  const detailState = useSelectedGameDetails({ selectedGameId: props.game.id, localSteamAppId: props.game.app_id, knownGame: props.game });
+  const details = detailState.details;
+  const steam = details?.steam;
+  const about = steam?.about_the_game || steam?.detailed_description || "";
+  const description = plainText(steam?.short_description) || plainText(props.game.short_description);
+  const installSize = useInstallSize(props.game.app_id);
+  const entry = useLibraryEntry(props.game.app_id ?? undefined);
+  const [section, setSection] = useState<DetailSection>("description");
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  const pluginReady = usePluginReady() === true;
+  const playable = props.actions.some(action => action.kind === "play");
+  const [sources, setSources] = useState<PluginSource[] | null>(null);
+  const [coop, setCoop] = useState<CoopDetails | null>(null);
+  const [coopLoading, setCoopLoading] = useState(false);
+  const [aiSeen] = useState(() => !props.showcaseMode && Boolean(aiWhy(props.game.id)));
+  useMagneticButtons(actionsRef);
+
+  useEffect(() => {
+    if (!pluginReady || playable) { setSources(null); return; }
+    let active = true;
+    setSources(null);
+    void getPluginSources(props.game).then(value => { if (active) setSources(value); }).catch(() => { if (active) setSources([]); });
+    return () => { active = false; };
+  }, [pluginReady, playable, props.game]);
+
+  useEffect(() => {
+    if (props.showcaseMode || !props.game.app_id) { setCoop(null); setCoopLoading(false); return; }
+    let active = true;
+    setCoop(null); setCoopLoading(true);
+    void loadCooptimusDetails(props.game.app_id, props.game.name).then(value => {
+      if (active) { setCoop(value?.state === "ready" ? value : null); setCoopLoading(false); }
+    }).catch(() => { if (active) setCoopLoading(false); });
+    return () => { active = false; };
+  }, [props.game.app_id, props.game.name, props.showcaseMode]);
+
+  const moveParallax = (event: React.PointerEvent<HTMLElement>) => {
+    if (!motionOk() || event.pointerType !== "mouse") return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    stageRef.current?.style.setProperty("--ga-detail-pointer-x", String((event.clientX - bounds.left) / bounds.width - .5));
+    stageRef.current?.style.setProperty("--ga-detail-pointer-y", String((event.clientY - bounds.top) / bounds.height - .5));
+  };
+  const resetParallax = () => {
+    stageRef.current?.style.setProperty("--ga-detail-pointer-x", "0");
+    stageRef.current?.style.setProperty("--ga-detail-pointer-y", "0");
+  };
+
+  // The title fills its column on one line: it shrinks down to its least size, never under the close button.
+  useLayoutEffect(() => {
+    const title = titleRef.current;
+    if (!title) return;
+    const fit = () => {
+      title.style.fontSize = "";
+      let size = parseFloat(getComputedStyle(title).fontSize);
+      const minimum = parseFloat(getComputedStyle(title).getPropertyValue("--ga-detail-title-min"));
+      while (title.scrollWidth > title.clientWidth + 1 && size > minimum) {
+        size -= 1;
+        title.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(title);
+    void document.fonts?.ready.then(fit);
+    return () => observer.disconnect();
+  }, [props.game.name]);
+
+  const showDownloads = pluginReady && !playable && (sources === null || sources.length > 0);
+  const tabs: Array<{ id: DetailSection; label: string; count?: number }> = [
+    { id: "description", label: t("detailTabDescription") },
+    ...(aiSeen ? [{ id: "ai" as const, label: t("aiTab") }] : []),
+    ...(coopLoading || coop ? [{ id: "coop" as const, label: t("detailTabCoop") }] : []),
+    ...(showDownloads ? [{ id: "downloads" as const, label: t("downloadsTitle"), count: sources?.length }] : []),
+  ];
+  const tabIds = tabs.map(tab => tab.id).join();
+  useEffect(() => {
+    if (!tabIds.split(",").includes(section)) setSection("description");
+  }, [section, tabIds]);
+  useEffect(() => { paneRef.current?.scrollTo({ top: 0 }); }, [section]);
+
+  const rated = details ?? props.game;
+  const score = typeof rated.steam_review_score === "number" ? rated.steam_review_score : null;
+  const developers = steam?.developers?.join(" · ") || props.game.developers?.join(" · ") || t("notReported");
+  const release = steam?.release_date ?? props.game.release_date ?? t("notReported");
+  const since = sinceText(entry?.last_played, localeTag);
+  const plays = entry?.plays ?? 0;
+
+  return <article ref={stageRef} className="ga-game-detail ga-game-detail-wide" onPointerMove={moveParallax} onPointerLeave={resetParallax}>
+    <SteamHeaderArtwork game={props.game} details={details} />
+    <div className="ga-wide-shade" aria-hidden="true" />
+    <header className="ga-wide-heading">
+      <div className="ga-wide-title-row">
+        <h1 ref={titleRef} className="ga-wide-title">{props.game.name}</h1>
+        <div className="ga-wide-title-tools">
+          {props.onMore ? <button type="button" className="ga-wide-more" aria-label={t("moreOptionsForAria", { name: props.game.name })} aria-haspopup="menu" aria-expanded={Boolean(props.moreOpen)} onClick={event => props.onMore?.(event.currentTarget.getBoundingClientRect())}><MoreHorizontal aria-hidden="true" /></button> : null}
+          {props.onClose ? <button ref={props.closeRef} type="button" className="ga-wide-close" aria-label={t("uiCerrarDetalles")} onClick={props.onClose}><X aria-hidden="true" /></button> : null}
+        </div>
+      </div>
+      <div className="ga-wide-genre-line">
+        <span className="ga-wide-genre">{genreLabels(steam?.genres ?? props.game.genres).join(" · ")}</span>
+        <DetailPlayModes game={props.game} details={details} />
+        {hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw className={detailState.refreshingSteam ? "is-refreshing" : undefined} aria-hidden="true" /></button> : null}
+      </div>
+      <dl className="ga-wide-edition">
+        <div><dt>{t("factDeveloper")}</dt><dd>{developers}</dd></div>
+        <div><dt>{t("factRelease")}</dt><dd>{release}</dd></div>
+        <div><dt>{t("factSize")}</dt><dd>{installSize}</dd></div>
+        <div><dt>{t("factPlatforms")}</dt><dd>{platforms(details)}</dd></div>
+      </dl>
+    </header>
+    <div className="ga-wide-body">
+      <nav className="ga-wide-tabs" role="tablist" aria-label={t("uiInformacionDelJuego")} aria-orientation="horizontal">
+        {tabs.map(tab => <button key={tab.id} type="button" role="tab" id={`ga-detail-tab-${tab.id}`} aria-selected={section === tab.id} aria-controls="ga-detail-pane" onClick={() => setSection(tab.id)}>
+          {tab.label}{typeof tab.count === "number" ? <span className="ga-wide-tab-count">{tab.count}</span> : null}
+        </button>)}
+      </nav>
+      <div className="ga-wide-pane-frame">
+        <div ref={paneRef} className="ga-wide-pane" role="tabpanel" id="ga-detail-pane" aria-labelledby={`ga-detail-tab-${section}`}>
+          {section === "description" ? <>
+            <section className="ga-wide-sec">
+              <p className="ga-detail-lead">{description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"))}</p>
+              {detailState.loading ? <span role="status">{t("uiCargandoFichaDeSteam")}</span> : null}
+              <ActiveDownloadFacts download={props.download} />
+              {props.game.tags?.length ? <><h3 className="ga-wide-sec-title">{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}
+            </section>
+            {about ? <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiAcercaDelJuego")}</h3><SteamRichText html={about} /></section> : null}
+            <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} edition={false} /></section>
+            {steam?.minimum_requirements || steam?.recommended_requirements ? <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiRequisitosDelJuego")}</h3>
+              <div className="ga-wide-requirements">{steam?.minimum_requirements ? <div><h4 className="ga-wide-sub-title">{t("uiRequisitosMinimos")}</h4><SteamRichText html={steam.minimum_requirements} /></div> : null}
+                {steam?.recommended_requirements ? <div><h4 className="ga-wide-sub-title">{t("uiRequisitosRecomendados")}</h4><SteamRichText html={steam.recommended_requirements} /></div> : null}</div>
+            </section> : null}
+          </> : null}
+          {section === "ai" ? <AiReasonPanel game={props.game} /> : null}
+          {section === "coop" ? coopLoading ? <span role="status"><Loader2 className="spin" />{t("uiConsultandoCooperativo")}</span> : coop ? <CoopFacts data={coop} es={localeTag.startsWith("es")} /> : null : null}
+          {section === "downloads" ? sources === null ? <span role="status"><Loader2 className="spin" />{t("sourcesChecking")}</span>
+            : <div className="ga-wide-source-list">{sources.map((source, index) => <div key={source.url} className={index === 0 ? "is-best" : ""}><strong>{source.title}</strong><span>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}</span></div>)}</div> : null}
+        </div>
+        <CircularScrollbar targetRef={paneRef} label={t("uiDesplazarInformacionDelJuego")} />
+      </div>
+    </div>
+    <aside className="ga-wide-side" aria-label={t("uiVideosYCapturas")}>
+      <div className="ga-wide-media"><DesktopDetailMedia game={props.game} details={details} /></div>
+      <RatingGauge score={score} count={rated.steam_review_count} recommendations={steam?.recommendation_count ?? props.game.recommendation_count} metacritic={steam?.metacritic?.score ?? props.game.metacritic_score} />
+    </aside>
+    <div ref={actionsRef} className="ga-wide-actions"><ActionButtons {...props} />
+      <button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp fill="currentColor" aria-hidden="true" /></button>
+      <button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown fill="currentColor" aria-hidden="true" /></button>
+    </div>
+    {entry && (plays || since) ? <p className="ga-wide-played">{plays ? <b>{t("detailPlays", { count: plays.toLocaleString(localeTag) })}</b> : null}{plays && since ? <span aria-hidden="true">·</span> : null}{since ? t("detailLastPlayed", { when: since }) : null}</p> : null}
+  </article>;
 }

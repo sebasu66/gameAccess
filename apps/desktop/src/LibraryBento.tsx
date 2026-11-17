@@ -4,7 +4,7 @@ import GameInfoCard from "./GameInfoCard";
 import { AlertTriangle, ChevronRight, Download, Info, Play, SlidersHorizontal, Snowflake } from "lucide-react";
 import { Flip, gsap, motionOk } from "./motion/gsap";
 import { useBatchReveal } from "./motion/batchReveal";
-import { bigPictureActive, useBigPicture } from "./bigPicture";
+import { bigPictureActive, matchesSearch, useBigPicture, useBigPictureView } from "./bigPicture";
 import GameSideMenu, { type SideMenuItem } from "./GameSideMenu";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
@@ -15,7 +15,7 @@ import type { LibraryGame } from "./catalog/DigitalProcessManager";
 import SteamCover from "./SteamCover";
 import { GameWideArt } from "./GameArt";
 import { downloadManager } from "./downloadManager";
-import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, bigPictureBento, featuredGames, type BentoKind } from "./bentoLayout";
+import { bentoInWindow, bentoRowHeight, bentoRowTops, bentoSections, bigPictureBento, bigPictureGroups, featuredGames, nameGroup, type BentoGroupMark, type BentoKind } from "./bentoLayout";
 import { coverGap, coverMin, coverTracks } from "./overviewSizing";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { ManagedDownloadStatus } from "./downloadTypes";
@@ -68,7 +68,7 @@ function saveCollapsed(collapsed: Set<BentoKind>) {
   try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch { /* not remembered, still works */ }
 }
 
-const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip, onManage }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void; onManage?: Props["onManage"] }) {
+const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onFlip, onManage, onPlay }: { card: Card; index: number; selected: boolean; onSelect: Props["onSelect"]; onFlip: (card: Card, slot: HTMLElement) => void; onManage?: Props["onManage"]; onPlay?: Props["onPlay"] }) {
   const { t } = useI18n();
   const { game, kind, frozen, status } = card;
   const active = gameStateManager.resolve(status).transferActive;
@@ -84,8 +84,9 @@ const BentoCard = memo(function BentoCard({ card, index, selected, onSelect, onF
       aria-current={selected ? "true" : undefined}
       aria-label={`${game.name}${kind === "ready" && !card.attention ? t("cardAriaReady") : ""}${frozen ? ` · ${t(frozen === "deep" ? "bentoDeepFrozen" : "bentoFrozen")}` : ""}${card.attention ? ` · ${t("bentoAttention")}: ${card.attention}` : ""}`}
       onFocus={() => { if (!card.orphan) onSelect(index, false); }}
-      // A folder whose game is not in the catalogue has no detail to open: it opens the library manager on it.
-      onClick={() => (card.orphan ? onManage?.(game) : onSelect(index))}
+      // A folder whose game is not in the catalogue has no detail to open: it opens the library manager on it. In big
+      // picture a click (or Enter) asks to play it (BigPlayConfirm).
+      onClick={() => (card.orphan ? onManage?.(game) : bigPictureActive() ? void onPlay?.(game) : onSelect(index))}
       onContextMenu={(event: ReactMouseEvent<HTMLButtonElement>) => { event.preventDefault(); const slot = event.currentTarget.closest<HTMLElement>(".ga-bento-slot"); onSelect(index, false); if (slot) onFlip(card, slot); }}
     >
       {card.featured ? <GameWideArt game={game} className="ga-bento-feature" />
@@ -138,6 +139,9 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
   const scan = useLibraryScan();
   // Big picture mode: only the games ready to play, and no card menu (a controller picks a game and plays it).
   const bigPicture = useBigPicture();
+  // Its order (last played, by letter, by genre) and its search (bigPicture.ts).
+  const bigView = useBigPictureView();
+  const query = bigPicture ? bigView.query : "";
   // The menu dot appears after resting 1 s on a card (or at once with the keyboard); a click turns the card over.
   const [dotFor, setDotFor] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<{ card: Card; slot: HTMLElement } | null>(null);
@@ -225,15 +229,38 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
     return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
 
+  const found = useMemo(() => (query ? cards.filter(card => matchesSearch(card.game.name, query)) : cards), [cards, query]);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   // Big picture mode, or a group picked with its button, shows that one group open, whatever the player closed.
+  const order = bigView.order;
+  const noGenre = t("bigPictureNoGenre");
   const layout = useMemo(() => {
     if (bigPicture) {
-      const { placements, tracks } = bigPictureBento(cards.filter(card => card.featured).sort((a, b) => (Date.parse(b.lastPlayed ?? "") || 0) - (Date.parse(a.lastPlayed ?? "") || 0)), cards.filter(card => !card.featured), columns);
-      return { placements, tracks, sections: cards.length ? [{ kind: "ready" as const, row: 1, count: cards.length, collapsed: false }] : [] };
+      const byName = (a: Card, b: Card) => a.game.name.localeCompare(b.game.name, undefined, { sensitivity: "base", numeric: true });
+      const played = (card: Card) => Date.parse(card.lastPlayed ?? "") || 0;
+      // Last played first (the never played ones after them, by name); the most recent ones wide (bigPictureBento).
+      if (order === "recent") {
+        const sorted = [...found].sort((a, b) => played(b) - played(a) || byName(a, b));
+        const wide = bigPictureBento(sorted.filter(card => card.featured), sorted.filter(card => !card.featured), columns);
+        // A featured game the lines had no room for as wide goes back to its portrait cover.
+        const placements = wide.placements.map(item => ((item.span ?? 1) < 2 && item.value.featured ? { ...item, value: { ...item.value, featured: false } } : item));
+        const { tracks } = wide;
+        const marks: BentoGroupMark[] = sorted.length ? [{ title: t("bigPictureOrderRecent"), row: 1, count: sorted.length }] : [];
+        return { placements, tracks, sections: [], marks };
+      }
+      // By letter ("#" first) or by genre (its first genre, so a game shows once; the ones without a genre last).
+      const groups = new Map<string, Card[]>();
+      // Grouped, every game is a portrait: the wide ones belong to "last played".
+      for (const card of found.map(item => (item.featured ? { ...item, featured: false } : item)).sort(byName)) {
+        const title = order === "name" ? nameGroup(card.game.name) : card.game.genres?.find(Boolean) ?? noGenre;
+        groups.set(title, [...(groups.get(title) ?? []), card]);
+      }
+      const rank = (title: string) => (order === "name" ? (title === "#" ? 0 : 1) : title === noGenre ? 1 : 0);
+      const list = [...groups].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([title, values]) => ({ title, values }));
+      return { ...bigPictureGroups(list, columns), sections: [] };
     }
-    return bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, pill !== "all" ? new Set<BentoKind>() : collapsed, Math.floor(columns * PORTRAIT_SPAN / WIDE_SPAN));
-  }, [cards, columns, collapsed, bigPicture, pill]);
+    return { ...bentoSections(cards.map(card => ({ kind: card.kind, value: card })), columns, pill !== "all" ? new Set<BentoKind>() : collapsed, Math.floor(columns * PORTRAIT_SPAN / WIDE_SPAN)), marks: [] as BentoGroupMark[] };
+  }, [cards, found, order, noGenre, columns, collapsed, bigPicture, pill, t]);
   useEffect(() => { if (bigPicture) setMenuFor(null); }, [bigPicture]);
   const placed = layout.placements;
   const sectionNames: Record<BentoKind, string> = { ready: t("bentoSectionReady"), deep: t("bentoSectionDeep"), pending: t("bentoSectionPending") };
@@ -343,10 +370,16 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
             </button>
           </div>
         ))}
+        {/* Big picture's group titles: they only name, nothing to open or close. */}
+        {layout.marks.map(mark => (
+          <div key={`mark-${mark.title}`} className="ga-bento-divider ga-big-group-title" style={{ gridColumn: "1 / -1", gridRow: mark.row }}>
+            <span>{mark.title}</span><span className="ga-bento-divider-count">({mark.count})</span>
+          </div>
+        ))}
         {shown.map(item => (
           <div key={item.value.key} className="ga-bento-slot" style={{ gridColumn: gridColumn(item.kind, item.column, item.span), gridRow: `${item.row} / span ${item.rowSpan}`}}
             onPointerEnter={() => rest(item.value.key)} onPointerLeave={() => leave(item.value.key)} onFocus={() => setDotFor(item.value.key)}>
-            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} onManage={onManage} />
+            <BentoCard card={item.value} index={indexes.get(item.value.game.id) ?? 0} selected={item.value.game.id === selectedId} onSelect={onSelect} onFlip={openMenu} onManage={onManage} onPlay={onPlay} />
             <MenuDot shown={dotFor === item.value.key && !menuFor} label={t("flipMenuLabel", { name: item.value.game.name })}
               onOpen={event => { const slot = (event.currentTarget as HTMLElement).closest<HTMLElement>(".ga-bento-slot"); if (slot) openMenu(item.value, slot); }} />
           </div>
@@ -357,7 +390,7 @@ export default function LibraryBento({ games, downloads, preferences = {}, pill,
           </div>
         ))}
       </div>
-      {!cards.length ? <p className="ga-bento-empty">{t("bentoEmpty")}</p> : null}
+      {!found.length ? <p className="ga-bento-empty">{cards.length ? t("bigPictureNoMatch", { query }) : t("bentoEmpty")}</p> : null}
       {menuFor ? <SideMenu key={menuFor.card.key} card={menuFor.card} slot={menuFor.slot} onPlay={onPlay} onInstall={onInstall} onManage={onManage} onDetails={setDetails}
         onClose={() => { setMenuFor(null); setDotFor(null); }} /> : null}
       {details ? <GameInfoCard game={details} onClose={() => setDetails(null)} /> : null}

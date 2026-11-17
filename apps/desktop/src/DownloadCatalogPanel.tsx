@@ -1,6 +1,5 @@
 import { AiResults } from "./AiPicks";
 import { rememberTasteGame } from "./tasteProfile";
-import FilledIcon from "./FilledIcon";
 import { useCatalogGenreNames } from "./catalogFilterParams";
 import { overviewCoverSizing } from "./overviewSizing";
 import "./catalog-dock.css";
@@ -36,6 +35,8 @@ import GameStorageContextMenu from "./GameStorageContextMenu";
 import type { GameStorageContextMenuRequest } from "./GameStorageContextMenu";
 import SteamCover from "./SteamCover";
 import SteamGlobalSearch from "./SteamGlobalSearch";
+import { navigationShellEnabled, sectionTab, useNavigationSelection } from "./navigation/navigationSelection";
+import AccountLibraries from "./AccountLibraries";
 import type { DownloadMap } from "./LibraryRoomParts";
 import type { CatalogGame } from "./types";
 import type { LibraryGame } from "./catalog/DigitalProcessManager";
@@ -47,6 +48,7 @@ import CatalogSpotlight from "./CatalogSpotlight";
 import { useBigPicture } from "./bigPicture";
 import { prefetchSpotlight } from "./spotlightSlides";
 import LibraryBento, { type LibraryPill } from "./LibraryBento";
+import LibraryGenreDecks from "./LibraryGenreDecks";
 
 /** Small play mark in the card footer: the game is installed and ready to launch. */
 function InstalledMark() {
@@ -215,6 +217,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const searchFilters = props.searchFilters ?? { genres: [], categories: [], features: [] };
   const onSearchFiltersChange = props.onSearchFiltersChange ?? (() => undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const navigationSelection = useNavigationSelection();
   const [infoTarget, setInfoTarget] = useState<HTMLElement | null>(null);
   // The library manager takes the grid's place (one or the other), only in the digital library.
   const [managerOpen, setManagerOpen] = useState(false);
@@ -368,10 +371,6 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   const availableWidth = Math.max(120, (props.gridRef.current?.clientWidth ?? viewport.width * .92) - 26);
   const { coverFloor, coverColumns, coverGap } = overviewCoverSizing(viewport.width, viewport.height, availableWidth, displaySection.games.length);
   setCoverCardWidth(coverFloor);
-  const views: { id: LibraryView; label: string }[] = [
-    { id: "catalog", label: t("tabCatalog") },
-    { id: getCatalogMode() === "digital" ? "library" : "installed", label: t("uiBiblioteca") },
-  ];
   const sortOptions: { id: CatalogSort; label: string }[] = [
     { id: "release-date", label: t("sortRelease") },
     { id: "steam-popularity", label: t("sortPopularity") },
@@ -498,26 +497,20 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
   }, [contextMenu]);
 
 
+  // In the new shell the one game search sits with the filters and sort, under the banner (§4.3, Seba 2026-11-11).
+  // Manager › Accounts (the new shell's tab): the account libraries instead of the games list.
+  // Library › Play › By genre shows decks in place of the bento (LibraryGenreDecks.tsx).
+  const genreDecks = navigationShellEnabled() && sectionTab("play", navigationSelection.tabs) === "genres";
+  const managerTab = navigationShellEnabled() ? sectionTab("manager", navigationSelection.tabs) : "games";
+  const gridSearch = navigationShellEnabled() ? <div className="ga-nav-grid-search"><SteamGlobalSearch live query={searchQuery} setQuery={onSearchQueryChange} /></div> : null;
   const toolbar = (
       <>
       
       <div className="library-catalog-toolbar library-catalog-controls">
         <div className="ga-search-dock">
-          <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />
+          {gridSearch ? null : <SteamGlobalSearch query={searchQuery} setQuery={onSearchQueryChange} />}
         </div>
-        {/* One button for the two views: it shows where it goes (the other view's icon and name, in its big word's
-            colour) and switches to it. */}
-        <div className="library-catalog-tabs" role="group" aria-label={t("uiColeccionesDeJuegos")}>
-          {(() => {
-            const next = view === "catalog" ? views[1] : views[0];
-            return <button type="button" className={`ga-view-toggle is-${next.id === "catalog" ? "catalog" : "library"}`} aria-label={t("viewToggleAria", { next: next.label })} title={t("viewToggleAria", { next: next.label })}
-              onClick={() => { onViewChange(next.id); setSectionReset(value => value + 1); props.onSelect(0, false); props.gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); }}>
-              <span key={next.id} className="ga-view-toggle-face"><FilledIcon name={next.id === "catalog" ? "catalog" : "library"} /><span>{next.label}</span></span>
-            </button>;
-          })()}
-        </div>
-
-
+        {/* Catalog and Library are areas of the frame now (AreaTabs.tsx, gameArea.ts): no switch here. */}
       </div>
       </>
   );
@@ -544,7 +537,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       {props.lead ?? null}
       {view === "catalog" && !searchQuery.trim() && !props.lead ? <CatalogSpotlight exclude={props.isInstalled ?? (() => false)} onOpen={game => { const index = indexes.get(game.id); if (index !== undefined) props.onSelect(index, true); else props.onOpenGame?.(game); }} /> : null}
       {/* Filters and sort sit above the grid, where people look for them. */}
-      {showManager ? null : <div className="ga-grid-toolbar">{aiReasons ? <div className="library-catalog-filter-actions"><AiSearchSwitch /></div> : filters}{aiReasons ? null : view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
+      {showManager ? (gridSearch ? <div className="ga-grid-toolbar">{gridSearch}</div> : null) : <div className="ga-grid-toolbar">{gridSearch}{aiReasons ? <div className="library-catalog-filter-actions"><AiSearchSwitch /></div> : filters}{aiReasons ? null : view === "catalog" ? <CatalogRefreshButton /> : null}{view !== "catalog" ? <div className="ga-library-pills" role="group" aria-label={t("pillsLabel")}>
         {libraryGroups.map(group =>
           <GaIconButton key={group.kind} className={`ga-library-pill pill-${group.kind}`} icon={group.icon} label={group.label} pressed={libraryPill === group.kind} onClick={() => setLibraryPill(current => (current === group.kind ? "all" : group.kind))} />)}
       </div> : null}<span className="ga-strip-info" ref={setInfoTarget} /></div>}
@@ -552,8 +545,8 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
       <div ref={props.gridRef} className="library-room-grid library-section-scroll" data-cover-columns={coverColumns} style={{ "--ga-cover-floor": `${coverFloor}px`, "--ga-cover-columns": coverColumns, "--ga-cover-gap": `${coverGap}px` } as CSSProperties}>
         {showManager ? (
           <div className="ga-manager-view">
-            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t("libraryManagerButton")}</h2></div></header>
-            <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />
+            <header className="ga-desk-head"><div><span className="ga-desk-eyebrow">{t("deskLibraryEyebrow")}</span><h2>{t(managerTab === "accounts" ? "navAccounts" : "libraryManagerButton")}</h2></div></header>
+            {managerTab === "accounts" ? <AccountLibraries /> : <GameLibraryManager embedded startImport={importOnOpen} onImportStarted={() => setImportOnOpen(false)} focusAppId={managerFocus} query={searchQuery} scrollRef={managerScrollRef} onClose={() => toggleManager(false)} catalog={props.allGames} onInstall={props.onInstall} onPlay={props.onPlay} />}
           </div>
         ) : libraryEmpty ? <section className="ga-library-empty ga-stack" aria-labelledby="ga-library-empty-title">
           <h2 id="ga-library-empty-title" className="ga-heading">{t("libraryEmptyTitle")}</h2>
@@ -562,7 +555,7 @@ export default function DownloadCatalogPanel(props: DownloadCatalogPanelProps) {
             <GaButton variant="primary" icon={<FolderInput size={16} aria-hidden="true" />} onClick={() => { setImportOnOpen(true); toggleManager(true); }}>{t("libraryEmptyImport")}</GaButton>
             <GaButton icon={<LayoutGrid size={16} aria-hidden="true" />} onClick={() => onViewChange("catalog")}>{t("tabCatalog")}</GaButton>
           </div>
-        </section> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : aiReasons ? <AiResults games={displaySection.games} reasons={aiReasons} menuGameId={contextMenu?.game.id} renderCard={gameCard} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={gameCard} />}
+        </section> : view !== "catalog" && genreDecks ? <LibraryGenreDecks games={displaySection.games} downloads={props.downloads} indexes={indexes} onSelect={props.onSelect} /> : view !== "catalog" ? <LibraryBento infoTarget={infoTarget} games={displaySection.games} downloads={props.downloads} preferences={props.preferences} pill={libraryPill} indexes={indexes} selectedId={props.games[props.selectedIndex]?.id} onSelect={props.onSelect} onContextMenu={setContextMenu} onPlay={props.onPlay} onInstall={props.onInstall} onManage={game => { setManagerFocus(game.app_id ?? game.id); toggleManager(true); }} /> : aiReasons ? <AiResults games={displaySection.games} reasons={aiReasons} menuGameId={contextMenu?.game.id} renderCard={gameCard} /> : <LibrarySectionShelf section={displaySection} selectedId={props.games[props.selectedIndex]?.id} reset={sectionReset} scrollRoot={props.gridRef} renderGame={gameCard} />}
       </div>
       {typeof window !== "undefined" ? <CircularScrollbar key={showManager ? "manager" : "grid"} targetRef={showManager ? managerScrollRef : props.gridRef} label={t("uiDesplazarJuegos")} /> : null}
       </div>

@@ -223,3 +223,22 @@ def test_a_source_the_server_forgot_is_served_from_its_viking_map_without_new_wo
     assert manifest["status"] == "ready" and plus_user == []  # nothing to import: ViKiNG already has it
     assert asked[0][1] == MAGNET
     assert peek(session) == {"ready": True, "where": "viking"} and len(asked) == 1  # known now: no new lookup
+
+
+def test_a_torbox_link_refusal_is_told_in_the_story_once(monkeypatch):
+    # Beyond: Two Souls (2026-11-09): Torbox gave no link, the reason was swallowed and the player only saw "not ready".
+    from types import SimpleNamespace
+
+    class Refusing:
+        async def _link(self, file_index, refresh=False):
+            raise ProviderFailure("torbox_link_expired", 502, "TorBox rechazó el enlace temporal del archivo.")
+
+    told = []
+    monkeypatch.setattr(routes, "torbox_source", lambda job_id: Refusing())
+    monkeypatch.setattr(routes, "log_event", lambda engine, job_id, step, message, **kw: told.append((job_id, message, kw.get("status"))))
+    routes._torbox_refusals.clear()
+    piece = SimpleNamespace(piece_index=0, file_index=0, size_bytes=10)
+    request = SimpleNamespace(headers={})
+    for _ in range(3):
+        assert asyncio.run(routes._sealed_torbox_links("job-beyond", [piece], request, False)) == []
+    assert len(told) == 1 and "torbox_link_expired" in told[0][1] and told[0][2] == "error"

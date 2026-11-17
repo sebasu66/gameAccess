@@ -150,3 +150,28 @@ def installed_games(libraries: list[Path]) -> list[InstalledSteamGame]:
             if game and game.app_id not in found:
                 found[game.app_id] = game
     return list(found.values())
+
+
+def install_state(libraries: list[Path], app_id: int) -> dict | None:
+    """How far Steam is with installing one game, from its appmanifest (None: Steam has not started it). While it
+    downloads Steam keeps BytesDownloaded of BytesToDownload there; StateFlags 4 means fully installed."""
+    for library in libraries:
+        path = Path(library) / f"appmanifest_{int(app_id)}.acf"
+        if not path.is_file():
+            continue
+        try:
+            state = vdf.child(vdf.load(path), "AppState")
+        except (OSError, ValueError):
+            continue
+        if not isinstance(state, dict):
+            continue
+        def number(key: str) -> int:
+            try:
+                return int(vdf.child(state, key) or 0)
+            except ValueError:
+                return 0
+        installdir = str(vdf.child(state, "installdir") or "")
+        return {"installed": bool(number("StateFlags") & INSTALLED_FLAG), "done_bytes": number("BytesDownloaded"),
+                "total_bytes": number("BytesToDownload"), "size_bytes": number("SizeOnDisk"),
+                "folder": str(Path(library) / "common" / installdir) if installdir else "", "library": str(Path(library).parent)}
+    return None

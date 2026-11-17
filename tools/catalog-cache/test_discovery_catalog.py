@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, text
 
 from build_catalog_snapshot import build_snapshot
 from app.catalog_snapshot import write_snapshot
-from app.discovery_catalog import apply_enrichment, cooptimus_features, discover, merge_search, parse_search
+from app.discovery_catalog import apply_enrichment, cooptimus_features, discover, discover_demos, merge_search, parse_search
 
 
 def page(app_id, released, name="A &amp; B"):
@@ -60,6 +60,25 @@ def test_whole_review_ranking_keeps_important_games_since_a_date():
     rows, report = discover(*args, popular_limit=100, important_since=date(2016,10,10), important_min_reviews=5000)
     assert {row["app_id"] for row in rows} == {10, 20}
     assert report["important_count"] == 0
+
+
+def test_demos_are_read_in_relevance_order_up_to_a_limit_and_marked():
+    asked = []
+    class Remote:
+        def get(self, url, params):
+            asked.append(params)
+            return {0: page(30, "Oct 10, 2026", "Hollow Demo"), 100: page(31, "Oct 10, 2025"),
+                    200: page(32, "Oct 10, 2024")}[params["start"]]
+    rows, report = discover_demos(Remote(), date(2026,10,10), 200)
+    assert [row["app_id"] for row in rows] == [30, 31]
+    assert all(row["product_type"] == "demo" for row in rows)
+    assert all(p["category1"] == 10 and "sort_by" not in p for p in asked) and len(asked) == 2
+    assert report["demo_count"] == 2
+    games = {}
+    merge_search(games, rows, {})
+    assert games[30]["product_type"] == "demo" and games[30]["name"] == "Hollow Demo"
+    merge_search(games, [parse_search(page(40, "Oct 10, 2026"))[0]], {})
+    assert "product_type" not in games[40]  # a whole game's record stays as it was
 
 
 def test_incomplete_page_is_not_published():

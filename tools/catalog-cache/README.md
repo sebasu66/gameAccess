@@ -63,7 +63,14 @@ Operational request caches and third-party response caches stay outside Git.
 .\apps\api\.venv\Scripts\python.exe .\tools\catalog-cache\refresh_discovery_catalog.py --github-ref dev
 ```
 
-Requests use a >=1 second delay, bounded retries/backoff and a disk cache. To
+Requests use a >=1 second delay, bounded retries/backoff and a disk cache.
+
+Besides whole games, the refresh keeps Steam's most relevant demos (`--demo-limit`,
+2000 by default; 0 turns it off). Each one carries `"product_type": "demo"`; whole
+games carry no `product_type`, so their records stay as they were. The app shows
+demos only with its Demos filter on.
+
+To
 export the canonical SQL database instead, build_catalog_snapshot.py now exports
 all active game metadata without accountgame restrictions. It includes existing
 genres/categories/tags and verified player counts.

@@ -95,11 +95,12 @@ def check_download(total_bytes: int, on_disk_bytes: int, games_root: Path, tempo
     for label, path, size in (("dlNoSpaceDownloads", temporary_root, remaining), ("dlNoSpaceGames", games_root, int(total_bytes))):
         resolved = Path(path).resolve()
         drive = os.path.splitdrive(str(resolved))[0] or str(resolved.anchor)
-        entry = wanted.setdefault(drive, [label, disk_info(path)["disk_free_bytes"], SAFETY_MARGIN])
+        entry = wanted.setdefault(drive, [label, disk_info(path)["disk_free_bytes"], SAFETY_MARGIN, str(resolved), drive])
         entry[2] += size
-    for label, free, needed in wanted.values():
+    for label, free, needed, folder, drive in wanted.values():
         if free < needed:
-            return {"ok": False, "needed_bytes": needed, "free_bytes": free,
+            # Which folder and disk ran short: a library can span several disks, the player has to know which one.
+            return {"ok": False, "needed_bytes": needed, "free_bytes": free, "folder": folder, "drive": drive,
                     # A key of the app's translations (game_download_manager.ui_text): the app says it in its language.
                     "message": ui(label, needed=f"{needed / GIB:.1f}", free=f"{free / GIB:.1f}")}
-    return {"ok": True, "needed_bytes": max(n for _, _, n in wanted.values()), "free_bytes": min(f for _, f, _ in wanted.values()), "message": ""}
+    return {"ok": True, "needed_bytes": max(entry[2] for entry in wanted.values()), "free_bytes": min(entry[1] for entry in wanted.values()), "message": ""}

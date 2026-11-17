@@ -32,8 +32,9 @@ def make_db(path: Path):
 def test_server_games_missing_from_the_catalog_are_added(tmp_path):
     make_db(tmp_path / "server.db")
     games = {730: {"id": 7, "app_id": 730, "name": "Counter-Strike 2"}}
-    assert merge_server_games(games, tmp_path / "server.db")[0] == 1
-    assert set(games) == {730, 553850}
+    assert merge_server_games(games, tmp_path / "server.db")[0] == 2
+    assert set(games) == {730, 553850, 1}
+    assert games[1]["product_type"] == "demo" and "product_type" not in games[553850]
     added = games[553850]
     assert added["name"] == "HELLDIVERS 2" and added["recommendation_count"] == 840848
     assert added["genres"] == ["Action"] and added["multiplayer"] is True and added["id"] == 8

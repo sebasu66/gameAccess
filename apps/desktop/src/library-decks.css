@@ -1,0 +1,64 @@
+/* Library › Play › By genre (LibraryGenreDecks.tsx, vault/Rediseño de navegación.md §5.9): layout only. The sizes and the
+   fan's places are in templates/base.css (--ga-deck-*), the look (shadows, light, glow) in the flavour. */
+.ga-decks { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ga-deck-w), 1fr)); gap: var(--ga-deck-gap-y) var(--ga-deck-gap-x); align-items: start; padding: var(--ga-space-1) var(--ga-space-1) var(--ga-space-4); }
+.ga-deck { position: relative; min-width: 0; padding: var(--ga-deck-pad); cursor: pointer; outline: none; }
+/* The plate behind the deck, like the profile art of the first column: a muted colour with the genre's name as a big cropped word. */
+.ga-deck-plate { position: absolute; inset: 0; overflow: hidden; border-radius: var(--ga-deck-plate-radius); isolation: isolate; box-shadow: inset 1px 1px 0 var(--ga-deck-bevel-light), inset -1px -1px 0 var(--ga-deck-bevel-dark), var(--ga-deck-slab-shadow); background: linear-gradient(160deg, hsl(var(--ga-deck-hue) var(--ga-deck-plate-s) var(--ga-deck-plate-l)), hsl(var(--ga-deck-hue) var(--ga-deck-plate-s) var(--ga-deck-plate-l2))); pointer-events: none; }
+.ga-deck-plate::before { content: ""; position: absolute; inset: 0; background: var(--ga-deck-stone-image) 0 0 / var(--ga-deck-stone-size); mix-blend-mode: overlay; opacity: var(--ga-deck-stone-opacity); }
+.ga-deck-plate::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 60px var(--ga-deck-shade); }
+.ga-deck-word { position: absolute; left: var(--ga-deck-pad); top: var(--ga-deck-pad); bottom: var(--ga-deck-pad); display: flex; align-items: center; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-transform: uppercase; font: 400 min(var(--ga-deck-word-size), calc(var(--ga-deck-word-h) / (var(--ga-deck-chars) * .62)))/.85 var(--ga-scene-word-family); letter-spacing: .02em; color: hsl(var(--ga-deck-hue) var(--ga-deck-word-s) var(--ga-deck-word-l) / var(--ga-deck-word-fill-a)); mix-blend-mode: screen; -webkit-text-stroke: var(--ga-deck-word-stroke) hsl(var(--ga-deck-hue) var(--ga-deck-word-s) var(--ga-deck-word-l) / var(--ga-deck-word-a)); }
+.ga-deck.is-open { grid-column: 1 / -1; cursor: default; }
+.ga-deck-ring { position: absolute; right: var(--ga-deck-pad); bottom: var(--ga-deck-pad); width: var(--ga-deck-ring-size); height: var(--ga-deck-ring-size); fill: none; stroke: hsl(var(--ga-deck-hue) var(--ga-deck-word-s) var(--ga-deck-word-l)); stroke-width: 1.6; opacity: var(--ga-deck-ring-rest); transition: opacity .3s; }
+.ga-deck.is-single .ga-deck-ring { display: none; }
+.ga-deck-ring-dot { fill: hsl(var(--ga-deck-hue) var(--ga-deck-word-s) var(--ga-deck-word-l)); stroke: none; }
+.ga-deck:is(:hover, :focus-visible) .ga-deck-ring { opacity: var(--ga-deck-ring-hover); }
+.ga-deck-head { position: relative; z-index: 1; display: flex; align-items: baseline; gap: var(--ga-row-gap); margin: 0 0 var(--ga-space-1) var(--ga-deck-word-col); padding-bottom: var(--ga-space-1); border-bottom: var(--ga-nav-line-w) solid var(--ga-deck-line); }
+.ga-deck.is-open .ga-deck-head, .ga-deck:focus-visible .ga-deck-head { border-bottom-color: var(--ga-accent); }
+.ga-deck-count { font: 700 var(--ga-deck-meta-size)/1 var(--ga-scene-text-family); letter-spacing: .14em; text-transform: uppercase; color: var(--ga-deck-muted); }
+.ga-deck-close { margin-left: auto; display: inline-flex; align-items: center; height: var(--ga-tool-size); padding: 0 var(--ga-space-1); border: var(--ga-nav-line-w) solid var(--ga-deck-line); border-radius: var(--ga-radius-m); background: var(--ga-deck-close-bg); color: var(--ga-deck-ink); font: 700 var(--ga-deck-meta-size)/1 var(--ga-scene-text-family); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.ga-deck-close:hover, .ga-deck-close:focus-visible { border-color: var(--ga-accent); color: var(--ga-accent); }
+
+/* Closed: four cards fanned, the first game in front. */
+.ga-deck-stack { position: relative; z-index: 2; height: var(--ga-deck-stack-h); margin-left: var(--ga-deck-word-col); }
+.ga-deck-card { position: relative; display: block; padding: 0; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; }
+.ga-deck-art { position: relative; display: block; overflow: hidden; box-sizing: border-box; width: var(--ga-deck-card-w); aspect-ratio: 2 / 3; padding: var(--ga-deck-paper-pad); border: var(--ga-nav-line-w) solid var(--ga-deck-card-line); border-radius: var(--ga-deck-paper-radius); background: var(--ga-deck-paper); box-shadow: var(--ga-deck-card-shadow); }
+.ga-deck-face { position: relative; display: block; overflow: hidden; width: 100%; height: 100%; border-radius: var(--ga-deck-face-radius); background: var(--ga-deck-card-bg); }
+.ga-deck-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Scratches over the whole card: dark ones on the paper (the texture inverted, multiplied), light ones on the picture (screened). */
+.ga-deck-art::before { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: var(--ga-deck-scratch-dark-image) 0 0 / var(--ga-deck-scratch-size); mix-blend-mode: multiply; opacity: var(--ga-deck-scratch-dark); pointer-events: none; }
+.ga-deck-face::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ga-deck-scratch-image) 0 0 / var(--ga-deck-scratch-size); mix-blend-mode: screen; opacity: var(--ga-deck-scratch-light); pointer-events: none; }
+/* The flash: a bright spot on the card where the pointer is, fading in on hover. */
+.ga-deck-art::after { content: ""; position: absolute; inset: 0; z-index: 3; border-radius: inherit; background: radial-gradient(circle at var(--ga-glare-x, 28%) var(--ga-glare-y, 18%), color-mix(in srgb, var(--ga-deck-glare-ink) var(--ga-deck-glare-strength), transparent), transparent var(--ga-deck-glare-size)); mix-blend-mode: overlay; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.ga-deck.is-open .ga-deck-card:is(:hover, :focus-visible) .ga-deck-art::after, .ga-deck:not(.is-open):hover .ga-deck-art::after { opacity: 1; }
+.ga-deck:not(.is-open) .ga-deck-card { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; transition: transform .5s cubic-bezier(.16, 1, .3, 1), filter .4s; pointer-events: none; }
+.ga-deck:not(.is-open) .ga-deck-card[data-fan="0"] { transform: var(--ga-deck-fan-0); z-index: 1; filter: brightness(var(--ga-deck-dim-0)); }
+.ga-deck:not(.is-open) .ga-deck-card[data-fan="1"] { transform: var(--ga-deck-fan-1); z-index: 2; filter: brightness(var(--ga-deck-dim-1)); }
+.ga-deck:not(.is-open) .ga-deck-card[data-fan="2"] { transform: var(--ga-deck-fan-2); z-index: 3; filter: brightness(var(--ga-deck-dim-2)); }
+.ga-deck:not(.is-open) .ga-deck-card[data-fan="3"] { transform: var(--ga-deck-fan-3); z-index: 4; }
+/* Hover or focus: the deck opens a little. */
+.ga-deck:not(.is-open):is(:hover, :focus-visible) .ga-deck-card[data-fan="0"] { transform: var(--ga-deck-hover-0); filter: brightness(var(--ga-deck-hover-dim-0)); }
+.ga-deck:not(.is-open):is(:hover, :focus-visible) .ga-deck-card[data-fan="1"] { transform: var(--ga-deck-hover-1); filter: brightness(var(--ga-deck-hover-dim-1)); }
+.ga-deck:not(.is-open):is(:hover, :focus-visible) .ga-deck-card[data-fan="2"] { transform: var(--ga-deck-hover-2); filter: none; }
+.ga-deck:not(.is-open):is(:hover, :focus-visible) .ga-deck-card[data-fan="3"] { transform: var(--ga-deck-hover-3); }
+.ga-deck-glow { position: absolute; left: 8%; bottom: var(--ga-space-1); width: 72%; height: var(--ga-deck-glow-h); background: radial-gradient(ellipse at center, color-mix(in srgb, var(--ga-mode) 45%, transparent), transparent 72%); filter: blur(12px); opacity: .45; transition: opacity .4s, transform .4s; pointer-events: none; }
+.ga-deck:not(.is-open):hover .ga-deck-glow { opacity: 1; transform: scale(1.15); }
+.ga-deck.is-open .ga-deck-glow { display: none; }
+.ga-deck-more { position: absolute; z-index: 5; left: calc(var(--ga-deck-card-w) + var(--ga-space-1)); top: var(--ga-space-3); padding: var(--ga-space-1); background: var(--ga-mode); color: var(--ga-scene-ink); font: 800 var(--ga-deck-meta-size)/1 var(--ga-scene-text-family); letter-spacing: .08em; transition: opacity .3s; pointer-events: none; }
+.ga-deck:hover .ga-deck-more { opacity: 0; }
+
+/* Open: the deck takes the row and its cards spread across it, the name under each. */
+.ga-deck.is-open .ga-deck-stack { height: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ga-deck-card-w), 1fr)); gap: var(--ga-deck-gap-y) var(--ga-space-3); }
+.ga-deck.is-open .ga-deck-art { width: 100%; transition: translate .25s, box-shadow .3s; }
+.ga-deck.is-open .ga-deck-card { transition: translate var(--ga-deck-hold-time) cubic-bezier(.2, .8, .2, 1), scale var(--ga-deck-hold-time) cubic-bezier(.2, .8, .2, 1), rotate var(--ga-deck-hold-time) ease; }
+/* Held in the hand: the card rises, grows a little and tilts; it is over its deck, the count and the other decks. */
+.ga-deck.is-open .ga-deck-card:is(:hover, :focus-visible) { z-index: 6; translate: 0 var(--ga-deck-hold-lift); scale: var(--ga-deck-hold-scale); rotate: var(--ga-deck-hold-tilt); }
+.ga-deck.is-open .ga-deck-card:is(:hover, :focus-visible) .ga-deck-art { box-shadow: var(--ga-deck-card-shadow-hover); }
+.ga-deck:has(.ga-deck-card:is(:hover, :focus-visible)) { z-index: 5; }
+.ga-deck.is-open .ga-deck-card:focus-visible { outline: none; }
+.ga-deck.is-open .ga-deck-card:focus-visible .ga-deck-art { border-color: var(--ga-accent); }
+.ga-deck-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: var(--ga-space-1); font: 700 var(--ga-deck-meta-size)/1.25 var(--ga-scene-text-family); color: var(--ga-deck-ink); }
+@media (prefers-reduced-motion: reduce) { .ga-deck-card, .ga-deck-art, .ga-deck-glow, .ga-deck-more { transition: none; } }
+
+
+/* Far from the screen an open deck's cards have no blended layers: they are drawn again as they come near (IntersectionObserver). */
+.ga-deck.is-open .ga-deck-card:not(.is-near) :is(.ga-deck-art::before, .ga-deck-art::after, .ga-deck-face::after) { display: none; }

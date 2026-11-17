@@ -92,3 +92,23 @@ def test_a_torrent_handed_to_the_server_stops_and_leaves_no_files(tmp_path, monk
     while list(output_dir.rglob("*.bin")) and time.monotonic() < deadline:
         time.sleep(0.1)  # libtorrent deletes files in the background
     assert not list(output_dir.rglob("*.bin"))
+
+
+def test_a_race_keeps_the_torrent_that_brings_the_game_and_its_bytes(tmp_path, monkeypatch):
+    from game_download_manager.source_race import RacePlan
+    magnet, output_dir, payload, stop = _local_magnet(tmp_path, monkeypatch)
+    dead = "magnet:?xt=urn:btih:" + "0123456789abcdef0123456789abcdef01234567"
+    plan = RacePlan.from_dict({"racers": [{"source": dead, "title": "Nadie la comparte"}, {"source": magnet, "title": "Fixture"}],
+                               "decideAfter": 1, "giveUpAfter": 2, "metadataTimeout": 1})
+    race_views = []
+    monkeypatch.setattr(downloader, "emit_progress", lambda *args, **kwargs: kwargs.get("race") and race_views.append(kwargs["race"]))
+    assert downloader.race_torrents(plan, str(output_dir), "987654324", "Local fixture") == 1
+    assert race_views[-1][1]["state"] == "won"
+    result = downloader.download_direct_torrent(magnet, str(output_dir), "987654324", "Local fixture")
+    stop()
+    assert Path(result).parent == output_dir  # moved out of its race folder
+    assert Path(result).read_bytes() == payload
+    deadline = time.monotonic() + 10
+    while list(output_dir.glob(".ga-race-*")) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not list(output_dir.glob(".ga-race-*"))

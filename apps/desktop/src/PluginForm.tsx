@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Download, FileJson, Plus, Search, X } from "lucide-react";
+import { Copy, Download, FileJson, FolderTree, Plus, Search, X } from "lucide-react";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import { showNotice } from "./notice/notice";
-import { pluginLink, pluginList, pluginListAdd, pluginListAddFile, pluginListRemove, pluginSearch,
-  type PluginListData, type PluginListSection, type PluginResult, type PluginSearchSection, type PluginUi } from "./catalog/PluginManage";
+import { formatBytes } from "./GenericDownloadProgress";
+import { pluginFiles, pluginLink, pluginList, pluginListAdd, pluginListAddFile, pluginListRemove, pluginSearch,
+  type PluginFiles, type PluginListData, type PluginListSection, type PluginResult, type PluginSearchSection, type PluginUi } from "./catalog/PluginManage";
+import "./plugin-files.css";
 import type { PluginStatus } from "./catalog/PluginRuntime";
 import ManualLinkDialog from "./library-manager/ManualLinkDialog";
 import { RowMenu } from "./library-manager/RowExpand";
@@ -58,8 +60,34 @@ function ListSection({ plugin, section }: { plugin: PluginStatus; section: Plugi
   </fieldset>;
 }
 
-function SearchSection({ plugin, section }: { plugin: PluginStatus; section: PluginSearchSection }) {
+/** What is inside a result (a torrent's files), read by the plugin before anything is downloaded. */
+function ResultFiles({ title, data, error, onClose }: { title: string; data?: PluginFiles; error?: string; onClose: () => void }) {
   const { t } = useI18n();
+  const root = data?.name && data.files.length > 1 ? `${data.name}/` : "";
+  return <section className="ga-plugin-files" aria-label={`${t("pluginFilesHeading")}: ${title}`} aria-busy={!data && !error}>
+    <div className="ga-plugin-files-head">
+      <p className="ga-label">{t("pluginFilesHeading")}</p>
+      <button type="button" className="ga-plugin-icon" aria-label={t("pluginFilesClose")} title={t("pluginFilesClose")} onClick={onClose}><X size={16} aria-hidden="true" /></button>
+    </div>
+    <p className="ga-plugin-files-title" title={title}>{data?.name || title}</p>
+    {error ? <p className="ga-settings-error" role="alert">{error}</p>
+      : !data ? <p className="ga-status" role="status">{t("pluginFilesReading")}</p>
+      : <>
+        <p className="ga-hint">{data.files.length === 1 ? t("pluginFilesSummaryOne", { size: formatBytes(data.total) }) : t("pluginFilesSummary", { count: data.files.length, size: formatBytes(data.total) })}</p>
+        <ul className="ga-plugin-files-list">
+          {data.files.map(file => <li key={file.path}>
+            <span className="ga-plugin-file-path" title={file.path}>{root && file.path.startsWith(root) ? file.path.slice(root.length) : file.path}</span>
+            <span className="ga-plugin-file-size">{formatBytes(file.size)}</span>
+          </li>)}
+        </ul>
+      </>}
+  </section>;
+}
+
+function SearchSection({ plugin, section }: { plugin: PluginStatus; section: PluginSearchSection }) {
+  const { locale, t } = useI18n();
+  const [files, setFiles] = useState<{ link: string; title: string; data?: PluginFiles; error?: string } | null>(null);
+  const asked = useRef("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PluginResult[] | null>(null);
   const [menu, setMenu] = useState<{ at: { x: number; y: number }; result: PluginResult } | null>(null);
@@ -70,8 +98,17 @@ function SearchSection({ plugin, section }: { plugin: PluginStatus; section: Plu
     setBusy(true); setError("");
     try { await work(); } catch (failure) { setError(text(failure)); } finally { setBusy(false); }
   };
-  const search = () => query.trim() && run(async () => { setResults(await pluginSearch(plugin, section, query.trim())); });
+  const search = () => query.trim() && run(async () => { closeFiles(); setResults(await pluginSearch(plugin, section, query.trim())); });
   const start = (result: PluginResult) => run(async () => { setDownload({ url: await pluginLink(plugin, section, result.link), query: titleQuery(result.title) }); });
+  // A magnet can take a while (the plugin asks its peers): an answer for a result no longer shown is dropped.
+  const showFiles = (result: PluginResult) => {
+    asked.current = result.link;
+    setFiles({ link: result.link, title: result.title });
+    void pluginFiles(plugin, section, result.link, locale)
+      .then(data => { if (asked.current === result.link) setFiles({ link: result.link, title: result.title, data }); })
+      .catch(failure => { if (asked.current === result.link) setFiles({ link: result.link, title: result.title, error: text(failure) }); });
+  };
+  const closeFiles = () => { asked.current = ""; setFiles(null); };
   return <fieldset className="ga-group ga-settings-group">
     <legend className="ga-label">{section.title}</legend>
     <form className="ga-plugin-row" role="search" onSubmit={event => { event.preventDefault(); void search(); }}>
@@ -89,9 +126,11 @@ function SearchSection({ plugin, section }: { plugin: PluginStatus; section: Plu
         </li>)}
       </ul>
     </> : <p className="ga-hint">{section.empty ?? t("pluginNoResults")}</p> : null}
+    {files ? <ResultFiles title={files.title} data={files.data} error={files.error} onClose={closeFiles} /> : null}
     {error ? <p className="ga-settings-error" role="alert">{error}</p> : null}
     {menu ? <RowMenu at={menu.at} title={menu.result.title} onClose={() => setMenu(null)} actions={[
       { label: t("pluginDownload"), icon: <Download size={16} />, tone: "accent", onClick: () => void start(menu.result) },
+      ...(section.filesPath && menu.result.files ? [{ label: t("pluginFiles"), icon: <FolderTree size={16} />, onClick: () => showFiles(menu.result) }] : []),
       { label: t("pluginCopyLink"), icon: <Copy size={16} />, onClick: () => void navigator.clipboard?.writeText(menu.result.link).then(() => showNotice({ title: t("pluginLinkCopied"), tone: "ok" })) },
     ]} /> : null}
     {download ? <ManualLinkDialog url={download.url} query={download.query} onClose={() => setDownload(null)} /> : null}

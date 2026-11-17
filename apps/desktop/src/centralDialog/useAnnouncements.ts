@@ -22,7 +22,7 @@ let welcome: Announcement[] = [];
 /** The announcements and the download news (games that became downloadable), newest first; unread until seen. */
 function merged(): News {
   const downloads: Announcement[] = storedDownloadNews().map(item => ({
-    id: item.id, date: item.date, games: item.appIds, title: translate("newDownloadsNewsTitle"), body: downloadNewsText(item.appIds.length, item),
+    id: item.id, date: item.date, games: item.appIds, title: translate(item.origin === "steam_free" ? "freeSteamNewsTitle" : "newDownloadsNewsTitle"), body: downloadNewsText(item.appIds.length, item),
   }));
   const items = [...downloads, ...remote].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
   const seen = seenAnnouncements();

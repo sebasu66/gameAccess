@@ -124,8 +124,13 @@ export const INITIAL_CATALOG_FILTERS: LibrarySearchFilters = {
   ...INITIAL_LIBRARY_FILTERS,
 };
 
+/** What kind of Steam offer the game is, as required filters (screenOutGame): each one on must hold. */
+export const REQUIRED_KIND_KEYS: readonly LibraryFeatureKey[] = ["free", "demo"];
+
 export const LIBRARY_FEATURE_OPTIONS: { key: LibraryFeatureKey; label: string }[] = [
   lazyLabel({ key: "has_downloads" as LibraryFeatureKey }, "featDownloadable"),
+  lazyLabel({ key: "free" as LibraryFeatureKey }, "featFree"),
+  lazyLabel({ key: "demo" as LibraryFeatureKey }, "featDemo"),
   lazyLabel({ key: "single_player" as LibraryFeatureKey }, "featSinglePlayer"),
   lazyLabel({ key: "multiplayer" as LibraryFeatureKey }, "featMultiplayer"),
   lazyLabel({ key: "online_multiplayer" as LibraryFeatureKey }, "featOnlineMultiplayer"),
@@ -541,6 +546,8 @@ function screenOutGame(game: CatalogGame, filters: LibrarySearchFilters): boolea
   if (filters.sources?.length && !filters.sources.some(name => game.download_source_names?.includes(name))) return true;
   if ((filters.excludeSources ?? []).some(name => game.download_source_names?.includes(name))) return true;
   if (filters.features.includes("has_downloads") && !game.has_downloads) return true;
+  // Free and demo are requirements: each one turned on must hold (AND), never one of several.
+  for (const key of REQUIRED_KIND_KEYS) if (filters.features.includes(key) && !gameMatchesLibraryFeature(game, key)) return true;
   if (filters.excludeFeatures?.some(key => gameMatchesLibraryFeature(game, key))) return true;
   if (filters.excludeGenres?.length) {
     // Selections saved before genres were normalized may use an old spelling.
@@ -602,7 +609,7 @@ function checkMultiplayerTree(game: CatalogGame, filters: LibrarySearchFilters):
  * ignored.
  */
 function checkLooseCapabilities(game: CatalogGame, filters: LibrarySearchFilters): boolean {
-  const known = new Set<LibraryFeatureKey>([...MULTIPLAYER_ONLY_KEYS, ...PLAYER_FEATURE_KEYS,
+  const known = new Set<LibraryFeatureKey>([...MULTIPLAYER_ONLY_KEYS, ...PLAYER_FEATURE_KEYS, ...REQUIRED_KIND_KEYS,
     ...MULTIPLAYER_BRANCHES.flatMap(branch => branch.options.map(option => option.key))]);
   const loose = filters.features.filter(key => !known.has(key));
   if (!loose.length) return true;

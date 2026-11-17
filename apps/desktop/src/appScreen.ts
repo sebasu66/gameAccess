@@ -10,7 +10,7 @@ import { useSyncExternalStore } from "react";
 import { dur, gsap } from "./motion/gsap";
 import { nextFrame, queueTransition } from "./motion/transitions";
 
-export type AppScreen = "games" | "home" | "kids" | "settings";
+export type AppScreen = "games" | "home" | "kids" | "settings" | "downloads";
 
 let screen: AppScreen = "games";
 // The last mode asked for (queued changes run in order; asking again for it adds nothing).
@@ -51,6 +51,9 @@ async function change(next: AppScreen): Promise<void> {
   if (screen === next) return;
   const out = shown(screen);
   if (out.length) await gsap.timeline().to(out, { opacity: 0, y: -16, duration: dur(.2), ease: "power2.in" });
+  // A newer request came while this one waited (the queue moves on after a time limit, so it may already have run and
+  // found nothing to do): the newest one decides. Without this, a slow change to Home landed over big picture.
+  if (next !== target) { gsap.set(out, { clearProps: "opacity,transform" }); if (target !== screen) void queueTransition(() => change(target), `screen:${target}`); return; }
   // A screen is born hidden (GaScreen); the games are hidden here before they show again.
   if (next === "games") gsap.set(shown("games"), { opacity: 0 });
   apply(next);

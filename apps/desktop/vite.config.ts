@@ -26,7 +26,7 @@ export default defineConfig({
   },
   // Preserve the raw layout stylesheet in contract tests; Vitest otherwise stubs CSS.
   // NODE_ENV=production in the shell would load the production React build, where act() does not exist.
-  test: { env: { NODE_ENV: "test" }, css: { include: [/library-room-layout\.css/] } },
+  test: { env: { NODE_ENV: "test" }, setupFiles: ["src/test/stopMotionTimers.ts"], css: { include: [/library-room-layout\.css/] } },
   clearScreen: false,
   server: {
     port: 1420,

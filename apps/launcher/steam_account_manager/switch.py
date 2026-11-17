@@ -14,6 +14,8 @@ from .client import STEAM_ID64_BASE
 STEAM_KEY = r"Software\Valve\Steam"
 LOGIN_TIMEOUT = 180.0
 SHUTDOWN_TIMEOUT = 40.0
+GUIDE_MARK = "gameaccess-guide-focus.off"  # steam_guide.rs: the player gave the Xbox button to Game Access.
+GUIDE_LINE = '\t"Controller_CheckGuideButton"\t\t"0"\n'
 
 
 def _start_flags() -> list[str]:
@@ -68,16 +70,57 @@ def _wait(condition, timeout: float, step: float = 0.5, sleep=time.sleep, clock=
     return condition()
 
 
+def guide_focus_off(text: str) -> str | None:
+    """localconfig.vdf with Steam's Guide setting off (steam_guide.rs); None when it already is or is another file."""
+    if not text.lstrip().startswith('"UserLocalConfigStore"'):
+        return None
+    lines = text.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.startswith('\t"Controller_CheckGuideButton"'):
+            if line.rstrip().endswith('"0"'):
+                return None
+            lines[index] = GUIDE_LINE
+            return "".join(lines)
+    close = text.rfind("}")
+    return None if close < 0 else text[:close] + GUIDE_LINE + text[close:]
+
+
+def release_guide(steam_root: Path) -> int:
+    """With Steam closed, after the player chose it: the same setting in every account, so a switch never brings Steam's
+    Big Picture back. Each account changed is added to the mark, which is what "restore" goes through."""
+    mark = Path(steam_root) / "config" / GUIDE_MARK
+    if not mark.is_file():
+        return 0
+    known = [line for line in mark.read_text(encoding="utf-8").splitlines() if line]
+    changed = 0
+    for path in (Path(steam_root) / "userdata").glob("*/config/localconfig.vdf"):
+        try:
+            next_text = guide_focus_off(path.read_text(encoding="utf-8"))
+            if next_text is None:
+                continue
+            temporary = path.with_suffix(".vdf.gameaccess-tmp")
+            temporary.write_text(next_text, encoding="utf-8", newline="")
+            temporary.replace(path)
+        except (OSError, UnicodeError):
+            continue
+        changed += 1
+        if path.parent.parent.name not in known:
+            known.append(path.parent.parent.name)
+    if changed:
+        mark.write_text("\n".join(known), encoding="utf-8")
+    return changed
+
+
 class SteamSwitcher:
     """The steps are injectable so the order (close, choose account, start, wait) is tested without a real Steam."""
 
     def __init__(self, steam_exe: Path, logger, active=active_account_id, running=steam_running, auto_login=set_auto_login,
-                 start=None, sleep=time.sleep, clock=time.monotonic):
+                 start=None, sleep=time.sleep, clock=time.monotonic, release=release_guide):
         self.steam_exe = Path(steam_exe)
         self.log = logger
         self.active, self.running, self.auto_login = active, running, auto_login
         self.start = start or (lambda *args: subprocess.Popen([str(self.steam_exe), *args], close_fds=True, creationflags=_flags()))
-        self.sleep, self.clock = sleep, clock
+        self.sleep, self.clock, self.release = sleep, clock, release
 
     def close(self, too_slow: str = "Steam no se cerró a tiempo. Cerralo y volvé a intentar.") -> bool:
         """Close Steam when it is running (and wait for it); True when it had to be closed."""
@@ -95,6 +138,7 @@ class SteamSwitcher:
             return {"switched": False, "account": account_name}
         self.log.info("Steam: switching from account %s to %s", current or "none", account_name)
         self.close("Steam no se cerró a tiempo para cambiar de cuenta. Cerralo y volvé a intentar.")
+        self.release(self.steam_exe.parent)
         self.auto_login(account_name)
         self.start(*_start_flags())
         if not _wait(lambda: self.active() == account_id, login_timeout, step=1.0, sleep=self.sleep, clock=self.clock):

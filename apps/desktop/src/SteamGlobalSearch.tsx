@@ -9,9 +9,14 @@ import { getAppScreen, setAppScreen } from "./appScreen";
 type Props = {
   query: string;
   setQuery: (value: string) => void;
+  /** Filter while typing (the new shell's content header, §4.3) instead of on Enter. */
+  live?: boolean;
 };
 
-export default function SteamGlobalSearch({ query, setQuery }: Props) {
+/** How long typing rests before a live search runs. */
+const LIVE_SEARCH_MS = 220;
+
+export default function SteamGlobalSearch({ query, setQuery, live = false }: Props) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(query);
@@ -29,6 +34,9 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
       event.preventDefault();
       event.stopPropagation();
       const focus = () => { inputRef.current?.focus({ preventScroll: true }); inputRef.current?.select(); };
+      // The new shell's header searching what is on screen (Help, Settings) takes Ctrl+F there.
+      const pageSearch = document.querySelector<HTMLInputElement>("[data-ga-head-search]");
+      if (pageSearch?.offsetParent) { pageSearch.focus({ preventScroll: true }); pageSearch.select(); return; }
       if (getAppScreen() === "games") { focus(); return; }
       // From another mode (Home, Settings, parental): back to the games, then the field once it shows.
       setAppScreen("games");
@@ -48,6 +56,13 @@ export default function SteamGlobalSearch({ query, setQuery }: Props) {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent(LIBRARY_SEARCH_EVENT, { detail: { query } }));
   }, [query]);
+
+  useEffect(() => {
+    // A request in words to the AI waits for Enter: it is not sent at every pause.
+    if (!live || askAi || draft.trim() === query) return;
+    const timer = window.setTimeout(() => setQuery(draft.trim()), LIVE_SEARCH_MS);
+    return () => window.clearTimeout(timer);
+  }, [askAi, draft, live, query, setQuery]);
 
   const commitSearch = () => {
     setQuery(draft.trim());

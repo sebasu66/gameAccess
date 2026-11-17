@@ -14,6 +14,9 @@ actualizado: 2026-10-29
 
 ---
 
+## 0. Próxima prueba con el build: conectar por MCP 🖥️ (Seba, 2026-11-17)
+- [ ] Con el `.exe` nuevo corriendo, encender el servidor MCP en Configuración (sale apagado; `127.0.0.1:38160/mcp`, con token) y conectar a Claude: comprobar que lista las herramientas y que puede actuar sobre la app mientras corre (ver la biblioteca, las descargas, el plan). Código: `apps/desktop/src-tauri/src/mcp_server.rs`, `apps/desktop/src/mcp`.
+
 ## 1. Lo que se puede ver ya, en el navegador 🌐
 - [ ] **El portón con clave.** (Atajo comprobado el 2026-10-29: cierra, se pone verde con la clave de ejemplo y abre.) Con `?uiDemo=1`, abrir la consola del navegador y escribir `gaGateDemo()`. El portón se cierra, la cerradura queda trabada y el candado encendido. Escribir `P1E1R1R1O26` (el ejemplo de perro el 11-11-26): se oye un tic por tecla, se ven tres círculos como mucho sin saber cuántos hay, y al completar se pone **verde**, la cerradura gira y el portón abre. Probar también: borrar y reescribir (sin límite), escribir de más, **"Entrar como jugador"** y **"Olvidé la clave"** (muestra un aviso, todavía no recupera nada). Código: `AdminKeyField.tsx`, `AdminGate.tsx`, `admin-gate.css`.
 - [ ] **La pantalla del niño.** `?kidDemo=1` (y `&timeUp` para el fin de tiempo): juegos de ejemplo, tiempo que queda, aviso a los 5 minutos. Código: `KidScreen.tsx`.

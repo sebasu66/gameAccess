@@ -15,6 +15,9 @@ import { normalizeSteamStoreMetadata, mergeLocalSteamDetails } from "../steamMet
 import type { CatalogGame, GameDetails } from "../types";
 import defaultCatalog from "./digital_catalog.json";
 import { digitalDownloadService } from "./DigitalDownloadService";
+import { freeSteamSource, STEAM_DEPOT_PREFIX } from "../freeSteamGames";
+import { libraryScanState } from "../libraryScan";
+import { hasPreference, matchesPreference, planRace, raceCandidates, type SourcePreference } from "./sourceRace";
 import { digitalProcessManager } from "./DigitalProcessManager";
 
 /** The game is already installed: the player has to uninstall it before installing another version. */
@@ -248,17 +251,32 @@ export class DigitalCatalog {
   async bulkCheckSources(games: CatalogGame[]): Promise<Record<number, number>> { return checkPluginSources(games); }
   async getSources(game: CatalogGame): Promise<PluginSource[]> { return getPluginSources(game); }
 
-  async download(game: CatalogGame, source?: PluginSource | string): Promise<void> {
+  /**
+   * `preference`: what the player asked of the source at the start of the download wizard (a word or version in the
+   * title, a provider); without it the choice is automatic. With no source chosen by hand, several torrents of the
+   * game may race and the fastest goes on (catalog/sourceRace.ts).
+   */
+  async download(game: CatalogGame, source?: PluginSource | string, preference?: SourcePreference): Promise<void> {
     if (this.options.downloadHandler) return this.options.downloadHandler(game);
     // One install per game: another version needs the installed one removed first (Library Manager or Uninstall).
     if (await this.isInstalled(game).catch(() => false)) throw new GameAlreadyInstalledError(game.name);
+    // A game Steam gives away, or one a linked account owns, is installed by Steam itself with its own window, into the
+    // Steam library; the queue follows it (apps/launcher/game_download_manager/pipeline.py steam_depot).
+    const appId = game.app_id ?? game.id;
+    const owned = libraryScanState().games.some(entry => entry.app_id === appId && entry.link_kind === "steam" && entry.state === "steam_owned");
+    const fromSteam = !source ? freeSteamSource(game) ?? (owned ? `${STEAM_DEPOT_PREFIX}${appId}` : null) : null;
+    if (fromSteam) return this.downloadFromSteam(game, fromSteam);
     const listed = typeof source === "string" || !source ? await this.getSources(game) : [];
-    const selected = typeof source === "string" ? listed.find(item => item.url === source) : source ?? listed.find(item => !item.lesson);
+    const automatic = !source;
+    const candidates = automatic ? raceCandidates(listed, preference) : [];
+    if (automatic && hasPreference(preference) && !candidates.length) throw new Error(translate("sourcesNoneMatch"));
+    const selected = typeof source === "string" ? listed.find(item => item.url === source)
+      : source ?? candidates[0] ?? listed.find(item => !item.lesson && matchesPreference(item, preference));
     // Players learned that every source of this game is bad: only an explicit choice in the source list starts one.
     if (!selected && !source && listed.length) throw new Error(translate("sourcesAllMarked"));
     if (!selected) throw new Error("No se encontró ninguna fuente de descarga activa para este juego.");
     const prepared = await preparePluginSource(selected);
-    const appId = game.app_id ?? game.id;
+    const race = automatic && prepared.delivery !== "browser" ? await planRace(prepared, candidates.filter(item => item !== selected), preparePluginSource) : undefined;
     if (prepared.executionProfile) await saveExecutionProfile(appId, prepared.executionProfile);
     else await ensureExecutionProfile(appId);
     const record = this.ensureRecord(game);
@@ -270,7 +288,19 @@ export class DigitalCatalog {
     };
     digitalDownloadService.registerRecords([effectiveRecord]);
     return digitalDownloadService.start({ ...game, download_size: selected.size, download_size_bytes: null,
-      download_size_source: selected.sourceName }, { record: effectiveRecord });
+      download_size_source: selected.sourceName }, { record: effectiveRecord, race });
+  }
+
+  /** DepotDownloader brings the game into the Steam library: no plugin source, and Steam's library holds its size. */
+  private downloadFromSteam(game: CatalogGame, source: string): Promise<void> {
+    const record = this.ensureRecord(game);
+    const steamRecord: DigitalGameRecord = {
+      name: game.name, id: game.app_id ?? game.id, downloadSource: source, sourceDelivery: "download",
+      sourceTitle: "Steam", sourceProvider: "Steam",
+      installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
+    };
+    digitalDownloadService.registerRecords([steamRecord]);
+    return digitalDownloadService.start({ ...game, download_size: null, download_size_bytes: null, download_size_source: null }, { record: steamRecord });
   }
 
   /**

@@ -1,0 +1,7 @@
+/* Big picture's question before a game starts (BigPlayConfirm.tsx). Screen layer: only its layout. */
+.ga-play-confirm .ga-smoke-body { display: grid; gap: var(--ga-space-2); justify-items: center; text-align: center; }
+.ga-play-confirm-art { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; border-radius: var(--ga-radius-l); }
+.ga-play-confirm-title { margin: 0; font: var(--ga-t1-font); color: var(--ga-orange); }
+.ga-play-confirm-about { margin: 0; max-width: 80ch; font: var(--ga-t2-font); text-wrap: pretty; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.ga-play-confirm .ga-actions { justify-content: center; margin-top: var(--ga-space-1); }
+.ga-play-confirm-keys { display: flex; align-items: center; gap: var(--ga-space-1); }

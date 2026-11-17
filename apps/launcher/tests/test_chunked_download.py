@@ -25,8 +25,9 @@ class Ctx:
     def wait_if_paused(self):
         pass
 
-    def emit_progress(self, *args):
+    def emit_progress(self, *args, **kwargs):
         self.progress.append(args)
+        self.extras = getattr(self, "extras", []) + [kwargs]
 
 
 class Resp:
@@ -616,3 +617,50 @@ def test_a_source_without_seeds_stops_with_a_clear_message(tmp_path):
         downloader.download("https://x", "F", str(tmp_path), "1", "F")
     assert '⟦dlSourceNoSeeds {"seeds": 1}⟧' in str(stopped.value) and '⟦dlBridgeEtaMonths {"n": 3}⟧' in str(stopped.value)
     assert "dlTryOtherSource" in str(stopped.value) and "torbox" not in str(stopped.value).lower()
+
+
+def test_while_the_server_gets_the_game_its_progress_travels_as_its_own_stage(tmp_path):
+    # Beyond: Two Souls (2026-11-09): the server was at 59 % and the player only saw "Preparing" with nothing moving.
+    class Torbox(FakeServer):
+        def manifest(self):
+            m = super().manifest()
+            if self.polls <= 2:
+                m.update(status="running", pieces=[], ready_count=0, detail={"stage": "torbox", "progress": 59.4, "seeds": 3})
+            return m
+
+    downloader, ctx = make(Torbox([("f", b"12")], 1), tmp_path)
+    downloader.download("https://x", "F", str(tmp_path), "1", "F")
+    assert {"server_percent": 59.4} in ctx.extras
+
+
+def test_emit_progress_reports_the_server_stage_apart_from_the_combined_progress(monkeypatch):
+    from game_download_manager import worker
+    sent = []
+    monkeypatch.setattr(worker, "emit_json", sent.append)
+    worker.emit_progress("1", "preparing", 59.4, status_text="x", server_percent=59.4)
+    worker.emit_progress("1", "preparing", 1.0, status_text="x")
+    assert sent[0]["progressPercent"] == 0.0 and sent[0]["serverPercent"] == 59.4
+    assert "serverPercent" not in sent[1]
+
+
+def test_a_piece_the_server_cannot_link_yet_is_waited_for_without_rejoining(tmp_path, monkeypatch):
+    # Beyond: Two Souls (2026-11-09): the piece link answered 404 ("not ready", Torbox refused it while ViKiNG imported)
+    # and the player took it for a lost job: six rejoins of the same job, then it gave up.
+    monkeypatch.setattr(cd, "PIECE_WAIT_SECONDS", 0.0)
+    data = bytes(range(100)) * 50
+    server = FakeServer([("f.bin", data)], 5000)
+    real_request = server.request
+    state = {"refused": 0, "posts": 0}
+
+    def request(method, url, **kw):
+        if method == "POST":
+            state["posts"] += 1
+        if "/link" in url and state["refused"] < 3:
+            state["refused"] += 1
+            return Resp(404, {"detail": "Esa pieza todavía no está lista."})
+        return real_request(method, url, **kw)
+
+    server.request = request
+    downloader, _ = make(server, tmp_path)
+    result = downloader.download("https://x/f.bin", "F", str(tmp_path), "1", "F")
+    assert Path(result).read_bytes() == data and state == {"refused": 3, "posts": 1}

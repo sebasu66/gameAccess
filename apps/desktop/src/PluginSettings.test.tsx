@@ -82,6 +82,43 @@ describe("un plugin en Configuración › Plugins", () => {
     expect(dialog?.dataset.query).toBe("Cyberpunk 2077");
   });
 
+  it("un torrent de los resultados muestra sus archivos y tamaños, y si nadie responde lo dice", async () => {
+    const withFiles: PluginUi = { ...ui, sections: [{ ...ui.sections[1], filesPath: "/api/manage/files" } as PluginUi["sections"][number]] };
+    const results = [
+      { title: "Big Game [Repack]", link: "magnet:?xt=urn:btih:aaa", meta: "44 GB", files: true },
+      { title: "Big Game (direct)", link: "https://host.test/page", meta: "44 GB" },
+    ];
+    serve({ "GET /api/ui": withFiles, "GET /api/manage/search": { results },
+      "GET /api/manage/files": { name: "Big Game", total: 47244640256 + 1024, files: [{ path: "Big Game/game.bin", size: 47244640256 }, { path: "Big Game/setup.exe", size: 1024 }] } });
+    await mount();
+    const search = host.querySelector<HTMLInputElement>('form[role="search"] input')!;
+    act(() => type(search, "big"));
+    await act(async () => { search.form!.requestSubmit(); });
+    await settle();
+    const [torrent, direct] = Array.from(host.querySelectorAll(".ga-plugin-results li"));
+    const menuItems = () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"], .lm-row-menu button'));
+    act(() => { direct.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
+    expect(menuItems().some(button => /ver archivos|show files/i.test(button.textContent ?? ""))).toBe(false);
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    await settle();
+    act(() => { torrent.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
+    await act(async () => { menuItems().find(button => /ver archivos|show files/i.test(button.textContent ?? ""))!.click(); });
+    await settle();
+    const asked = calls.find(call => call.url.includes("/api/manage/files"))!;
+    expect(asked.url).toContain("url=" + encodeURIComponent("magnet:?xt=urn:btih:aaa"));
+    const rows = Array.from(host.querySelectorAll(".ga-plugin-files-list li")).map(row => row.textContent);
+    expect(rows).toEqual(["game.bin44 GB", "setup.exe1.0 KB"]);
+    expect(host.querySelector(".ga-plugin-files")?.textContent).toMatch(/2 (archivos|files)/);
+
+    serve({ "GET /api/ui": withFiles, "GET /api/manage/search": { results } });
+    act(() => { torrent.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
+    await act(async () => { menuItems().find(button => /ver archivos|show files/i.test(button.textContent ?? ""))!.click(); });
+    await settle();
+    expect(host.querySelector(".ga-plugin-files [role=alert]")?.textContent).toBe("nope");
+    await act(async () => { host.querySelector<HTMLButtonElement>(".ga-plugin-files-head button")!.click(); });
+    expect(host.querySelector(".ga-plugin-files")).toBeNull();
+  });
+
   it("un plugin que no comparte formulario se muestra igual, con su aviso y desinstalar", async () => {
     serve({});
     await mount({ ...plugin, description: "From its manifest." });
@@ -109,6 +146,7 @@ describe("un plugin en Configuración › Plugins", () => {
       { type: "list", id: "bad", title: "Bad", path: "https://evil.test/x" },
       { type: "list", id: "bad2", title: "Bad", path: "//evil.test/x" },
       { type: "search", id: "bad3", title: "Bad", path: "/ok", linkPath: "https://evil.test" },
+      { type: "search", id: "bad5", title: "Bad", path: "/ok", filesPath: "https://evil.test/files" },
       { type: "html", id: "bad4", title: "Bad", path: "/ok" },
       { type: "list", id: "good", title: "Good", path: "/ok" },
     ] } });

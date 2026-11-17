@@ -12,7 +12,7 @@
  * like a download, and leaves its end in the history (Seba, 2026-11-03).
  */
 
-import { recordActivity } from "../activity/activity";
+import { type ActivityCategory, recordActivity } from "../activity/activity";
 import { narrate } from "../narrationLog";
 
 export type StepState = "pending" | "running" | "done" | "skipped" | "failed";
@@ -109,7 +109,7 @@ class CentralDialog {
   }
 
   /** Starts a task the caller reports on step by step. Tasks run one after another. */
-  beginTask(title: string, steps: Array<{ id: string; label: string }>, options: { background?: boolean } = {}): Promise<TaskHandle> {
+  beginTask(title: string, steps: Array<{ id: string; label: string }>, options: { background?: boolean; category?: ActivityCategory } = {}): Promise<TaskHandle> {
     const background = !!options.background;
     let release!: () => void;
     const turn = new Promise<void>(resolve => { release = resolve; });
@@ -136,7 +136,7 @@ class CentralDialog {
         fail: (message, canRetry = false) => new Promise<"continue" | "retry">(resolve => {
           // In the background nobody is waiting on a dialog: the failure stays in the history and the task goes on.
           if (background) {
-            recordActivity({ key: `task:${id}`, kind: "task", title, text: message, tone: "error", state: "failed" });
+            recordActivity({ key: `task:${id}`, kind: "task", category: options.category, title, text: message, tone: "error", state: "failed" });
             resolve("continue");
             return;
           }
@@ -148,7 +148,7 @@ class CentralDialog {
         end: () => {
           // A background task that took a while leaves its end in the history, like a download (a quick check does not).
           const failed = this.state.task?.steps.some(step => step.state === "failed");
-          if (background && !failed && Date.now() - began > SHOW_AFTER_MS) recordActivity({ key: `task:${id}`, kind: "task", title, tone: "ok", state: "done" });
+          if (background && !failed && Date.now() - began > SHOW_AFTER_MS) recordActivity({ key: `task:${id}`, kind: "task", category: options.category, title, tone: "ok", state: "done" });
           void narrate(`Task "${title}" finished in ${seconds(Date.now() - began)}; the dialog was ${this.state.taskVisible ? "shown" : "not shown (under " + SHOW_AFTER_MS + " ms)"}${sinceOpen()}.`, { area: "TASK" });
           if (this.showTimer) { clearTimeout(this.showTimer); this.showTimer = null; }
           this.set({ task: null, taskVisible: false });
@@ -165,8 +165,8 @@ class CentralDialog {
    * Runs the steps in order. A failed step does not stop the next ones; the failures are shown at the end.
    * With `canRetry`, the player can run the failed steps again from the failure.
    */
-  async runTask(title: string, steps: StepRunner[], options: { canRetry?: boolean; background?: boolean } = {}): Promise<{ failed: string[] }> {
-    const task = await this.beginTask(title, steps, { background: options.background });
+  async runTask(title: string, steps: StepRunner[], options: { canRetry?: boolean; background?: boolean; category?: ActivityCategory } = {}): Promise<{ failed: string[] }> {
+    const task = await this.beginTask(title, steps, { background: options.background, category: options.category });
     let pending = steps;
     let failed: string[] = [];
     for (;;) {

@@ -1,0 +1,129 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "../activation";
+import { useNews } from "../centralDialog/useAnnouncements";
+import { useAppScreen, setAppScreen } from "../appScreen";
+import ActivityPanel from "../activity/ActivityPanel";
+import { useActiveDownloadCount } from "../downloads/useActiveDownloadCount";
+import { openArea, openSection, useGameSection } from "../gameArea";
+import { useI18n } from "../i18n";
+import { NAVIGATION, type NavigationModeId } from "./navigationTree";
+import { CATALOG_ON_HOME, getNavigationSelection, selectNavigationTab, newsDestination, selectNavigationSection, shellMode, useNavigationSelection } from "./navigationSelection";
+import { OPEN_NEWS_EVENT } from "../newDownloads";
+import { PLUGIN_SECTION_EVENT } from "../pluginNav";
+import StatusBar from "./StatusBar";
+import SceneNavigation from "./SceneNavigation";
+import SceneContentTitle from "./SceneContentTitle";
+import ContentHeader from "./ContentHeader";
+import SceneModeDock from "./SceneModeDock";
+import { useSceneModeExit } from "./useSceneModeExit";
+import { useSideDrawer } from "./sideDrawer";
+import { useActivityFold } from "./activityFold";
+import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from "./shellLook";
+import "./navigation-shell.css";
+import "../templates/scene-fonts.css";
+import "./scene-frame.css";
+
+export { navigationShellEnabled } from "./navigationSelection";
+
+function openMode(mode: NavigationModeId) {
+  if (mode === "catalog" || mode === "library") openArea(mode);
+  else {
+    if (mode === "gameAccess") selectNavigationSection("gameAccess", getNavigationSelection().gameAccess);
+    if (mode === "settings") selectNavigationSection("settings", "general");
+    setAppScreen(mode === "gameAccess" ? "home" : "settings");
+  }
+}
+
+function openExistingSection(mode: NavigationModeId, section: string) {
+  selectNavigationSection(mode, section);
+  if (mode === "library" && (section === "play" || section === "downloads" || section === "manager")) openSection(section);
+  else if (mode === "catalog" && section === "explore") openSection("catalog");
+  // AI suggestions and new games are still drawn by the Home screen (HomeScreen.tsx), hosted as Catalog.
+  else if (mode === "catalog" && (CATALOG_ON_HOME as readonly string[]).includes(section)) setAppScreen("home");
+  else if (mode === "gameAccess") setAppScreen("home");
+  else if (mode === "settings") setAppScreen(section === "parental" ? "kids" : "settings");
+}
+
+/** Something outside the plan was asked for: Game Access › Subscription › Plan. */
+export function openPlans() {
+  openExistingSection("gameAccess", "subscription");
+  selectNavigationTab("gameAccess", "subscription", "plan");
+}
+
+const reachable = (mode: NavigationModeId, section: string) => mode === "library"
+  || mode === "catalog" && (section === "explore" || (CATALOG_ON_HOME as readonly string[]).includes(section))
+  || mode === "gameAccess"
+  || mode === "settings";
+
+/** Four zones around the existing screens while their sections move into the new hierarchy. */
+export default function NavigationShell() {
+  const { t } = useI18n();
+  const screen = useAppScreen();
+  const gameSection = useGameSection();
+  const downloads = useActiveDownloadCount();
+  const { unread } = useNews();
+  const navigationSelection = useNavigationSelection();
+  const [tier, setTier] = useState(getActivationTier);
+  const mode = shellMode(screen, gameSection?.area, navigationSelection.homeMode);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const changeMode = useSceneModeExit(shellRef, mode, openMode);
+  const drawer = useSideDrawer();
+  const activity = useActivityFold();
+  const selectedSection = mode === "library" ? gameSection?.section ?? "play" : mode === "settings" && screen === "kids" ? "parental"
+    : mode === "settings" ? navigationSelection.settings : mode === "gameAccess" ? navigationSelection.gameAccess
+    : screen === "home" ? navigationSelection.catalog : "explore";
+  const look = useShellLook();
+  // The style's choices that CSS cannot test by value (a pattern, an icon fill) become attributes the screen layer selects.
+  const [looks, setLooks] = useState<Record<string, string>>({});
+  useLayoutEffect(() => {
+    applyShellLook(look);
+    setLooks({ "data-rail-graphic": currentCssValue("--ga-nav-rail-graphic"), "data-icon-fill": currentCssValue("--ga-nav-icon-fill"), "data-button-fill": currentCssValue("--ga-nav-button-fill") });
+  }, [look]);
+  useEffect(() => () => clearShellLook(), []);
+  // The content zone is outside the shell's layer: the mode goes on the page so the zone takes its colour too (§4.3).
+  // Set and removed in the same effect: with two, a remount (hot reload) could run the removal after the setting and
+  // leave the content zone without its mode colour (the running stage of a download lost its fill).
+  useLayoutEffect(() => {
+    document.documentElement.dataset.gaNavMode = mode;
+    return () => { delete document.documentElement.dataset.gaNavMode; };
+  }, [mode]);
+
+  useEffect(() => {
+    document.documentElement.classList.add("ga-navigation-shell");
+    const updateTier = () => setTier(getActivationTier());
+    window.addEventListener(ACTIVATION_CHANGED_EVENT, updateTier);
+    return () => {
+      document.documentElement.classList.remove("ga-navigation-shell");
+      window.removeEventListener(ACTIVATION_CHANGED_EVENT, updateTier);
+    };
+  }, []);
+
+  useEffect(() => {
+    const showPlugins = () => selectNavigationSection("settings", "plugins");
+    // A notice or an Activity entry opens a news item (newDownloads.ts goes to Home): new downloads are Catalog's.
+    const showNews = (event: Event) => { const to = newsDestination(String((event as CustomEvent<string>).detail ?? "")); selectNavigationSection(to.mode, to.section); };
+    window.addEventListener(PLUGIN_SECTION_EVENT, showPlugins);
+    window.addEventListener(OPEN_NEWS_EVENT, showNews);
+    return () => { window.removeEventListener(PLUGIN_SECTION_EVENT, showPlugins); window.removeEventListener(OPEN_NEWS_EVENT, showNews); };
+  }, []);
+
+  return <div className="ga-nav-shell" ref={shellRef} data-mode={mode} {...looks}>
+    <SceneNavigation mode={mode} selected={selectedSection} reachable={section => reachable(mode, section)} onOpen={section => { drawer.chosen(); openExistingSection(mode, section); }} onLocked={openPlans} />
+    {/* The left column's drawer tab (sideDrawer.ts): folds and unfolds it by hand. */}
+    <button type="button" className="ga-nav-drawer-tab" aria-expanded={drawer.state !== "closed"} aria-label={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")}
+      title={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")} onClick={drawer.toggle}><ChevronLeft aria-hidden="true" /></button>
+    {/* The plan, always in sight: at the first column's top right, or at the content's when that column is folded away. */}
+    <button type="button" className={tier ? "ga-scene-plan is-plus" : "ga-scene-plan"} onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
+    <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
+    <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
+    <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />
+    <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
+      <div className="ga-nav-activity-scroll"><ActivityPanel /></div>
+    </aside>
+    {/* The activity column's handle (activityFold.ts): folds it out to the right and back. */}
+    {activity.fits ? <button type="button" className="ga-nav-activity-tab" aria-expanded={!activity.folded} aria-label={t(activity.folded ? "navActivityOpen" : "navActivityClose")}
+      title={t(activity.folded ? "navActivityOpen" : "navActivityClose")} onClick={activity.toggle}><ChevronRight aria-hidden="true" /></button> : null}
+    <StatusBar />
+  </div>;
+}

@@ -56,5 +56,5 @@ export const pluginSourcesStep = (options: { waitForPlugin?: boolean } = {}): St
  * needed.
  */
 export async function runPluginSourcesTask(options: { waitForPlugin?: boolean } = {}): Promise<void> {
-  await centralDialog.runTask(translate(options.waitForPlugin ? "pluginInstalledTitle" : "pluginTaskTitle"), [pluginSourcesStep(options)], { background: true });
+  await centralDialog.runTask(translate(options.waitForPlugin ? "pluginInstalledTitle" : "pluginTaskTitle"), [pluginSourcesStep(options)], { background: true, category: "news" });
 }

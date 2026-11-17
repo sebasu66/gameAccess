@@ -5,6 +5,7 @@ import { markNewsRead, useNews } from "./centralDialog/useAnnouncements";
 import { GaButton } from "./components/ga/Buttons";
 import { useI18n } from "./i18n";
 import { OPEN_NEWS_EVENT, takePendingNews } from "./newDownloads";
+import { parseReleaseDate } from "./libraryQuality";
 import SteamCover from "./SteamCover";
 import type { CatalogGame } from "./types";
 import "./news-panel.css";
@@ -13,15 +14,37 @@ const TIPS = ["newsTip1", "newsTip2", "newsTip3"] as const;
 
 /** How many covers show before "See all": a news item can bring hundreds of games. */
 const FIRST = 24;
+/** A news item shows covers only for games Steam released in the last months, at most this many (Seba, 2026-11-11). */
+export const NEWS_COVERS_MAX = 40;
+const NEWS_RECENT_DAYS = 183;
+/** How many links show before "See all". */
+const LINKS_FIRST = 60;
+const DAY = 86_400_000;
+
+/**
+ * Splits the games of a download news item (Seba, 2026-11-11): covers only for the really new ones (released on
+ * Steam in the last six months, newest first, at most NEWS_COVERS_MAX); the rest, older games and the new ones past
+ * the cap, as plain links in the order the news item has them.
+ */
+export function splitNewsGames(games: CatalogGame[], now = Date.now()): { covers: CatalogGame[]; links: CatalogGame[] } {
+  const released = new Map<CatalogGame, number>();
+  for (const game of games) {
+    const time = parseReleaseDate(game.release_date)?.getTime();
+    if (time !== undefined && time <= now && now - time <= NEWS_RECENT_DAYS * DAY) released.set(game, time);
+  }
+  const covers = [...released.keys()].sort((a, b) => released.get(b)! - released.get(a)!).slice(0, NEWS_COVERS_MAX);
+  const shown = new Set(covers);
+  return { covers, links: games.filter(game => !shown.has(game)) };
+}
 
 /**
  * Games as a grid of covers with their names (Seba, 2026-11-02: the long list showed little in much space); each
  * opens its game's detail. Long ones show the first FIRST and "See all".
  */
-function GameGrid({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
+function GameGrid({ games, onOpenGame, first = FIRST }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void; first?: number }) {
   const { t } = useI18n();
   const [all, setAll] = useState(false);
-  const shown = all ? games : games.slice(0, FIRST);
+  const shown = all ? games : games.slice(0, first);
   return <div className="ga-stack">
     <ul className="ga-news-grid">
       {shown.map(game => <li key={game.id}>
@@ -31,12 +54,28 @@ function GameGrid({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (ga
         </button>
       </li>)}
     </ul>
-    {games.length > FIRST ? <div className="ga-actions"><GaButton onClick={() => setAll(value => !value)}>{all ? t("newsShowLess") : t("newsShowAll", { count: games.length })}</GaButton></div> : null}
+    {games.length > first ? <div className="ga-actions"><GaButton onClick={() => setAll(value => !value)}>{all ? t("newsShowLess") : t("newsShowAll", { count: games.length })}</GaButton></div> : null}
   </div>;
 }
 
-/** The games a news item lists (by app id, read from the catalog database), as a grid that opens their detail. */
+/** Games as plain links, no images; each opens its game's detail in the catalog. Long ones show LINKS_FIRST and "See all". */
+function GameLinks({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
+  const { t } = useI18n();
+  const [all, setAll] = useState(false);
+  const shown = all ? games : games.slice(0, LINKS_FIRST);
+  return <div className="ga-stack">
+    <ul className="ga-news-links">
+      {shown.map(game => <li key={game.id}>
+        <button type="button" className="ga-news-link" aria-label={t("selectGameAria", { name: game.name })} onClick={() => onOpenGame(game)}>{game.name}</button>
+      </li>)}
+    </ul>
+    {games.length > LINKS_FIRST ? <div className="ga-actions"><GaButton onClick={() => setAll(value => !value)}>{all ? t("newsShowLess") : t("newsShowAll", { count: games.length })}</GaButton></div> : null}
+  </div>;
+}
+
+/** The games a news item lists (by app id, read from the catalog database): covers for the new ones, links for the rest. */
 function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game: CatalogGame) => void }) {
+  const { t } = useI18n();
   const [games, setGames] = useState<CatalogGame[]>([]);
   const key = appIds.join(",");
   useEffect(() => {
@@ -49,18 +88,26 @@ function NewsGames({ appIds, onOpenGame }: { appIds: number[]; onOpenGame: (game
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  const { covers, links } = useMemo(() => splitNewsGames(games), [games]);
   if (!games.length) return null;
-  return <GameGrid games={games} onOpenGame={onOpenGame} />;
+  return <div className="ga-stack">
+    {covers.length ? <GameGrid games={covers} onOpenGame={onOpenGame} first={NEWS_COVERS_MAX} /> : null}
+    {links.length ? <section>
+      {covers.length ? <h4 className="ga-news-section">{t("newsMoreGames")}</h4> : null}
+      <GameLinks games={links} onOpenGame={onOpenGame} />
+    </section> : null}
+  </div>;
 }
-const DAY = 86_400_000;
 
 /**
  * News as a panel (docs/TAREA-interfaz-nueva.md T13): the latest news card (date, title, text), older news, the
  * games that just arrived in the catalog (View opens their detail) and a usage tip. Opening it marks the news read.
  */
-export default function NewsPanel({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void }) {
+export default function NewsPanel({ games, onOpenGame, downloadsOnly = false }: { games: CatalogGame[]; onOpenGame: (game: CatalogGame) => void; downloadsOnly?: boolean }) {
   const { t, locale } = useI18n();
-  const { items } = useNews();
+  const news = useNews().items;
+  // In the new shell the project's announcements are Game Access › News; Catalog › New games shows only the downloads.
+  const items = useMemo(() => downloadsOnly ? news.filter(item => item.games?.length) : news, [news, downloadsOnly]);
   useEffect(() => { markNewsRead(); }, [items.length]);
   const recent = useMemo(() => games
     .filter(game => game.release_date && Date.now() - Date.parse(game.release_date) < 30 * DAY && Date.parse(game.release_date) <= Date.now())

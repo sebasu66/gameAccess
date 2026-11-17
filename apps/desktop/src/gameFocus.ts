@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { hasTauriRuntime } from "./native";
+import { setGamePlaying, watchWindowVisibility } from "./motion/gamePause";
 
 /**
  * Focus around play (src-tauri/src/game_focus.rs): the started game gets the focus; when it ends Game Access comes
@@ -13,6 +14,8 @@ export const GAME_ENDED_EVENT = "gameaccess:game-ended";
 /** Follows the game started from `folder` (its install folder) and, for a Steam game (`appId`), every folder Steam has it in. */
 export function watchGameFocus(folder?: string | null, appId?: number | null): void {
   if (!folder || !hasTauriRuntime()) return;
+  // The app does not animate while the game runs (motion/gamePause.ts); GAME_ENDED_EVENT wakes it (useGridFocus).
+  setGamePlaying(true);
   void invoke("game_focus_watch", { folder, appId: appId ?? null }).catch(() => undefined);
 }
 
@@ -36,6 +39,7 @@ function focusIsFree(): boolean {
 }
 
 export function useGridFocus(): void {
+  useEffect(() => watchWindowVisibility(), []);
   useEffect(() => {
     let frame = 0;
     const soon = (force: boolean) => {
@@ -54,7 +58,7 @@ export function useGridFocus(): void {
     let unlisten: (() => void) | undefined;
     let stopped = false;
     if (hasTauriRuntime()) {
-      void listen(GAME_ENDED_EVENT, () => soon(!document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')))
+      void listen(GAME_ENDED_EVENT, () => { setGamePlaying(false); soon(!document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"]')); })
         .then(dispose => { if (stopped) dispose(); else unlisten = dispose; });
     }
     return () => { stopped = true; window.removeEventListener("focus", activated); window.clearInterval(start); window.cancelAnimationFrame(frame); unlisten?.(); };

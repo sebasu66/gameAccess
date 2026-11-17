@@ -6,7 +6,148 @@
   --ga-text-min: 14px; --ga-text-size: 16px; --ga-hint-size: 15px; --ga-text-leading: 1.5;
   --ga-t2-leading: 1.3; --ga-label-size: 13px; --ga-label-leading: 1.3; --ga-label-track: .14em; --ga-status-size: 14px; --ga-status-leading: 1.4;
   /* Margins. */
-  --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
+  --ga-home-form-w: 560px;
+  /* Genre decks (LibraryGenreDecks.tsx): the grid, the card, and where the fan's four cards sit closed and on hover. */
+  --ga-deck-w: 340px; --ga-deck-pad: 16px; --ga-deck-plate-radius: 2px; --ga-deck-word-col: 78px; --ga-deck-ring-size: 40px; --ga-deck-hold-time: .28s; --ga-deck-hold-lift: -14px; --ga-deck-hold-scale: 1.08; --ga-deck-hold-tilt: -1.2deg; --ga-deck-stone-size: 420px; --ga-deck-word-size: 120px; --ga-deck-word-h: 300px;  --ga-deck-gap-x: 26px; --ga-deck-gap-y: 30px; --ga-deck-card-w: 150px; --ga-deck-card-radius: 14px; --ga-deck-stack-h: 262px; --ga-deck-glow-h: 34px;
+  --ga-deck-paper-pad: 7px; --ga-deck-paper-radius: 16px; --ga-deck-face-radius: 10px; --ga-deck-scratch-size: 360px; --ga-deck-glare-size: 62%; --ga-deck-name-size: 26px; --ga-deck-meta-size: 11px;
+  --ga-deck-fan-0: translate(14px, 16px) rotate(-8deg); --ga-deck-fan-1: translate(24px, 8px) rotate(-3deg); --ga-deck-fan-2: translate(34px, 2px) rotate(4deg); --ga-deck-fan-3: translate(44px, -2px) rotate(9deg);
+  --ga-deck-hover-0: translate(-8px, 8px) rotate(-14deg) scale(.98); --ga-deck-hover-1: translate(30px, -4px) rotate(-5deg); --ga-deck-hover-2: translate(74px, -12px) rotate(4deg) scale(1.03); --ga-deck-hover-3: translate(118px, -6px) rotate(12deg) scale(1.05); --ga-home-measure: 80ch; --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
   /* Sizes. */
   --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
+  /* A settings tab: how wide it runs, and the least a group's text column takes before its buttons wrap below it. */
+  --ga-settings-w: 960px; --ga-settings-text-min: 280px;
+  /* Cards of a list of notices (Activity). */
+  /* Mode rail: its default width, its margin inside the frame and the gap to the screen beside it. */
+  /* The smoke: how wide its content runs, the layer of its own dialogs, and how one dialog pushes another out (the distance is measured; this is the least). */
+  --ga-smoke-w: 860px; --ga-smoke-layer: 12040; --ga-smoke-travel: 96px; --ga-smoke-time: .46s; --ga-smoke-ease: cubic-bezier(.45, 0, .2, 1);
+  --ga-mode-rail-w: 112px; --ga-rail-inset: 12px; --ga-rail-gutter: 16px;
+  /* New navigation shell (RN1). Kept separate from the existing rail until RN2 replaces its layout. */
+  /* The side columns keep their own size (they never squeeze: their content would deform). The content column keeps
+     at least --ga-nav-content-min: when the window lacks that width, the activity column steps aside whole
+     (--ga-nav-activity-room: what is left for it once the content, the other columns, margins and gaps are counted). */
+  --ga-nav-content-min: 600px;
+  /* Then the left column folds into a drawer (navigation/sideDrawer.ts) that leaves its tab at the window's edge:
+     --ga-nav-drawer-room is what would be left with it docked and no activity column (negative: it does not fit). */
+  --ga-nav-drawer-tab-w: 28px; --ga-nav-drawer-tab-h: 76px; --ga-nav-drawer-tab-icon: 18px; --ga-nav-drawer-tab-radius: 14px; --ga-nav-drawer-time: .32s; --ga-nav-activity-tab-inset: 14px; --ga-nav-activity-tab-gap: 2px; --ga-nav-activity-tab-icon: 14px;
+  --ga-nav-drawer-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
+  --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
+  --ga-nav-activity-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
+  --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-activity-gap: 30px; --ga-nav-status-h: 30px; --ga-nav-status-gap: var(--ga-nav-column-gap);
+  --ga-scene-frame-inset: 8px; --ga-scene-frame-radius: 34px; --ga-scene-frame-width: 1.5px; --ga-scene-frame-first-stop: 30%; --ga-scene-frame-clear-stop: 55%;
+  --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
+  --ga-scene-dock-clear: 20px; --ga-scene-cut-radius: 27px; --ga-scene-panel-radius: 40px;
+  --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-plan-size: 22px; --ga-scene-plan-pad: 6px; --ga-scene-plan-pad-x: 14px; --ga-scene-plan-radius: 8px; --ga-scene-plan-edge: 1px; --ga-scene-plan-shine-w: 45%; --ga-scene-plan-shine-time: 3.2s; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-lock-size: 30px;
+  --ga-scene-row-pad: 10px; --ga-scene-row-gap: 13px; --ga-scene-list-gap: 2px; --ga-scene-list-top: 10px; --ga-scene-copy-gap: 3px; --ga-scene-icon-drawing: 19px; --ga-scene-icon-stroke: 2.2px;
+  --ga-scene-menu-head-gap: 12px; --ga-scene-menu-head-side: 6px; --ga-scene-menu-head-bottom: 14px; --ga-scene-menu-head-size: 21px;
+  /* The figure's place; the player's scale and offsets (Settings › Appearance) replace these on the figure. */
+  /* The look editor on right-click and in Settings › Appearance (navigation/scene-look.css). */
+  --ga-scene-look-w: 400px; --ga-scene-look-swatch: 28px; --ga-scene-look-thumb: 72px; --ga-scene-look-ring-w: 2px; --ga-scene-look-z: 1200;
+  --ga-scene-figure-scale: 1; --ga-scene-figure-x: 0%; --ga-scene-figure-y: 0%;
+  --ga-scene-art-height: 620px; --ga-scene-art-top: 14px; --ga-scene-word-size: 150px; --ga-scene-ring-size: 268px; --ga-scene-ring-top: 60px;
+  --ga-scene-smoke-rise: 250px; --ga-scene-smoke-height: 330px; --ga-scene-smoke-bleed: 120px; --ga-scene-smoke-blur: 12px; --ga-scene-smoke-time: 40s; --ga-scene-smoke-color-time: 58s; --ga-scene-ring-time: 46s;
+  --ga-scene-number-size: 360px; --ga-scene-number-top: 150px; --ga-scene-number-right: -14px; --ga-scene-number-stroke: 2px;
+  --ga-scene-column-space: 40px; --ga-scene-particle-overhang: 60px; --ga-scene-glow-left: 24%; --ga-scene-bridge-bleed: 70px; --ga-scene-bridge-edge: 12px;
+  --ga-scene-glow-blur: 70px; --ga-scene-glow-time: 9s; --ga-scene-particle-x: 12px; --ga-scene-particle-from-y: 14px; --ga-scene-particle-to-y: -22px;
+  --ga-scene-pointer-x: 0; --ga-scene-pointer-y: 0; --ga-scene-parallax-word-x: -8px; --ga-scene-parallax-word-y: -6px; --ga-scene-parallax-figure-x: -22px; --ga-scene-parallax-figure-y: -12px; --ga-scene-parallax-ring-x: -14px; --ga-scene-parallax-ring-y: -10px;
+  --ga-scene-parallax-near-x: -46px; --ga-scene-parallax-near-y: -30px; --ga-scene-parallax-far-x: -18px; --ga-scene-parallax-far-y: -12px; --ga-scene-parallax-glow-x: -10px; --ga-scene-parallax-glow-y: -8px;
+  --ga-scene-lobe-size: 110px; --ga-scene-lobe-x: 12.5%; --ga-scene-lobe-0: 12.5%; --ga-scene-lobe-1: 37.5%; --ga-scene-lobe-2: 62.5%; --ga-scene-lobe-3: 87.5%;
+  --ga-scene-word-gap: 12px; --ga-scene-rule-inset: 10px; --ga-scene-lock-icon-size: 15px;
+  --ga-scene-neck-width: 72px; --ga-scene-neck-overlap: 12px; --ga-scene-lobe-center: 66px;
+  --ga-scene-liquid-time: .7s; --ga-scene-liquid-ease: cubic-bezier(.65, 0, .25, 1.12);
+  --ga-scene-wipe-size: 2600px; --ga-scene-wipe-size-two: 2400px; --ga-scene-wipe-size-three: 2500px; --ga-scene-wipe-offset: 120px; --ga-scene-wipe-x: 50%;
+  --ga-scene-heading-size: clamp(30px, 4vh, 46px); --ga-scene-heading-label: 14px; --ga-scene-section-name: 19.5px; --ga-scene-section-desc: 13px;
+  --ga-scene-activity-pad: 16px; --ga-scene-activity-gap: 12px; --ga-scene-activity-icon: 18px; --ga-scene-activity-filter: 34px; --ga-scene-activity-radius: 12px;
+  --ga-scene-activity-w: clamp(220px, 24vw, 336px); --ga-scene-activity-title-size: 34px; --ga-scene-activity-section-size: 17px; --ga-scene-activity-card-radius: 18px; --ga-scene-activity-filter-radius: 26px;
+  --ga-scene-activity-head-icon: 26px; --ga-scene-activity-entry-inset: 47px; --ga-scene-activity-head-x: 14px; --ga-scene-activity-head-y: 11px;
+  --ga-scene-activity-label-size: 12px; --ga-scene-activity-entry-size: 14.5px; --ga-scene-activity-meta-size: 11.5px; --ga-scene-activity-move: 5px;
+  --ga-scene-brand-logo: 46px; --ga-scene-brand-name-w: 65px; --ga-scene-brand-plan-pad: 8px;
+  --ga-scene-tabs-gap: 8px; --ga-scene-tab-height: 40px; --ga-scene-tab-pad: 18px; --ga-scene-content-gap: 14px; --ga-scene-rule-width: 1.5px;
+  --ga-scene-content-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h));
+  /* Library › Downloads as five stages (navigation/download-wizard.css, RN9). */
+  --ga-wz-gap: 18px; --ga-wz-pad: 22px; --ga-wz-body-gap: 28px; --ga-wz-row-gap: 12px; --ga-wz-main-share: 1.45fr;
+  --ga-wz-cover-w: 64px; --ga-wz-title-gap: 4px; --ga-wz-title-track: .02em;
+  --ga-wz-step-h: clamp(54px, 6.4vh, 66px); --ga-wz-step-tip: 20px; --ga-wz-step-overlap: 14px; --ga-wz-step-pad: 30px; --ga-wz-step-pad-end: 26px; --ga-wz-step-pad-first: 16px; --ga-wz-step-gap: 12px; --ga-wz-step-row-gap: 6px; --ga-wz-underline: 3px; --ga-wz-focus: 2px;
+  --ga-wz-chart-h: clamp(56px, 7vh, 84px); --ga-wz-chart-stroke: 2px;
+  --ga-wz-bar-h: 8px; --ga-wz-bar-glow: 0 0 12px;
+  --ga-wz-mark-w: 22px; --ga-wz-sub-gap: 10px; --ga-wz-sub-pad: 9px; --ga-wz-figure-edge: 2px;
+  --ga-wz-lane-gap: 10px; --ga-wz-lane-inner: 5px; --ga-wz-lane-h: 6px;
+  /* A QR code printed as text (the Steam sign-in, SteamQrDialog.tsx): always monospace, whatever the style; a block is
+     .6em wide and a line holds two rows of modules, so the tracking makes them square. */
+  --ga-qr-pad: 16px; --ga-qr-paper: var(--ga-bg); --ga-qr-ink: var(--ga-white); --ga-qr-font: 400 14px/1 "JetBrains Mono", "Cascadia Mono", Consolas, monospace; --ga-qr-track: -.1em;
+  /* The stage's height leaves room for the card's head and actions inside the panel, so the actions show without scrolling. */ --ga-wz-body-h: clamp(150px, calc(100vh - 620px), 380px);
+  --ga-wz-log-pad: 10px 12px; --ga-wz-log-fade: 72%; --ga-wz-level-w: 4ch; --ga-wz-line-pad: 2px; --ga-wz-old-line: .6;
+  --ga-wz-line-in: .45s; --ga-wz-line-stagger: 50ms; --ga-wz-ease: cubic-bezier(.2, .8, .2, 1);
+  --ga-nav-content-pad: 28px; --ga-nav-content-pad-end: var(--ga-nav-column-gap); --ga-nav-section-pad: 22px; --ga-nav-card-pad: 22px;
+  --ga-nav-section-gap: 12px; --ga-nav-action-gap: 24px;
+  --ga-nav-title-size: 70px; --ga-nav-button-h: 42px; --ga-nav-button-pad-x: 18px;
+  --ga-nav-deck-size: 16px; --ga-nav-log-size: 11px;
+  --ga-nav-mode-switch-h: 56px; --ga-nav-brand-h: 104px; --ga-nav-section-button-h: 64px;
+  --ga-nav-caption-size: 12px; --ga-nav-status-gap: 16px;
+  --ga-nav-section-title-size: clamp(38px, 5.6vh, 64px); --ga-nav-title-overhang: 0px;
+  --ga-nav-panel-shade-start: 8%; --ga-nav-panel-shade-end: 70%;
+  /* The shell's lines, focus ring and leadings of its big words; the status bar's parts and a mode button's count. */
+  --ga-nav-line-w: 1px; --ga-nav-focus-w: 2px; --ga-nav-word-leading: .85; --ga-nav-title-leading: .92;
+  --ga-nav-status-icon: 13px; --ga-nav-status-item-h: 24px; --ga-nav-status-item-pad: 8px; --ga-nav-status-item-gap: 7px;
+  --ga-nav-status-sep-h: 14px; --ga-nav-status-badge: 12px; --ga-nav-status-badge-size: 9px; --ga-nav-status-dot: 7px;
+  --ga-nav-meter-w: 3px; --ga-nav-meter-h: 12px; --ga-nav-meter-gap: 2px; --ga-nav-meter-low: .35; --ga-nav-meter-time: 1.4s;
+  --ga-nav-mode-badge: 20px; --ga-nav-mode-badge-inset: 6px;
+  /* Mode bar (§4.1): diagonal bands under the word, their slant, the gap between them and the icon. Editable in Appearance › Details. */
+  --ga-nav-band-h: clamp(80px, 10.9vh, 118px); --ga-nav-mode-slant: clamp(20px, 2.8vh, 30px); --ga-nav-band-gap: 5px; --ga-nav-band-icon: clamp(36px, 4.8vh, 52px);
+  --ga-nav-band-icon-line: 1.8; --ga-nav-icon-grow: 1.18; --ga-nav-word-pad: 12px;
+  /* Sections panel (§4.2): its cut corner, the image's opacity, tint and blur (Appearance › Details), the title that reaches over
+     the content, the stepped buttons, their chevrons and the least size a text shrinks to. */
+  --ga-nav-panel-cut: var(--ga-nav-panel-corner); --ga-nav-panel-image-opacity: 1; --ga-nav-panel-tint: 0; --ga-nav-panel-blur: 0px; --ga-nav-panel-bleed: 12px;
+  --ga-nav-hero-h: clamp(76px, 9.6vh, 104px); --ga-nav-hero-name-size: clamp(40px, 6.5vh, 70px); --ga-nav-hero-desc-size: 13px; --ga-nav-hero-desc-weight: 700; --ga-nav-hero-desc-opacity: 1; --ga-nav-hero-desc-shadow-y: 1px; --ga-nav-hero-desc-shadow-blur: 3px; --ga-nav-hero-edge: 6px; --ga-nav-hero-gap: 4px;
+  --ga-nav-section-h: clamp(64px, 8.15vh, 88px); --ga-nav-section-name-size: clamp(22px, 2.96vh, 32px); --ga-nav-section-desc-size: 11.5px;
+  --ga-nav-section-room: calc(3 * (var(--ga-nav-chevron-t) + var(--ga-nav-chevron-g)));
+  --ga-nav-section-mark: calc(var(--ga-nav-section-h) * 1.4); --ga-nav-section-mark-show: .68; --ga-nav-section-text-at: .42; --ga-nav-section-mark-fade: linear-gradient(90deg, black 0 52%, transparent 100%); --ga-nav-section-mark-opacity: .7; --ga-nav-section-mark-opacity-on: 1; --ga-nav-section-mark-fill: .14; --ga-nav-section-mark-fill-strong: .34; --ga-nav-section-mark-stroke: .8;
+  --ga-nav-section-bar: 3px; --ga-nav-section-ring: 1.5px;
+  --ga-nav-chevron-t: 8px; --ga-nav-chevron-g: 4px; --ga-nav-chevron-big-t: 12px; --ga-nav-chevron-big-g: 6px; --ga-nav-chevron-travel: 14px; --ga-nav-chevron-delay: 50ms;
+  --ga-nav-hero-tip: calc(var(--ga-nav-button-cut) * 1.18); --ga-nav-glass-blur: 8px; --ga-nav-desc-opacity: .8;
+  --ga-nav-word-tracking: .02em; --ga-nav-word-stack-shift: -.22em; --ga-nav-caption-tracking: .06em; --ga-nav-name-leading: .9;
+  --ga-nav-hover-time: .25s; --ga-nav-grow-time: .45s; --ga-nav-neon-near: 3px; --ga-nav-neon-far: 10px;
+  --ga-nav-tab-h: clamp(34px, 3.9vh, 42px); --ga-nav-tab-gap: 3px; --ga-nav-tab-indent: 0px; --ga-nav-tab-size: clamp(13px, 1.35vh, 14.5px); --ga-nav-tab-tint: 34%; --ga-nav-tab-tint-hover: 52%; --ga-nav-tab-off-text: .7;
+  --ga-nav-pill-h: clamp(32px, 3.7vh, 40px); --ga-nav-pill-pad: clamp(12px, 1.4vh, 16px); --ga-nav-pill-gap: clamp(6px, .8vh, 9px); --ga-nav-pill-size: calc(clamp(14px, 1.6vh, 17px) * var(--ga-nav-pill-scale, 1)); --ga-nav-pill-dot: 9px; --ga-nav-pill-dot-gap: 8px; --ga-nav-pill-dot-ring: 1.5px; --ga-nav-pill-dot-off: .55; --ga-nav-lock-size: 15px; --ga-nav-lock-tip-gap: 8px; --ga-nav-lock-tip-rise: 4px; --ga-nav-lock-tip-pad: 7px 10px; --ga-nav-lock-tip-radius: 6px; --ga-nav-lock-inline: calc(var(--ga-nav-section-name-size) * .74); --ga-nav-lock-inline-gap: .5em; --ga-nav-lock-shackle: 2.6px;
+  --ga-nav-stage-tint: 16%; --ga-nav-activity-tint: 22%; --ga-nav-activity-fade: 70%; --ga-nav-activity-edge: 5px; --ga-nav-stage-fade: 85%; --ga-nav-stage-line: 22%;
+  --ga-nav-head-clear: calc(var(--ga-nav-hero-tip) + 3 * (var(--ga-nav-chevron-big-t) + var(--ga-nav-chevron-big-g)) + var(--ga-nav-section-gap));
+  --ga-nav-head-search-w: 560px; --ga-nav-grid-search-min: 220px; --ga-nav-head-field-h: clamp(40px, 4.6vh, 50px); --ga-nav-head-icon: 20px; --ga-nav-head-text: clamp(14px, 1.5vh, 16px);
+  --ga-nav-head-fact-gap: clamp(18px, 2.4vw, 40px); --ga-nav-head-fact-size: clamp(22px, 3vh, 32px);
+  --ga-nav-glow-r: 22px; --ga-nav-fit-min: 15px; --ga-nav-dim-hover: .62; --ga-nav-panel-fade-shape: 75% 32%; --ga-nav-panel-fade-hold: 8%; --ga-nav-panel-fade-reach: 100%;
+  /* Big picture: its side rail's width, the layer of its rail, search and legend over the games, and one key of its on-screen keyboard. */
+  --ga-big-rail-w: 248px; --ga-big-layer: 60; --ga-key-h: 52px; --ga-key-w: 64px; --ga-focus-w: 3px;
+  /* A list of the files inside a download (Settings › Plugins): how tall it grows before it scrolls, and one row. */
+  --ga-files-max-h: 320px; --ga-files-row-h: 32px;
+  /* Games of a news item past its covers, as links: the least width of one column. */
+  --ga-news-link-col: 220px;
+  --ga-feed-gap: 12px; --ga-feed-tight: 4px; --ga-feed-pad: 12px 16px; --ga-feed-icon: 40px; --ga-feed-art: 56px; --ga-feed-badge: 24px; --ga-feed-bar: 4px; --ga-feed-dot: 8px;
+  /* EN10: the game's detail in the new shell, scaled from the short edge and allowed to fill ultrawide windows.
+     Grid: header row, body (tabs | media and rating) and the footer (actions | how much it was played). */
+  --ga-detail-wide-inset-x: clamp(22px, 3vw, 66px); --ga-detail-wide-inset-y: clamp(28px, 4vh, 58px);
+  --ga-detail-wide-pad-l: clamp(32px, 5.6vw, 110px); --ga-detail-wide-pad-r: clamp(28px, 5vw, 96px); --ga-detail-wide-pad-b: clamp(20px, 3.4vh, 36px);
+  --ga-detail-wide-head-h: clamp(220px, 31vh, 310px); --ga-detail-wide-head-gap: clamp(22px, 3.8vh, 40px);
+  --ga-detail-wide-side-w: clamp(400px, 34vw, 800px); --ga-detail-wide-gap: clamp(22px, 2.2vw, 40px);
+  --ga-detail-wide-radius: 38px; --ga-detail-wide-side-gap: 12px;
+  --ga-detail-title-size: clamp(56px, 10vh, 124px); --ga-detail-title-min: 36px;
+  --ga-detail-wide-tool: 52px; --ga-detail-wide-tool-icon: 22px; --ga-detail-wide-tool-gap: 10px;
+  --ga-detail-wide-chip-h: 32px; --ga-detail-wide-chip-icon: 16px;
+  --ga-detail-wide-edition-gap: 6px 34px; --ga-detail-wide-line-gap: 8px 18px; --ga-detail-wide-block-gap: 12px;
+  --ga-detail-wide-tab-h: 38px; --ga-detail-wide-tab-pad: 18px; --ga-detail-wide-tab-gap: 6px; --ga-detail-wide-tab-count: 20px; --ga-detail-wide-tabs-gap: 16px;
+  --ga-detail-wide-pane-fade: 40px; --ga-detail-wide-pane-pad: 2px 40px 36px 2px; --ga-detail-wide-sec-gap: 30px; --ga-detail-wide-sec-pad: 24px;
+  --ga-detail-wide-chip-radius: 18px; --ga-detail-wide-box-radius: 26px; --ga-detail-wide-thumb-radius: 16px;
+  --ga-detail-wide-action-h: 60px; --ga-detail-wide-action-pad: 34px; --ga-detail-wide-action-icon: 26px; --ga-detail-wide-icon-btn: 56px; --ga-detail-wide-action-gap: 10px;
+  --ga-detail-wide-action-lift: -2px; --ga-detail-wide-foot-gap: 22px;
+  --ga-detail-wide-gauge-w: 128px; --ga-detail-wide-gauge-h: 110px; --ga-detail-wide-gauge-top: 33px; --ga-detail-wide-gauge-step: 22ms;
+  --ga-detail-wide-rating-gap: 14px; --ga-detail-wide-rating-pad: 6px 14px; --ga-detail-wide-rating-bar: 10px; --ga-detail-wide-rating-bar-gap: 3px; --ga-detail-wide-legend-icon: 16px;
+  --ga-detail-wide-mask-x: 120px; --ga-detail-wide-mask-y: 90px; --ga-detail-parallax-art: 18px; --ga-detail-parallax-title: 8px;
+  --ga-detail-wide-rule: var(--ga-nav-line-w); --ga-detail-wide-ring: 1.5px; --ga-detail-wide-entry: .55s; --ga-detail-wide-lead-size: clamp(16px, 2vh, 19px);
+}
+/* A short window: the downloads wizard's cover gets smaller so the card fits above its actions. */
+@media (max-height: 820px) { :root { --ga-wz-cover-w: 44px; } }
+@media (max-width: 1100px) {
+  :root {
+    --ga-nav-mode-w: 76px; --ga-nav-sections-w: min(260px, 30vw); --ga-nav-activity-w: 0px;
+    --ga-nav-outer-pad: 12px; --ga-nav-column-gap: 8px; --ga-nav-title-size: 52px;
+    --ga-nav-content-pad: 16px; --ga-nav-section-pad: 12px; --ga-nav-section-button-h: 52px;
+    --ga-nav-section-title-size: 38px;
+  }
 }

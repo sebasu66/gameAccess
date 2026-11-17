@@ -23,6 +23,9 @@ fn wanted(minimized: bool, focused: bool, game_running: bool) -> u8 {
     if game_running && !focused { SUSPENDED } else if minimized { HIDDEN } else { AWAKE }
 }
 
+/// A game started from Game Access is running.
+pub fn game_running() -> bool { GAME_RUNNING.load(Ordering::SeqCst) }
+
 /// A game started (its window appeared) or ended.
 pub fn set_game_running<R: Runtime>(app: &AppHandle<R>, running: bool) {
     GAME_RUNNING.store(running, Ordering::SeqCst);

@@ -74,6 +74,11 @@ def _owner(info: dict) -> dict:
             "remembered": bool(info.get("remembered"))}
 
 
+def _account_library(info: dict) -> dict:
+    """The account library a Steam game is in (account_registry.py): the store and the account that owns it."""
+    return {"store": "steam", "account_id": info.get("owner_id64", ""), "account": info.get("owner_persona") or info.get("owner_name", "")}
+
+
 def on_disk_bytes(game: dict) -> int:
     stored = game.get("frozen_bytes") if game.get("frozen") else None
     return stored if stored is not None else game["size_bytes"] or 0
@@ -280,11 +285,10 @@ class GameLibraryManager:
         except (OSError, ValueError) as error:
             self.log.warning("Steam games not listed: %s", error)
             return {}, []
-        hidden = self.storage.linked.hidden()
         rows = [{"app_id": item["app_id"], "name": item["name"], "state": "steam_owned", "folder": "", "linked": True,
                  "link_kind": "steam", "installed": False, "needs_repair": False, "error": "", "size_bytes": None, "issues": [],
                  "standard": True, "reclaimable_bytes": 0, "warning": "", "label": "", "plays": 0, "last_played": "",
-                 "steam_owner": _owner(item)} for item in owned if item["app_id"] not in hidden]
+                 "steam_owner": _owner(item), "library": _account_library(item)} for item in owned]
         return owners, rows
 
     @staticmethod
@@ -311,6 +315,7 @@ class GameLibraryManager:
                 entry["move_pending"] = pending
         if record["kind"] == "steam" and steam_owner is not None:
             entry["steam_owner"] = _owner(steam_owner)
+            entry["library"] = _account_library(steam_owner)
             if not status["installed"]:
                 # Uninstalled from Steam: still owned, so it waits to be installed again through Steam.
                 entry.update(state="steam_owned", error="", warning="")
@@ -507,12 +512,12 @@ class GameLibraryManager:
         return results
 
     def steam_sync(self, refresh: bool = False, api_url: str = "") -> dict:
-        """Link the installed Steam games that are not in the library (nor taken out of it by the user, nor already a
-        Game Access game with the same AppID) and list the owned ones Steam can install."""
+        """Sync the registered Steam accounts' libraries whole (a Game Access game with the same AppID keeps its own
+        folder) and list the owned ones Steam can install."""
         if self.steam is None:
-            return {"found": False, "linked": [], "owned": []}
+            return {"found": False, "linked": [], "removed": [], "owned": [], "games": []}
         own = {split_folder_name(f.name)[0] for f in self.game_folders()}
-        result = self.steam.sync(self.storage.linked, refresh, exclude=own | self.storage.linked.hidden(), api_url=api_url)
+        result = self.steam.sync(self.storage.linked, refresh, exclude=own, api_url=api_url)
         result["owned"] = [item for item in result["owned"] if item["app_id"] not in own]
         return result
 
@@ -687,12 +692,16 @@ class GameLibraryManager:
             if action == "linked_delete" or action in MOVE_ACTIONS:
                 results.append({"app_id": app_id, **self._linked_folder_action(action, app_id)})
                 continue
+            record = self.storage.linked.get(app_id)
+            from_steam = app_id in steam_only or bool(record and record.get("kind") == "steam")
+            if action == "uninstall" and from_steam:
+                # Uninstalling a Steam game deletes it from disk, as Steam does; one that is not installed has nothing
+                # to delete (it stays owned and offered to install).
+                results.append({"app_id": app_id, "ok": False, "skipped": True, "error": ui("steamNotInstalled")} if app_id in steam_only
+                               else {"app_id": app_id, **self._steam_uninstall(app_id)})
+                continue
             if app_id in steam_only:
-                if action == "uninstall":
-                    self.storage.linked.hide(app_id)      # out of the library; Steam keeps the game
-                    results.append({"app_id": app_id, "ok": True})
-                else:
-                    results.append({"app_id": app_id, "ok": False, "error": "Es un juego de Steam sin instalar: lo instala Steam."})
+                results.append({"app_id": app_id, "ok": False, "error": "Es un juego de Steam sin instalar: lo instala Steam."})
                 continue
             if app_id in linked and action != "uninstall":
                 results.append({"app_id": app_id, "ok": False, "error": "Es un juego vinculado: sus archivos no se modifican."})

@@ -53,6 +53,7 @@ El estilo va en tres capas de **variables CSS** (`--ga-*`). Tailwind queda acota
 
 - **Un sabor nuevo** es un archivo igual al de terminal con `:root[data-ga-flavor="nombre"]`; se activa con `setStyleFlavor("nombre")` (`templates/flavor.ts`). No toca componentes.
 - **Regla para lo nuevo:** si falta una variable para un rol, se agrega a la capa que corresponde y se usa. `npm run check:css` frena colores sueltos; `templates/flavor.test.ts` controla que la base no tenga colores ni tipografías y que las piezas nuevas lean variables definidas.
+- **Ficha ancha del rediseño RN7:** `game-detail-wide.css` define solo su distribución. Los tamaños `--ga-detail-*` viven en `templates/base.css`; su vidrio, tinta, valoración y tipografía viven en el sabor. Se abre desde la ficha existente y reutiliza datos reales de Steam, medios y acciones. Las pestañas de fuentes y cooperativo aparecen únicamente cuando sus consultas aportan datos.
 - **Política (Seba, 2026-11-05):** toda interfaz nueva o que se toque nace lista para las plantillas: primero lo general (`GaButton`, `ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`), después la capa de pantalla, en su propio CSS y solo con distribución. Ningún color, fuente, radio, margen ni alto escrito a mano: si falta una variable se agrega a la base o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`.
 - **Migrado hoy:** escala de texto y márgenes (base); tarjeta de propiedades, bandeja de plugins, Configuración › Plugins y Configuración › IA (pantalla). **Falta:** los demás tokens de `gameaccess-theme.css` pasan al sabor, y el CSS anterior todavía escribe colores sueltos (contados en `scripts/dialog-css-baseline.json`): esos lugares no siguen un sabor hasta migrarlos.
 
@@ -229,8 +230,9 @@ Cada componente tiene una sola definición. Si una pantalla necesita una variant
 - Descargas se abre siempre como panel lateral (nunca pantalla completa), en cualquier ancho de ventana.
 - Encabezado §4.6 con `ga-close`; en ventanas chicas el panel es la pantalla completa con `ga-back` (§4.11). El pie queda siempre por encima de los paneles.
 
-- **Actividad (2026-11-01, reemplaza a "Descargas" y a "Procesos y descargas"):** el único panel lateral. Encabezado "Actividad"; **En curso** arriba (descargas y tareas que corren: nombre, barra, cancelar; clic lleva a la fila del juego en el Library Manager); **Historial** debajo, agrupado por día (Hoy, Ayer, fecha), cada entrada con portada o ícono del tono, título, texto, hora y estado; "Borrar historial" al final. El detalle de cada descarga (imagen con la velocidad, etapa, pasos, tamaños, Pausar/Reanudar, Subir/Bajar en la cola, seguir tras un corte, Cancelar, carpeta) está en la fila de su juego en el Library Manager, abierto mientras dura (`downloads/DownloadDetail.tsx`); una descarga sin carpeta todavía tiene su propia fila. "Añadir descarga manual" está al final del Library Manager. Cada entrada dice de quién viene (p. ej. "Los encontró el plugin X") y lleva a su detalle: un juego, a su fila del Library Manager; una novedad (juegos nuevos para descargar), a esa novedad en Home, cuyos juegos se ven como **grilla de carátulas con título** (clic abre la ficha; las primeras 24 y "Ver los N").
-- **Avisos de Actividad sin repetirse (Seba, 2026-11-02):** un aviso de un tipo (`kind`) se suma a la última entrada de su tipo si es la más nueva del historial o tiene menos de una hora (`activity.ts`, `MERGE_WINDOW_MS`). Juegos nuevos para descargar: título fijo "Nuevos juegos para descargar" y **una línea más por tanda** con su hora ("22 juegos · plugin X"). Perfil de gustos y verificación de juegos: **se reemplaza el texto** (porcentaje del perfil, último resultado). El mismo texto no se lista dos veces seguidas. La hora va **arriba del título**, chica y en el color del tipo; no hay columna aparte para la hora.
+- **Actividad (2026-11-01, reemplaza a "Descargas" y a "Procesos y descargas"):** el único panel lateral. Encabezado "Actividad"; **Historial** arriba y **En curso** debajo (descargas y tareas que corren: nombre, barra, cancelar; clic lleva a la fila del juego en el Library Manager). Lo más nuevo queda abajo: el panel abre al final y baja solo cuando llega algo. "Borrar historial" va junto al título del historial. El detalle de cada descarga (imagen con la velocidad, etapa, pasos, tamaños, Pausar/Reanudar, Subir/Bajar en la cola, seguir tras un corte, Cancelar, carpeta) está en la fila de su juego en el Library Manager, abierto mientras dura (`downloads/DownloadDetail.tsx`); una descarga sin carpeta todavía tiene su propia fila. "Añadir descarga manual" está al final del Library Manager.
+- **Grupos por categoría, como Android (Seba, 2026-11-06, reemplaza la regla de unir por tipo y por hora):** una tarjeta por categoría sin importar el tiempo entre avisos (`activityGroups`, `activity.ts`): Nuevos juegos para descargar, Novedades del catálogo, Descargas, Tu biblioteca, Game Access, Tu perfil de gustos y Otros avisos. Cada aviso nuevo mueve toda su tarjeta al lugar más nuevo, abajo, y la marca con borde fuerte y un punto hasta abrirla. La tarjeta muestra ícono, cuándo, nombre, cantidad y lo último que pasó; si lo último falló, toma el color de error. Un clic la expande y cada entrada lleva a su sección: novedades y catálogo a Inicio, la actualización de la app a sus novedades en Inicio, descargas y biblioteca al Library Manager. Perfil de gustos y verificación de juegos **reemplazan** su aviso anterior. Una entrada sin categoría propia la deduce de su tipo, clave o juego (`activityCategory`), así el historial guardado también se agrupa.
+- **Capas:** `activity/activity.css` es capa de pantalla, solo distribución; medidas `--ga-feed-*` en `templates/base.css`; colores `--ga-kind-*`, intensidades y fuentes `--ga-feed-*` en `templates/flavor-terminal.css`. Lo controla `templates/flavor.test.ts`.
 - **Cada tipo con su estilo:** color propio (`--kind`: novedades naranja, perfil `--ga-violet`, verificación y descargas `--ga-ok` (con no corren, `--ga-warn`), congelado `--ga-frost`, error `--ga-danger`, el resto `--ga-muted`), tarjeta de radio 10 px con **degradado de ese color** de izquierda a derecha y borde del mismo color, **ícono de 40 px en la esquina** sobre un cuadro de su color (con portada del juego, el ícono va como insignia de 24 px en su esquina), título de 15 px en hasta dos líneas, texto de 14 px, 10 px entre tarjetas.
 
 ### 4.18 Separador plegable `ga-bento-divider` (grupos de la librería)
@@ -364,6 +366,12 @@ Seba, 2026-10-29: los párrafos de todos los diálogos tienen el mismo estilo po
 - Encendido: sin filtros, sin orden y sin destacado. Arriba, la sección «La IA te responde» con su mensaje (o **Conectar IA**, que lleva a Configuración › IA, si no hay clave). Debajo solo los juegos de la IA, en su orden.
 - Cada resultado ocupa dos celdas: la tarjeta y, pegado a ella, el motivo sobre una sombra sutil en semicírculo centrada en la carátula, como la del menú contextual (`ga-ai-result-why`): sin línea ni bordes rectos. Al abrir el menú contextual de ese juego, el motivo se oculta hasta que el menú se cierra. Vista previa: `?uiDemo=1&uiDemoPlus`, con `gameaccess:ai-search` en `true`.
 
+### 4.33 Barra de modo `ga-mode-rail` (componente `ModeRail`, Seba 2026-11-06)
+
+Primera columna de los cinco modos básicos (Home, Juegos, Library Manager, Control parental, Ajustes): fina, a todo el alto de la ventana dentro del marco, con un margen. No está en Big Picture ni en la pantalla del chico. Es una sola barra, que cambia su contenido al cambiar de modo, con una animación por cambio. Medidas en `templates/base.css` (`--ga-mode-rail-w`, `--ga-rail-inset`, `--ga-rail-gutter`); disposición en `mode-rail.css`.
+
+Sus estilos internos van en hojas construidas (`adoptedStyleSheets`): la política de seguridad de la app bloquea los `<style>` creados en ejecución, y eso solo se ve en la app compilada, no en la vista previa de Vite. Lo mismo vale para cualquier componente nuevo con Shadow DOM: probalo en la ventana real.
+
 ### 4.26 Jerarquía y espacios de un diálogo grande (Seba, 2026-10-31)
 Criterios generales, no solo del modo niño. Se aplican a todo diálogo grande y a las pantallas: confirmaciones formales,
 resúmenes, explicaciones con varias partes. Referencia: el diálogo final del asistente del modo niño (`KidReadyDialog.tsx`,
@@ -397,6 +405,35 @@ resúmenes, explicaciones con varias partes. Referencia: el diálogo final del a
 **Trampa de Tailwind.** La base de los diálogos (`components/ui`) usa Tailwind con todas las utilidades en `!important`, y Tailwind solo genera las clases que encuentra en `src/library-manager` y `src/components/ui`. Una clase de Tailwind escrita en otro archivo (`w-[…]`) no existe. Ancho, margen interior, color o tipo de un diálogo se fijan en su CSS con una clase propia y `!important` en la propiedad que la base también fija.
 
 **Pantallas.** Dentro de `.ga-screen` ningún texto baja de 16 px; títulos de columna y pestañas 14 px (§4.12).
+
+### 4.34 Humo único `smokeStage` (Seba, 2026-11-06; prototipo)
+Los diálogos grandes del centro no son cajas: vidrio esmerilado sobre toda la ventana que se desvanece hacia las esquinas, más oscuro en el centro como humo, con el contenido directo encima. Hay **un solo humo** para toda la app (`components/ga/smokeStage.ts`, `smoke.css`).
+- **Un diálogo llama a otro:** el humo queda quieto y el contenido nuevo empuja al viejo. Se mueven juntos, con el mismo tiempo y la misma curva (`--ga-smoke-time`, `--ga-smoke-ease`): el nuevo sube desde abajo apareciendo y el viejo sube desapareciendo. La distancia se mide en cada cambio (la mitad de cada uno más un hueco), así nunca se pisan. Si el viejo seguía abierto, al cerrarse el nuevo vuelve con el mismo empujón hacia abajo.
+- Cada familia (`AppDialog`, `LaunchDialog`, Radix, diálogo central, PLUS, filtros, paneles de configuración) sigue con su código: `smokeStage` observa la página, y `SMOKE_SURFACES` dice qué cuenta como diálogo grande. Un diálogo nuevo solo tiene que usar una de esas clases o `GaSmoke`.
+- No entran los chicos con la imagen del juego de fondo, la tarjeta de propiedades ni las pantallas completas.
+- La máscara es un degradado radial (`--ga-smoke-mask`) en vez de un PNG: mismo resultado, sin archivo, y cada sabor la puede cambiar. Vidrio y oscuro: `--ga-smoke-glass`, `--ga-smoke-bg`. Recorrido mínimo: `--ga-smoke-travel`.
+- `GaSmoke`: Esc o un clic en el humo cierra; el foco va a lo marcado con `data-autofocus` y vuelve a donde estaba.
+- Primer uso propio: la pregunta antes de jugar en Big Picture (`BigPlayConfirm.tsx`), con la imagen grande, la descripción corta (`short_description`) y Jugar. Los primeros 350 ms no cuentan, así el mismo toque que la abrió no lanza el juego.
+
+### 4.35 Columnas de Escena en una ventana angosta (Seba, 2026-11-16)
+
+- **Las columnas laterales nunca se achican:** su contenido se deformaría. Tienen su tamaño de diseño, que depende del alto de la ventana.
+- **El centro tiene un mínimo** (`--ga-nav-content-min`, `templates/base.css`). Cuando la ventana no da para todo, se retira primero la columna de actividad, entera (nunca a medias), y después la columna izquierda se pliega en un **cajón** (`navigation/sideDrawer.ts`).
+- **El cajón:** plegado deja solo su pestaña (un tirador del color del modo con una flecha) en el borde izquierdo, y el contenido ocupa su lugar. Desplegado con la pestaña en una ventana donde no entra, se abre **encima del contenido** y se cierra al elegir una sección, con Escape o con un clic afuera. En una ventana donde entra, la pestaña lo pliega y despliega a mano y empuja el contenido; esa elección se recuerda.
+- **Ventana más angosta que el mínimo:** el contenido conserva su ancho y se corta en el borde derecho, sin barra de desplazamiento horizontal.
+- Estado en la página: `data-ga-nav-drawer` (`docked`, `closed`, `open`). El deslizamiento pasa por la cola de transiciones.
+
+### 4.36 Apariencia de Escena (Seba, 2026-11-16)
+
+- Los Estilos 2–4 y la pestaña «Detalles» quedan ocultos (el código y sus hojas siguen, sin montarse): el marco usa siempre el Estilo 1 debajo de Escena.
+- Se cambia solo esto, para que el estilo no se rompa: el **degradé de cada modo** (una paleta para los cuatro, uno de los degradés elegidos o dos colores propios; el tono oscuro se deriva solo), la **figura de cada modo** (imagen propia, escala y posición) y la **letra de la palabra grande**.
+- El texto del menú pasa solo a negro o blanco, el que más contraste tenga con el degradé (`inkFor`, `navigation/sceneLook.ts`).
+- Figura propia: PNG o WebP con fondo transparente y la proporción de la original (1024 × 1536); se rechaza con el motivo si no cumple. Se guarda en IndexedDB.
+- Hasta **3 variaciones** guardadas (degradé y figura de cada modo, y la letra) y el botón «Volver al setting por defecto».
+- Clic derecho en la escena: sobre el menú, colores; sobre la figura o la palabra, la figura (`SceneLookMenu`). Los mismos controles en Configuración › Apariencia (`SceneLookControls`).
+- La escala y la posición cambian el tamaño y el lugar de la figura, nunca su `transform`: GSAP lo anima en cada cambio de modo.
+- Variables: tamaños en la base (`--ga-scene-look-*`, `--ga-scene-figure-*`), aspecto en el sabor (`--ga-scene-<modo>-start/end/ink`, `--ga-scene-word-family`, `--ga-scene-look-*`); `scene-look.css` solo distribuye.
+- MCP: `appearance_get`, `appearance_set_colors`, `appearance_set_figure`, `appearance_variations`.
 
 ## 5. Reglas de uso
 

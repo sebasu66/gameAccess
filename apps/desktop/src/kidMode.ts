@@ -34,7 +34,9 @@ export interface Kid { name: string; sid: string; enabled: boolean; dailyMinutes
   /** The adult's library the child's account plays from (kid_mode.rs sets it when applying). */
   library?: string;
   /** The adult's Game Access language: the child's screen speaks it. */
-  language?: AppLocale }
+  language?: AppLocale;
+  /** The adult left Steam's Guide button alone; by default it must not take the child out of Game Access. */
+  keepSteamGuide?: boolean }
 export interface Family { version: number; kids: Kid[] }
 export interface KidSession { paused?: boolean; kid: Kid; playedSeconds: number; remainingSeconds: number | null; playing: number | null; timeUp: boolean;
   /** Seconds left today of each game that has its own limit, by appId. */

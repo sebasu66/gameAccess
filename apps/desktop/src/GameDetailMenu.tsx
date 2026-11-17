@@ -2,7 +2,7 @@ import { Download, Info, Play, SlidersHorizontal } from "lucide-react";
 import type { CSSProperties } from "react";
 import { gameStateManager } from "./GameStateManager";
 import { useI18n } from "./i18n";
-import { openLibraryManager } from "./libraryManagerNav";
+import { manageGame } from "./manageGame";
 import { useLibraryEntry } from "./libraryScan";
 import type { ManagedDownloadStatus } from "./downloadTypes";
 import type { CatalogGame } from "./types";
@@ -28,7 +28,7 @@ export default function GameDetailMenu({ request, onClose, onPlay, onInstall, on
         {state.playButtonReady || (entry?.installed && !state.transferActive)
           ? <button type="button" role="menuitem" onClick={pick(() => onPlay(game))}><Play size={16} /> {t("flipPlay")}</button>
           : !state.transferActive ? <button type="button" role="menuitem" onClick={pick(() => onInstall(game))}><Download size={16} /> {t("flipInstall")}</button> : null}
-        {entry ? <button type="button" role="menuitem" onClick={pick(() => { onLeave(); openLibraryManager(game.app_id ?? undefined); })}><SlidersHorizontal size={16} /> {t("flipManage")}</button> : null}
+        {entry ? <button type="button" role="menuitem" onClick={pick(() => { onLeave(); manageGame(game.app_id, game.id); })}><SlidersHorizontal size={16} /> {t("flipManage")}</button> : null}
         <button type="button" role="menuitem" onClick={pick(() => onDetails(game))}><Info size={16} /> {t("infoMenu")}</button>
       </div>
     </div>

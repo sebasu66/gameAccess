@@ -1,0 +1,38 @@
+/* Escena's look editor (SceneLookControls, SceneLookMenu, Settings › Appearance): layout only; sizes in the base, look in
+   the flavor (docs/GUI_DESIGN.md §0c, §4.36). */
+.ga-scene-look-menu {
+  position: fixed; z-index: var(--ga-scene-look-z);
+  width: min(var(--ga-scene-look-w), calc(100vw - 2 * var(--ga-space-2)));
+  max-height: calc(100vh - 2 * var(--ga-space-2)); overflow: auto;
+  display: grid; gap: var(--ga-space-2); padding: var(--ga-space-3);
+  border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-scene-look-radius);
+  background: var(--ga-scene-look-bg); backdrop-filter: var(--ga-scene-look-glass); box-shadow: var(--ga-scene-look-shadow);
+  color: var(--ga-scene-look-ink); outline: none;
+}
+.ga-scene-look-menu-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.ga-scene-look-gradient, .ga-scene-look-figure, .ga-scene-look-variations { display: grid; gap: var(--ga-space-2); }
+.ga-scene-look-swatches { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); }
+/* Doubled class: the settings screen gives every button its own background (`:is(.ga-settings-panel, .ga-settings-screen) button`). */
+.ga-scene-look-swatch.ga-scene-look-swatch, .ga-scene-look-preview, .ga-scene-look-variation-swatches i {
+  background: linear-gradient(135deg, var(--ga-scene-swatch-from), var(--ga-scene-swatch-to));
+}
+.ga-scene-look-swatch.ga-scene-look-swatch {
+  width: var(--ga-scene-look-swatch); height: var(--ga-scene-look-swatch); padding: 0; border-radius: 50%; cursor: pointer;
+  border: var(--ga-scene-look-ring-w) solid transparent;
+}
+.ga-scene-look-swatch.ga-scene-look-swatch[aria-pressed="true"] { border-color: var(--ga-scene-look-pressed); }
+.ga-scene-look-swatch:focus-visible { outline: var(--ga-scene-look-ring-w) solid var(--ga-scene-look-pressed); outline-offset: var(--ga-scene-look-ring-w); }
+.ga-scene-look-colors { display: flex; flex-wrap: wrap; align-items: end; gap: var(--ga-space-2); }
+.ga-scene-look-preview { flex: 1 1 var(--ga-scene-look-thumb); align-self: stretch; min-height: var(--ga-scene-look-swatch); border-radius: var(--ga-radius-m); }
+.ga-scene-look-color { display: grid; gap: var(--ga-space-1); }
+.ga-scene-look-color input { width: var(--ga-control-h); height: var(--ga-control-h); padding: 0; border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-radius-m); background: none; cursor: pointer; }
+.ga-scene-look-figure-row { display: flex; gap: var(--ga-space-2); align-items: start; }
+.ga-scene-look-thumb { flex: none; width: var(--ga-scene-look-thumb); aspect-ratio: 2 / 3; object-fit: contain; border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-radius-m); background: var(--ga-scene-figure-bg); }
+.ga-scene-look-figure-body { display: grid; gap: var(--ga-space-1); min-width: 0; }
+.ga-scene-look-actions { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); }
+.ga-scene-look-variation-list { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.ga-scene-look-variation-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-space-2); }
+.ga-scene-look-variation-list strong { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-scene-look-variation-swatches { display: flex; gap: var(--ga-space-1); }
+.ga-scene-look-variation-swatches i { width: var(--ga-scene-look-swatch); height: var(--ga-scene-look-swatch); border-radius: 50%; }
+.ga-scene-look-save { display: flex; flex-wrap: wrap; align-items: end; gap: var(--ga-space-2); }

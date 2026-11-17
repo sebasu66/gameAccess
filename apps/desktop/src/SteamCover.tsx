@@ -5,6 +5,8 @@ import { useArtworkChain, WideInPortrait } from "./GameArt";
 import { cachedLibraryCover, forgetLibraryCover, resolveLibraryCover } from "./libraryCoverResolver";
 import { useCoverTier, type CoverTier } from "./coverSize";
 import { debugLog, debugTrace, flushDebugLog } from "./debugLog";
+import { invoke } from "@tauri-apps/api/core";
+import { gameCardKey, useGameCards } from "./gameCard";
 import type { CatalogGame } from "./types";
 
 /**
@@ -91,8 +93,30 @@ function CoverImage({ game }: { game: CatalogGame }) {
   return <CoverBody key={tier} game={game} tier={tier} />;
 }
 
+/** Covers the player chose (gameCard.ts), read once per source by the native side (the page may only load Steam's pictures). */
+const ownCovers = new Map<string, Promise<string>>();
+function ownCover(source: string): Promise<string> {
+  let found = ownCovers.get(source);
+  if (!found) {
+    // Without Tauri (browser preview) only a web address can be shown, as it is.
+    found = "__TAURI_INTERNALS__" in window ? invoke<string>("own_cover_picture", { source }) : /^https?:/i.test(source) ? Promise.resolve(source) : Promise.reject(new Error("no file access"));
+    found.catch(() => ownCovers.delete(source));
+    ownCovers.set(source, found);
+  }
+  return found;
+}
+
+/** The cover the player chose in the game's card; Steam's cover while it loads or when it cannot be read. */
+function OwnCover({ game, source }: { game: CatalogGame; source: string }) {
+  const [picture, setPicture] = useState<string | null | false>(null);
+  useEffect(() => { let live = true; ownCover(source).then(url => { if (live) setPicture(url); }, () => { if (live) setPicture(false); }); return () => { live = false; }; }, [source]);
+  if (!picture) return <CoverImage game={game} />;
+  return <img src={picture} alt="" draggable={false} onError={() => setPicture(false)} />;
+}
+
 export default function SteamCover({ game }: { game: CatalogGame }) {
-  return <CoverImage key={game.app_id ?? game.id} game={game} />;
+  const cover = useGameCards()[gameCardKey(game)]?.cover;
+  return cover ? <OwnCover key={cover} game={game} source={cover} /> : <CoverImage key={game.app_id ?? game.id} game={game} />;
 }
 
 /** Emits the aggregate cover summary while diagnostics are on. */

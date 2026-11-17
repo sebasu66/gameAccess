@@ -6,7 +6,8 @@ import HomeScreen from "./HomeScreen";
 import ActivityPanel from "./activity/ActivityPanel";
 import { useActivity } from "./activity/activity";
 import KidModePanel from "./KidModePanel";
-import GamesScreenButton, { LibraryManagerButton } from "./GamesScreenButton";
+import AreaTabs, { AreaButtons } from "./AreaTabs";
+import DownloadsScreen from "./DownloadsScreen";
 import { startAutoFreeze } from "./autoFreeze";
 import { useParentalState } from "./ParentalControlSection";
 import RenderProbe from "./RenderProbe";
@@ -15,6 +16,8 @@ import {listen} from "@tauri-apps/api/event";
 import { libraryMembership, useLibraryGames } from "./libraryMembership";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
 import DeviceFrame, { deviceFrameEnabled } from "./DeviceFrame";
+import ModeRail from "./ModeRail";
+import NavigationShell, { navigationShellEnabled } from "./navigation/NavigationShell";
 import FilledIcon from "./FilledIcon";
 import { applyInstalledSnapshot, STORAGE_SNAPSHOT_EVENT } from "./libraryStorageSnapshot";
 import { recordPlayed } from "./recentGames";
@@ -45,7 +48,8 @@ import { shareRunFix, takeLearnedFix } from "./catalog/runFixes";
 import { beginLaunch, closeLaunch, launchFailed, launchLocked, launchOpened, useLaunch } from "./launchSession";
 import { hideNotice, runSteps, showNotice } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
-import { openLibraryManager } from "./libraryManagerNav";
+import { provideAppActions } from "./mcp/appActions";
+import { openSection } from "./gameArea";
 import { getCatalogMode } from "./catalogMode";
 import { libraryScanState, scanLibrary } from "./libraryScan";
 import { GAME_ENDED_EVENT, useGridFocus, watchGameFocus } from "./gameFocus";
@@ -59,10 +63,13 @@ import CatalogNewGameNotices from "./CatalogNewGameNotices";
 import { useCatalogUpdates } from "./useCatalogUpdates";
 import {translate,useI18n} from "./i18n";
 import DigitalDownloadErrorDialog from "./DigitalDownloadErrorDialog";
+import SteamQrDialog from "./SteamQrDialog";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import { narrate } from "./narrationLog";
 import { notify } from "./toasts";
-import { installThroughSteam, isSteamOwned, syncSteamOnStartup } from "./steamLibrary";
+import { requestSteamSync, syncSteamOnStartup, startSteamSync } from "./steamLibrary";
+import { STEAM_DEPOT_PREFIX, watchGiveaways } from "./freeSteamGames";
+import { recordFreeOnSteam } from "./newDownloads";
 import { GaIconButton } from "./components/ga/Buttons";
 import AntivirusGate from "./AntivirusDialog";
 let visualDebugStarted = false;
@@ -75,6 +82,8 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   // The Library Manager scans the games folder when the app starts; cards show what is outside the standard.
   // Then the Steam library joins it (installed games linked to their owner account, owned ones to install via Steam).
   useEffect(() => { if (getCatalogMode() === "digital") void scanLibrary().then(() => syncSteamOnStartup()); }, []);
+  // Then it stays in step: every few minutes, on coming back to the app, and as soon as the import is turned on.
+  useEffect(() => getCatalogMode() === "digital" ? startSteamSync() : undefined, []);
   const downloadsOpen = useDesk().includes("downloads");
   const [unfinishedDownloads, setUnfinishedDownloads] = useState(0);
   // The frame's Activity button: how many entries are unseen, and a light while something runs.
@@ -102,6 +111,15 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   const [offlineDemo, setOfflineDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   useCatalogSources(games, setGames);
+  // A free Steam game downloaded into the Steam library joins Game Access's library through the Steam sync.
+  useEffect(() => digitalDownloadService.onGlobalUpdate(snapshot => {
+    if (snapshot.phase === "completed" && digitalDownloadService.getRecord(snapshot.gameId)?.downloadSource?.startsWith(STEAM_DEPOT_PREFIX)) requestSteamSync();
+  }), []);
+  // Steam giveaways that just started go to Catalog › New games as a news item, and are a notification too.
+  useEffect(() => {
+    if (getCatalogMode() !== "digital") return;
+    watchGiveaways(games, fresh => { recordFreeOnSteam(fresh.map(game => game.app_id).filter((id): id is number => typeof id === "number")); });
+  }, [games]);
   useCoverDiagnostics();
   useEffect(() => {
     const changed = () => void digitalDownloadService.refreshParallelLimit();
@@ -258,10 +276,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
     pendingNoticeShown.current = true;
     if (!left.length) return;
     const first = left[0].game;
-    const appId = left.length === 1 ? first.app_id ?? left[0].snapshot.gameId : undefined;
     showNotice({ tone: "info", game: left.length === 1 ? noticeGame(first) : undefined, title: t("pendingDownloadsNotice", { count: left.length }),
       text: left.map(entry => entry.game.name).join(", "), activity: { kind: "download" },
-      actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openLibraryManager(appId); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
+      actions: [{ label: t("pendingDownloadsOpen"), kind: "primary", run: () => { hideNotice(); setSelected(null); openSection("downloads"); } }, { label: t("close"), kind: "secondary", run: () => hideNotice() }] });
   }, [unfinishedDownloads, t]);
 
   // Source/metadata updates do not change the folders we need to check.
@@ -278,16 +295,16 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       try {
         const games = digitalGamesRef.current;
         const result = await digitalProcessManager.snapshot(games);
-        if (!cancelled) libraryMembership.migrate([
-          ...games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed),
-          ...digitalDownloadService.getDownloads().map(entry => entry.game),
-        ]);
-        // Every game with a folder in the games root is part of the library: whatever the manager sees, the library shows,
-        // including a folder it identified that still lacks its AppID in the name (shown with an alert until fixed).
-        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder).map(entry => entry.app_id));
+        if (!cancelled) libraryMembership.migrate(games.filter(game => result.statuses?.[game.app_id ?? game.id]?.installed));
+        // Every installed game in the games root is part of the library, including a folder identified that still lacks
+        // its AppID in the name (shown with an alert until fixed). A download is not: it belongs to the Download Manager
+        // until it is installed (Seba, 2026-11-09), so unfinished folders and games still downloading are left out.
+        const downloading = new Set(digitalDownloadService.getDownloads().filter(entry => entry.snapshot.phase !== "completed").map(entry => entry.snapshot.gameId));
+        const scanned = new Set(libraryScanState().games.filter(entry => entry.app_id && entry.folder && entry.installed && !entry.partial && !entry.unfinished && !entry.transfer_active).map(entry => entry.app_id));
         if (!cancelled) for (const game of games) {
           const id = game.app_id ?? game.id;
-          if ((result.statuses?.[id] || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
+          if (downloading.has(id)) continue;
+          if ((result.statuses?.[id]?.installed || scanned.has(id)) && !libraryMembership.has(game)) { try { libraryMembership.add(game); } catch { /* busy: next pass */ } }
         }
         if (!cancelled) setDownloads(current => {
           // Keep the same object when nothing changed: a new one re-renders the whole catalog (about a second).
@@ -528,13 +545,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
   };
 
   const startDownload = async (game: CatalogGame) => {
-    // A Steam game one of the user's accounts owns is installed by Steam (it asks the folder and checks the space).
-    const steamEntry = libraryScanState().games.find(entry => entry.app_id === (game.app_id ?? game.id));
-    if (isSteamOwned(steamEntry)) {
-      try { await installThroughSteam(game); setToast(t("steamInstallHandedOff", { name: game.name })); }
-      catch (err) { setToast(err instanceof Error ? err.message : String(err)); }
-      return;
-    }
+    // A Steam game a linked account owns goes through the same queue: Steam installs it (DigitalCatalog.download).
     try { await digitalCatalogService.download(game); }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -542,6 +553,9 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       setToast(message);
     }
   };
+
+  // The player's AI downloads and plays through these same handlers (mcp/appActions.ts); refreshed every render.
+  useEffect(() => provideAppActions({ download: game => startDownload(game), play: game => launchGame(game) }));
 
   const launchGame = async (game: CatalogGame, managedShortcut = false, autoFixed = false) => {
     // A game being frozen or thawed (or waiting for that) is not started: wait, or cancel that work and play.
@@ -677,11 +691,14 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {/* The app as the screen of a device: a bezel with tabs and GAME / ACCESS
           sketched in the right column. */}
       {deviceFrameEnabled() ? <DeviceFrame /> : null}
+      <ModeRail />
+      {navigationShellEnabled() ? <NavigationShell /> : null}
       <header ref={headerRef} className="topbar topbar-glass">
         {catalogNavigation}
+        <AreaTabs />
         <div className="catalog-header-controls" ref={setToolbarTarget} />
         <div className="topbar-actions ga-header-utilities">
-          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><GamesScreenButton dockTarget={dockTarget} /><LibraryManagerButton dockTarget={dockTarget} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
+          <HomeScreen dockTarget={dockTarget} games={games} onOpenGame={openGame} /><AreaButtons dockTarget={dockTarget} /><DownloadsScreen games={games} onPlay={launchGame} onOpenGame={openGame} /><AppSettings dockTarget={dockTarget} /><KidModePanel dockTarget={dockTarget} />
         </div>
       </header>
 
@@ -713,6 +730,7 @@ export default function App({ catalogNavigation, actionsTarget, dockTarget = nul
       {launchSession ? <LaunchDialog session={launchSession} onRetry={(game, autoFixed) => void launchGame(game, false, autoFixed)} /> : null}
       {session ? <SessionOverlay session={session} onClose={() => setSession(null)} /> : null}
       <DigitalDownloadErrorDialog />
+      <SteamQrDialog />
       <AntivirusGate />
       <CatalogNewGameNotices notices={catalogUpdates.notices} dismiss={catalogUpdates.dismiss}/>
     </div>

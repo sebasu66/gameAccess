@@ -293,3 +293,17 @@ def test_nothing_else_touches_a_game_while_it_is_frozen(tmp_path):
         assert folder.is_dir()
     finally:
         alive.kill()
+
+
+def test_a_game_that_hardly_compresses_is_not_deep_frozen(tmp_path):
+    # Seba, 2026-10-30: DiRT Rally 2 went from 117.6 GB to 117.4 GB after 40 minutes. Its files were already compressed:
+    # a sample says so first, and nothing is touched.
+    storage, folder = game(tmp_path)
+    (folder / "data" / "already_packed.pak").write_bytes(os.urandom(8 * 1024 * 1024))
+    for level in (folder / "data" / "levels").iterdir():
+        level.unlink()
+    before = digest(folder)
+    with pytest.raises(ValueError, match="casi no se comprime"):
+        freezer(storage).deep_freeze(1, "Alpha")
+    assert digest(folder) == before and not deep_archive_for(folder).exists()
+    assert "congelado profundo no hecho" in journal.read(folder)

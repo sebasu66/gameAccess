@@ -19,6 +19,15 @@ def normalize_download_source(source):
     return parsed.scheme.lower() + source[len(parsed.scheme):]
 
 
+DIRECT_FILE_EXTENSIONS = (".rar", ".zip", ".7z", ".bin", ".iso", ".tar", ".gz")
+
+
+def is_direct_file_link(source):
+    """A link to the file itself; anything else (gofile.io/d/..., a host's page) is a web page the server has to open."""
+    lowered = source.lower()
+    return lowered.split("?")[0].endswith(DIRECT_FILE_EXTENSIONS) or "vikingfile.com" in lowered
+
+
 def is_torrent_source(source):
     return source.lower().startswith("magnet:?") or urlparse(source).path.lower().endswith(".torrent")
 

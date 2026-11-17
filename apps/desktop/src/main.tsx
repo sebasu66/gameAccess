@@ -15,6 +15,7 @@ import UpdateGate from "./UpdateGate";
 import CentralDialogView from "./centralDialog/CentralDialogView";
 import { useAnnouncements } from "./centralDialog/useAnnouncements";
 import { setAppScreen } from "./appScreen";
+import { bigPictureActive } from "./bigPicture";
 import { opensOn, startScreenUsed } from "./startupPreferences";
 import { useOpeningSettled } from "./centralDialog/openingSettled";
 import { runStartupPreparation } from "./centralDialog/catalogTask";
@@ -24,8 +25,11 @@ import PremiumEntry from "./PremiumEntry";
 import { startModalStack } from "./modalStack";
 import { startSingleAccordion } from "./singleAccordion";
 import { startPlusLook } from "./plusLook";
+import { trackAppVersion } from "./releaseNotes";
 import { repairShortcutIcons } from "./shortcutIcons";
 import { startSteamGuide } from "./steamGuide";
+import { startSmokeStage } from "./components/ga/smokeStage";
+import { startMcpBridge } from "./mcp/bridge";
 import AccessPass from "./AccessPass";
 import { PluginIndicator } from "./PluginIndicator";
 import PixelAppearance from "./PixelAppearance";
@@ -40,8 +44,13 @@ import { startLocalAutomation } from "./automation";
 import { getCatalogMode, setCatalogMode, type CatalogMode } from "./catalogMode";
 import { narrate, startClientErrorReporting, startNarrationSession } from "./narrationLog";
 import { setAppLocale, translate, useI18n } from "./i18n";
+import "./motion/game-pause.css";
 import "./templates/base.css";
 import "./templates/flavor-terminal.css";
+import "./templates/flavor-1.css";
+import "./templates/flavor-2.css";
+import "./templates/flavor-3.css";
+import "./templates/flavor-4.css";
 import "./styles.css";
 
 // The browser's own right-click menu (reload, inspect…) is not part of the app; text fields keep it for copy and paste.
@@ -104,7 +113,7 @@ function CatalogShell() {
   // The catalog database is in place before the library opens (the central dialog appears only if it has to be
   // installed); the news arrive afterwards, as a task of the Activity panel.
   const [prepared, setPrepared] = React.useState(false);
-  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); repairShortcutIcons(); }, []);
+  React.useEffect(() => { void runStartupPreparation().finally(() => setPrepared(true)); repairShortcutIcons(); trackAppVersion(); }, []);
   useAnnouncements(prepared);
   // Home is where a new install opens, with the welcome (Settings › Appearance chooses another screen), once the
   // opening has ended: a change of mode under the logo animation would run behind it.
@@ -112,6 +121,8 @@ function CatalogShell() {
   React.useEffect(() => {
     if (!prepared || !openingSettled || !opensOn("home")) return;
     startScreenUsed("home");
+    // Big picture already on (the controller's button opened the app in it, or a quick F11): it stays on the games.
+    if (bigPictureActive()) return;
     setAppScreen("home");
   }, [prepared, openingSettled]);
   const changeMode = React.useCallback((next: CatalogMode) => {
@@ -130,10 +141,13 @@ function CatalogShell() {
 
 startClientErrorReporting();
 startDownloadNotifications();
+// The player's own AI (Settings › AI clients): the window answers what it asks (mcp/bridge.ts).
+startMcpBridge();
 startModalStack();
 startSingleAccordion();
 startPlusLook();
-startSteamGuide();
+void startSteamGuide();
+startSmokeStage();
 void startNarrationSession(import.meta.env.VITE_BUILD_TIMESTAMP ?? "", getCatalogMode());
 
 const root = document.getElementById("root");

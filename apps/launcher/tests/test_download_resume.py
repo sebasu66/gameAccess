@@ -62,6 +62,7 @@ def test_on_one_disk_the_download_and_its_unpacking_add_up(monkeypatch, tmp_path
     assert disk_space.check_download(8 * GIB, 0, tmp_path / "games", tmp_path / "temp")["ok"]
     room = disk_space.check_download(10 * GIB, 0, tmp_path / "games", tmp_path / "temp")
     assert not room["ok"] and "dlNoSpace" in room["message"]
+    assert room["folder"] and room["drive"]      # which folder and disk ran short (a library may span several)
 
 
 def test_what_already_arrived_counts(monkeypatch, tmp_path):

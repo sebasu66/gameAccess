@@ -1,3 +1,4 @@
+import { recordActivity } from "../activity/activity";
 import { listen } from "@tauri-apps/api/event";
 import { translate } from "../i18n";
 import { narrate } from "../narrationLog";
@@ -48,6 +49,7 @@ export const catalogUpdatesStep = (outcome: { error?: unknown } = {}): StepRunne
       const summary = await digitalCatalogService.loadCatalog({ requireRemote: true });
       await lessons;
       recordCatalogSyncTime();
+      if (summary.updated) recordActivity({ kind: "catalog", category: "catalog", title: translate("activityCatalogUpdated"), tone: "ok", state: "done" });
       return summary.updated ? undefined : "skipped";
     } catch (error) {
       // Not being able to look for news does not stop anyone from using the app with the database they have.
@@ -69,6 +71,6 @@ export async function runStartupPreparation(): Promise<void> {
  * Rejects when the catalog could not be reached, so a manual refresh can tell the player. */
 export async function runCatalogUpdateTask(): Promise<void> {
   const outcome: { error?: unknown } = {};
-  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)], { background: true });
+  await centralDialog.runTask(translate("prepUpdateTitle"), [catalogUpdatesStep(outcome)], { background: true, category: "catalog" });
   if (outcome.error) throw outcome.error;
 }

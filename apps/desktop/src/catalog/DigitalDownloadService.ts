@@ -1,6 +1,7 @@
 import { libraryMembership } from "../libraryMembership";
+import { scanLibrary } from "../libraryScan";
 import { translate } from "../i18n";
-import { confirmNotice } from "../notice/notice";
+import { confirmNotice, getNotice, hideNotice } from "../notice/notice";
 import { invoke } from "@tauri-apps/api/core";
 import { narrate } from "../narrationLog";
 import { buildChunkSession, canAccelerate } from "../vikingResolver";
@@ -8,7 +9,8 @@ import { gameIsAbandoned } from "./gameLessons";
 import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
 import { digitalErrorMessage } from "../digitalErrors";
 import type { CatalogGame } from "../types";
-import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions } from "../downloadProvider";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions, RaceLane, StepFacts } from "../downloadProvider";
+import type { RaceOrder } from "./sourceRace";
 import { snapshotToManagedStatus } from "../downloadProvider";
 import type { ManagedDownloadStatus } from "../downloadTypes";
 import { digitalProcessManager } from "./DigitalProcessManager";
@@ -17,6 +19,7 @@ import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } fro
 
 import { getActivationTier } from "../activation";
 import { localizeSnapshot } from "../launcherText";
+import { appendEvents, type DownloadEvent } from "../downloadEvents";
 import { parseDownloadSize } from "../downloadSize";
 
 export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
@@ -27,7 +30,7 @@ const PHASES: readonly DownloadPhase[] = ["queued", "preparing", "downloading", 
   "cancelling", "cancelled", "interrupted", "external", "completed", "error"];
 const POLL_MS = 1000;
 
-type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
+type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord; race?: RaceOrder };
 
 /**
  * The app's view of the downloads. The launcher's Download Manager owns the queue (which downloads run, wait,
@@ -36,18 +39,36 @@ type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord };
  * shown in each row, speed history, notices, the desktop shortcut after a download completes.
  */
 
-const STEP_IDS: readonly string[] = ["route", "probe", "server", "download", "extract", "install"];
+const STEP_IDS: readonly string[] = ["pick", "route", "probe", "server", "download", "extract", "install", "signin", "handoff", "adopt", "dialog"];
+/** A step's facts, keeping only the known ones with the right type. */
+function stepFacts(value: unknown): StepFacts | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>, facts: StepFacts = {};
+  for (const key of ["folder", "drive", "from", "account", "library"] as const) if (typeof raw[key] === "string" && raw[key]) facts[key] = raw[key] as string;
+  for (const key of ["freeBytes", "neededBytes"] as const) if (typeof raw[key] === "number" && Number.isFinite(raw[key])) facts[key] = raw[key] as number;
+  return Object.keys(facts).length ? facts : undefined;
+}
 /** The launcher's current step, if it is well formed. */
 function stepNow(value: unknown): DownloadStepNow | null {
   if (!value || typeof value !== "object") return null;
-  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown };
-  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now() } : null;
+  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown; facts?: unknown };
+  const facts = stepFacts(raw.facts);
+  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now(), ...(facts ? { facts } : {}) } : null;
+}
+/** The torrents racing, keeping only well-formed lanes. */
+function raceLanes(value: unknown): RaceLane[] | undefined {
+  if (!Array.isArray(value) || !value.length) return undefined;
+  return value.filter(raw => raw && typeof raw === "object").map(raw => ({
+    title: String(raw.title ?? ""), provider: String(raw.provider ?? ""), done: Number(raw.done) || 0, total: Number(raw.total) || 0,
+    speed: Number(raw.speed) || 0, seeds: Number(raw.seeds) || 0,
+    state: raw.state === "won" || raw.state === "out" ? raw.state : "racing",
+  }));
 }
 /** The launcher's finished steps, keeping only well-formed ones. */
 function stepsDone(value: unknown): DownloadStepDone[] {
   if (!Array.isArray(value)) return [];
   return value.filter(raw => raw && STEP_IDS.includes(String(raw.id)) && ["done", "skipped", "failed"].includes(String(raw.state)))
-    .map(raw => ({ id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0 }));
+    .map(raw => { const facts = stepFacts(raw.facts); return { id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0, ...(facts ? { facts } : {}) }; });
 }
 
 export class DigitalDownloadService implements IDownloadProvider {
@@ -63,6 +84,7 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** The Download Manager keys downloads by AppID; rows are keyed by game id. Usually the same number. */
   private appIds = new Map<number, number>();
   private positions = new Map<number, number>();
+  private events = new Map<number, DownloadEvent[]>();
   private lastState: QueueState | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private polling = false;
@@ -74,6 +96,8 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** How this game is being fetched (shown as a pill), or undefined when not known. */
   getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
   getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
+  /** The download's log in the wizard (downloadEvents.ts): kept while the app runs. */
+  getEvents(gameId: number): readonly DownloadEvent[] { return this.events.get(gameId) ?? []; }
   get maxParallelDownloads(): number { return this.lastState?.limit ?? (this.plan() === "plus" ? 4 : 1); }
   /** The plan downloads run under (shown as a pill). Without a key the app is in free mode, which is BASE: one
    *  download at a time, torrents only. */
@@ -180,6 +204,9 @@ export class DigitalDownloadService implements IDownloadProvider {
       downloadPercent: number("downloadPercent"),
       installPercent: number("installPercent"),
       checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
+      serverPercent: phase === "preparing" ? number("serverPercent") : undefined,
+      race: phase === "preparing" ? raceLanes(status.race) : undefined,
+      steamQr: phase === "preparing" && Array.isArray(status.steamQr) ? status.steamQr.map(String) : undefined,
       statusText: text,
       bytesDownloaded: number("bytesDownloaded") ?? 0,
       bytesTotal: number("totalBytes") ?? 0,
@@ -208,8 +235,8 @@ export class DigitalDownloadService implements IDownloadProvider {
       const next = this.snapshotOf(gameId, job);
       const previous = this.activeJobs.get(gameId);
       if (!previous || previous.phase !== next.phase || previous.progress !== next.progress || previous.bytesDownloaded !== next.bytesDownloaded
-        || previous.statusText !== next.statusText || previous.error !== next.error || previous.speedBps !== next.speedBps
-        || previous.step?.id !== next.step?.id || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
+        || previous.statusText !== next.statusText || previous.steamQr?.join() !== next.steamQr?.join() || previous.error !== next.error || previous.speedBps !== next.speedBps
+        || previous.step?.id !== next.step?.id || JSON.stringify(previous.step?.facts) !== JSON.stringify(next.step?.facts) || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
         this.updateSnapshot(next);
       }
     }
@@ -236,7 +263,7 @@ export class DigitalDownloadService implements IDownloadProvider {
     if (previous && !isDownloadHistory(previous.phase)) return;
     if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
     this.startedNow.add(id);
-    libraryMembership.add(game);
+    // The game joins the library only once it is installed (updateSnapshot, "completed"), never while it downloads.
     this.speeds.delete(id);
     const jobOptions = options ?? this.jobs.get(id)?.options;
     this.jobs.set(id, { game, options: jobOptions });
@@ -270,6 +297,8 @@ export class DigitalDownloadService implements IDownloadProvider {
         appId, name, source, delivery: accelerated ? "download" : record?.sourceDelivery ?? "download",
         autoInstalled: record?.auto_installed === true, keepArchive: jobOptions?.keepArchive,
         sourceTitle: record?.sourceTitle, sourceProvider: record?.sourceProvider,
+        // The race is only for the source just picked (a retry goes on with the winner the launcher kept).
+        race: jobOptions?.race && jobOptions.race.racers[0]?.source === source ? jobOptions.race : undefined,
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -285,7 +314,11 @@ export class DigitalDownloadService implements IDownloadProvider {
    * downloaded is only unpacked again. The Download Manager knows the source (also after a restart, from what the
    * install remembers), so the plugin is not needed. With nothing to go on with, the download starts over.
    */
-  async retry(game: CatalogGame): Promise<void> {
+  /**
+   * `directOnly`: the normal download, the torrent with this PC's own client and no server: what the player picks when
+   * the accelerated download failed (the server may be down; the torrent is always there).
+   */
+  async retry(game: CatalogGame, options: { directOnly?: boolean } = {}): Promise<void> {
     const id = game.app_id ?? game.id;
     const previous = this.activeJobs.get(id);
     if (previous && !isDownloadHistory(previous.phase)) return;
@@ -299,7 +332,8 @@ export class DigitalDownloadService implements IDownloadProvider {
     this.speeds.delete(id);
     this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
     try {
-      this.apply(await this.queue.retry(appId));
+      if (options.directOnly) this.methods.set(id, "torrent");
+      this.apply(await this.queue.retry(appId, options.directOnly === true));
     } catch (error) {
       if (!(error instanceof QueueRefused)) {
         if (previous) this.updateSnapshot(previous);
@@ -326,7 +360,15 @@ export class DigitalDownloadService implements IDownloadProvider {
   async pause(gameId: number): Promise<void> {
     const phase = this.activeJobs.get(gameId)?.phase;
     if (!phase || isDownloadHistory(phase) || phase === "paused" || phase === "cancelling") return;
-    this.apply(await this.queue.pause(this.appIdOf(gameId)));
+    // The row says "paused" at once; the Download Manager's answer confirms it (or puts it back if it refused).
+    const previous = this.activeJobs.get(gameId)!;
+    this.updateSnapshot({ ...previous, phase: "paused", speedBps: 0 });
+    try {
+      this.apply(await this.queue.pause(this.appIdOf(gameId)));
+    } catch (error) {
+      this.updateSnapshot(previous);
+      throw error;
+    }
   }
 
   /** A download that stopped (no room, error) waits paused, with what it downloaded, until the player resumes it. */
@@ -369,13 +411,36 @@ export class DigitalDownloadService implements IDownloadProvider {
   /** Position of a queued download (0 = next to start), or -1. */
   queuePosition(gameId: number): number { return this.positions.get(gameId) ?? -1; }
 
+  /**
+   * The player's cancel, from any place (Library › Downloads, the activity panel): the question shows at once, and on
+   * yes the download is marked "cancelling" right away. False when the player kept it.
+   */
+  async confirmCancel(game: CatalogGame, gameId: number, stopped = false): Promise<boolean> {
+    const ok = await confirmNotice({ game: { name: game.name, appId: game.app_id ?? game.id }, kind: "danger",
+      title: translate(stopped ? "abortDownloadTitle" : "cancelDownloadTitle", { name: game.name }), text: translate("cancelDownloadBody"),
+      confirmLabel: translate(stopped ? "downloadsAbort" : "downloadsCancel"), cancelLabel: translate(stopped ? "back" : "keepDownloading") });
+    if (!ok) return false;
+    // The question leaves at once: the row's "cancelling" is the answer.
+    const asked = getNotice();
+    if (asked?.question) hideNotice(asked.id);
+    await this.cancel(gameId);
+    return true;
+  }
+
   private cancelling = new Set<number>();
   async cancel(gameId: number): Promise<void> {
     const previous = this.activeJobs.get(gameId);
     if (!previous || ["completed", "cancelled", "external"].includes(previous.phase) || this.cancelling.has(gameId)) return;
     this.cancelling.add(gameId);
+    // Marked "cancelling" at once, everywhere (Seba, 2026-11-16): the worker may take a while to stop and delete its
+    // files, and the download keeps its place in the queue until it has.
+    this.updateSnapshot({ ...previous, phase: "cancelling", speedBps: 0, statusText: translate("downloadCancelling") });
     try {
       this.apply(await this.queue.cancel(this.appIdOf(gameId)));
+    } catch (error) {
+      // A stopped row the Download Manager no longer knows (lost with an older queue): aborting it only takes it off here.
+      if (!(error instanceof QueueRefused) || !["error", "interrupted"].includes(previous.phase)) { this.updateSnapshot(previous); throw error; }
+      this.forget(gameId, { ...previous, phase: "cancelled" });
     } finally {
       this.cancelling.delete(gameId);
     }
@@ -517,12 +582,20 @@ export class DigitalDownloadService implements IDownloadProvider {
       this.speeds.set(snapshot.gameId, samples.slice(-61));
     }
     this.activeJobs.set(snapshot.gameId, snapshot);
+    const log = this.events.get(snapshot.gameId) ?? [];
+    const logged = appendEvents(log, previous, snapshot);
+    if (logged !== log) this.events.set(snapshot.gameId, logged);
     if (snapshot.phase === "completed" && previous?.phase !== "completed" && hasTauriRuntime() && !this.shortcutCreated.has(snapshot.gameId)) {
       const game = this.jobs.get(snapshot.gameId)?.game;
       if (game) {
         this.shortcutCreated.add(snapshot.gameId);
         void digitalProcessManager.status(game).then(status => {
-          if (status.installed) return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
+          if (!status.installed) return;
+          // Downloaded and installed: now it is a library game (Seba, 2026-11-09: one Download Manager, one library).
+          try { if (!libraryMembership.has(game)) libraryMembership.add(game); } catch { /* busy: the folder scan adds it */ }
+          // The Library Manager reads the folders: scanned again so the new "-ready" folder shows there at once.
+          void scanLibrary().catch(() => undefined);
+          return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
         }).catch(error => {
           this.shortcutCreated.delete(snapshot.gameId);
           void narrate("No se pudo crear el acceso directo: " + String(error), { area: "SHORTCUT", level: "ERROR" });

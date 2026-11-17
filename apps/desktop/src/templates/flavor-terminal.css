@@ -3,12 +3,121 @@
    `:root[data-ga-flavor="name"]` as its selector; it never touches components.
    The older tokens of this flavor still live in gameaccess-theme.css and move here as screens are migrated. */
 :root {
+  /* Mode colors are stable across all four editable looks (vault §3). */
+  --ga-nav-catalog: #e8661c; --ga-nav-catalog-acc: #ff7a2e;
+  --ga-nav-library: #dc9a17; --ga-nav-library-acc: #f2b33d;
+  --ga-nav-game-access: #c4472d; --ga-nav-game-access-acc: #ff8466;
+  --ga-nav-settings: #2f7fb8; --ga-nav-settings-acc: #7cc4ff;
+  --ga-nav-shell-bg: #090e12; --ga-nav-shell-surface: #10191f; --ga-nav-shell-surface-raised: #16232b;
+  --ga-scene-frame-fade: 20%; --ga-scene-frame-end: 40%; --ga-scene-status-tint: 11%; --ga-scene-status-line: 40%;
+  --ga-scene-text-family: "Outfit Escena", sans-serif; --ga-scene-display-family: "Anton Escena", sans-serif;
+  --ga-scene-catalog: #fec050; --ga-scene-library: #fd5669; --ga-scene-game-access: #5db8fc; --ga-scene-settings: #70f1a5;
+  --ga-scene-ink: var(--ga-scene-ink-dark); --ga-scene-bg: #0c0d11; --ga-scene-figure-bg: #0a0b0e; --ga-scene-surround: #000; --ga-scene-ring-ink: #ffffff38;
+  /* Each mode's gradient (derived from its colour) and the ink that reads on it; the player's own gradient replaces
+     these four on the root (navigation/sceneLook.ts), with the ink chosen for contrast. */
+  --ga-scene-ink-dark: #14110c; --ga-scene-ink-light: #ffffff;
+  /* The style's accent (Seba, 2026-11-16): the highlight of texts, titles, lines and icons. It does NOT follow the mode: a light colour that reads on the
+     black surfaces. The mode's colour is for surfaces, and what goes on a surface of it is black or white, whichever contrasts more (--ga-scene-ink). */
+  --ga-accent: var(--ga-orange-ink); --ga-accent-ink: var(--ga-scene-ink-dark);
+  --ga-scene-catalog-start: oklch(from var(--ga-scene-catalog) calc(l + .05) c calc(h + 14)); --ga-scene-catalog-end: oklch(from var(--ga-scene-catalog) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-catalog-ink: var(--ga-scene-ink-dark);
+  --ga-scene-library-start: oklch(from var(--ga-scene-library) calc(l + .05) c calc(h + 14)); --ga-scene-library-end: oklch(from var(--ga-scene-library) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-library-ink: var(--ga-scene-ink-dark);
+  --ga-scene-game-access-start: oklch(from var(--ga-scene-game-access) calc(l + .05) c calc(h + 14)); --ga-scene-game-access-end: oklch(from var(--ga-scene-game-access) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-game-access-ink: var(--ga-scene-ink-dark);
+  --ga-scene-settings-start: oklch(from var(--ga-scene-settings) calc(l + .05) c calc(h + 14)); --ga-scene-settings-end: oklch(from var(--ga-scene-settings) calc(l - .1) calc(c + .02) calc(h - 34)); --ga-scene-settings-ink: var(--ga-scene-ink-dark);
+  --ga-scene-gradient-start: var(--ga-mode-start, var(--ga-mode)); --ga-scene-gradient-end: var(--ga-mode-end, var(--ga-mode));
+  --ga-scene-surface: var(--ga-mode); --ga-scene-menu-ink: var(--ga-scene-ink); --ga-scene-word-ink: var(--ga-mode);
+  --ga-scene-word-family: var(--ga-scene-display-family);
+  --ga-scene-look-bg: var(--ga-dialog-bg); --ga-scene-look-glass: var(--ga-dialog-glass); --ga-scene-look-shadow: var(--ga-dialog-shadow); --ga-scene-look-radius: var(--ga-dialog-radius);
+  --ga-scene-look-ink: var(--ga-white); --ga-scene-look-line: var(--ga-line); --ga-scene-look-pressed: var(--ga-white);
+  --ga-scene-smoke-image: url('/styles/escena/smoke.svg'); --ga-scene-smoke-opacity: .5; --ga-scene-ring-orbit-ink: #ffffff38; --ga-scene-ring-arc-ink: #ffffffcc;
+  --ga-scene-number-ink: #ffffff17; --ga-scene-particle-white: #fff; --ga-scene-glow-opacity: .34; --ga-scene-glow-low-opacity: .2;
+  --ga-scene-wipe-color: var(--ga-mode);
+  --ga-scene-selection-tint: 11%; --ga-scene-icon-tint: 14%; --ga-scene-muted-opacity: .7;
+  --ga-scene-activity-line: color-mix(in srgb, var(--ga-scene-ink) 18%, transparent); --ga-scene-activity-ink: var(--ga-scene-ink); --ga-scene-activity-bg: var(--ga-scene-figure-bg);
+  /* The columns' handles: a quiet grip on the dark (left drawer) and set into the activity column. */
+  /* Home's cards (Novedades, Soporte, Suscripción): the title, and the warm note. In the new shell they take the mode's colour. */
+  --ga-home-title-weight: 800; --ga-home-title-ink: var(--ga-white); --ga-home-warm-ink: var(--ga-orange-ink); --ga-home-warm-line: var(--ga-orange-line); --ga-home-warm-tint: var(--ga-orange-tint);
+  /* Activity: the icons are always black, whatever the look; each notice is a card of its own on the dark block. */
+  --ga-scene-icon-black: #000; --ga-scene-activity-card-bg: color-mix(in srgb, var(--ga-nav-shell-ink) 7%, transparent); --ga-scene-activity-card-line: color-mix(in srgb, var(--ga-nav-shell-ink) 16%, transparent);
+  /* Genre decks: ink, rules, the cards' shadows and how dark the back of the fan is. */
+  --ga-deck-ink: var(--ga-white); --ga-deck-muted: var(--ga-muted); --ga-deck-line: var(--ga-line); --ga-deck-close-bg: var(--ga-surface); --ga-deck-card-line: #00000040; --ga-deck-card-bg: var(--ga-scene-figure-bg);
+  /* The printed card: paper border, scratches (blended over the card) and the flash's light. */
+  /* The plan badge (Seba, 2026-11-16): BASE in silver, PLUS in gold with a moving shine, clearly the louder one. */
+  --ga-plan-base-metal: linear-gradient(160deg, #f4f6f8 0%, #c3c9cf 38%, #8e979f 62%, #dfe3e7 100%); --ga-plan-base-ink: #23292e; --ga-plan-base-edge: #ffffff8c; --ga-plan-base-glow: #c3c9cf33;
+  --ga-plan-plus-metal: linear-gradient(160deg, #fff3c4 0%, #f2c24f 35%, #b67d17 62%, #ffe08a 100%); --ga-plan-plus-ink: #2b1a02; --ga-plan-plus-edge: #fff1b8; --ga-plan-plus-glow: #f2c24f8c;
+  --ga-plan-shine: linear-gradient(105deg, transparent 0%, #ffffffd9 50%, transparent 100%);
+  --ga-deck-paper: #f2eee4; --ga-deck-scratch-image: url("/textures/scratches.jpg"); --ga-deck-scratch-dark-image: url("/textures/scratches-dark.jpg"); --ga-deck-scratch-light: .5; --ga-deck-scratch-dark: .28; --ga-deck-glare-ink: #fff; --ga-deck-glare-strength: 62%;
+  /* The deck's plate: a muted colour from the deck's own hue (--ga-deck-hue), and its big word in outline. */
+  --ga-deck-plate-s: 24%; --ga-deck-plate-l: 19%; --ga-deck-plate-l2: 9%; --ga-deck-bevel-light: #ffffff2e; --ga-deck-bevel-dark: #000000bf; --ga-deck-slab-shadow: 0 3px 0 #000000d9, 0 12px 20px #0000008c;
+  --ga-deck-word-s: 42%; --ga-deck-word-l: 62%; --ga-deck-word-a: .42; --ga-deck-word-fill-a: .3; --ga-deck-word-stroke: 1.5px;
+  --ga-deck-stone-image: url("/textures/stone.jpg"); --ga-deck-stone-opacity: .5; --ga-deck-ring-rest: .28; --ga-deck-ring-hover: .8;
+  --ga-deck-shade: #0009;
+  --ga-deck-card-shadow: 0 14px 26px #000a; --ga-deck-card-shadow-hover: 0 26px 44px #000d, 0 8px 14px #0008, 0 0 0 2px var(--ga-mode), 0 0 26px color-mix(in srgb, var(--ga-mode) 50%, transparent);
+  --ga-deck-dim-0: .62; --ga-deck-dim-1: .78; --ga-deck-dim-2: .9; --ga-deck-hover-dim-0: .85; --ga-deck-hover-dim-1: .95;
+  --ga-nav-handle-bg: color-mix(in srgb, var(--ga-nav-shell-ink) 12%, transparent); --ga-nav-handle-ink: var(--ga-nav-shell-ink);
+  --ga-nav-handle-inset-bg: color-mix(in srgb, var(--ga-scene-activity-ink) 14%, transparent); --ga-scene-activity-float-shadow: 0 10px 24px #0005;
+  --ga-scene-severity-error: var(--ga-danger); --ga-scene-severity-warning: var(--ga-warn); --ga-scene-severity-done: var(--ga-ok); --ga-scene-severity-info: var(--ga-mode-acc);
+  --ga-scene-severity: var(--ga-nav-shell-ink);
+  --ga-nav-shell-ink: #f0f3f4; --ga-nav-shell-muted: #a4b0b7; --ga-nav-shell-line: #ffffff30;
+  --ga-nav-panel-shade: #10191ff2; --ga-nav-panel-shade-clear: #10191f1a;
+  --ga-nav-button-rest: #090e12d9; --ga-nav-button-hover: #10191ff2;
+  --ga-nav-ok: #6fcfb0; --ga-nav-bad: #ff5d4d; --ga-nav-badge-ink: #090e12; --ga-nav-hover-bright: 1.22;
+  /* The downloads wizard (RN9): states, the log's levels and its type. */
+  --ga-wz-card: #00000038; --ga-wz-line: #ffffff1f; --ga-wz-step-rest: #171c20;
+  --ga-wz-ok: var(--ga-nav-ok); --ga-wz-bad: var(--ga-nav-bad); --ga-wz-warn: #f2b33d; --ga-wz-info: #7cc4ff;
+  --ga-wz-done-fill: color-mix(in srgb, var(--ga-nav-ok) 24%, #111619); --ga-wz-fail-fill: color-mix(in srgb, var(--ga-nav-bad) 42%, #1a0f10);
+  --ga-wz-log-bg: #00000061; --ga-wz-log-line: #ffffff24; --ga-wz-log-ink: #d9e2e4c7;
+  --ga-wz-mono-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; --ga-wz-mono-track: .06em; --ga-wz-eyebrow-track: .14em;
+  --ga-wz-eyebrow-font: 700 11px/1.1 var(--ga-wz-mono-family);
+  --ga-wz-mono-font: 500 11px/1.1 var(--ga-wz-mono-family);
+  --ga-wz-log-font: 500 11px/1.5 var(--ga-wz-mono-family);
+  --ga-wz-title-font: 400 40px/.95 var(--ga-nav-display-family); --ga-wz-chart-area: .28;
+  --ga-wz-text-font: 400 15px/1.45 var(--ga-text-family);
+  --ga-wz-step-number-font: 400 30px/1 var(--ga-nav-display-family);
+  --ga-wz-step-name-font: 800 14px/1.1 var(--ga-text-family);
+  --ga-wz-mark-font: 700 14px/1 var(--ga-wz-mono-family);
+  --ga-wz-sub-font: 700 15px/1.25 var(--ga-text-family);
+  --ga-wz-sub-text-font: 500 13px/1.35 var(--ga-text-family);
+  --ga-wz-figure-font: 800 16px/1.2 var(--ga-text-family);
+  --ga-nav-disabled-opacity: .42; --ga-nav-status-hover: #ffffff0d;
+  /* The shell's mode bar and sections panel: dark ink on the mode colour, the panel's shade over its image, the lines. */
+  --ga-nav-void: #050607; --ga-nav-backdrop: #0c0d0e; --ga-nav-ink-dark: #0a0705; --ga-nav-pale: #d9e2e4; --ga-nav-chevron-dark: #0b0d0f; --ga-nav-hero-end: #0e1113;
+  --ga-nav-shade-top: #050607e6; --ga-nav-shade-mid: #050607b8; --ga-nav-shade-clear: #0506071f; --ga-nav-shade-foot: #05060780;
+  --ga-nav-scan-line: #00000042; --ga-nav-hero-scan: #0000002e; --ga-nav-text-shadow: #00000073; --ga-nav-icon-shadow: #00000059;
+  --ga-nav-section-line: #ffffff38; --ga-nav-section-fill: #080a0ce6; --ga-nav-section-fill-end: #080a0cb3; --ga-nav-section-ring-color: #ffffff8c;
+  --ga-nav-panel-shade-fill: linear-gradient(180deg, #050607e6 0, #050607b8 38%, #0506071f 68%, #05060780 100%);
+  --ga-nav-scan-fill: repeating-linear-gradient(0deg, #00000042 0 1px, transparent 1px 3px);
+  --ga-nav-hero-scan-fill: repeating-linear-gradient(0deg, #0000002e 0 1px, transparent 1px 3px);
+  --ga-nav-title-shadow: 0 2px 0 #00000073; --ga-nav-icon-drop: drop-shadow(0 2px 0 #00000059);
+  --ga-nav-tab-line: #f3f6f873;
+  --ga-nav-band-rest: brightness(.82) saturate(.9); --ga-nav-band-hover: brightness(1.15) saturate(1.1);
+  --ga-nav-glass: #ffffff59; --ga-nav-glass-shine: #ffffff47; --ga-nav-glass-clear: #ffffff00; --ga-nav-duotone: #00000052; --ga-nav-neon: #ffffff;
+  /* The mode bar's 2D graphic per choice (§4.1; no imitated materials). */
+  --ga-nav-graphic-paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --ga-nav-graphic-hazard: repeating-linear-gradient(45deg, #00000042 0 14px, transparent 14px 28px);
+  --ga-nav-graphic-circuit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='.3' stroke-width='1.6'%3E%3Cpath d='M0 18h22l9 9h41M12 72V48l12-12h48M50 0v12l-9 9'/%3E%3C/g%3E%3Cg fill='%23000' fill-opacity='.34'%3E%3Ccircle cx='31' cy='27' r='3'/%3E%3Ccircle cx='24' cy='36' r='3'/%3E%3Ccircle cx='41' cy='21' r='3'/%3E%3C/g%3E%3C/svg%3E") 0 0/72px 72px;
+  --ga-nav-graphic-racing: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cg stroke='%23000' stroke-opacity='.26' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M-20 52L40 8M28 62L88 18M76 72L136 28'/%3E%3C/g%3E%3Cg stroke='%23fff' stroke-opacity='.14' stroke-width='1.5'%3E%3Cpath d='M4 58L64 14M52 68L112 24'/%3E%3C/g%3E%3C/svg%3E") 0 0/120px 60px;
+  --ga-nav-graphic-dots: radial-gradient(#00000052 1.6px, transparent 1.9px) 0 0/11px 11px;
+  --ga-nav-graphic-stripes: repeating-linear-gradient(0deg, #00000059 0 2px, transparent 2px 5px);
+  --ga-nav-graphic-checker: conic-gradient(#0000004d 25%, transparent 0 50%, #0000004d 0 75%, transparent 0) 0 0/24px 24px;
+  --ga-nav-graphic-plain: none;
+  --ga-nav-panel-catalog: url('/styles/estilo-1/panel-1.jpg');
+  --ga-nav-panel-library: url('/styles/estilo-1/panel-0.jpg');
+  --ga-nav-panel-game-access: url('/styles/estilo-1/panel-2.jpg');
+  --ga-nav-panel-settings: url('/styles/estilo-1/panel-3.jpg');
   --ga-text-family: Manrope, "Segoe UI", sans-serif; --ga-display-family: "Bebas Neue", sans-serif;
   --ga-t2-weight: 700; --ga-label-weight: 800; --ga-status-weight: 700;
+  --ga-t1-font: 400 var(--ga-t1-size)/1 var(--ga-display-family);
   --ga-t2-font: var(--ga-t2-weight) var(--ga-t2-size)/var(--ga-t2-leading) var(--ga-text-family);
+  /* T3, a group's title (an account in Manager › Accounts). */
+  --ga-t3-font: var(--ga-t2-weight) var(--ga-t3-size)/var(--ga-t2-leading) var(--ga-text-family);
   --ga-hint-font: 400 var(--ga-hint-size)/var(--ga-text-leading) var(--ga-text-family);
   --ga-label-font: var(--ga-label-weight) var(--ga-label-size)/var(--ga-label-leading) var(--ga-text-family);
   --ga-status-font: var(--ga-status-weight) var(--ga-status-size)/var(--ga-status-leading) var(--ga-text-family);
+
+  /* The smoke layer: glass over the window, darker in the middle, fading out to nothing before the corners. */
+  --ga-smoke-glass: blur(18px) saturate(.75);
+  --ga-smoke-bg: radial-gradient(ellipse 58% 62% at center, rgba(8, 10, 12, .9) 0%, rgba(8, 10, 12, .84) 45%, rgba(8, 10, 12, .55) 75%, rgba(8, 10, 12, 0) 100%);
+  --ga-smoke-mask: radial-gradient(ellipse 72% 78% at center, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, .72) 62%, rgba(0, 0, 0, .3) 82%, transparent 100%);
 
   /* Small floating cards and the on-screen tray (properties card, plugin list). */
   --ga-card-bg: var(--ga-dialog-bg); --ga-card-glass: blur(24px); --ga-card-ring: var(--ga-dialog-ring); --ga-card-radius: var(--ga-radius-l); --ga-card-shadow: var(--ga-dialog-shadow);
@@ -16,6 +125,52 @@
   --ga-tray-bg: var(--ga-panel); --ga-tray-glass: blur(10px); --ga-tray-line: var(--ga-line); --ga-tray-radius: var(--ga-radius-m); --ga-tray-ink: var(--ga-muted); --ga-tray-ink-hover: var(--ga-white); --ga-tray-hover: var(--ga-surface-2);
   /* Fields and choices of a settings screen. */
   --ga-field-line: var(--ga-line); --ga-field-ink: var(--ga-text-ink); --ga-field-font: 500 var(--ga-t3-size)/1.4 var(--ga-text-family);
+  /* Cards of a list of notices (Activity): each kind's colour and how strongly a card takes it. */
+  --ga-kind-news: var(--ga-orange); --ga-kind-taste: var(--ga-violet); --ga-kind-ok: var(--ga-ok); --ga-kind-warn: var(--ga-warn); --ga-kind-frost: var(--ga-frost); --ga-kind-fail: var(--ga-danger); --ga-kind-other: var(--ga-muted);
+  --ga-feed-tint: 20%; --ga-feed-tint-end: 4%; --ga-feed-tile: 24%; --ga-feed-edge: 30%; --ga-feed-edge-hot: 70%; --ga-feed-radius: var(--ga-radius-l);
+  --ga-files-path-font: 400 var(--ga-text-min)/1.4 var(--ga-text-family); --ga-files-size-font: 600 var(--ga-t4-size)/1.4 var(--ga-text-family);
+  --ga-feed-title-font: 700 15px/1.3 var(--ga-text-family); --ga-feed-body-font: 400 14px/1.4 var(--ga-text-family); --ga-feed-small-font: 400 13px var(--ga-text-family);
+  --ga-feed-time-font: 700 12px/1.2 var(--ga-text-family); --ga-feed-eyebrow-font: 700 12px var(--ga-text-family); --ga-feed-eyebrow-track: .08em;
+  /* EN9: the roles of an action and of closing. An action takes the section's highlight (the mode's colour in the new
+     shell) with the ink that stands out on it, black or white; pressed is the other way round. Closing is always the
+     app's danger red. Screens only read these. */
+  --ga-action-bg: var(--ga-mode, var(--ga-orange)); --ga-action-ink: var(--ga-scene-ink, var(--ga-ink-dark, #111));
+  --ga-action-bg-hover: color-mix(in srgb, var(--ga-action-bg) 84%, #fff); --ga-action-on-bg: var(--ga-action-ink); --ga-action-on-ink: var(--ga-action-bg);
+  --ga-close-bg: var(--ga-danger); --ga-close-bg-hover: var(--ga-danger-hover); --ga-close-ink: var(--ga-white);
+  /* EN10: the game's detail in the new shell: the mode's dark under the game's art, the mode's colour on what leads. */
+  --ga-detail-wide-ink: var(--ga-white); --ga-detail-wide-muted: #aeabb8; --ga-detail-wide-soft: #d3d0db; --ga-detail-wide-accent: var(--ga-accent);
+  --ga-detail-wide-void: color-mix(in srgb, var(--ga-mode, var(--ga-orange)) 10%, var(--ga-scene-bg, #0c0d11));
+  --ga-detail-wide-deep: var(--ga-scene-bg, #0c0d11);
+  --ga-detail-wide-glass: #0c0d11b8; --ga-detail-wide-fill: #ffffff12; --ga-detail-wide-fill-hover: #ffffff24; --ga-detail-wide-line: #ffffff1f; --ga-detail-wide-mask-ink: #000;
+  --ga-detail-wide-tab-on: color-mix(in srgb, var(--ga-detail-wide-accent) 26%, #ffffff0a); --ga-detail-wide-tab-ring: color-mix(in srgb, var(--ga-detail-wide-accent) 65%, transparent);
+  --ga-detail-wide-glow: color-mix(in srgb, var(--ga-detail-wide-accent) 26%, transparent); --ga-detail-wide-frame: color-mix(in srgb, var(--ga-detail-wide-accent) 35%, transparent);
+  --ga-detail-wide-shadow: 0 30px 80px #0009; --ga-detail-wide-tool-shadow: 0 8px 18px #0007; --ga-detail-wide-box-shadow: 0 18px 40px #0007; --ga-detail-wide-title-shadow: 0 6px 30px #0008;
+  --ga-detail-wide-good: #79d5a8; --ga-detail-wide-mixed: #e7b65e; --ga-detail-wide-bad: #e58880; --ga-detail-wide-segment: #ffffff1a;
+  --ga-detail-wide-title-font: 800 var(--ga-detail-title-size)/.95 var(--ga-scene-text-family); --ga-detail-wide-title-track: -.035em;
+  --ga-detail-wide-body-font: 500 16px/1.6 var(--ga-scene-text-family);
+  --ga-detail-wide-lead-font: 500 var(--ga-detail-wide-lead-size)/1.5 var(--ga-scene-text-family);
+  --ga-detail-wide-small-font: 600 13px/1 var(--ga-scene-text-family);
+  --ga-detail-wide-genre-font: 800 15px/1 var(--ga-scene-text-family); --ga-detail-wide-genre-track: .06em;
+  --ga-detail-wide-dt-font: 600 12.5px/1 var(--ga-scene-text-family); --ga-detail-wide-dd-font: 700 17px/1.15 var(--ga-scene-text-family);
+  --ga-detail-wide-head-font: 800 12px/1 var(--ga-scene-text-family); --ga-detail-wide-head-track: .14em;
+  --ga-detail-wide-tab-font: 700 14.5px/1 var(--ga-scene-text-family);
+  --ga-detail-wide-action-font: 800 19px/1 var(--ga-scene-text-family);
+  --ga-detail-wide-gauge-font: 800 37px/.9 var(--ga-scene-text-family); --ga-detail-wide-gauge-unit: 700 17px/1 var(--ga-scene-text-family); --ga-detail-wide-gauge-label: 700 9px/1 var(--ga-scene-text-family);
+  --ga-detail-wide-verdict-font: 800 19px/1.05 var(--ga-scene-text-family); --ga-detail-wide-chip-label: 700 9.5px/1 var(--ga-scene-text-family); --ga-detail-wide-chip-value: 800 15px/1 var(--ga-scene-text-family);
   --ga-light-on: var(--ga-success); --ga-light-fail: var(--ga-error); --ga-light-off: var(--ga-muted);
+  /* RN1 default appearance, shared by the new shell until a numbered flavor is selected. */
+  --ga-nav-display-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+  --ga-nav-display-style: normal; --ga-nav-display-case: uppercase;
+  --ga-nav-button-cut: 44px; --ga-nav-panel-corner: 26px; --ga-nav-button-radius: 0px;
+  /* Submode pills: default, as Style 1: inked comic panel and a hard offset shadow. */
+  --ga-nav-pill-radius: 10px; --ga-nav-pill-slant: 0px; --ga-nav-pill-chamfer: 0px; --ga-nav-pill-edge: 2px;
+  --ga-nav-pill-line: #0a0705; --ga-nav-pill-line-on: #0a0705; --ga-nav-pill-base: #14100ce6;
+  --ga-nav-pill-shadow-x: 3px; --ga-nav-pill-shadow-y: 3px; --ga-nav-pill-shadow-blur: 0px; --ga-nav-pill-shadow-tint: 0%; --ga-nav-pill-shadow-ink: #000000;
+  --ga-nav-pill-dot-radius: 50%; --ga-nav-pill-dot-turn: 0deg;
+  --ga-nav-pill-family: var(--ga-text-family); --ga-nav-pill-weight: 800; --ga-nav-pill-case: none; --ga-nav-pill-tracking: 0; --ga-nav-pill-scale: .86;
+  --ga-nav-button-fill: solid; --ga-nav-icon-fill: flat; --ga-nav-rail-graphic: paper;
+  --ga-nav-glow: .5; --ga-nav-scan-opacity: 1; --ga-nav-grain-opacity: .28;
+  --ga-nav-transition-time: .6s;
   --ga-card-label-font: 700 11px var(--ga-text-family); --ga-card-value-font: 600 14px var(--ga-text-family); --ga-card-eyebrow-font: 800 11px var(--ga-text-family); --ga-tray-font: 650 10px var(--ga-text-family);
 }
+html.ga-navigation-shell { --ga-home-title-ink: var(--ga-accent); --ga-home-warm-ink: var(--ga-accent); --ga-home-warm-line: color-mix(in srgb, var(--ga-accent) 45%, transparent); --ga-home-warm-tint: color-mix(in srgb, var(--ga-accent) 10%, transparent); }

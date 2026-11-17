@@ -7,3 +7,4 @@ export function setStyleFlavor(name: string | null): void {
   else delete document.documentElement.dataset.gaFlavor;
 }
 export const styleFlavor = (): string | null => document.documentElement.dataset.gaFlavor ?? null;
+export const numberedStyleFlavors = ["estilo-1", "estilo-2", "estilo-3", "estilo-4"] as const;

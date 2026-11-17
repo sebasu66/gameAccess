@@ -69,6 +69,11 @@ class ProcessWorkers:
             command += ["--source-title", job.source_title]
         if job.source_provider:
             command += ["--source-provider", job.source_provider]
+        race_file = self.status_dir / f"{job.app_id}.race.json"
+        race_file.unlink(missing_ok=True)
+        if job.race:
+            race_file.write_text(json.dumps(job.race), encoding="utf-8")
+            command += ["--race-file", str(race_file)]
         env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         env.pop("GAMEACCESS_CHUNK_SESSION", None)
         if chunk_session:
@@ -171,7 +176,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     queue.enqueue(int(body["appId"]), str(body.get("name") or ""), str(body.get("source") or ""),
                                   str(body.get("delivery") or "download"), bool(body.get("autoInstalled")),
                                   bool(body.get("keepArchive")), str(body.get("sourceTitle") or ""),
-                                  str(body.get("sourceProvider") or ""))
+                                  str(body.get("sourceProvider") or ""),
+                                  body.get("race") if isinstance(body.get("race"), dict) else None)
                 elif self.path == "/suspend":
                     queue.suspend()
                 elif self.path == "/shutdown":
@@ -186,6 +192,8 @@ def make_handler(queue: DownloadQueue, token: str, on_shutdown):
                     app_id, action = int(match.group(1)), match.group(2)
                     if action == "move":
                         queue.move(app_id, -1 if int(body.get("delta") or 0) < 0 else 1)
+                    elif action == "retry":
+                        queue.retry(app_id, direct_only=bool(body.get("directOnly")))
                     else:
                         getattr(queue, action)(app_id)
                 self._reply(200, queue.snapshot())
@@ -208,9 +216,15 @@ def stored_resume_point(app_id: int) -> dict:
         return {}
 
 
+def discard_stopped(app_id: int, name: str) -> None:
+    """An aborted download that had stopped: what it left on disk goes (storage.abandon_download)."""
+    from game_library_manager.storage import DigitalGameStorage
+    DigitalGameStorage().abandon_download(app_id, name)
+
+
 def serve(token: str, status_dir: Path = STATUS_DIR, tick_seconds: float = 0.5) -> None:
     workers = ProcessWorkers(status_dir)
-    queue = DownloadQueue(workers, status_dir / "queue.json", resume_point=stored_resume_point)
+    queue = DownloadQueue(workers, status_dir / "queue.json", resume_point=stored_resume_point, discard=discard_stopped)
     queue.restore()
     server = ThreadingHTTPServer(("127.0.0.1", 0), None)
     stopping = threading.Event()

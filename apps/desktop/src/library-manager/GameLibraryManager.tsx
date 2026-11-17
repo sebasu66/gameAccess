@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react";
 import { AlertTriangle, AppWindow, ShieldAlert, ShieldCheck, ArrowDown, ArrowUp, ArrowUpDown, Gamepad2, FolderInput, Link2, Loader2, Pencil, RefreshCw, Snowflake, Trash2, Wand2, X } from "lucide-react";
 // The row actions use Phosphor's filled icons (lucide only draws lines); the weight comes from the IconContext below.
-import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, GearSix, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareIn, DotsThree, DownloadSimple, EyeSlash, GearSix, IdentificationCard, Flame as PhFlame, FolderOpen as PhFolderOpen, IconContext, LinkBreak, MagicWand, Play as PhPlay, Scroll, Snowflake as PhSnowflake, Trash } from "@phosphor-icons/react";
 import { translate, useI18n, type TranslationKey } from "../i18n";
 import RenameGameDialog from "../RenameGameDialog";
 import { normalizeSearchText } from "../libraryText";
 import { notify } from "../toasts";
+import { selectNavigationSection, selectNavigationTab } from "../navigation/navigationSelection";
 import { digitalProcessManager, type LibraryGame, type LibraryPlan, type RunCheck } from "../catalog/DigitalProcessManager";
 import { libraryDemo, libraryScanState, scanLibrary, useLibraryScan } from "../libraryScan";
 import type { CatalogGame } from "../types";
@@ -22,6 +23,7 @@ import { PlanDialog } from "./PlanDialog";
 import { SizeCell } from "./SizeCell";
 import FreezeDialog, { type FreezeMode } from "../FreezeDialog";
 import DigitalGameOptions from "../DigitalGameOptions";
+import { isHiddenGame, useGameCards } from "../gameCard";
 import { cancelFreezeJob, discardMove, dismissFreezeJob, freezeJob, hostFreezeJob, jobCancelKey, jobLabelKey, startFreezeJob, useFreezeJobView, type FreezeJob } from "../freezeJobs";
 import { clock, eventText, stats as jobStats } from "../FreezeConsole";
 import { uiDemo } from "../devDemo/uiDemo";
@@ -34,10 +36,9 @@ import { applyKidDraft, dropKidGames, kidGameCount, kidGamesAmong, loadKidFamily
 import { addShortcut, loadShortcuts, openShortcut, removeShortcut, useShortcuts, type AppShortcut } from "../appShortcuts";
 import { showFolderInUse } from "./folderInUse";
 import { noticeGame } from "../notice/noticeGame";
-import { isSteamOwned, steamOwnerLabel, syncSteamLibrary } from "../steamLibrary";
-import { DownloadLog, useDownloadView, type DownloadEntry } from "../downloads/DownloadDetail";
+import { isSteamOwned, steamOwnerLabel } from "../steamLibrary";
 import { activeDownloadService } from "../downloads/activeService";
-import { downloadPhaseLabel } from "../DigitalDownloadsScreen";
+import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import ManualLinkDialog from "./ManualLinkDialog";
 import RowExpand, { RowMenu, type RowAction } from "./RowExpand";
 import { ArtworkFallback, GameWideArt } from "../GameArt";
@@ -135,14 +136,13 @@ function IconAction({ label, onClick, disabled, tone, pressed, children }: { lab
 /** The game's log. A freeze or thaw of the game going on (or just ended) is one group at its end: its title, the
  *  launcher's details indented inside it, and how it ended; the log's own lines of that freeze are left out
  *  meanwhile, so nothing shows twice. When it ends, the log is read again. */
-function History({ game, c, job, download }: { game?: LibraryGame; c: LibraryCopy; job?: FreezeJob; download?: DownloadEntry }) {
+function History({ game, c, job }: { game?: LibraryGame; c: LibraryCopy; job?: FreezeJob }) {
   const { t } = useI18n();
   const [text, setText] = useState<string | null>(null);
   const ended = Boolean(job?.outcome);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let live = true;
-    // A download with no folder yet has no log of its own so far: only its running groups.
     // A folder not yet identified (no AppID) has no game log the launcher can find.
     if (!game || game.app_id == null) { setText(""); return; }
     if (libraryDemo() || uiDemo()) { setText("2026-10-12 21:04:11 | importado | carpeta adaptada al estándar actual\n2026-10-12 21:04:12 | analisis | estado=ready; ejecutable=Game/game.exe"); return; }
@@ -150,30 +150,20 @@ function History({ game, c, job, download }: { game?: LibraryGame; c: LibraryCop
     return () => { live = false; };
   }, [game?.app_id, ended]);
   const since = job ? job.startedAt - 5000 : null;
-  let lines = (text ?? "").split("\n").filter(line => line.trim() && (since == null || !isFreezeLineSince(line, since)));
-  // The running download is shown as its groups: the log's own lines of it (since it started) are left out meanwhile.
-  if (download) {
-    const starts = lines.map((line, index) => { const [, step, detail] = line.split(" | "); return step?.trim() === "descarga" && (detail ?? "").startsWith("inicio") ? index : -1; });
-    const start = Math.max(...starts);
-    if (start >= 0) lines = [...lines.slice(0, start), ...lines.slice(start).filter(line => !DOWNLOAD_LOG_STEPS.includes(line.split(" | ")[1]?.trim() ?? ""))];
-  }
+  const lines = (text ?? "").split("\n").filter(line => line.trim() && (since == null || !isFreezeLineSince(line, since)));
   const events = (job?.progress?.events ?? []).filter(event => !["start", "done", "failed"].includes(event.kind));
-  useEffect(() => { if ((job && !job.outcome) || download) box.current?.scrollTo({ top: box.current.scrollHeight }); }, [job, events.length, download?.snapshot.phase, download?.snapshot.step?.id]);
+  useEffect(() => { if (job && !job.outcome) box.current?.scrollTo({ top: box.current.scrollHeight }); }, [job, events.length]);
   return (
     <div ref={box} className="lm-history" tabIndex={-1}>
-      {text === null ? <p>{c.working}</p> : !lines.length && !job && !download ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
+      {text === null ? <p>{c.working}</p> : !lines.length && !job ? <p>{c.noHistory}</p> : lines.map((line, index) => <p key={index}>{line}</p>)}
       {job ? <div className={`lm-log-group is-${job.outcome ? (job.outcome.ok ? "done" : "failed") : "working"}`}>
         <p className="lm-log-head">{t(jobLabelKey(job.mode))}{job.outcome ? "" : ` · ${Math.floor(job.progress?.percent ?? 0)} %`}</p>
         {events.map((event, index) => <p key={index} className={`is-${event.kind}`}>{eventText(event, job, t)}</p>)}
         {job.outcome ? <p className="lm-log-foot">{job.outcome.detail}</p> : null}
       </div> : null}
-      {download ? <DownloadLog snapshot={download.snapshot} /> : null}
     </div>
   );
 }
-
-/** The game's log lines a download writes (pipeline.py): shown as the download's groups while it runs. */
-const DOWNLOAD_LOG_STEPS = ["descarga", "estado", "espacio", "descompresión"];
 
 /** A "freeze" line of the game's log written since `since` (ms): it belongs to the freeze group shown live. */
 function isFreezeLineSince(line: string, since: number): boolean {
@@ -202,7 +192,7 @@ function announceBatch(action: BatchAction, results: Array<{ app_id: number; ok:
 type BatchAction = "adopt" | "uninstall" | "steam_uninstall" | "discard_transfer" | "linked_delete" | "linked_move";
 
 /** One line of the grid, a game with a folder or a member of the library without one, with the values it sorts by. */
-type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame; download?: DownloadEntry };
+type GridRow = { key: string; name: string; status: Status; path: string; size: number; kind: Kind; source: string; plays: number; idle: number | null; game?: LibraryGame; member?: CatalogGame };
 type SortKey = "name" | "status" | "path" | "size" | "kind" | "plays" | "idle";
 type Sort = { key: SortKey; dir: 1 | -1 };
 /** Numbers start from the largest, words from A. */
@@ -236,9 +226,7 @@ type RowProps = {
   findCatalogGame: (game: LibraryGame) => CatalogGame | undefined;
   onInstall?: (game: CatalogGame) => void; onPlay?: (game: CatalogGame) => void | Promise<void>;
   askPlan: (ids: number[]) => Promise<void>; setPending: (pending: Pending) => void; setThawing: (game: LibraryGame, mode: FreezeMode) => void;
-  retry: (id: number) => void; configure: (game: LibraryGame) => void;
-  /** The game's download, while it has not ended (its detail shows in the row). */
-  downloadOf: (id: number | null | undefined) => DownloadEntry | undefined; queueLength: number;
+  retry: (id: number) => void; configure: (game: LibraryGame, card?: boolean) => void;
 };
 
 /** "Language and launch" (executable, arguments, administrator, automation), as in the game's menu: for any game on this
@@ -311,11 +299,12 @@ function ThirdPartyApps({ c }: { c: LibraryCopy }) {
   </section>;
 }
 
-function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, verify, verdict, verifying, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure, downloadOf, queueLength }: RowProps) {
+function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, setExpanded, verify, verdict, verifying, selection, setSelection, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing, retry, configure }: RowProps) {
   const id = game.app_id;
   const key = row.key;
   const open = expanded === id;
   const catalogGame = findCatalogGame(game);
+  const cards = useGameCards();
   const unfinished = game.partial || isUnfinished(game);
   const ref = useRef<HTMLTableRowElement>(null);
   const focused = focusId != null && focusId === id;
@@ -325,10 +314,8 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
   // Waiting in the queue, the row only says so; working (or just ended) it shows the log and the freeze bar.
   const freezing = job && !job.queued ? job : undefined;
   const busyFreezing = Boolean(job && !job.outcome);
-  // A download of this game shows its detail in the row, open, while it lasts (Seba, 2026-11-01).
-  const download = downloadOf(id);
-  const unfolded = open || Boolean(freezing) || Boolean(download);
-  const downloadView = useDownloadView(download, activeDownloadService());
+  // Downloads are followed in the Catalog's Downloads, not here (Seba, 2026-11-09): a game being downloaded has no row.
+  const unfolded = open || Boolean(freezing);
   const hosted = Boolean(freezing) && id != null;
   useEffect(() => {
     if (!hosted || id == null) return undefined;
@@ -362,7 +349,9 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ...(retryable(game) && id != null ? [act(c.retryProcess, <ArrowClockwise />, () => retry(id), { tone: "accent", disabled: busy })]
         : needsFix(game) && id != null ? [act(c.fix, <MagicWand />, () => void askPlan([id]), { tone: "accent", disabled: busy })] : []),
       ...(canVerify(game) ? [act(c.verify, verifying === id ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />, () => verify(game), { disabled: busy || verifying != null })] : []),
+      // Language and launch only for a game Game Access runs; the card (name, cover, genre, shown in Play) for every game.
       ...(configurable(game) ? [act(c.options, <GearSix />, () => configure(game), { disabled: busy })] : []),
+      ...(id != null ? [act(c.card, <IdentificationCard />, () => configure(game, true), { disabled: busy })] : []),
       act(c.openFolder, <PhFolderOpen />, () => void digitalProcessManager.openFolder(asGame(game)), { disabled: libraryDemo() || isSteamOwned(game) }),
       ...(id != null ? [act(translate("renameMenu"), <Pencil size={16} />, () => setRenaming(true), { disabled: busy })] : []),
       ...(game.frozen && !game.linked && id != null ? [act(c.thaw, <PhFlame />, () => setThawing(game, "thaw"), { tone: "frost", disabled: busy })] : []),
@@ -381,20 +370,23 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
       ] : []),
       // A Steam game can also be deleted from disk, as Steam's own Uninstall does (no Steam account involved).
       ...(game.link_kind === "steam" && game.installed && !isSteamOwned(game) ? [act(c.steamUninstall, <Trash />, () => setPending({ kind: "steam_uninstall", game }), { tone: "danger", disabled: busy || id == null })] : []),
-      act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null }),
+      // A Steam game is in its account's library while the account owns it: it is never taken out on its own (the
+      // account is, in Manager › Accounts), only uninstalled from the disk (above).
+      ...(game.link_kind === "steam" ? [] : [act(game.linked ? c.unlink : c.uninstall, game.linked ? <LinkBreak /> : <Trash />, () => { if (id != null) setPending({ kind: "uninstall", ids: [id] }); }, { tone: "danger", disabled: busy || id == null })]),
     ];
   // The context menu also opens and closes the row; the open row shows the rest beside its log.
   const history = act(open ? c.historyHide : c.history, <Scroll />, () => setExpanded(open ? null : id));
   return (<>
     <tr ref={ref} className={`lm-row is-openable${focused ? " is-focus" : ""}${selection[key] ? " is-selected" : ""}${unfolded ? " is-expanded" : ""}`} data-app-id={id ?? undefined}
-      aria-expanded={unfolded} onClick={event => { if (!onControl(event) && id != null && !download && !freezing) setExpanded(open ? null : id); }}
+      aria-expanded={unfolded} onClick={event => { if (!onControl(event) && id != null && !freezing) setExpanded(open ? null : id); }}
       onContextMenu={event => { event.preventDefault(); setMenu(menuAt(event)); }}>
       <td className="lm-cell-check">{id != null ? <input type="checkbox" className="lm-check" tabIndex={-1} aria-label={game.name} checked={Boolean(selection[key])} onChange={event => { const value = event.target.checked; setSelection(current => ({ ...current, [key]: value })); }} /> : null}</td>
       <td>{unfolded ? null : <span className={`lm-thumb${game.frozen ? " is-frozen" : ""}`}>{id ? <GameWideArt game={{ app_id: id, name: game.name }} compact /> : <ArtworkFallback name={game.name} compact />}</span>}</td>
       <td className="lm-cell-name">
         <div className="lm-name" title={game.name}>{game.name}</div>
+        {id != null && isHiddenGame({ app_id: id, id }, cards) ? <span className="lm-status" title={c.hiddenInPlayTip}><EyeSlash />{c.hiddenInPlay}</span> : null}
       </td>
-      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : download ? downloadStatus(download) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
+      <td><StatusCell status={busyFreezing && job ? freezeStatus(job, translate) : row.status} /><RunBadge check={verdict(game)} running={verifying === id} c={c} /></td>
       <td className="lm-cell-path" title={row.path}>{row.path || "—"}</td>
       <td className="lm-cell-size"><SizeCell game={game} largest={largest} c={c} /></td>
       <td><KindCell kind={row.kind} source={row.source} /></td>
@@ -405,13 +397,13 @@ function ManagerRow({ row, game, c, busy, largest, focusId, columns, expanded, s
     {unfolded ? <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">
       <RowExpand logTitle={c.historyTitle}
         log={<>
-          {game.issues.length && (!game.unfinished || game.stalled) && !download ? <div className="lm-needs"><b>{c.whatNeeds}</b>
+          {game.issues.length && (!game.unfinished || game.stalled) ? <div className="lm-needs"><b>{c.whatNeeds}</b>
             <ul>{game.issues.map(issue => <li key={issue.code}><AlertTriangle />{issue.message}{issue.bytes ? <em>({formatBytes(issue.bytes)})</em> : null}</li>)}</ul></div> : null}
-          <History game={game} c={c} job={freezing} download={download} />
+          <History game={game} c={c} job={freezing} />
         </>}
-        {...(downloadView ?? (freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null }))} />
+        {...(freezing && id ? jobView(freezing, id, translate) : { art: id ? <GameWideArt game={{ app_id: id, name: game.name }} className={`lm-expand-still${game.frozen ? " is-frozen" : ""}`} lazy={false} /> : null })} />
     </div></td></tr> : null}
-    {menu ? <RowMenu at={menu} title={game.name} actions={busyFreezing || download ? actions : [history, ...actions]} onClose={() => setMenu(null)} /> : null}
+    {menu ? <RowMenu at={menu} title={game.name} actions={busyFreezing ? actions : [history, ...actions]} onClose={() => setMenu(null)} /> : null}
     {renaming ? <RenameGameDialog game={asGame(game)} current={game.label ?? ""} onClose={() => setRenaming(false)} /> : null}
   </>);
 }
@@ -438,36 +430,6 @@ function jobView(job: FreezeJob, id: number, tr: typeof translate) {
   };
 }
 
-/** A download's state as the grid shows it: first in the grid sorted by state. */
-function downloadStatus(entry: DownloadEntry): Status {
-  return { rank: 0, label: downloadPhaseLabel(entry.snapshot.phase), tone: ["error", "interrupted"].includes(entry.snapshot.phase) ? "warn" : "busy" };
-}
-
-/** A game being downloaded that has no folder in the library yet (just asked for in the catalog): the row and the
- *  download's detail under it. */
-function DownloadRow({ row, entry, columns, c, focusId }: { row: GridRow; entry: DownloadEntry; columns: number; c: LibraryCopy; focusId: number | null }) {
-  const appId = entry.game.app_id ?? entry.snapshot.gameId;
-  const view = useDownloadView(entry, activeDownloadService());
-  const ref = useRef<HTMLTableRowElement>(null);
-  const focused = focusId === appId;
-  useEffect(() => { if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focused]);
-  return (<>
-    <tr ref={ref} className={`lm-row is-expanded${focused ? " is-focus" : ""}`} data-app-id={appId}>
-      <td className="lm-cell-check" />
-      <td />
-      <td className="lm-cell-name"><div className="lm-name" title={entry.game.name}>{entry.game.name}</div></td>
-      <td><StatusCell status={row.status} /></td>
-      <td className="lm-cell-path">—</td>
-      <td className="lm-cell-size">—</td>
-      <td><KindCell kind={row.kind} source="" /></td>
-      <td className="lm-cell-num">—</td>
-      <td className="lm-cell-num">—</td>
-      <td className="lm-acts" />
-    </tr>
-    <tr className="lm-detail-row"><td colSpan={columns}><div className="lm-detail">{view ? <RowExpand logTitle={c.historyTitle} log={<History c={c} download={entry} />} {...view} /> : null}</div></td></tr>
-  </>);
-}
-
 /** A game of the library with no folder yet: Install, or take it out of the library. */
 function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGame; c: LibraryCopy; onInstall?: (game: CatalogGame) => void }) {
   const [menu, setMenu] = useState<MenuAt>(null);
@@ -492,14 +454,14 @@ function AbsentRow({ row, game, c, onInstall }: { row: GridRow; game: CatalogGam
   </>);
 }
 
-/** The downloads that have not ended (stopped ones too, to go on), by app id, kept up to date. */
-function useManagerDownloads(): Map<number, DownloadEntry> {
-  const read = () => new Map(activeDownloadService().getDownloads()
-    .filter(entry => !["completed", "cancelled", "external"].includes(entry.snapshot.phase))
-    .map(entry => [entry.game.app_id ?? entry.snapshot.gameId, entry] as const));
-  const [downloads, setDownloads] = useState(read);
-  useEffect(() => activeDownloadService().onGlobalUpdate(() => setDownloads(read())), []); // eslint-disable-line react-hooks/exhaustive-deps
-  return downloads;
+/** The games whose download has not ended (Downloads follows them; they are not in the library yet), kept up to date. */
+function useDownloadingIds(): Set<number> {
+  const read = () => new Set(activeDownloadService().getDownloads()
+    .filter(entry => !isDownloadHistory(entry.snapshot.phase))
+    .map(entry => entry.game.app_id ?? entry.snapshot.gameId));
+  const [ids, setIds] = useState(read);
+  useEffect(() => activeDownloadService().onGlobalUpdate(() => setIds(read())), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return ids;
 }
 
 /** A column header that sorts: one click sorts, the next one reverses; the arrow says which way. */
@@ -534,7 +496,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const { games, summary, scanning, error } = useLibraryScan();
   useEffect(() => { void loadKidFamily(); }, []);
   const members = useLibraryGames();
-  const downloads = useManagerDownloads();
+  const downloading = useDownloadingIds();
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>({ key: "size", dir: -1 });
   const [selection, setSelection] = useState<Selection>({});
@@ -549,6 +511,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const [message, setMessage] = useState("");
   const [freezing, setFreezing] = useState<{ game: LibraryGame; mode: FreezeMode } | null>(null);
   const [configuring, setConfiguring] = useState<LibraryGame | null>(null);
+  const [configuringCard, setConfiguringCard] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   useEffect(() => { void scanLibrary(); }, []);
   useEffect(() => {
@@ -568,16 +531,8 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
       { label: c.verifyLater, kind: "secondary", run: () => hideNotice() },
     ] });
   };
-  const importSteam = async () => {
-    setBusy(true);
-    rememberKnown();
-    try {
-      const result = await syncSteamLibrary(catalog, { refresh: true });
-      notify(result.found ? t("steamImported", { linked: result.linked.length, owned: result.owned.length }) : t("steamNotFound"), { tone: result.found ? "success" : "error" });
-      notifyLibraryChanged();
-      if (result.found) void suggestVerify();
-    } catch (failure) { notify(translate("toastActionFailed", { error: String(failure) }), { tone: "error" }); } finally { setBusy(false); }
-  };
+  // The Steam accounts' libraries come in whole from Manager › Accounts (AccountLibraries.tsx), never game by game.
+  const openAccounts = () => { selectNavigationSection("library", "manager"); selectNavigationTab("library", "manager", "accounts"); };
   // A game opened from Activity shows its row open: the download's or the process's detail (Seba, 2026-11-03).
   useEffect(() => { if (focusAppId != null) { setFilter("all"); setExpanded(focusAppId); } }, [focusAppId]);
   // Every word of the search in the name, without accents or case, as in the catalog; the game "Manage" opened stays.
@@ -587,8 +542,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   const counts = useMemo(() => ({ all: games.length, outside: games.filter(needsFix).length, errors: games.filter(hasError).length, partial: games.filter(isUnfinished).length, frozen: games.filter(game => game.frozen).length }), [games]);
   const rows = useMemo(() => games.filter(game => {
     if (!matches(game.name, game.app_id)) return false;
+    // A game still downloading belongs to the Catalog's Downloads until it is installed.
+    if (game.app_id != null && downloading.has(game.app_id)) return false;
     return filter === "all" || (filter === "outside" && needsFix(game)) || (filter === "errors" && hasError(game)) || (filter === "partial" && isUnfinished(game)) || (filter === "frozen" && Boolean(game.frozen));
-  }), [games, filter, terms, focusAppId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [games, filter, terms, focusAppId, downloading]); // eslint-disable-line react-hooks/exhaustive-deps
   const largest = useMemo(() => Math.max(1, ...games.map(game => game.original_bytes ?? game.size_bytes ?? 0)), [games]);
   const selectedIds = useMemo(() => rows.filter(game => game.app_id != null && selection[String(game.app_id)]).map(game => game.app_id as number), [rows, selection]);
   const fixable = useMemo(() => games.filter(needsFix).map(game => game.app_id as number), [games]);
@@ -674,7 +631,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   // Uninstall and discard ask in the app's single notice (T3), not in a dialog of their own.
   useEffect(() => {
     if (!pending || pending.kind === "plan") return;
-    const linkedIds = new Set(games.filter(game => game.linked).map(game => game.app_id));
+    // A Steam game is uninstalled for real (deleted from disk, as Steam does): it is not "only removed" like a link.
+    const linkedIds = new Set(games.filter(game => game.linked && game.link_kind !== "steam").map(game => game.app_id));
+    const steamIds = new Set(games.filter(game => game.link_kind === "steam").map(game => game.app_id));
+    const anySteam = pending.kind === "uninstall" && pending.ids.some(id => steamIds.has(id));
     const one = pending.kind === "uninstall" && pending.ids.length === 1 ? games.find(game => game.app_id === pending.ids[0]) : pending.kind !== "uninstall" ? pending.game : undefined;
     const allLinked = pending.kind === "uninstall" && pending.ids.every(id => linkedIds.has(id));
     const anyLinked = pending.kind === "uninstall" && pending.ids.some(id => linkedIds.has(id));
@@ -685,7 +645,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
     const confirm = () => confirmNotice({
       game: one ? noticeGame(findCatalogGame(one) ?? asGame(one)) : undefined,
       title: pending.kind === "linked_move" ? c.linkedMoveTitle(pending.game.name) : pending.kind === "linked_delete" ? c.linkedDeleteTitle(pending.game.name) : pending.kind === "steam_uninstall" ? c.steamUninstallTitle(pending.game.name) : pending.kind === "uninstall" ? (allLinked ? c.unlinkTitle(pending.ids.length) : c.uninstallTitle(pending.ids.length)) : c.discardTitle,
-      text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : anyLinked ? `${c.uninstallBody} ${c.unlinkNote}` : c.uninstallBody) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
+      text: (pending.kind === "linked_move" ? c.linkedMoveBody(pending.game.folder) : pending.kind === "linked_delete" ? c.linkedDeleteBody(pending.game.folder) : pending.kind === "steam_uninstall" ? c.steamUninstallBody : pending.kind === "uninstall" ? (allLinked ? c.unlinkBody : [c.uninstallBody, anyLinked ? c.unlinkNote : "", anySteam ? c.steamUninstallNote : ""].filter(Boolean).join(" ")) : pending.restart ? c.restartBody : c.discardBody) + kidNote,
       confirmLabel: pending.kind === "linked_move" ? c.linkedMove : pending.kind === "linked_delete" ? c.linkedDelete : pending.kind === "steam_uninstall" ? c.uninstall : pending.kind === "uninstall" ? (allLinked ? c.unlink : c.uninstall) : pending.restart ? c.restart : c.discard,
       cancelLabel: c.cancel, kind: pending.kind === "linked_move" ? "primary" : "danger",
     }).then(ok => { if (!live) return; if (ok) void confirmPending(pending); else setPending(null); });
@@ -703,23 +663,27 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
   }, [escapeGuard, onClose, embedded]);
 
   const filters: [Filter, string, number][] = ([["all", c.all, counts.all], ["outside", c.outside, counts.outside], ["errors", c.errors, counts.errors], ["partial", c.partial, counts.partial], ["frozen", c.frozenFilter, counts.frozen]] as [Filter, string, number][]).filter(([id, , count]) => id === "all" || id === filter || count > 0);
-  const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && !downloads.has(member.app_id ?? member.id) && matches(member.name, member.app_id ?? member.id)) : [];
-  // Downloads with no folder in the library yet get their own row (in "All" and in "Unfinished downloads").
-  const loose = filter === "all" || filter === "partial" ? [...downloads.entries()].filter(([appId, entry]) => !games.some(game => game.app_id === appId) && matches(entry.game.name, appId)) : [];
-  const queueLength = [...downloads.values()].filter(entry => entry.snapshot.phase === "queued").length;
+  const absent = filter === "all" ? members.filter(member => !games.some(game => game.app_id === (member.app_id ?? member.id)) && !downloading.has(member.app_id ?? member.id) && matches(member.name, member.app_id ?? member.id)) : [];
   const gridRows: GridRow[] = [
     ...rows.map(game => ({ key: String(game.app_id ?? game.folder), name: game.name, status: statusOf(game, c, t), path: isSteamOwned(game) ? "" : game.folder, size: sizeOf(game), kind: kindOf(game), source: sourceOf(game), plays: game.plays ?? 0, idle: idleDays(game), game })),
     ...absent.map(member => ({ key: `member-${member.app_id ?? member.id}`, name: member.name, status: { rank: 11, label: t("lmStatusNoFolder"), tone: "muted" as const }, path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, member })),
-    ...loose.map(([appId, entry]) => ({ key: `download-${appId}`, name: entry.game.name, status: downloadStatus(entry), path: "", size: 0, kind: "dd" as const, source: "", plays: 0, idle: null, download: entry })),
   ].sort(compareRows(sort));
   const columns = 10;
+  // One block per library: Game Access's own first, then each account's (apps/launcher/account_registry.py).
+  const groups = new Map<string, { title: string; hint: string; rows: GridRow[] }>([["gameaccess", { title: c.groupGameAccess, hint: c.groupHint, rows: [] }]]);
+  for (const row of gridRows) {
+    const library = row.game?.library;
+    const key = library ? `${library.store}:${library.account_id}` : "gameaccess";
+    if (!groups.has(key)) groups.set(key, { title: c.groupAccount("Steam", library?.account || library?.account_id || ""), hint: c.groupAccountHint, rows: [] });
+    groups.get(key)!.rows.push(row);
+  }
+  const blocks = [...groups.entries()].filter(([, group]) => group.rows.length);
   const selectable = rows.filter(game => game.app_id != null).map(game => String(game.app_id));
   const allSelected = selectable.length > 0 && selectable.every(key => selection[key]);
   const frozenStored = games.reduce((total, game) => total + (game.frozen ? game.frozen_bytes ?? game.size_bytes ?? 0 : 0), 0);
   const rowProps = { c, busy, locale, columns, expanded, setExpanded, selection, setSelection, largest, findCatalogGame, onInstall, onPlay, askPlan, setPending, setThawing: (game: LibraryGame, mode: FreezeMode) => setFreezing({ game, mode }),
     verify: (game: LibraryGame) => void verifyGames([game]), verdict, verifying: verifying?.id ?? null,
-    retry: (id: number) => void runBatch("adopt", [id]), configure: setConfiguring, focusId: focusAppId ?? null,
-    downloadOf: (id: number | null | undefined) => id == null ? undefined : downloads.get(id), queueLength };
+    retry: (id: number) => void runBatch("adopt", [id]), configure: (game: LibraryGame, card = false) => { setConfiguringCard(card); setConfiguring(game); }, focusId: focusAppId ?? null };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -734,7 +698,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
           <div className="lm-actions">
             <GaButton variant="primary" icon={<Wand2 size={16} />} disabled={busy || !fixable.length} onClick={() => void askPlan(fixable)}>{c.fixAll} ({fixable.length})</GaButton>
             <GaButton icon={<FolderInput size={16} />} disabled={busy} onClick={() => { rememberKnown(); setImportOpen(true); }}>{c.importGames}</GaButton>
-            <GaButton icon={<Gamepad2 size={16} />} disabled={busy} onClick={() => void importSteam()}>{t("steamImportNow")}</GaButton>
+            <GaButton icon={<Gamepad2 size={16} />} onClick={openAccounts}>{t("acctOpenFromManager")}</GaButton>
             <GaButton icon={<Link2 size={16} />} disabled={busy} onClick={() => setLinkOpen(true)}>{t("manualDownloadAdd")}</GaButton>
             {verifying
               ? <GaButton icon={<X size={16} />} onClick={() => { stopVerify.current = true; }} title={c.verifyNote}>{c.verifyRunning(verifying.done, verifying.total, verifying.name)} · {c.verifyCancel}</GaButton>
@@ -767,9 +731,10 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
                 <SortHeader id="idle" label={t("lmColIdle")} title={t("lmColIdleTitle")} sort={sort} setSort={setSort} t={t} />
                 <th className="lm-cell-acts"><span className="sr-only">{t("lmColActions")}</span></th>
               </tr></thead>
-              <tbody>
-                {gridRows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.download ? <DownloadRow key={row.key} row={row} entry={row.download} columns={columns} c={c} focusId={focusAppId ?? null} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
-              </tbody>
+              {blocks.map(([key, group]) => <tbody key={key} className="lm-group" data-library={key}>
+                {blocks.length > 1 ? <tr className="lm-group-row"><th colSpan={columns} scope="rowgroup"><span className="lm-group-title">{group.title}</span><span className="lm-group-count">{group.rows.length}</span><span className="lm-group-hint">{group.hint}</span></th></tr> : null}
+                {group.rows.map(row => row.game ? <ManagerRow key={row.key} row={row} game={row.game} {...rowProps} /> : row.member ? <AbsentRow key={row.key} row={row} game={row.member} c={c} onInstall={onInstall} /> : null)}
+              </tbody>)}
             </table> : <p className="lm-empty">{games.length || members.length ? c.empty : scanning ? c.scanning : c.noGames}</p>}
             <ThirdPartyApps c={c} />
           </div>
@@ -778,7 +743,7 @@ export default function GameLibraryManager({ onClose, catalog = [], onInstall, o
 
       {freezing ? <FreezeDialog game={findCatalogGame(freezing.game) ?? asGame(freezing.game)} mode={freezing.mode} onClose={() => setFreezing(null)} /> : null}
       {linkOpen ? <ManualLinkDialog onClose={() => setLinkOpen(false)} /> : null}
-      {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} onClose={() => setConfiguring(null)} /> : null}
+      {configuring ? <DigitalGameOptions game={findCatalogGame(configuring) ?? asGame(configuring)} cardOnly={!configurable(configuring)} openOnCard={configuringCard} onClose={() => setConfiguring(null)} /> : null}
       {importOpen ? <ImportWizard catalog={catalog} c={c} onClose={imported => { setImportOpen(false); if (imported) { notifyLibraryChanged(); void suggestVerify(); } }} /> : null}
       {pending?.kind === "plan" ? <PlanDialog plans={pending.plans} c={c} busy={busy} onConfirm={() => void confirmPending()} onCancel={() => setPending(null)} /> : null}
     </TooltipProvider>

@@ -1,7 +1,8 @@
+import { recordActivity } from "./activity/activity";
 import { digitalDownloadService } from "./catalog/DigitalDownloadService";
 import type { DownloadPhase, DownloadProgressSnapshot } from "./downloadProvider";
 import { translate } from "./i18n";
-import { hideNotice, showNotice, updateNotice } from "./notice/notice";
+import { hideNotice, showNotice, updateNotice, type NoticeGame } from "./notice/notice";
 import { noticeGame } from "./notice/noticeGame";
 
 const STARTING: ReadonlySet<DownloadPhase> = new Set(["queued", "preparing"]);
@@ -24,14 +25,21 @@ export function downloadNotice(previous: DownloadPhase | undefined, next: Downlo
   return null;
 }
 
-/** A download's one entry in the activity history (started, downloading, then ready or stopped). */
-export const downloadActivityKey = (gameId: number) => `download:${gameId}`;
+/**
+ * Each thing that happens to a download is its own entry of the activity history: added to the queue, started, and
+ * ready to play or stopped (Seba, 2026-11-12: the downloads in progress are on the Downloads screen, the history only
+ * tells what happened). The key starts with `download:` so the entry goes to the Downloads group.
+ */
+export type DownloadEvent = "queued" | "started" | "end";
+let eventCount = 0;
+export const downloadActivityKey = (gameId: number, event: DownloadEvent = "end") => `download:${gameId}:${event}:${Date.now()}:${eventCount++}`;
 const NOTICE_TONE = { info: "info", success: "ok", warning: "error", error: "error" } as const;
 const ACTIVITY_STATE = { info: "info", success: "done", warning: "failed", error: "failed" } as const;
 
 /**
  * The notice of a download that starts (in the corner with its bar, while no other notice comes), finishes, is
- * interrupted or is cancelled; all of them are the same entry of the activity history (docs/GUI_DESIGN.md §4.9).
+ * interrupted or is cancelled, each one an entry of the activity history (docs/GUI_DESIGN.md §4.9); a download added
+ * to the queue is only written in the history.
  */
 export function startDownloadNotifications(): () => void {
   const phases = new Map<number, DownloadPhase>();
@@ -43,15 +51,21 @@ export function startDownloadNotifications(): () => void {
     phases.set(snapshot.gameId, snapshot.phase);
     const liveId = live.get(snapshot.gameId);
     if (liveId !== undefined && previous === snapshot.phase) updateNotice(liveId, { progress: Math.max(0, Math.min(1, (snapshot.progress ?? 0) / 100)) });
+    const added = previous === undefined && STARTING.has(snapshot.phase);
     const notice = downloadNotice(previous, snapshot.phase);
-    if (!notice) return;
+    if (!notice && !added) return;
     const game = digitalDownloadService.getDownloads().find(entry => entry.snapshot.gameId === snapshot.gameId)?.game;
     const name = game?.name ?? `#${snapshot.gameId}`;
+    const who: NoticeGame = game ? noticeGame(game) : { name, appId: snapshot.gameId };
+    if (added) recordActivity({ key: downloadActivityKey(snapshot.gameId, "queued"), title: translate("activityDownloadQueued", { name }), tone: "info", state: "info",
+      kind: "download", appId: who.appId ?? undefined, name, image: who.image });
+    if (!notice) return;
     const started = notice.key === "toastDownloadStarted";
     const id = showNotice({
-      game: game ? noticeGame(game) : { name, appId: snapshot.gameId }, title: translate(notice.key, { name }), tone: NOTICE_TONE[notice.tone],
+      game: who, title: translate(notice.key, { name }), tone: NOTICE_TONE[notice.tone],
       progress: started ? (snapshot.progress ?? 0) / 100 : undefined,
-      activity: { key: downloadActivityKey(snapshot.gameId), state: started ? "running" : ACTIVITY_STATE[notice.tone] },
+      // "Started" is a thing that happened, not a process: the history shows it at once.
+      activity: started ? { key: downloadActivityKey(snapshot.gameId, "started"), state: "info" } : { key: downloadActivityKey(snapshot.gameId, "end"), state: ACTIVITY_STATE[notice.tone], severity: notice.tone === "warning" ? "warning" : undefined },
       ...(notice.tone === "warning" ? { actions: [{ label: translate("close"), run: () => hideNotice() }] } : {}),
     });
     if (started) live.set(snapshot.gameId, id); else live.delete(snapshot.gameId);
