@@ -36,7 +36,7 @@
   --ga-scene-frame-inset: 8px; --ga-scene-frame-radius: 34px; --ga-scene-frame-width: 1.5px; --ga-scene-frame-first-stop: 30%; --ga-scene-frame-clear-stop: 55%;
   --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
   --ga-scene-dock-clear: 20px; --ga-scene-cut-radius: 27px; --ga-scene-panel-radius: 40px;
-  --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-plan-size: 22px; --ga-scene-plan-pad: 6px; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-lock-size: 30px;
+  --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-plan-size: 22px; --ga-scene-plan-pad: 6px; --ga-scene-plan-pad-x: 14px; --ga-scene-plan-radius: 8px; --ga-scene-plan-edge: 1px; --ga-scene-plan-shine-w: 45%; --ga-scene-plan-shine-time: 3.2s; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-lock-size: 30px;
   --ga-scene-row-pad: 10px; --ga-scene-row-gap: 13px; --ga-scene-list-gap: 2px; --ga-scene-list-top: 10px; --ga-scene-copy-gap: 3px; --ga-scene-icon-drawing: 19px; --ga-scene-icon-stroke: 2.2px;
   --ga-scene-menu-head-gap: 12px; --ga-scene-menu-head-side: 6px; --ga-scene-menu-head-bottom: 14px; --ga-scene-menu-head-size: 21px;
   /* The figure's place; the player's scale and offsets (Settings › Appearance) replace these on the figure. */

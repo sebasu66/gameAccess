@@ -41,6 +41,16 @@ export default function AccountLibraries() {
     done: { tone: "ok", key: "acctLinkDone" }, cancelled: { tone: "warn", key: "acctLinkCancelled" },
     failed: { tone: "error", key: "acctLinkFailed" }, expired: { tone: "warn", key: "acctLinkExpired" },
   };
+  /**
+   * What went wrong, in words the player can act on (Seba, 2026-11-16: the buttons "did nothing"). The server without
+   * the sign-in (404, an older server) and no connection are told apart; anything else keeps its own message.
+   */
+  const failureText = (failure: unknown) => {
+    const message = String(failure instanceof Error ? failure.message : failure);
+    if (/404|not found/i.test(message)) return t("acctLinkNoServer");
+    if (/urlopen|getaddrinfo|timed out|connection|network|fetch/i.test(message)) return t("acctLinkOffline");
+    return t("acctLinkError", { error: message });
+  };
   const link = async (who = "") => {
     if (!native) return;
     abort.current?.abort();
@@ -51,7 +61,7 @@ export default function AccountLibraries() {
       const outcome = await linkSteamAccount({ signal: controller.signal });
       if (outcome !== "pending") setSaid({ tone: LINK_SAID[outcome].tone, text: t(LINK_SAID[outcome].key) });
       await load();
-    } catch (failure) { setSaid({ tone: "error", text: String(failure instanceof Error ? failure.message : failure) }); }
+    } catch (failure) { setSaid({ tone: "error", text: failureText(failure) }); }
     finally { if (abort.current === controller) { abort.current = null; setLinking(null); } }
   };
   const cancel = () => { abort.current?.abort(); abort.current = null; setLinking(null); };
@@ -91,6 +101,7 @@ export default function AccountLibraries() {
         <p role="status" className="ga-status"><Loader2 size={16} className="animate-spin" aria-hidden="true" />{linking ? t("acctWaitingFor", { name: linking }) : t("acctWaiting")}</p>
         <GaButton onClick={cancel}>{t("noticeCancel")}</GaButton>
       </div> : null}
+      {said ? <p role="status" className={`ga-status is-${said.tone}`}>{said.text}</p> : null}
       {accounts.length ? <ul className="ga-account-list">
         {accounts.map(account => {
           const name = account.persona_name || account.account_name || account.steam_id64;
@@ -119,7 +130,6 @@ export default function AccountLibraries() {
         </ul>
       </div> : null}
     </div>
-    {said ? <p role="status" className={`ga-status is-${said.tone}`}>{said.text}</p> : null}
     <p className="ga-hint">{t("acctMoreStores")}</p>
   </section>;
 }

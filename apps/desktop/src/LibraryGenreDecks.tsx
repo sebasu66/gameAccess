@@ -211,13 +211,18 @@ export default function LibraryGenreDecks({ games, downloads, indexes, onSelect 
   return <div ref={root} className="ga-decks">
       {decks.map(deck => {
         const open = deck.id === openId;
-        return <div key={deck.id} data-deck={deck.id} className={open ? "ga-deck is-open" : "ga-deck"} style={{ "--ga-deck-hue": hueOf(deck.id), "--ga-deck-chars": Math.max(4, deck.label.length) } as CSSProperties}
-          role="button" tabIndex={open ? -1 : 0} aria-expanded={open} aria-label={t("deckAria", { name: deck.label, n: deck.games.length })}
-          onClick={event => { pulse(event.currentTarget); request(open ? null : deck.id); }}
-          onKeyDown={event => { if (!open && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); request(deck.id); } }}>
+        // A deck of one card does not open (Seba, 2026-11-16): its mat stays as it is and the card opens its game, like
+        // any card of the library.
+        const single = deck.games.length === 1;
+        const openGame = () => { const at = indexes.get(deck.games[0].id); if (at != null) onSelect(at); };
+        return <div key={deck.id} data-deck={deck.id} className={open ? "ga-deck is-open" : single ? "ga-deck is-single" : "ga-deck"} style={{ "--ga-deck-hue": hueOf(deck.id), "--ga-deck-chars": Math.max(4, deck.label.length) } as CSSProperties}
+          role="button" tabIndex={open ? -1 : 0} aria-expanded={single ? undefined : open}
+          aria-label={single ? t("deckSingleAria", { name: deck.label, game: deck.games[0].name }) : t("deckAria", { name: deck.label, n: deck.games.length })}
+          onClick={event => { if (single) { openGame(); return; } pulse(event.currentTarget); request(open ? null : deck.id); }}
+          onKeyDown={event => { if (!open && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); if (single) openGame(); else request(deck.id); } }}>
           <span className="ga-deck-plate" aria-hidden="true"><span className="ga-deck-word">{deck.label}</span><svg className="ga-deck-ring" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" /><circle className="ga-deck-ring-dot" cx="24" cy="24" r="4" /></svg></span>
           <div className="ga-deck-head">
-            <small className="ga-deck-count">{t("deckGames", { n: deck.games.length })}</small>
+            <small className="ga-deck-count">{single ? t("deckOneGame") : t("deckGames", { n: deck.games.length })}</small>
             {open ? <button type="button" className="ga-deck-close" onClick={event => { event.stopPropagation(); request(null); }} aria-label={t("deckCloseAria", { name: deck.label })}>✕ {t("deckClose")}</button> : null}
           </div>
           <div className="ga-deck-stack">

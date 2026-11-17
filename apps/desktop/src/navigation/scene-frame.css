@@ -78,9 +78,16 @@ html.ga-navigation-shell body::before {
 .ga-scene-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--ga-scene-radius); }
 .ga-scene-art-glow { position: absolute; left: var(--ga-scene-glow-left); top: 2%; width: 78%; aspect-ratio: 1; border-radius: 50%; background: var(--ga-mode); filter: blur(var(--ga-scene-glow-blur)); opacity: var(--ga-scene-glow-opacity); animation: ga-scene-glow var(--ga-scene-glow-time) ease-in-out infinite; }
 /* The plan, always in sight at the column's top right, over the art (the number sits lower). */
-.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); background: transparent; color: var(--ga-accent); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time); }
+.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: filter var(--ga-nav-drawer-time); }
 html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-content-right) + var(--ga-scene-inner)); }
-.ga-scene-plan:hover { background: var(--ga-accent); color: var(--ga-accent-ink); }
+/* A metal badge: silver BASE, gold PLUS with a light that sweeps across it now and then. */
+.ga-scene-plan { overflow: hidden; isolation: isolate; padding: var(--ga-scene-plan-pad) var(--ga-scene-plan-pad-x); border-radius: var(--ga-scene-plan-radius);
+  background: var(--ga-plan-base-metal); color: var(--ga-plan-base-ink); box-shadow: inset 0 0 0 var(--ga-scene-plan-edge) var(--ga-plan-base-edge), 0 0 var(--ga-scene-plan-pad-x) var(--ga-plan-base-glow); }
+.ga-scene-plan.is-plus { background: var(--ga-plan-plus-metal); color: var(--ga-plan-plus-ink); box-shadow: inset 0 0 0 var(--ga-scene-plan-edge) var(--ga-plan-plus-edge), 0 0 calc(var(--ga-scene-plan-pad-x) * 1.6) var(--ga-plan-plus-glow); }
+.ga-scene-plan.is-plus::after { content: ""; position: absolute; inset: 0; z-index: -1; width: var(--ga-scene-plan-shine-w); background: var(--ga-plan-shine); mix-blend-mode: overlay; transform: translateX(-120%) skewX(-18deg); animation: ga-plan-shine var(--ga-scene-plan-shine-time) ease-in-out infinite; pointer-events: none; }
+@keyframes ga-plan-shine { 0%, 55% { transform: translateX(-120%) skewX(-18deg); } 100% { transform: translateX(340%) skewX(-18deg); } }
+.ga-scene-plan:hover { filter: brightness(1.12); }
+@media (prefers-reduced-motion: reduce) { .ga-scene-plan.is-plus::after { animation: none; opacity: 0; } }
 .ga-scene-plan:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-accent); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-art-number { position: absolute; right: var(--ga-scene-number-right); top: var(--ga-scene-number-top); color: transparent; -webkit-text-stroke: var(--ga-scene-number-stroke) var(--ga-scene-number-ink); font: 400 var(--ga-scene-number-size)/.8 var(--ga-scene-display-family); user-select: none; }
 .ga-scene-particles { position: absolute; top: 0; bottom: 0; left: 0; right: calc(-1 * var(--ga-scene-particle-overhang)); pointer-events: none !important; }

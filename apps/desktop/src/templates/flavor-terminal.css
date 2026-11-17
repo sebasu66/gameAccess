@@ -41,6 +41,10 @@
   /* Genre decks: ink, rules, the cards' shadows and how dark the back of the fan is. */
   --ga-deck-ink: var(--ga-white); --ga-deck-muted: var(--ga-muted); --ga-deck-line: var(--ga-line); --ga-deck-close-bg: var(--ga-surface); --ga-deck-card-line: #00000040; --ga-deck-card-bg: var(--ga-scene-figure-bg);
   /* The printed card: paper border, scratches (blended over the card) and the flash's light. */
+  /* The plan badge (Seba, 2026-11-16): BASE in silver, PLUS in gold with a moving shine, clearly the louder one. */
+  --ga-plan-base-metal: linear-gradient(160deg, #f4f6f8 0%, #c3c9cf 38%, #8e979f 62%, #dfe3e7 100%); --ga-plan-base-ink: #23292e; --ga-plan-base-edge: #ffffff8c; --ga-plan-base-glow: #c3c9cf33;
+  --ga-plan-plus-metal: linear-gradient(160deg, #fff3c4 0%, #f2c24f 35%, #b67d17 62%, #ffe08a 100%); --ga-plan-plus-ink: #2b1a02; --ga-plan-plus-edge: #fff1b8; --ga-plan-plus-glow: #f2c24f8c;
+  --ga-plan-shine: linear-gradient(105deg, transparent 0%, #ffffffd9 50%, transparent 100%);
   --ga-deck-paper: #f2eee4; --ga-deck-scratch-image: url("/textures/scratches.jpg"); --ga-deck-scratch-dark-image: url("/textures/scratches-dark.jpg"); --ga-deck-scratch-light: .5; --ga-deck-scratch-dark: .28; --ga-deck-glare-ink: #fff; --ga-deck-glare-strength: 62%;
   /* The deck's plate: a muted colour from the deck's own hue (--ga-deck-hue), and its big word in outline. */
   --ga-deck-plate-s: 24%; --ga-deck-plate-l: 19%; --ga-deck-plate-l2: 9%; --ga-deck-bevel-light: #ffffff2e; --ga-deck-bevel-dark: #000000bf; --ga-deck-slab-shadow: 0 3px 0 #000000d9, 0 12px 20px #0000008c;

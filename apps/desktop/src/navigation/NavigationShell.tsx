@@ -114,7 +114,7 @@ export default function NavigationShell() {
     <button type="button" className="ga-nav-drawer-tab" aria-expanded={drawer.state !== "closed"} aria-label={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")}
       title={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")} onClick={drawer.toggle}><ChevronLeft aria-hidden="true" /></button>
     {/* The plan, always in sight: at the first column's top right, or at the content's when that column is folded away. */}
-    <button type="button" className="ga-scene-plan" onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
+    <button type="button" className={tier ? "ga-scene-plan is-plus" : "ga-scene-plan"} onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
     <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
     <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />
