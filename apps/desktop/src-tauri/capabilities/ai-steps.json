@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ai-steps-window",
+  "description": "The small Connect AI window: only what a page needs to call the app's own commands.",
+  "windows": [
+    "ai-steps"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

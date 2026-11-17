@@ -1,0 +1,249 @@
+/* RN2: shell geometry. All dimensions are in templates/base.css; look and mode colors in the flavor layer. */
+html.ga-navigation-shell {
+  --ga-nav-left: calc(var(--ga-frame-left, 0px) + var(--ga-nav-outer-pad));
+  --ga-nav-right: calc(var(--ga-frame-right, 0px) + var(--ga-nav-outer-pad));
+  --ga-nav-top: calc(var(--ga-frame-offset, 0px) + var(--ga-nav-outer-pad));
+  --ga-nav-bottom: calc(var(--ga-frame-bottom, 0px) + var(--ga-nav-status-h) + var(--ga-nav-status-gap));
+  /* Every panel (mode bar, sections, content, activity) has the same cut corner, same size and angle (Seba, 2026-11-11). */
+  --ga-nav-panel-shape: polygon(0 0, 100% 0, 100% calc(100% - var(--ga-nav-panel-cut)), calc(100% - var(--ga-nav-panel-cut)) 100%, 0 100%);
+  --ga-nav-content-left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + 2 * var(--ga-nav-column-gap));
+  /* Never narrower than its minimum: a window too narrow even for that cuts the content at its right edge (no scrollbar). */
+  --ga-nav-content-right: min(calc(var(--ga-nav-right) + var(--ga-nav-activity-w) + var(--ga-nav-activity-gap)), calc(100vw - var(--ga-nav-content-left) - var(--ga-nav-content-min)));
+  /* The content starts under the header row, level with the section's title (§4.3). */
+  --ga-nav-head-h: calc(2 * var(--ga-nav-section-pad) + var(--ga-nav-hero-h));
+}
+html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav-backdrop) !important; }
+/* The content panel's colour at its left edge, a muted wash of the mode's colour; the sections panel's image fades into it. */
+.ga-nav-shell, html.ga-navigation-shell body { --ga-nav-stage-base: color-mix(in srgb, var(--ga-mode) var(--ga-nav-stage-tint), var(--ga-nav-void)); }
+.ga-nav-shell { position: fixed; inset: 0; z-index: 50; pointer-events: none; color: var(--ga-nav-shell-ink); }
+.ga-nav-shell > * { pointer-events: auto; }
+.ga-nav-shell[data-mode="catalog"], html[data-ga-nav-mode="catalog"] { --ga-mode: var(--ga-nav-catalog); --ga-mode-acc: var(--ga-nav-catalog-acc); --ga-nav-panel-image: var(--ga-nav-panel-catalog); }
+.ga-nav-shell[data-mode="library"], html[data-ga-nav-mode="library"] { --ga-mode: var(--ga-nav-library); --ga-mode-acc: var(--ga-nav-library-acc); --ga-nav-panel-image: var(--ga-nav-panel-library); }
+.ga-nav-shell[data-mode="gameAccess"], html[data-ga-nav-mode="gameAccess"] { --ga-mode: var(--ga-nav-game-access); --ga-mode-acc: var(--ga-nav-game-access-acc); --ga-nav-panel-image: var(--ga-nav-panel-game-access); }
+.ga-nav-shell[data-mode="settings"], html[data-ga-nav-mode="settings"] { --ga-mode: var(--ga-nav-settings); --ga-mode-acc: var(--ga-nav-settings-acc); --ga-nav-panel-image: var(--ga-nav-panel-settings); }
+.ga-nav-modes, .ga-nav-sections, .ga-nav-activity { position: absolute; top: var(--ga-nav-top); bottom: var(--ga-nav-bottom); }
+/* The activity column carries on the screen's fade: a trace of the mode's wash on its left, near black by its far side,
+   and a thin strip of the mode's colour on its outer edge, so the mode bar and it frame the whole window (Seba, 2026-11-11). */
+.ga-nav-activity { overflow: hidden; box-sizing: border-box; border-right: var(--ga-nav-activity-edge) solid var(--ga-mode);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ga-nav-stage-base) var(--ga-nav-activity-tint), var(--ga-nav-void)), var(--ga-nav-void) var(--ga-nav-activity-fade)); clip-path: var(--ga-nav-panel-shape); }
+.ga-nav-shell[data-rail-graphic="paper"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-paper); --ga-nav-rail-pattern-opacity: var(--ga-nav-grain-opacity); }
+.ga-nav-shell[data-rail-graphic="hazard"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-hazard); }
+.ga-nav-shell[data-rail-graphic="circuit"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-circuit); }
+.ga-nav-shell[data-rail-graphic="racing"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-racing); }
+.ga-nav-shell[data-rail-graphic="dots"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-dots); }
+.ga-nav-shell[data-rail-graphic="stripes"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-stripes); }
+.ga-nav-shell[data-rail-graphic="checker"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-checker); }
+.ga-nav-shell[data-rail-graphic="plain"] { --ga-nav-rail-pattern: var(--ga-nav-graphic-plain); }
+
+/* Mode bar (§4.1): the current mode's word, then the other three as diagonal bands in the tree's order. */
+.ga-nav-modes { left: var(--ga-nav-left); width: var(--ga-nav-mode-w); display: flex; flex-direction: column; overflow: hidden; background: var(--ga-mode);
+  clip-path: var(--ga-nav-panel-shape); }
+.ga-nav-modes::before { content: ""; position: absolute; inset: 0; background: var(--ga-nav-rail-pattern, none); opacity: var(--ga-nav-rail-pattern-opacity, 1); mix-blend-mode: multiply; pointer-events: none; }
+.ga-nav-word-box { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: var(--ga-nav-word-pad) 0 calc(var(--ga-nav-mode-slant) + var(--ga-nav-word-pad)); box-sizing: border-box; }
+.ga-nav-word-box[data-align="top"] { justify-content: flex-start; }
+.ga-nav-word-box[data-align="bottom"] { justify-content: flex-end; }
+.ga-nav-word { flex: none; writing-mode: vertical-rl; white-space: nowrap; color: var(--ga-nav-ink-dark); font: var(--ga-nav-display-style) 400 var(--ga-nav-title-size)/var(--ga-nav-word-leading) var(--ga-nav-word-family, var(--ga-nav-display-family)); letter-spacing: var(--ga-nav-word-tracking); text-transform: var(--ga-nav-display-case); font-synthesis: none; }
+.ga-nav-word[data-orientation="up"] { transform: rotate(180deg); }
+.ga-nav-word[data-orientation="stacked"] { text-orientation: upright; letter-spacing: calc(var(--ga-nav-word-tracking) + var(--ga-nav-word-stack-shift)); }
+.ga-nav-word-in, .ga-nav-word-char { display: inline-block; }
+.ga-nav-bands { position: relative; display: flex; flex-direction: column; gap: var(--ga-nav-band-gap); margin-top: calc(-1 * var(--ga-nav-mode-slant)); padding-top: var(--ga-nav-band-gap); background: var(--ga-nav-ink-dark);
+  clip-path: polygon(0 var(--ga-nav-mode-slant), 100% 0, 100% 100%, 0 100%); }
+.ga-nav-band { position: relative; flex: none; height: var(--ga-nav-band-h); margin-top: calc(-1 * var(--ga-nav-mode-slant)); padding: 0; border: 0; display: grid; place-items: center; background: var(--ga-band); color: var(--ga-nav-shell-ink); cursor: pointer;
+  clip-path: polygon(0 var(--ga-nav-mode-slant), 100% 0, 100% calc(100% - var(--ga-nav-mode-slant)), 0 100%); filter: var(--ga-nav-band-rest); transition: filter var(--ga-nav-hover-time); }
+.ga-nav-band:first-child { margin-top: 0; }
+.ga-nav-band:last-child { clip-path: polygon(0 var(--ga-nav-mode-slant), 100% 0, 100% 100%, 0 100%); }
+.ga-nav-band[data-target="catalog"] { --ga-band: var(--ga-nav-catalog); }
+.ga-nav-band[data-target="library"] { --ga-band: var(--ga-nav-library); }
+.ga-nav-band[data-target="gameAccess"] { --ga-band: var(--ga-nav-game-access); }
+.ga-nav-band[data-target="settings"] { --ga-band: var(--ga-nav-settings); }
+.ga-nav-band:hover, .ga-nav-band:focus-visible { filter: var(--ga-nav-band-hover); outline: none; }
+.ga-nav-band svg { width: var(--ga-nav-band-icon); height: var(--ga-nav-band-icon); fill: none; stroke-width: var(--ga-nav-band-icon-line); filter: var(--ga-nav-icon-drop); transition: transform var(--ga-nav-hover-time); }
+.ga-nav-band:hover svg, .ga-nav-band:focus-visible svg { transform: scale(var(--ga-nav-icon-grow)); }
+.ga-nav-shell[data-icon-fill="duotone"] .ga-nav-band svg { fill: var(--ga-nav-duotone); }
+.ga-nav-shell[data-icon-fill="glass"] .ga-nav-band svg { fill: var(--ga-nav-glass); }
+.ga-nav-shell[data-icon-fill="glass"] .ga-nav-band::after { content: ""; position: absolute; inset: var(--ga-nav-mode-slant) var(--ga-nav-word-pad) auto; height: 40%; background: linear-gradient(180deg, var(--ga-nav-glass-shine), var(--ga-nav-glass-clear)); pointer-events: none; }
+.ga-nav-shell[data-icon-fill="neon"] .ga-nav-band svg { filter: drop-shadow(0 0 var(--ga-nav-neon-near) var(--ga-nav-neon)) drop-shadow(0 0 var(--ga-nav-neon-far) color-mix(in srgb, var(--ga-band) 60%, var(--ga-nav-neon))); }
+.ga-nav-band em { position: absolute; top: var(--ga-nav-mode-slant); right: var(--ga-nav-mode-badge-inset); min-width: var(--ga-nav-mode-badge); height: var(--ga-nav-mode-badge); padding: 0 var(--ga-feed-tight); box-sizing: border-box; border-radius: var(--ga-nav-mode-badge); background: var(--ga-nav-shell-ink); color: var(--ga-nav-badge-ink); font: 800 var(--ga-nav-caption-size)/var(--ga-nav-mode-badge) var(--ga-text-family); font-style: normal; text-align: center; }
+
+/* Sections panel (§4.2): its image under a shade, three stripes at the cut corner, the chosen section as a title over the content. */
+.ga-nav-sections { left: calc(var(--ga-nav-left) + var(--ga-nav-mode-w) + var(--ga-nav-column-gap)); width: var(--ga-nav-sections-w); }
+.ga-nav-panel-art { position: absolute; inset: 0; overflow: clip; background: var(--ga-nav-void);
+  clip-path: var(--ga-nav-panel-shape); }
+.ga-nav-panel-art > i { position: absolute; inset: 0; }
+.ga-nav-panel-art > .ga-nav-panel-image { inset: calc(-1 * var(--ga-nav-panel-bleed)); background: var(--ga-nav-panel-image) 50% 100% / cover no-repeat; opacity: var(--ga-nav-panel-image-opacity); filter: blur(var(--ga-nav-panel-blur)); }
+.ga-nav-panel-tint { background: var(--ga-mode); mix-blend-mode: color; opacity: var(--ga-nav-panel-tint); }
+.ga-nav-panel-shade { background: var(--ga-nav-panel-shade-fill); }
+/* In its lower corner the image sinks into the content panel's colour, so it meets the panel beside it (Seba, 2026-11-11). */
+.ga-nav-panel-fade { background: radial-gradient(var(--ga-nav-panel-fade-shape) at 100% 100%, var(--ga-nav-stage-base) var(--ga-nav-panel-fade-hold), transparent var(--ga-nav-panel-fade-reach)); }
+.ga-nav-panel-scan { background: var(--ga-nav-scan-fill); opacity: var(--ga-nav-scan-opacity); }
+
+.ga-nav-hero { position: absolute; z-index: 2; top: var(--ga-nav-section-pad); left: var(--ga-nav-section-pad); width: calc(100% - var(--ga-nav-section-pad) + var(--ga-nav-title-overhang)); height: var(--ga-nav-hero-h); pointer-events: none; }
+.ga-nav-hero-plate { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--ga-nav-hero-gap); padding: 0 calc(var(--ga-nav-hero-tip) + var(--ga-nav-section-gap)) 0 calc(var(--ga-nav-hero-edge) + var(--ga-nav-section-pad)); box-sizing: border-box; color: var(--ga-nav-shell-ink);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode-acc) 78%, var(--ga-nav-void)) 0, color-mix(in srgb, var(--ga-mode-acc) 34%, var(--ga-nav-hero-end)) 46%, var(--ga-nav-hero-end) 100%);
+  clip-path: polygon(0 0, calc(100% - var(--ga-nav-hero-tip)) 0, 100% 50%, calc(100% - var(--ga-nav-hero-tip)) 100%, 0 100%); }
+.ga-nav-hero-plate::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--ga-nav-hero-edge); background: var(--ga-nav-shell-ink); }
+.ga-nav-hero-plate::after { content: ""; position: absolute; inset: 0; background: var(--ga-nav-hero-scan-fill); opacity: var(--ga-nav-scan-opacity); }
+.ga-nav-hero-name { position: relative; margin: 0; overflow: hidden; white-space: nowrap; font: var(--ga-nav-display-style) 400 var(--ga-nav-hero-name-size)/var(--ga-nav-word-leading) var(--ga-nav-display-family); text-transform: var(--ga-nav-display-case); text-shadow: var(--ga-nav-title-shadow); }
+/* The scan lines are for the big name only: the small line sits above them, solid, with a shadow under its letters. */
+.ga-nav-hero-desc { position: relative; z-index: 1; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: var(--ga-nav-hero-desc-opacity); text-shadow: 0 var(--ga-nav-hero-desc-shadow-y) var(--ga-nav-hero-desc-shadow-blur) var(--ga-nav-text-shadow); font: var(--ga-nav-hero-desc-weight) var(--ga-nav-hero-desc-size)/var(--ga-t2-leading) var(--ga-text-family); letter-spacing: var(--ga-nav-caption-tracking); }
+
+/* Three chevrons at an arrow's tip: always lit on the title, out of the tip on a section's hover (they never take the text's room). */
+.ga-nav-chevrons { --ga-nav-d: var(--ga-nav-button-cut); --ga-nav-t: var(--ga-nav-chevron-t); --ga-nav-g: var(--ga-nav-chevron-g); position: absolute; left: 100%; top: 0; width: 0; height: 100%; pointer-events: none; }
+.ga-nav-chevrons i { position: absolute; top: 0; height: 100%; width: calc(var(--ga-nav-t) + var(--ga-nav-d)); left: calc(-1 * var(--ga-nav-d) + var(--ga-nav-g) + var(--ga-nav-chevron-i) * (var(--ga-nav-t) + var(--ga-nav-g)));
+  clip-path: polygon(0 0, var(--ga-nav-t) 0, 100% 50%, var(--ga-nav-t) 100%, 0 100%, var(--ga-nav-d) 50%); background: color-mix(in srgb, var(--ga-mode-acc) 55%, var(--ga-nav-chevron-dark));
+  opacity: 0; transform: translateX(calc(-1 * var(--ga-nav-chevron-travel))); transition: opacity var(--ga-nav-hover-time), transform var(--ga-nav-grow-time); transition-delay: calc(var(--ga-nav-chevron-i) * var(--ga-nav-chevron-delay)); }
+.ga-nav-chevrons-big { --ga-nav-d: var(--ga-nav-hero-tip); --ga-nav-t: var(--ga-nav-chevron-big-t); --ga-nav-g: var(--ga-nav-chevron-big-g); }
+.ga-nav-chevrons-big i { opacity: 1; transform: none; transition: none; background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode-acc) 85%, var(--ga-nav-void)), color-mix(in srgb, var(--ga-mode-acc) 55%, var(--ga-nav-chevron-dark))); }
+
+/* Under the title: the section's submodes, then the other sections, with the same air between them (§4.2). */
+/* overflow-x: clip: a section leaving in a swap hides at the panel's left edge, behind column 1 (sectionSwap.ts). */
+.ga-nav-panel-flow { position: relative; z-index: 1; flex: 1 1 auto; min-width: 0; overflow-x: clip; display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); padding: calc(var(--ga-nav-section-pad) + var(--ga-nav-hero-h) + var(--ga-nav-section-gap)) 0 0 var(--ga-nav-section-pad); }
+.ga-nav-section-list { display: flex; flex-direction: column; gap: var(--ga-nav-section-gap); margin: 0; padding: 0; list-style: none; }
+/* A section's submodes as pills (§4.2): each as long as its name, wrapping row after row; a dot marks the active one.
+   The shape (radius, slanted edges, cut corners), the edge, the shadow and the dot come from the style; the fill is always flat so the name reads well. */
+.ga-nav-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-nav-pill-gap); margin: 0; padding: 0 var(--ga-nav-section-room) 0 var(--ga-nav-tab-indent); list-style: none; }
+.ga-nav-tabs > li { filter: drop-shadow(var(--ga-nav-pill-shadow-x) var(--ga-nav-pill-shadow-y) var(--ga-nav-pill-shadow-blur) color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-pill-shadow-tint), var(--ga-nav-pill-shadow-ink))); }
+.ga-nav-tab { --ga-nav-pill-shape: polygon(var(--ga-nav-pill-slant) 0, calc(100% - var(--ga-nav-pill-chamfer)) 0, 100% var(--ga-nav-pill-chamfer), calc(100% - var(--ga-nav-pill-slant)) 100%, var(--ga-nav-pill-chamfer) 100%, 0 calc(100% - var(--ga-nav-pill-chamfer)));
+  position: relative; display: inline-flex; align-items: center; gap: var(--ga-nav-pill-dot-gap); height: var(--ga-nav-pill-h); padding: 0 calc(var(--ga-nav-pill-pad) + var(--ga-nav-pill-slant)) 0 calc(var(--ga-nav-pill-pad) + var(--ga-nav-pill-slant) * .5);
+  box-sizing: border-box; border: 0; border-radius: var(--ga-nav-pill-radius); background: none; isolation: isolate; color: var(--ga-nav-shell-ink);
+  font: var(--ga-nav-display-style) var(--ga-nav-pill-weight) var(--ga-nav-pill-size)/1 var(--ga-nav-pill-family); text-transform: var(--ga-nav-pill-case); letter-spacing: var(--ga-nav-pill-tracking); white-space: nowrap; cursor: pointer; transition: background var(--ga-nav-hover-time), color var(--ga-nav-hover-time); }
+/* The pill's shape is drawn by its two layers (the edge, then the fill), so a tooltip inside is not cut. */
+.ga-nav-tab::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: var(--ga-nav-pill-radius); clip-path: var(--ga-nav-pill-shape); background: var(--ga-nav-pill-line); transition: background var(--ga-nav-hover-time); }
+.ga-nav-tab::after { content: ""; position: absolute; z-index: -1; inset: var(--ga-nav-pill-edge); border-radius: max(0px, calc(var(--ga-nav-pill-radius) - var(--ga-nav-pill-edge))); clip-path: var(--ga-nav-pill-shape);
+  background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint), var(--ga-nav-pill-base)); transition: background var(--ga-nav-hover-time); }
+.ga-nav-tab { max-width: 100%; }
+.ga-nav-tab > * { position: relative; }
+.ga-nav-tab > span:not(.ga-nav-lock) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ga-nav-tab-dot { flex: none; width: var(--ga-nav-pill-dot); height: var(--ga-nav-pill-dot); box-sizing: border-box; border: var(--ga-nav-pill-dot-ring) solid currentColor; border-radius: var(--ga-nav-pill-dot-radius); transform: rotate(var(--ga-nav-pill-dot-turn)); opacity: var(--ga-nav-pill-dot-off); transition: background var(--ga-nav-hover-time), opacity var(--ga-nav-hover-time), box-shadow var(--ga-nav-hover-time); }
+.ga-nav-tab:not(:disabled):hover::after, .ga-nav-tab:focus-visible::after { background: color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-tab-tint-hover), var(--ga-nav-pill-base)); }
+.ga-nav-tab:not(:disabled):hover::before, .ga-nav-tab:focus-visible::before { background: var(--ga-nav-shell-ink); }
+.ga-nav-tab:focus-visible { outline: none; }
+.ga-nav-tab:not(:disabled):hover .ga-nav-tab-dot { opacity: 1; }
+.ga-nav-tab[aria-current="page"] { color: var(--ga-nav-ink-dark); }
+.ga-nav-tab[aria-current="page"]::before { background: var(--ga-nav-pill-line-on); }
+.ga-nav-tab[aria-current="page"]::after { background: var(--ga-mode-acc); }
+.ga-nav-tab[aria-current="page"] .ga-nav-tab-dot { opacity: 1; background: currentColor; box-shadow: 0 0 0 var(--ga-nav-pill-dot-ring) color-mix(in srgb, var(--ga-nav-shell-ink) 60%, transparent); }
+/* A submode without a screen yet keeps the same pill: only its letters and dot dim. */
+.ga-nav-tab:disabled { color: var(--ga-nav-shell-muted); cursor: default; }
+.ga-nav-tab:disabled .ga-nav-tab-dot { border-style: dashed; }
+.ga-nav-tab:disabled > span:not(.ga-nav-lock) { opacity: var(--ga-nav-tab-off-text); }
+/* Outside the plan (§5.12): same look as the others, a white padlock beside the name; on hover it says «Disponible en PLUS». */
+.ga-nav-lock { position: relative; flex: none; display: grid; place-items: center; width: var(--ga-nav-lock-size); height: var(--ga-nav-lock-size); color: var(--ga-nav-shell-ink); cursor: help; }
+.ga-nav-lock svg { width: 100%; height: 100%; }
+.ga-nav-lock::after { content: attr(data-tip); position: absolute; z-index: 5; bottom: calc(100% + var(--ga-nav-lock-tip-gap)); left: 50%; transform: translate(-50%, var(--ga-nav-lock-tip-rise)); padding: var(--ga-nav-lock-tip-pad);
+  border: var(--ga-nav-line-w) solid var(--ga-plus-gold-line); border-radius: var(--ga-nav-lock-tip-radius); background: var(--ga-nav-void); color: var(--ga-plus-gold-label);
+  font: 700 var(--ga-nav-section-desc-size)/1 var(--ga-text-family); font-style: normal; letter-spacing: var(--ga-nav-caption-tracking); text-transform: none; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity var(--ga-nav-hover-time), transform var(--ga-nav-hover-time); }
+.ga-nav-lock:hover::after, :focus-visible > .ga-nav-lock::after { opacity: 1; transform: translate(-50%, 0); }
+/* On a section the padlock sits in the arrow's tip, which the text never uses, so names keep their room. */
+/* On a section the padlock follows the name like one more letter: solid, in PLUS gold. */
+.ga-nav-lock-inline { width: var(--ga-nav-lock-inline); height: var(--ga-nav-lock-inline); color: var(--ga-plus-gold-label); }
+.ga-nav-lock-inline svg { fill: currentColor; }
+.ga-nav-lock-inline .ga-nav-lock-shackle { fill: none; stroke: currentColor; stroke-width: var(--ga-nav-lock-shackle); }
+.ga-nav-section { --ga-nav-arrow: var(--ga-nav-button-cut); position: relative; width: calc(100% - var(--ga-nav-section-room)); height: var(--ga-nav-section-h);
+  display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; padding: 0 max(var(--ga-nav-arrow), var(--ga-nav-section-gap)) 0 calc(var(--ga-nav-section-mark) * var(--ga-nav-section-text-at) + var(--ga-nav-section-gap)); border: 0; background: none; color: var(--ga-nav-shell-ink); text-align: left; cursor: pointer; transition: filter var(--ga-nav-hover-time); }
+.ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after { position: absolute; clip-path: polygon(0 0, calc(100% - var(--ga-nav-arrow)) 0, 100% 50%, calc(100% - var(--ga-nav-arrow)) 100%, 0 100%); }
+.ga-nav-section-shape { inset: 0; background: var(--ga-nav-section-line); transition: background var(--ga-nav-hover-time); }
+.ga-nav-section-shape, .ga-nav-section-shape::before, .ga-nav-section-shape::after, .ga-nav-hero-plate { border-radius: var(--ga-nav-button-radius); }
+.ga-nav-section-shape::before, .ga-nav-section-shape::after { content: ""; inset: var(--ga-nav-line-w); }
+.ga-nav-section-shape::before { background: linear-gradient(90deg, var(--ga-nav-section-fill), var(--ga-nav-section-fill-end)); backdrop-filter: blur(var(--ga-nav-glass-blur)); }
+.ga-nav-section-shape::after { background: linear-gradient(90deg, color-mix(in srgb, var(--ga-mode-acc) 30%, transparent), transparent 70%); opacity: 0; transition: opacity var(--ga-nav-hover-time); }
+.ga-nav-section::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--ga-nav-section-bar); background: var(--ga-mode-acc); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) var(--ga-mode-acc); transform: scaleY(0); transform-origin: 50% 0; transition: transform var(--ga-nav-grow-time); }
+.ga-nav-section-mark { position: absolute; z-index: 1; top: 50%; left: calc(var(--ga-nav-section-mark) * (var(--ga-nav-section-mark-show) - 1)); width: var(--ga-nav-section-mark); height: var(--ga-nav-section-mark); transform: translateY(-50%);
+  color: var(--ga-nav-shell-ink); opacity: var(--ga-nav-section-mark-opacity); transition: color var(--ga-nav-hover-time), opacity var(--ga-nav-hover-time);
+  /* More than half of the drawing shows; its right side fades out behind the name. */
+  -webkit-mask-image: var(--ga-nav-section-mark-fade); mask-image: var(--ga-nav-section-mark-fade); }
+.ga-nav-section-mark svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: var(--ga-nav-section-mark-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.ga-nav-section-mark .f { fill: currentColor; fill-opacity: var(--ga-nav-section-mark-fill); }
+.ga-nav-section-mark .s { fill: currentColor; fill-opacity: var(--ga-nav-section-mark-fill-strong); }
+.ga-nav-section-text { position: relative; min-width: 0; display: flex; flex-direction: column; gap: var(--ga-nav-hero-gap); }
+.ga-nav-section-title { display: flex; align-items: center; gap: var(--ga-nav-lock-inline-gap); min-width: 0; }
+.ga-nav-section-name { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font: var(--ga-nav-display-style) 400 var(--ga-nav-section-name-size)/var(--ga-nav-name-leading) var(--ga-nav-display-family); text-transform: var(--ga-nav-display-case); letter-spacing: var(--ga-nav-word-tracking); }
+.ga-nav-section-desc { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-nav-pale); opacity: var(--ga-nav-desc-opacity); font: 500 var(--ga-nav-section-desc-size)/var(--ga-t2-leading) var(--ga-text-family); letter-spacing: var(--ga-nav-caption-tracking); }
+.ga-nav-section:not(:disabled):hover .ga-nav-section-shape, .ga-nav-section:focus-visible .ga-nav-section-shape { background: color-mix(in srgb, var(--ga-mode-acc) 70%, var(--ga-nav-shell-ink)); }
+.ga-nav-section:not(:disabled):hover .ga-nav-section-shape::after, .ga-nav-section:focus-visible .ga-nav-section-shape::after { opacity: 1; }
+.ga-nav-section:not(:disabled):hover::after, .ga-nav-section:focus-visible::after { transform: scaleY(1); }
+.ga-nav-section:not(:disabled):hover .ga-nav-section-mark, .ga-nav-section:focus-visible .ga-nav-section-mark { color: var(--ga-mode-acc); opacity: var(--ga-nav-section-mark-opacity-on); }
+.ga-nav-section:not(:disabled):hover .ga-nav-chevrons i, .ga-nav-section:focus-visible .ga-nav-chevrons i { opacity: 1; transform: none; }
+.ga-nav-section:focus-visible { outline: none; }
+.ga-nav-section-list:has(.ga-nav-section:not(:disabled):hover) .ga-nav-section:not(:hover) { filter: brightness(var(--ga-nav-dim-hover)); }
+.ga-nav-section:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
+@media (prefers-reduced-motion: reduce) { .ga-nav-band, .ga-nav-band svg, .ga-nav-section, .ga-nav-section *, .ga-nav-section::after, .ga-nav-chevrons i { transition: none; } }
+.ga-nav-activity { right: var(--ga-nav-right); width: var(--ga-nav-activity-w); display: flex; flex-direction: column; border-left: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); }
+.ga-nav-activity-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.ga-nav-activity-scroll .ga-activity { min-width: 0; }
+.ga-nav-status { position: absolute; left: var(--ga-nav-left); right: var(--ga-nav-right); bottom: var(--ga-frame-bottom, 0px); height: var(--ga-nav-status-h); display: flex; align-items: center; gap: var(--ga-feed-tight); padding: 0 var(--ga-nav-status-item-pad); box-sizing: border-box; border-top: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); background: var(--ga-nav-shell-bg); color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-caption-size)/1 var(--ga-text-family); white-space: nowrap; overflow: hidden; }
+.ga-nav-status .ga-backend-status { min-width: 0; padding: 0 var(--ga-nav-status-item-pad); color: inherit; font: inherit; }
+.ga-nav-status .ga-backend-status i { width: var(--ga-nav-status-dot); height: var(--ga-nav-status-dot); background: var(--ga-nav-bad); }
+.ga-nav-status .ga-backend-status[data-connected=true] i { background: var(--ga-nav-ok); }
+.ga-nav-status-item { position: relative; display: flex; flex: none; align-items: center; gap: var(--ga-nav-status-item-gap); height: var(--ga-nav-status-item-h); padding: 0 var(--ga-nav-status-item-pad); border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.ga-nav-status-item b { color: var(--ga-nav-shell-ink); font-weight: 700; }
+.ga-nav-status-accent b { color: var(--ga-mode-acc); }
+.ga-nav-status-item svg { flex: none; width: var(--ga-nav-status-icon); height: var(--ga-nav-status-icon); }
+.ga-nav-status-item[data-state="on"] svg, .ga-nav-status-sync svg { color: var(--ga-nav-ok); }
+.ga-nav-status-item[data-state="bad"] svg { color: var(--ga-nav-bad); }
+.ga-nav-status-item:hover, .ga-nav-status-item:focus-visible { color: var(--ga-nav-shell-ink); background: var(--ga-nav-status-hover); outline: var(--ga-nav-line-w) solid var(--ga-mode-acc); }
+.ga-nav-status-item:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
+.ga-nav-status-sep { flex: none; width: var(--ga-nav-line-w); height: var(--ga-nav-status-sep-h); background: var(--ga-nav-shell-line); }
+.ga-nav-status-grow { flex: 1; min-width: 0; }
+.ga-nav-status-bell em { position: absolute; top: 0; right: 0; min-width: var(--ga-nav-status-badge); height: var(--ga-nav-status-badge); border-radius: var(--ga-nav-status-badge); background: var(--ga-mode-acc); color: var(--ga-nav-badge-ink); font: 800 var(--ga-nav-status-badge-size)/var(--ga-nav-status-badge) var(--ga-text-family); font-style: normal; text-align: center; }
+.ga-nav-meter { display: flex; align-items: flex-end; gap: var(--ga-nav-meter-gap); height: var(--ga-nav-meter-h); }
+.ga-nav-meter i { width: var(--ga-nav-meter-w); height: 100%; background: var(--ga-mode-acc); transform-origin: 50% 100%; animation: ga-nav-meter var(--ga-nav-meter-time) ease-in-out infinite; }
+.ga-nav-meter i:nth-child(2) { animation-delay: calc(-.2 * var(--ga-nav-meter-time)); }
+.ga-nav-meter i:nth-child(3) { animation-delay: calc(-.5 * var(--ga-nav-meter-time)); }
+.ga-nav-meter i:nth-child(4) { animation-delay: calc(-.7 * var(--ga-nav-meter-time)); opacity: var(--ga-nav-disabled-opacity); }
+@keyframes ga-nav-meter { 0%, 100% { transform: scaleY(var(--ga-nav-meter-low)); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .ga-nav-meter i { animation: none; } }
+html.ga-navigation-shell body ga-mode-rail.ga-mode-rail { display: none !important; }
+html.ga-navigation-shell body .catalog-bottom-actions { display: none !important; }
+html.ga-navigation-shell body .plugin-indicator-group { display: none !important; }
+/* §4.3: one content zone for every section. Each old screen (a .ga-screen, the library room) is placed in the same box under
+   the title, with the same padding, so all sections look and behave alike; their own titles and menus give way to the panel's. */
+html.ga-navigation-shell { --ga-rail-clear: 0px; --ga-nav-body-top: calc(var(--ga-nav-top) + var(--ga-nav-head-h)); }
+/* §4.3 content header: in the gap right of the title's chevrons, the page search or the summary. The game sections have none:
+   their content starts level with the title (banner first) and the game search sits with the filters (Seba, 2026-11-11). */
+html.ga-navigation-shell[data-ga-nav-head="games"] { --ga-nav-body-top: calc(var(--ga-nav-top) + var(--ga-nav-section-pad)); }
+.ga-nav-head { position: absolute; z-index: 2; top: calc(var(--ga-nav-top) + var(--ga-nav-section-pad)); height: var(--ga-nav-hero-h); right: calc(var(--ga-nav-content-right) + var(--ga-nav-content-pad));
+  left: calc(var(--ga-nav-content-left) - var(--ga-nav-column-gap) + var(--ga-nav-title-overhang) + var(--ga-nav-head-clear)); display: flex; align-items: center; gap: var(--ga-nav-section-gap); }
+.ga-nav-head-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+.ga-nav-head-search, .ga-nav-grid-search { position: relative; width: min(100%, var(--ga-nav-head-search-w)); }
+/* Search, filters and sort in one row when they fit; on a narrow content the controls go to the next row. */
+html.ga-navigation-shell .ga-grid-toolbar { flex-wrap: wrap; row-gap: var(--ga-nav-pill-gap); }
+.ga-nav-grid-search { flex: 1 1 var(--ga-nav-head-search-w); min-width: var(--ga-nav-grid-search-min); max-width: var(--ga-nav-head-search-w); }
+.ga-nav-head-field, .ga-nav-grid-search .global-search-box { width: 100% !important; max-width: none; margin: 0; display: flex; align-items: center; gap: var(--ga-nav-section-gap); height: var(--ga-nav-head-field-h); padding: 0 var(--ga-nav-section-gap); box-sizing: border-box;
+  border: var(--ga-nav-line-w) solid var(--ga-nav-tab-line); border-left: var(--ga-nav-section-bar) solid var(--ga-mode-acc); border-radius: var(--ga-nav-button-radius); background: var(--ga-nav-section-fill); backdrop-filter: blur(var(--ga-nav-glass-blur));
+  color: var(--ga-nav-shell-ink); transition: border-color var(--ga-nav-hover-time), box-shadow var(--ga-nav-hover-time); }
+.ga-nav-head-field:focus-within, .ga-nav-grid-search .global-search-box:focus-within { border-color: var(--ga-mode-acc); box-shadow: 0 0 calc(var(--ga-nav-glow-r) * var(--ga-nav-glow)) color-mix(in srgb, var(--ga-mode-acc) 45%, transparent); }
+.ga-nav-head-field svg, .ga-nav-grid-search .global-search-box svg { flex: none; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); color: var(--ga-mode-acc); }
+.ga-nav-head-field input, .ga-nav-grid-search .global-search-box input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: inherit; font: 600 var(--ga-nav-head-text)/1 var(--ga-text-family); outline: none; }
+.ga-nav-head-field input::placeholder, .ga-nav-grid-search .global-search-box input::placeholder { color: var(--ga-nav-shell-muted); }
+.ga-nav-head-field button, .ga-nav-grid-search .global-search-box button { flex: none; display: grid; place-items: center; width: var(--ga-nav-head-icon); height: var(--ga-nav-head-icon); padding: 0; border: 0; background: none; color: var(--ga-nav-shell-muted); cursor: pointer; }
+.ga-nav-head-field button:hover, .ga-nav-grid-search .global-search-box button:hover { color: var(--ga-nav-shell-ink); }
+.ga-nav-grid-search .global-search { width: 100%; margin: 0; padding: 0; background: none; border: 0; box-shadow: none; }
+.ga-nav-head-note { position: absolute; top: 100%; left: 0; margin: var(--ga-nav-hero-gap) 0 0; color: var(--ga-nav-shell-muted); font: 500 var(--ga-nav-section-desc-size)/var(--ga-t2-leading) var(--ga-text-family); }
+.ga-nav-head-summary { display: flex; gap: var(--ga-nav-head-fact-gap); margin: 0; }
+.ga-nav-head-summary > div { display: flex; flex-direction: column; gap: var(--ga-nav-hero-gap); padding-left: var(--ga-nav-section-gap); border-left: var(--ga-nav-section-bar) solid var(--ga-mode-acc); }
+.ga-nav-head-summary dt { color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-section-desc-size)/1 var(--ga-text-family); letter-spacing: var(--ga-nav-caption-tracking); text-transform: uppercase; }
+.ga-nav-head-summary dd { margin: 0; color: var(--ga-nav-shell-ink); font: var(--ga-nav-display-style) 400 var(--ga-nav-head-fact-size)/1 var(--ga-nav-display-family); white-space: nowrap; }
+html.ga-navigation-shell .ga-nav-filtered { display: none !important; }
+html.ga-navigation-shell .library-catalog-toolbar .ga-search-dock:empty { display: none; }
+html.ga-navigation-shell .app-shell > main { margin: 0 !important; }
+html.ga-navigation-shell body :is(.ga-screen, .app-shell > main > .library-room:not(.surface-tablet):not(.surface-display)) {
+  position: fixed !important; left: var(--ga-nav-content-left) !important; right: var(--ga-nav-content-right) !important; top: var(--ga-nav-body-top) !important; bottom: var(--ga-nav-bottom) !important;
+  width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 var(--ga-nav-content-pad) var(--ga-nav-content-pad-end) !important; box-sizing: border-box;
+  background: none !important; }
+/* The content's panel, header included, behind every screen: a muted wash of the mode's color that fades out from
+   left to right, so the centre belongs to the same piece as the mode bar and the panel (Seba, 2026-11-11). */
+html.ga-navigation-shell body::before { content: ""; position: fixed; z-index: 0; pointer-events: none; left: var(--ga-nav-content-left); right: var(--ga-nav-content-right); top: var(--ga-nav-top); bottom: var(--ga-nav-bottom);
+  border: var(--ga-nav-line-w) solid color-mix(in srgb, var(--ga-mode-acc) var(--ga-nav-stage-line), transparent); box-sizing: border-box; clip-path: var(--ga-nav-panel-shape);
+  background: linear-gradient(90deg, var(--ga-nav-stage-base), var(--ga-nav-void) var(--ga-nav-stage-fade)); }
+html.ga-navigation-shell body .library-room:not(.surface-tablet):not(.surface-display) { grid-template-columns: minmax(0, 1fr); }
+html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .library-room-catalog { padding-inline: 0 !important; }
+html.ga-navigation-shell body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame { margin-inline: 0 !important; }
+html.ga-navigation-shell :is(.ga-screen-head, .ga-area-tabs, .ga-manager-view > .ga-desk-head) { display: none !important; }
+html.ga-navigation-shell .ga-screen > * { max-width: none; }
+html.ga-navigation-shell .ga-view-rail { display: none; }
+@media (max-width: 1100px) {
+  .ga-nav-activity { display: none; }
+}
+html.ga-navigation-shell, html.ga-navigation-shell body { overflow-x: clip; }

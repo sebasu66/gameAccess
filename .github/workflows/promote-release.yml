@@ -1,0 +1,29 @@
+name: Promote release to players
+
+# A tag builds a signed pre-release that installed clients do not see. After testing it by hand,
+# run this workflow: the release becomes "latest" and every client installs it the next time it starts.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to promote (for example gameaccess-v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in gameaccess-v*) ;; *) echo "Only gameaccess-v* tags are released to players."; exit 1;; esac
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | tee assets.txt
+          grep -q '^latest.json$' assets.txt || { echo "The release has no latest.json"; exit 1; }
+          grep -q -- '-setup.exe.sig$' assets.txt || { echo "The release has no installer signature"; exit 1; }
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest
+          echo "Promoted $TAG: installed clients update to it on their next start."

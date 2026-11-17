@@ -1,0 +1,143 @@
+import { useSyncExternalStore } from "react";
+import type { NoticeTone } from "../notice/notice";
+
+/**
+ * The activity history (docs/GUI_DESIGN.md §4.9 and §4.17): every notice and every background process leaves an
+ * entry here. The panel shows it like Android's notifications: one group per category, whatever the time between its
+ * entries, and a new entry moves its whole group to the newest place (activityGroups).
+ * One entry per process: a download or a freeze keeps its key and changes state instead of adding a second entry.
+ * A notice with "replace" takes the place of the last one of its kind (the taste profile, a verification).
+ * Kept on this computer: up to 200 entries, none older than 30 days.
+ */
+export type ActivityState = "running" | "done" | "failed" | "info";
+export type ActivitySeverity = "error" | "warning" | "done" | "info";
+/** The groups of the panel: new downloads, new in the catalog, downloads, the library, the app, the taste profile, the rest. */
+export type ActivityCategory = "news" | "catalog" | "downloads" | "library" | "app" | "taste" | "other";
+export interface ActivityEntry {
+  id: string;
+  /** The same process keeps the same key (`download:<appId>`, `freeze:<appId>`); a plain notice has its own. */
+  key: string;
+  title: string;
+  text?: string;
+  tone: NoticeTone;
+  state: ActivityState;
+  /** Optional explicit severity when it cannot be inferred from the generic state or tone. */
+  severity?: ActivitySeverity;
+  /** The game it is about: its row in the Library Manager has the detail. */
+  appId?: number;
+  name?: string;
+  image?: string | null;
+  /** A news item on Home that has the detail (the games a plugin or the catalog made downloadable). */
+  news?: string;
+  /** What it is about (`news`, `taste`, `verify`…): its look in the panel, and what a new notice of it replaces. */
+  kind?: string;
+  /** Its group, when its kind, key or game do not tell it (see activityCategory). */
+  category?: ActivityCategory;
+  /** Entries saved by older versions joined several notices: their texts, oldest first, each with when it came. */
+  lines?: Array<{ at: number; text: string }>;
+  startedAt: number;
+  endedAt?: number;
+  seen: boolean;
+}
+export type ActivityInput = Omit<ActivityEntry, "id" | "startedAt" | "endedAt" | "seen" | "key" | "lines"> & {
+  key?: string;
+  /** The new text takes the place of the last notice of the same kind. */
+  merge?: "replace";
+};
+/** One category of the panel: its entries, oldest first. */
+export interface ActivityGroup { category: ActivityCategory; entries: ActivityEntry[]; lastAt: number; unseen: boolean }
+
+const STORAGE_KEY = "gameaccess:activity";
+const MAX_ENTRIES = 200;
+const MAX_AGE_MS = 30 * 86_400_000;
+const listeners = new Set<() => void>();
+let entries: ActivityEntry[] = load();
+let nextId = 1;
+
+function load(): ActivityEntry[] {
+  try {
+    const saved = JSON.parse(globalThis.localStorage?.getItem(STORAGE_KEY) ?? "[]") as ActivityEntry[];
+    // A process that was running when the app closed is not running any more: it shows as it was left.
+    return Array.isArray(saved) ? prune(saved.map(entry => entry.state === "running" ? { ...entry, state: "info" } : entry)) : [];
+  } catch { return []; }
+}
+
+function prune(list: ActivityEntry[]): ActivityEntry[] {
+  const oldest = Date.now() - MAX_AGE_MS;
+  return list.filter(entry => (entry.endedAt ?? entry.startedAt) >= oldest).slice(0, MAX_ENTRIES);
+}
+
+function save(next: ActivityEntry[]) {
+  entries = prune(next);
+  try { globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(entries)); } catch { /* storage may be blocked */ }
+  listeners.forEach(listener => listener());
+}
+
+/** Adds an entry, or changes the one of the same process (same key) and brings it to the top. Returns its key. */
+export function recordActivity(input: ActivityInput, now = Date.now()): string {
+  const { merge, ...fields } = input;
+  const replaced = !input.key && input.kind && merge ? entries.find(entry => entry.state !== "running" && entry.kind === input.kind) : undefined;
+  if (replaced) {
+    // Replaced, it is as if it had just come: its time is the new one.
+    save([{ ...replaced, ...fields, lines: undefined, startedAt: now, endedAt: now, seen: false }, ...entries.filter(item => item.key !== replaced.key)]);
+    return replaced.key;
+  }
+  const key = input.key ?? `notice:${now}:${nextId++}`;
+  const previous = entries.find(entry => entry.key === key);
+  // The end is when it stopped running; an entry that never ran ends when it happens.
+  const endedAt = input.state === "running" ? undefined : previous && previous.state !== "running" && previous.endedAt ? previous.endedAt : now;
+  const entry: ActivityEntry = { ...previous, ...fields, key, id: previous?.id ?? key, startedAt: previous?.startedAt ?? now, endedAt, seen: false };
+  save([entry, ...entries.filter(item => item.key !== key)]);
+  return key;
+}
+
+/** The group of an entry. Also works on entries saved before categories existed. */
+export function activityCategory(entry: ActivityEntry): ActivityCategory {
+  if (entry.category) return entry.category;
+  if (entry.kind === "news") return "news";
+  if (entry.kind === "taste") return "taste";
+  if (entry.key.startsWith("download:")) return "downloads";
+  if (entry.kind === "verify" || entry.tone === "frost" || /^(freeze|job):/.test(entry.key) || entry.appId) return "library";
+  return "other";
+}
+
+const entryTime = (entry: ActivityEntry) => entry.endedAt ?? entry.startedAt;
+
+/** Older entries have no explicit severity: preserve their state and tone as the best available evidence. */
+export function activitySeverity(entry: ActivityEntry): ActivitySeverity {
+  if (entry.severity) return entry.severity;
+  if (entry.state === "failed" || entry.tone === "error") return "error";
+  if (entry.tone === "danger") return "warning";
+  return entry.state === "done" || entry.tone === "ok" || entry.tone === "frost" ? "done" : "info";
+}
+
+/** The finished entries by category, like Android's notifications: the group that got something last goes last. */
+export function activityGroups(list: ActivityEntry[]): ActivityGroup[] {
+  const groups = new Map<ActivityCategory, ActivityEntry[]>();
+  for (const entry of list) {
+    if (entry.state === "running") continue;
+    const category = activityCategory(entry);
+    groups.set(category, [...(groups.get(category) ?? []), entry]);
+  }
+  return [...groups].map(([category, items]) => {
+    const sorted = [...items].sort((left, right) => entryTime(left) - entryTime(right));
+    return { category, entries: sorted, lastAt: entryTime(sorted.at(-1)!), unseen: sorted.some(entry => !entry.seen) };
+  }).sort((left, right) => left.lastAt - right.lastAt);
+}
+
+/** Opening the panel counts every entry as seen. */
+export function markActivitySeen(): void {
+  if (entries.every(entry => entry.seen)) return;
+  save(entries.map(entry => entry.seen ? entry : { ...entry, seen: true }));
+}
+
+/** "Clear history": the finished entries go; what is still running stays. */
+export function clearActivity(): void {
+  save(entries.filter(entry => entry.state === "running"));
+}
+
+export const activitySnapshot = () => entries;
+
+export function useActivity(): ActivityEntry[] {
+  return useSyncExternalStore(listener => { listeners.add(listener); return () => { listeners.delete(listener); }; }, activitySnapshot, activitySnapshot);
+}

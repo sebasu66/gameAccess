@@ -6,7 +6,9 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
-from . import main as core
+from .models import Game
+from .api_dependencies import get_session
+from .catalog_routes import CATALOG_PRODUCT_FILTER, game_summary
 
 router = APIRouter(prefix="/steam", tags=["steam-search"])
 STORE_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
@@ -27,14 +29,9 @@ def _price(raw: Any) -> dict[str, Any] | None:
 def search_steam(
     q: str = Query(min_length=2, max_length=120),
     limit: int = Query(default=20, ge=1, le=50),
-    session: Session = Depends(core.get_session),
+    session: Session = Depends(get_session),
 ) -> dict:
-    """Search the public Steam Store, then overlay GameAccess license state.
-
-    This intentionally searches beyond the GameAccess pool. Results that exist
-    in our active catalog include their current license/capacity summary; other
-    Steam games remain discoverable with `catalog_game=None`.
-    """
+    """Search Steam metadata independently of accounts and licenses."""
     try:
         with httpx.Client(timeout=8.0, follow_redirects=True) as client:
             response = client.get(
@@ -52,9 +49,15 @@ def search_steam(
         raw_items = []
 
     app_ids = [int(item.get("id")) for item in raw_items[:limit] if isinstance(item, dict) and str(item.get("id", "")).isdigit()]
-    catalog_by_app: dict[int, core.Game] = {}
+    catalog_by_app: dict[int, Game] = {}
     if app_ids:
-        games = session.exec(select(core.Game).where(core.Game.app_id.in_(app_ids))).all()
+        games = session.exec(
+            select(Game).where(
+                Game.app_id.in_(app_ids),
+                Game.active == True,  # noqa: E712
+                CATALOG_PRODUCT_FILTER,
+            )
+        ).all()
         catalog_by_app = {int(game.app_id): game for game in games if game.app_id is not None and game.active}
 
     results: list[dict[str, Any]] = []
@@ -63,7 +66,7 @@ def search_steam(
             continue
         app_id = int(item["id"])
         game = catalog_by_app.get(app_id)
-        catalog_game = core.game_summary(session, game) if game else None
+        catalog_game = game_summary(session, game) if game else None
         platforms = item.get("platforms") if isinstance(item.get("platforms"), dict) else {}
         results.append(
             {
@@ -77,15 +80,10 @@ def search_steam(
                     "linux": bool(platforms.get("linux")),
                 },
                 "catalog_game": catalog_game,
-                "access_state": (
-                    "available"
-                    if catalog_game and catalog_game.get("copies_available", 0) > 0
-                    else "busy"
-                    if catalog_game and catalog_game.get("copies_total", 0) > 0
-                    else "not-in-pool"
-                ),
+                "access_state": "metadata-only",
                 "steam_url": f"https://store.steampowered.com/app/{app_id}/",
             }
         )
 
     return {"query": q.strip(), "count": len(results), "results": results}
+

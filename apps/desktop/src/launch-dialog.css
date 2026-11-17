@@ -1,0 +1,74 @@
+/* The launch dialog (LaunchDialog.tsx): the one modal while a game starts; it takes every click and key. */
+.ga-dialog-backdrop.ga-launch-backdrop { z-index: 12050; }
+.ga-dialog.ga-launch { width: min(760px, calc(100vw - 40px)); max-width: none; max-height: calc(100vh - 80px); display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 18px; padding: 28px; overflow: auto; }
+.ga-launch-close { position: absolute; top: 16px; right: 16px; z-index: 40; }
+.ga-launch > header { display: flex; align-items: center; gap: 24px; }
+.ga-launch-head { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.ga-launch-head .ga-launch-title { font-size: 1.9rem; line-height: 1.05; color: var(--ga-orange); overflow-wrap: anywhere; }
+.ga-launch-head p { color: var(--ga-muted); overflow-wrap: anywhere; }
+.ga-launch.is-error .ga-launch-title { color: var(--ga-danger-ink); }
+.ga-launch.is-opened .ga-launch-title { color: var(--ga-success); }
+.ga-launch-bar { margin-top: 6px; height: 6px; border-radius: 3px; background: var(--ga-surface-2); overflow: hidden; }
+.ga-launch-bar span { display: block; height: 100%; background: var(--ga-orange); transition: width .25s linear; }
+/* The child's screen waits for the game itself, with no fixed time: a stripe that keeps running. */
+.ga-launch-bar.is-waiting span { width: 35%; animation: ga-launch-wait 1.4s ease-in-out infinite; }
+@keyframes ga-launch-wait { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+
+/* Drawing */
+.ga-launch-art { flex: none; width: 168px; height: 126px; overflow: visible; }
+.ga-launch-art .ring { fill: none; stroke-linecap: round; transform-origin: 80px 60px; }
+.ga-launch-art .ring-outer { stroke: color-mix(in srgb, var(--ga-orange) 50%, transparent); stroke-width: 2; stroke-dasharray: 22 14; animation: ga-launch-spin 6s linear infinite; }
+.ga-launch-art .ring-inner { stroke: color-mix(in srgb, var(--ga-white) 15%, transparent); stroke-width: 1.5; stroke-dasharray: 4 9; animation: ga-launch-spin 9s linear infinite reverse; }
+.ga-launch-art .pad path:first-child { fill: color-mix(in srgb, var(--ga-white) 6%, transparent); stroke: var(--ga-white); stroke-width: 2; stroke-linejoin: round; }
+.ga-launch-art .dpad { stroke: var(--ga-white); stroke-width: 2; stroke-linecap: round; fill: none; }
+.ga-launch-art .stick { fill: none; stroke: var(--ga-white); stroke-width: 1.8; }
+.ga-launch-art .button { fill: var(--ga-orange); opacity: .35; animation: ga-launch-press 1.6s ease-in-out infinite; }
+.ga-launch-art .b2 { animation-delay: .4s; } .ga-launch-art .b3 { animation-delay: .8s; } .ga-launch-art .b4 { animation-delay: 1.2s; }
+.ga-launch-art .pad { transform-origin: 80px 62px; animation: ga-launch-bob 2.4s ease-in-out infinite; }
+.ga-launch-art .spark circle { fill: var(--ga-orange); transform-origin: 80px 60px; animation: ga-launch-spin 3.2s linear infinite; }
+.ga-launch-art .tick, .ga-launch-art .cross { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.ga-launch-art .tick { stroke: var(--ga-success); stroke-dasharray: 60; stroke-dashoffset: 60; }
+.ga-launch-art .cross { stroke: var(--ga-danger); }
+.ga-launch-art.is-error .ring, .ga-launch-art.is-error .pad, .ga-launch-art.is-error .button, .ga-launch-art.is-error .spark circle { animation: none; }
+.ga-launch-art.is-error .ring-outer { stroke: color-mix(in srgb, var(--ga-danger) 60%, transparent); stroke-dasharray: none; }
+.ga-launch-art.is-error .pad { opacity: .3; } .ga-launch-art.is-error .spark { display: none; }
+.ga-launch-art.is-error .cross { opacity: 1; }
+.ga-launch-art.is-opened .ring, .ga-launch-art.is-opened .pad, .ga-launch-art.is-opened .button, .ga-launch-art.is-opened .spark circle { animation: none; }
+.ga-launch-art.is-opened .ring-outer { stroke: color-mix(in srgb, var(--ga-success) 60%, transparent); stroke-dasharray: none; }
+.ga-launch-art.is-opened .pad { opacity: .25; } .ga-launch-art.is-opened .spark { display: none; }
+.ga-launch-art.is-opened .tick { opacity: 1; animation: ga-launch-draw .5s ease-out forwards; }
+@keyframes ga-launch-spin { to { transform: rotate(360deg); } }
+@keyframes ga-launch-press { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+@keyframes ga-launch-bob { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+@keyframes ga-launch-draw { to { stroke-dashoffset: 0; } }
+
+/* Checks */
+.ga-launch-checks { display: flex; flex-direction: column; gap: 8px; }
+.ga-launch-checks ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ga-launch-checks li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-radius: 8px; background: var(--ga-surface); color: var(--ga-muted); line-height: 1.4; }
+.ga-launch-checks li svg { flex: none; margin-top: 2px; }
+.ga-launch-checks li.ok svg { color: var(--ga-success); }
+.ga-launch-checks li.bad { color: var(--ga-white); background: var(--ga-orange-tint); box-shadow: inset 0 0 0 1px var(--ga-orange-line); }
+.ga-launch-checks li.bad svg { color: var(--ga-orange); }
+.ga-launch-checking { display: flex; gap: 8px; align-items: center; color: var(--ga-muted); }
+
+/* Live log: terminal style */
+.ga-launch-log-wrap { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.ga-launch-log { height: 172px; overflow: auto; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, black 25%, transparent); font: 12px/1.55 "Cascadia Mono", Consolas, monospace; color: var(--ga-white); scrollbar-width: thin; }
+.ga-launch.is-error .ga-launch-log { height: 120px; }
+.ga-launch-log > div { display: flex; gap: 12px; }
+.ga-launch-log time { flex: none; width: 4.2em; text-align: right; color: var(--ga-muted); }
+.ga-launch-log span { min-width: 0; overflow-wrap: anywhere; }
+.ga-launch-log .warn span { color: var(--ga-orange-ink); }
+.ga-launch-log .idle span { color: var(--ga-muted); }
+.ga-launch-log .cursor { color: var(--ga-orange); animation: ga-launch-blink 1s steps(1) infinite; padding-left: calc(4.2em + 12px); }
+@keyframes ga-launch-blink { 50% { opacity: 0; } }
+.ga-launch-note { color: var(--ga-success); }
+.ga-launch > footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+.ga-launch > footer > button { height: 44px; }
+@media (max-width: 640px) { .ga-launch > header { flex-direction: column; text-align: center; } }
+@media (prefers-reduced-motion: reduce) { .ga-launch-art *, .ga-launch-log .cursor, .ga-launch-bar.is-waiting span { animation: none !important; } .ga-launch-art.is-opened .tick { stroke-dashoffset: 0; } }
+.ga-launch-checks li > span { min-width: 0; flex: 1; }
+.ga-launch-row-action { flex: none; align-self: center; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--ga-orange-line); background: transparent; color: var(--ga-orange-ink); cursor: pointer; }
+.ga-launch-row-action:hover:not(:disabled) { background: var(--ga-orange-tint); }
+.ga-launch-row-action:disabled { opacity: .45; cursor: not-allowed; }

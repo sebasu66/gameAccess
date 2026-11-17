@@ -1,0 +1,41 @@
+/* The smoke (smokeStage.ts, GaSmoke.tsx, docs/GUI_DESIGN.md §4.34): every large central dialog on one layer. Frosted
+   glass over the window that thins out towards the corners until it is nothing, darker like smoke in the middle, with
+   the content straight on it. Sizes and times from templates/base.css, colours and glass from the flavor. */
+.ga-smoke-stage { position: fixed; inset: 0; pointer-events: none; visibility: hidden; opacity: 0; transition: opacity var(--ga-smoke-time) ease, visibility 0s linear var(--ga-smoke-time); }
+.ga-smoke-stage.is-on { visibility: visible; opacity: 1; transition: opacity var(--ga-smoke-time) ease; }
+.ga-smoke-stage::before, .ga-smoke-stage::after { content: ""; position: absolute; inset: 0; -webkit-mask-image: var(--ga-smoke-mask); mask-image: var(--ga-smoke-mask); }
+.ga-smoke-stage::before { -webkit-backdrop-filter: var(--ga-smoke-glass); backdrop-filter: var(--ga-smoke-glass); }
+.ga-smoke-stage::after { background: var(--ga-smoke-bg); }
+
+/* The layer of each family stays, for its place and its clicks, but draws nothing: the smoke is the stage's. */
+html body :is(.ga-smoke, .ga-dialog-backdrop, .ga-settings-backdrop, .download-complete-backdrop, .ga-filter-backdrop, .ga-premium-overlay, .central-dialog-backdrop, .ga-overlay-root) { background: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; }
+/* And no dialog is a box any more. */
+html body :is(.ga-dialog, .ga-overlay-dialog, .central-dialog-card, .ga-premium-dialog, .ga-filter-dialog, .ga-settings-backdrop > .ga-settings-panel, .download-complete-dialog) { background: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: transparent !important; box-shadow: none !important; }
+html body :is(.ga-dialog, .ga-overlay-dialog, .central-dialog-card, .ga-premium-dialog, .ga-filter-dialog, .ga-settings-backdrop > .ga-settings-panel, .download-complete-dialog)::before,
+html body :is(.ga-dialog, .ga-overlay-dialog, .central-dialog-card, .ga-premium-dialog, .ga-filter-dialog, .ga-settings-backdrop > .ga-settings-panel, .download-complete-dialog)::after { content: none !important; }
+
+html body .ga-smoke-ghost { animation: none; pointer-events: none; }
+/* One dialog pushes another: both move together, same time and curve, one dialog's height apart so they never overlap;
+   the old one fades out as it goes, the new one fades in as it comes. `translate`, so it adds to each dialog's `transform`. */
+html body :is(.is-smoke-away, .is-smoke-in, .is-smoke-back, .ga-smoke-ghost.is-smoke-up, .ga-smoke-ghost.is-smoke-down) { animation-duration: var(--ga-smoke-time); animation-timing-function: var(--ga-smoke-ease); animation-fill-mode: both; }
+/* modalStack hides the layer under the top one at once; the content stays visible for its way out, then at opacity 0. */
+html body .is-smoke-away { animation-name: ga-smoke-out-up; visibility: visible; pointer-events: none; }
+html body .ga-smoke-ghost.is-smoke-up { animation-name: ga-smoke-out-up; }
+html body .ga-smoke-ghost.is-smoke-down { animation-name: ga-smoke-out-down; }
+html body .is-smoke-in { animation-name: ga-smoke-in-up; }
+html body .is-smoke-back { animation-name: ga-smoke-in-down; }
+html body .ga-smoke-ghost.is-smoke-fade { animation: ga-smoke-fade var(--ga-smoke-time) ease both; }
+@keyframes ga-smoke-out-up { to { translate: 0 calc(-1 * var(--ga-smoke-push, var(--ga-smoke-travel))); opacity: 0; } }
+@keyframes ga-smoke-out-down { to { translate: 0 var(--ga-smoke-push, var(--ga-smoke-travel)); opacity: 0; } }
+@keyframes ga-smoke-in-up { from { translate: 0 var(--ga-smoke-push, var(--ga-smoke-travel)); opacity: 0; } }
+@keyframes ga-smoke-in-down { from { translate: 0 calc(-1 * var(--ga-smoke-push, var(--ga-smoke-travel))); opacity: 0; } }
+@keyframes ga-smoke-fade { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html body .is-smoke-away { animation: none; opacity: 0; visibility: hidden; }
+  html body :is(.is-smoke-in, .is-smoke-back) { animation: none; }
+  .ga-smoke-ghost { display: none; }
+}
+
+/* The app's own smoke dialogs. */
+.ga-smoke { position: fixed; inset: 0; z-index: var(--ga-smoke-layer); display: grid; place-items: center; padding: var(--ga-space-4); box-sizing: border-box; }
+.ga-smoke-body { position: relative; width: min(100%, var(--ga-smoke-w)); max-height: 100%; overflow: auto; color: var(--ga-white); }

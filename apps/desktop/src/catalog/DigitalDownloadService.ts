@@ -1,0 +1,623 @@
+import { libraryMembership } from "../libraryMembership";
+import { scanLibrary } from "../libraryScan";
+import { translate } from "../i18n";
+import { confirmNotice, getNotice, hideNotice } from "../notice/notice";
+import { invoke } from "@tauri-apps/api/core";
+import { narrate } from "../narrationLog";
+import { buildChunkSession, canAccelerate } from "../vikingResolver";
+import { gameIsAbandoned } from "./gameLessons";
+import { initialDownloadMethod, methodFromRoute, type DownloadMethod } from "../downloadMethod";
+import { digitalErrorMessage } from "../digitalErrors";
+import type { CatalogGame } from "../types";
+import type { DownloadPhase, DownloadProgressSnapshot, DownloadStepDone, DownloadStepId, DownloadStepNow, IDownloadProvider, DownloadStartOptions, RaceLane, StepFacts } from "../downloadProvider";
+import type { RaceOrder } from "./sourceRace";
+import { snapshotToManagedStatus } from "../downloadProvider";
+import type { ManagedDownloadStatus } from "../downloadTypes";
+import { digitalProcessManager } from "./DigitalProcessManager";
+import type { DigitalGameRecord } from "./DigitalCatalog";
+import { DownloadQueueClient, QueueRefused, type QueueJob, type QueueState } from "./downloadQueueClient";
+
+import { getActivationTier } from "../activation";
+import { localizeSnapshot } from "../launcherText";
+import { appendEvents, type DownloadEvent } from "../downloadEvents";
+import { parseDownloadSize } from "../downloadSize";
+
+export const isDownloadHistory = (phase: DownloadPhase) => ["completed", "error", "cancelled", "interrupted", "external"].includes(phase);
+export interface DownloadSpeedSample { time: number; speedBps: number; }
+
+const hasTauriRuntime = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const PHASES: readonly DownloadPhase[] = ["queued", "preparing", "downloading", "paused", "decompressing", "installing",
+  "cancelling", "cancelled", "interrupted", "external", "completed", "error"];
+const POLL_MS = 1000;
+
+type JobOptions = DownloadStartOptions & { record?: DigitalGameRecord; race?: RaceOrder };
+
+/**
+ * The app's view of the downloads. The launcher's Download Manager owns the queue (which downloads run, wait,
+ * pause or resume, BASE 1 / PLUS 4, the order, what resumes after a restart); this service sends it orders and
+ * turns its state into snapshots for the interface. What stays here is what only the interface needs: the game
+ * shown in each row, speed history, notices, the desktop shortcut after a download completes.
+ */
+
+const STEP_IDS: readonly string[] = ["pick", "route", "probe", "server", "download", "extract", "install", "signin", "handoff", "adopt", "dialog"];
+/** A step's facts, keeping only the known ones with the right type. */
+function stepFacts(value: unknown): StepFacts | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>, facts: StepFacts = {};
+  for (const key of ["folder", "drive", "from", "account", "library"] as const) if (typeof raw[key] === "string" && raw[key]) facts[key] = raw[key] as string;
+  for (const key of ["freeBytes", "neededBytes"] as const) if (typeof raw[key] === "number" && Number.isFinite(raw[key])) facts[key] = raw[key] as number;
+  return Object.keys(facts).length ? facts : undefined;
+}
+/** The launcher's current step, if it is well formed. */
+function stepNow(value: unknown): DownloadStepNow | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as { id?: unknown; detail?: unknown; startedAt?: unknown; facts?: unknown };
+  const facts = stepFacts(raw.facts);
+  return STEP_IDS.includes(String(raw.id)) ? { id: raw.id as DownloadStepId, detail: String(raw.detail ?? ""), startedAt: Number(raw.startedAt) || Date.now(), ...(facts ? { facts } : {}) } : null;
+}
+/** The torrents racing, keeping only well-formed lanes. */
+function raceLanes(value: unknown): RaceLane[] | undefined {
+  if (!Array.isArray(value) || !value.length) return undefined;
+  return value.filter(raw => raw && typeof raw === "object").map(raw => ({
+    title: String(raw.title ?? ""), provider: String(raw.provider ?? ""), done: Number(raw.done) || 0, total: Number(raw.total) || 0,
+    speed: Number(raw.speed) || 0, seeds: Number(raw.seeds) || 0,
+    state: raw.state === "won" || raw.state === "out" ? raw.state : "racing",
+  }));
+}
+/** The launcher's finished steps, keeping only well-formed ones. */
+function stepsDone(value: unknown): DownloadStepDone[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(raw => raw && STEP_IDS.includes(String(raw.id)) && ["done", "skipped", "failed"].includes(String(raw.state)))
+    .map(raw => { const facts = stepFacts(raw.facts); return { id: raw.id, state: raw.state, result: String(raw.result ?? ""), ms: Number(raw.ms) || 0, ...(facts ? { facts } : {}) }; });
+}
+
+export class DigitalDownloadService implements IDownloadProvider {
+  readonly name = "digital-python-downloader";
+  /** Asked before a download starts over from nothing (Seba, 2026-11-05: only safe steps happen on their own). */
+  confirmStartOver = (game: CatalogGame) => confirmNotice({ game: { name: game.name, appId: game.app_id ?? game.id }, kind: "primary",
+    title: translate("startOverTitle", { name: game.name }), text: translate("startOverText"), confirmLabel: translate("startOverConfirm"), cancelLabel: translate("startOverKeep") });
+  private activeJobs = new Map<number, DownloadProgressSnapshot>();
+  private listeners = new Map<number, Set<(snapshot: DownloadProgressSnapshot) => void>>();
+  private globalListeners = new Set<(snapshot: DownloadProgressSnapshot) => void>();
+  private shortcutCreated = new Set<number>();
+  private jobs = new Map<number, { game: CatalogGame; options?: JobOptions }>();
+  /** The Download Manager keys downloads by AppID; rows are keyed by game id. Usually the same number. */
+  private appIds = new Map<number, number>();
+  private positions = new Map<number, number>();
+  private events = new Map<number, DownloadEvent[]>();
+  private lastState: QueueState | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private polling = false;
+  private speeds = new Map<number, DownloadSpeedSample[]>();
+  /** Games whose download was started in this session. A failure found in state restored at startup is not announced with a dialog. */
+  private readonly startedNow = new Set<number>();
+  startedThisSession(gameId: number): boolean { return this.startedNow.has(gameId); }
+  private readonly methods = new Map<number, DownloadMethod>();
+  /** How this game is being fetched (shown as a pill), or undefined when not known. */
+  getDownloadMethod(gameId: number): DownloadMethod | undefined { return this.methods.get(gameId); }
+  getSpeedSamples(gameId: number): readonly DownloadSpeedSample[] { return this.speeds.get(gameId) ?? []; }
+  /** The download's log in the wizard (downloadEvents.ts): kept while the app runs. */
+  getEvents(gameId: number): readonly DownloadEvent[] { return this.events.get(gameId) ?? []; }
+  get maxParallelDownloads(): number { return this.lastState?.limit ?? (this.plan() === "plus" ? 4 : 1); }
+  /** The plan downloads run under (shown as a pill). Without a key the app is in free mode, which is BASE: one
+   *  download at a time, torrents only. */
+  planTier(): "base" | "plus" { return this.plan(); }
+  private plan(): "base" | "plus" { return this.tier() === "plus" ? "plus" : "base"; }
+
+  constructor(
+    private storageKey?: string,
+    private readonly tier: () => "base" | "plus" | null = getActivationTier,
+    private readonly queue: DownloadQueueClient = new DownloadQueueClient(),
+  ) {
+    this.restoreRows();
+    if (!hasTauriRuntime()) return;
+    setTimeout(() => { void this.syncConfig().finally(() => this.ensurePolling()); }, 0);
+  }
+
+  // ---------------------------------------------------------------- rows kept for the interface
+  private restoreRows(): void {
+    if (!this.storageKey || typeof localStorage === "undefined") return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.storageKey) || "null");
+      if (!saved || !Array.isArray(saved.entries)) return;
+      for (const entry of saved.entries) {
+        if (!entry?.game || !entry?.snapshot || typeof entry.snapshot.gameId !== "number") continue;
+        if (isDownloadHistory(entry.snapshot.phase)) continue;
+        const id = entry.snapshot.gameId;
+        this.jobs.set(id, { game: entry.game, options: entry.record ? { record: entry.record } : undefined });
+        if (typeof entry.appId === "number") this.appIds.set(id, entry.appId);
+        this.activeJobs.set(id, entry.snapshot);
+        this.reportFailure(entry.snapshot);
+      }
+    } catch { /* Invalid saved rows must not block catalog startup. */ }
+  }
+
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private persistSoon(): void {
+    if (this.persistTimer !== null) return;
+    this.persistTimer = setTimeout(() => { this.persistTimer = null; this.persist(); }, 4000);
+  }
+
+  private persist(): void {
+    if (this.persistTimer !== null) { clearTimeout(this.persistTimer); this.persistTimer = null; }
+    if (!this.storageKey || typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify({
+        entries: this.getDownloads().filter(entry => !isDownloadHistory(entry.snapshot.phase)).map(entry => ({
+          ...entry, record: this.jobs.get(entry.snapshot.gameId)?.options?.record, appId: this.appIds.get(entry.snapshot.gameId),
+        })),
+      }));
+    } catch { /* Storage is best-effort; the Download Manager keeps the real queue. */ }
+  }
+
+  getDownloads(): Array<{ game: CatalogGame; snapshot: DownloadProgressSnapshot }> {
+    return Array.from(this.jobs, ([id, job]) => ({
+      game: job.game, snapshot: this.activeJobs.get(id) ?? { gameId: id, phase: "queued", progress: 0 },
+    }));
+  }
+
+  private appIdOf(gameId: number): number { return this.appIds.get(gameId) ?? gameId; }
+  private gameIdOf(appId: number): number {
+    for (const [gameId, mapped] of this.appIds) if (mapped === appId) return gameId;
+    return appId;
+  }
+
+  // ---------------------------------------------------------------- the Download Manager's state
+  private ensurePolling(): void {
+    if (this.pollTimer !== null || !hasTauriRuntime()) return;
+    this.pollTimer = setInterval(() => { void this.sync(); }, POLL_MS);
+  }
+
+  /** Reads the Download Manager's state once and shows it. */
+  async sync(): Promise<void> {
+    if (this.polling) return;
+    this.polling = true;
+    try {
+      this.apply(await this.queue.state());
+    } catch (error) {
+      void narrate(`Download Manager unavailable: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "WARN" });
+    } finally {
+      this.polling = false;
+    }
+  }
+
+  private async syncConfig(): Promise<void> {
+    const tier = this.plan();
+    try {
+      const session = tier === "plus" && hasTauriRuntime() ? await buildChunkSession() : null;
+      this.apply(await this.queue.configure(tier, session));
+    } catch (error) {
+      void narrate(`Could not tell the Download Manager the plan: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "WARN" });
+    }
+  }
+
+  private snapshotOf(gameId: number, job: QueueJob): DownloadProgressSnapshot {
+    const status = job.status ?? {};
+    const phase = (PHASES as readonly string[]).includes(job.phase) ? job.phase as DownloadPhase : "preparing";
+    const number = (key: string) => typeof status[key] === "number" ? status[key] as number : undefined;
+    const text = phase === "queued" ? translate("dlsQueued")
+      : phase === "paused" ? translate("dlsUserPaused")
+      : String(status.statusText ?? "") || (phase === "preparing" ? translate("dlsStartingManager") : "");
+    return {
+      gameId, phase,
+      progress: number("progressPercent") ?? 0,
+      downloadPercent: number("downloadPercent"),
+      installPercent: number("installPercent"),
+      checkPercent: phase === "preparing" ? number("checkPercent") : undefined,
+      serverPercent: phase === "preparing" ? number("serverPercent") : undefined,
+      race: phase === "preparing" ? raceLanes(status.race) : undefined,
+      steamQr: phase === "preparing" && Array.isArray(status.steamQr) ? status.steamQr.map(String) : undefined,
+      statusText: text,
+      bytesDownloaded: number("bytesDownloaded") ?? 0,
+      bytesTotal: number("totalBytes") ?? 0,
+      speedBps: phase === "downloading" ? number("speedBps") ?? 0 : 0,
+      etaSeconds: phase === "downloading" ? number("etaSeconds") ?? 0 : 0,
+      error: job.error || undefined,
+      errorCode: typeof status.errorCode === "string" ? status.errorCode : undefined,
+      errorDetail: Array.isArray(status.errorDetail) ? status.errorDetail.map(String) : undefined,
+      resumeStep: status.resumeStep === "download" || status.resumeStep === "extract" ? status.resumeStep : undefined,
+      ...("step" in status || "steps" in status ? { step: stepNow(status.step), steps: stepsDone(status.steps) } : {}),
+    };
+  }
+
+  private apply(state: QueueState): void {
+    this.lastState = state;
+    const seen = new Set<number>();
+    for (const job of state.jobs ?? []) {
+      const gameId = this.gameIdOf(job.appId);
+      seen.add(gameId);
+      this.appIds.set(gameId, job.appId);
+      this.positions.set(gameId, job.position);
+      if (!this.jobs.has(gameId)) this.jobs.set(gameId, { game: { id: gameId, app_id: job.appId, name: job.name } as CatalogGame });
+      if (this.searching.has(gameId)) continue;
+      const route = methodFromRoute(job.route);
+      if (route) this.methods.set(gameId, route);
+      const next = this.snapshotOf(gameId, job);
+      const previous = this.activeJobs.get(gameId);
+      if (!previous || previous.phase !== next.phase || previous.progress !== next.progress || previous.bytesDownloaded !== next.bytesDownloaded
+        || previous.statusText !== next.statusText || previous.steamQr?.join() !== next.steamQr?.join() || previous.error !== next.error || previous.speedBps !== next.speedBps
+        || previous.step?.id !== next.step?.id || JSON.stringify(previous.step?.facts) !== JSON.stringify(next.step?.facts) || previous.step?.detail !== next.step?.detail || previous.steps?.length !== next.steps?.length) {
+        this.updateSnapshot(next);
+      }
+    }
+    // A row the Download Manager does not know (it was lost, for example a queue from an older version) cannot resume.
+    for (const [gameId, snapshot] of this.activeJobs) {
+      if (seen.has(gameId) || isDownloadHistory(snapshot.phase) || !this.appIds.has(gameId) || this.searching.has(gameId)) continue;
+      this.updateSnapshot({ ...snapshot, phase: "interrupted", speedBps: 0, statusText: translate("dlsLost"), error: translate("dlsLost") });
+    }
+    for (const gameId of this.positions.keys()) if (!seen.has(gameId)) this.positions.delete(gameId);
+  }
+
+  // ---------------------------------------------------------------- orders
+  async start(game: CatalogGame, options?: JobOptions): Promise<void> {
+    if (libraryMembership.isBusy()) throw new Error("Espera a que termine la operación de biblioteca.");
+    const id = game.app_id ?? game.id;
+    // Plugin sources give their size as text ("12.4 GB"): it counts for the check as well.
+    const size = game.download_size_bytes ?? parseDownloadSize(game.download_size);
+    if (hasTauriRuntime() && size != null && Number.isFinite(size) && size > 0) {
+      // The Library Manager refuses a download whose unpacking would not fit; an unreadable check never blocks.
+      const room = await digitalProcessManager.librarySpace(size, id, game.name).then(result => result.space, () => undefined);
+      if (room && !room.ok) throw new Error(room.message);
+    }
+    const previous = this.activeJobs.get(id);
+    if (previous && !isDownloadHistory(previous.phase)) return;
+    if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
+    this.startedNow.add(id);
+    // The game joins the library only once it is installed (updateSnapshot, "completed"), never while it downloads.
+    this.speeds.delete(id);
+    const jobOptions = options ?? this.jobs.get(id)?.options;
+    this.jobs.set(id, { game, options: jobOptions });
+    const record = jobOptions?.record || this.getRecord(game.id) || this.getRecord(id);
+    const appId = record?.id ?? game.app_id ?? id;
+    this.appIds.set(id, appId);
+    const name = record?.name ?? game.name;
+    const source = (record?.downloadSource ?? (game as { downloadSource?: string }).downloadSource ?? "").trim();
+    if (!source) {
+      const error = `El juego '${name}' no posee fuentes de descarga disponibles.`;
+      this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: translate("dlsNoSources"), error });
+      throw new Error(error);
+    }
+    // PLUS can have a source accelerated by the server: the Download Manager needs the session to ask for it.
+    let accelerated = false;
+    // A game marked abandoned can still be downloaded, only not through the server (gameLessons.ts).
+    const abandoned = this.plan() === "plus" && canAccelerate(source) && await gameIsAbandoned(appId);
+    if (abandoned) void narrate(`${name} está marcado como abandonado: se descarga sin la aceleración del servidor.`, { area: "DOWNLOAD" });
+    if (this.plan() === "plus" && canAccelerate(source) && !abandoned) {
+      const session = await buildChunkSession();
+      if (session) {
+        accelerated = true;
+        this.apply(await this.queue.configure("plus", session));
+        void narrate(`Descarga por fragmentos disponible para ${name}; el Download Manager elige la ruta.`, { area: "DOWNLOAD" });
+      }
+    }
+    this.methods.set(id, initialDownloadMethod(source, accelerated));
+    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
+    try {
+      this.apply(await this.queue.enqueue({
+        appId, name, source, delivery: accelerated ? "download" : record?.sourceDelivery ?? "download",
+        autoInstalled: record?.auto_installed === true, keepArchive: jobOptions?.keepArchive,
+        sourceTitle: record?.sourceTitle, sourceProvider: record?.sourceProvider,
+        // The race is only for the source just picked (a retry goes on with the winner the launcher kept).
+        race: jobOptions?.race && jobOptions.race.racers[0]?.source === source ? jobOptions.race : undefined,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.updateSnapshot({ gameId: id, phase: "error", progress: 0,
+        statusText: error instanceof QueueRefused ? message : translate("dlsStartProcessError"), error: message });
+      throw error;
+    }
+    this.ensurePolling();
+  }
+
+  /**
+   * Goes on with a download that stopped (error, interrupted, no room) from the step it reached: an archive already
+   * downloaded is only unpacked again. The Download Manager knows the source (also after a restart, from what the
+   * install remembers), so the plugin is not needed. With nothing to go on with, the download starts over.
+   */
+  /**
+   * `directOnly`: the normal download, the torrent with this PC's own client and no server: what the player picks when
+   * the accelerated download failed (the server may be down; the torrent is always there).
+   */
+  async retry(game: CatalogGame, options: { directOnly?: boolean } = {}): Promise<void> {
+    const id = game.app_id ?? game.id;
+    const previous = this.activeJobs.get(id);
+    if (previous && !isDownloadHistory(previous.phase)) return;
+    if (!hasTauriRuntime()) throw new Error("Las descargas Digital requieren la aplicación de escritorio.");
+    // With no step to go on from, a retry downloads everything again: the player decides that, never the app.
+    if (!previous?.resumeStep && !(await this.confirmStartOver(game))) return;
+    this.startedNow.add(id);
+    if (!this.jobs.has(id)) this.jobs.set(id, { game });
+    const appId = this.appIds.get(id) ?? game.app_id ?? id;
+    this.appIds.set(id, appId);
+    this.speeds.delete(id);
+    this.updateSnapshot({ gameId: id, phase: "queued", progress: 0, statusText: translate("dlsQueued") });
+    try {
+      if (options.directOnly) this.methods.set(id, "torrent");
+      this.apply(await this.queue.retry(appId, options.directOnly === true));
+    } catch (error) {
+      if (!(error instanceof QueueRefused)) {
+        if (previous) this.updateSnapshot(previous);
+        throw error;
+      }
+      // Nothing was kept (cancelled, or a dead source removed it): a new download.
+      if (previous) this.activeJobs.set(id, previous); else this.activeJobs.delete(id);
+      return this.start(game);
+    }
+    this.ensurePolling();
+  }
+
+  async refreshParallelLimit(): Promise<void> {
+    await this.syncConfig();
+  }
+
+  /** PLUS ended: what was downloading pauses and the app goes on in free mode (BASE). The player can resume a
+   *  torrent; a direct link needs PLUS again (the Download Manager says so). */
+  async suspendForAccessEnd(): Promise<void> {
+    this.apply(await this.queue.suspend());
+    this.apply(await this.queue.configure("base", null));
+  }
+
+  async pause(gameId: number): Promise<void> {
+    const phase = this.activeJobs.get(gameId)?.phase;
+    if (!phase || isDownloadHistory(phase) || phase === "paused" || phase === "cancelling") return;
+    // The row says "paused" at once; the Download Manager's answer confirms it (or puts it back if it refused).
+    const previous = this.activeJobs.get(gameId)!;
+    this.updateSnapshot({ ...previous, phase: "paused", speedBps: 0 });
+    try {
+      this.apply(await this.queue.pause(this.appIdOf(gameId)));
+    } catch (error) {
+      this.updateSnapshot(previous);
+      throw error;
+    }
+  }
+
+  /** A download that stopped (no room, error) waits paused, with what it downloaded, until the player resumes it. */
+  async holdPaused(gameId: number): Promise<void> {
+    const phase = this.activeJobs.get(gameId)?.phase;
+    if (phase !== "error" && phase !== "interrupted") return;
+    this.apply(await this.queue.pause(this.appIdOf(gameId)));
+  }
+
+  /** Cancels a stopped download and deletes what it downloaded (the temporary folder); its row leaves the list. */
+  async discardStopped(gameId: number): Promise<void> {
+    const results = (await digitalProcessManager.libraryBatch("discard_transfer", [this.appIdOf(gameId)])).results;
+    const failed = results?.find(result => !result.ok);
+    if (failed) throw new Error(failed.error || "No se pudo borrar la descarga.");
+    await this.remove(gameId);
+  }
+
+  /** Downloads that are not finished: running, queued, paused or stopped with what they downloaded still on disk. */
+  unfinishedCount(): number {
+    return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase)).length;
+  }
+
+  /** The downloads left unfinished by an earlier session (not the ones started in this one). */
+  leftUnfinished() {
+    return this.getDownloads().filter(({ snapshot }) => !["completed", "cancelled", "external"].includes(snapshot.phase) && !this.startedNow.has(snapshot.gameId));
+  }
+
+  async resume(gameId: number): Promise<void> {
+    if (this.activeJobs.get(gameId)?.phase !== "paused") return;
+    this.apply(await this.queue.resume(this.appIdOf(gameId)));
+  }
+
+  /** Moves a queued download earlier (-1) or later (+1); the first ones start first. */
+  moveInQueue(gameId: number, delta: -1 | 1): void {
+    void this.queue.move(this.appIdOf(gameId), delta).then(state => this.apply(state), error => {
+      void narrate(`Could not reorder the queue: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "WARN" });
+    });
+  }
+
+  /** Position of a queued download (0 = next to start), or -1. */
+  queuePosition(gameId: number): number { return this.positions.get(gameId) ?? -1; }
+
+  /**
+   * The player's cancel, from any place (Library › Downloads, the activity panel): the question shows at once, and on
+   * yes the download is marked "cancelling" right away. False when the player kept it.
+   */
+  async confirmCancel(game: CatalogGame, gameId: number, stopped = false): Promise<boolean> {
+    const ok = await confirmNotice({ game: { name: game.name, appId: game.app_id ?? game.id }, kind: "danger",
+      title: translate(stopped ? "abortDownloadTitle" : "cancelDownloadTitle", { name: game.name }), text: translate("cancelDownloadBody"),
+      confirmLabel: translate(stopped ? "downloadsAbort" : "downloadsCancel"), cancelLabel: translate(stopped ? "back" : "keepDownloading") });
+    if (!ok) return false;
+    // The question leaves at once: the row's "cancelling" is the answer.
+    const asked = getNotice();
+    if (asked?.question) hideNotice(asked.id);
+    await this.cancel(gameId);
+    return true;
+  }
+
+  private cancelling = new Set<number>();
+  async cancel(gameId: number): Promise<void> {
+    const previous = this.activeJobs.get(gameId);
+    if (!previous || ["completed", "cancelled", "external"].includes(previous.phase) || this.cancelling.has(gameId)) return;
+    this.cancelling.add(gameId);
+    // Marked "cancelling" at once, everywhere (Seba, 2026-11-16): the worker may take a while to stop and delete its
+    // files, and the download keeps its place in the queue until it has.
+    this.updateSnapshot({ ...previous, phase: "cancelling", speedBps: 0, statusText: translate("downloadCancelling") });
+    try {
+      this.apply(await this.queue.cancel(this.appIdOf(gameId)));
+    } catch (error) {
+      // A stopped row the Download Manager no longer knows (lost with an older queue): aborting it only takes it off here.
+      if (!(error instanceof QueueRefused) || !["error", "interrupted"].includes(previous.phase)) { this.updateSnapshot(previous); throw error; }
+      this.forget(gameId, { ...previous, phase: "cancelled" });
+    } finally {
+      this.cancelling.delete(gameId);
+    }
+  }
+
+  /** Removing a row never removes library membership or an installed game. */
+  async remove(gameId: number): Promise<void> {
+    const previous = this.activeJobs.get(gameId);
+    if (!previous) return;
+    if (!isDownloadHistory(previous.phase)) await this.cancel(gameId);
+    const current = this.activeJobs.get(gameId);
+    if (current && !isDownloadHistory(current.phase)) throw new Error("Espera a que termine la cancelación de la descarga.");
+    await this.queue.remove(this.appIdOf(gameId)).catch(() => undefined);
+    this.forget(gameId, current ?? previous);
+  }
+
+  private forget(gameId: number, last: DownloadProgressSnapshot): void {
+    this.jobs.delete(gameId);
+    this.activeJobs.delete(gameId);
+    this.speeds.delete(gameId);
+    this.methods.delete(gameId);
+    this.positions.delete(gameId);
+    this.persist();
+    for (const listener of this.globalListeners) listener(last);
+  }
+
+  onGlobalUpdate(listener: (snapshot: DownloadProgressSnapshot) => void): () => void {
+    this.globalListeners.add(listener);
+    return () => { this.globalListeners.delete(listener); };
+  }
+
+  private digitalRecords = new Map<number, DigitalGameRecord>();
+
+  /** Registers or updates digital catalog records from digital_catalog.json. */
+  registerRecords(records: DigitalGameRecord[]): void {
+    for (const record of records) {
+      if (record && typeof record.id === "number") this.digitalRecords.set(record.id, record);
+    }
+  }
+
+  getRecord(gameId: number): DigitalGameRecord | undefined {
+    return this.digitalRecords.get(gameId);
+  }
+
+  canHandle(game: CatalogGame): boolean {
+    return Boolean(game.id || game.app_id);
+  }
+
+  /**
+   * Queries available installation options for a game from Hydra-compatible sources.
+   * Returns clean, friendly options (zero mentions of torrents, magnets, or technical jargon).
+   */
+  async queryInstallOptions(gameName: string): Promise<Array<{ id: string; title: string; size: string; badge: string; status: string }>> {
+    if (hasTauriRuntime()) {
+      try {
+        const res = await invoke<{ ok: boolean; options: any[] }>("query_digital_options", { name: gameName });
+        if (res && res.ok && Array.isArray(res.options)) {
+          return res.options.map((opt) => ({ id: opt.id, title: opt.title, size: opt.size, badge: opt.badge, status: opt.status }));
+        }
+      } catch (error) {
+        void narrate(`Digital · fuentes de ${gameName}: ${String(error)}`, { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+        return [];
+      }
+    }
+    return [];
+  }
+
+  /** Launches the digital game by running its `playProcess` via DigitalProcessManager. */
+  async play(game: CatalogGame): Promise<void> {
+    const record = this.getRecord(game.id) || this.getRecord(game.app_id ?? 0);
+    await digitalProcessManager.executePlay(game, record);
+  }
+
+  hasActiveDownloads(): boolean {
+    return this.getDownloads().some(({ snapshot }) => !isDownloadHistory(snapshot.phase));
+  }
+
+  async uninstall(game: CatalogGame): Promise<{ folder?: string }> {
+    const id = game.app_id ?? game.id;
+    const snapshot = this.activeJobs.get(id);
+    if (snapshot && !isDownloadHistory(snapshot.phase)) throw new Error("Aborte la descarga antes de desinstalar el juego.");
+    const result = await digitalProcessManager.executeUninstall(game);
+    this.updateSnapshot({ gameId: id, phase: "cancelled", progress: 0, statusText: translate("dlsUninstalled") });
+    return { folder: result?.folder };
+  }
+
+  async getStatus(gameId: number): Promise<DownloadProgressSnapshot> {
+    return this.activeJobs.get(gameId) ?? { gameId, phase: "preparing", progress: 0 };
+  }
+
+  getManagedStatus(gameId: number): ManagedDownloadStatus | undefined {
+    const snapshot = this.activeJobs.get(gameId);
+    return snapshot ? snapshotToManagedStatus(snapshot) : undefined;
+  }
+
+  subscribe(gameId: number, listener: (snapshot: DownloadProgressSnapshot) => void): () => void {
+    if (!this.listeners.has(gameId)) this.listeners.set(gameId, new Set());
+    this.listeners.get(gameId)!.add(listener);
+    const current = this.activeJobs.get(gameId);
+    if (current) listener(current);
+    return () => { this.listeners.get(gameId)?.delete(listener); };
+  }
+
+  /** A download that failed before reaching the Download Manager (preparing its source, for example). */
+  recordFailure(game: CatalogGame, error: string): void {
+    const id = game.app_id ?? game.id;
+    if (!this.jobs.has(id)) this.jobs.set(id, { game });
+    this.updateSnapshot({ gameId: id, phase: "error", progress: 0, statusText: translate("dlsDownloadFailed"), error });
+  }
+
+  private reportFailure(snapshot: DownloadProgressSnapshot): void {
+    if (!snapshot.error && !["error", "interrupted"].includes(snapshot.phase)) return;
+    void narrate(digitalErrorMessage(snapshot, this.jobs.get(snapshot.gameId)?.game.name), { area: "DIGITAL_DOWNLOAD", level: "ERROR" });
+  }
+
+  /** Games whose other sources are being checked ("try another source"): the Download Manager's old failure must not
+   *  overwrite that row meanwhile. */
+  private readonly searching = new Set<number>();
+  showSourceSearch(gameId: number, text: string, fraction: number): void {
+    this.searching.add(gameId);
+    this.updateSnapshot({ gameId, phase: "preparing", progress: Math.round(fraction * 100), statusText: text, step: null, steps: [], speedBps: 0, etaSeconds: 0 });
+  }
+  endSourceSearch(gameId: number, restore: DownloadProgressSnapshot | null): void {
+    this.searching.delete(gameId);
+    if (restore) this.updateSnapshot(restore);
+  }
+
+  updateSnapshot(launcherSnapshot: DownloadProgressSnapshot): void {
+    const snapshot = localizeSnapshot(launcherSnapshot);
+    const previous = this.activeJobs.get(snapshot.gameId);
+    if (previous?.phase !== snapshot.phase || previous?.error !== snapshot.error) this.reportFailure(snapshot);
+    if (previous?.phase !== snapshot.phase) void narrate(`Digital AppID ${snapshot.gameId} · phase ${previous?.phase ?? "new"} -> ${snapshot.phase}; bytes=${snapshot.bytesDownloaded ?? "unknown"}/${snapshot.bytesTotal ?? "unknown"}; ${snapshot.statusText ?? ""}.`, { area: "DIGITAL_DOWNLOAD" });
+    if (snapshot.phase === "downloading" && Number.isFinite(snapshot.speedBps)) {
+      const time = Date.now();
+      const samples = (this.speeds.get(snapshot.gameId) ?? []).filter(sample => sample.time >= time - 60000);
+      const sample = { time, speedBps: Math.max(0, snapshot.speedBps ?? 0) };
+      if (samples.length && time - samples[samples.length - 1].time < 500) samples[samples.length - 1] = sample;
+      else samples.push(sample);
+      this.speeds.set(snapshot.gameId, samples.slice(-61));
+    }
+    this.activeJobs.set(snapshot.gameId, snapshot);
+    const log = this.events.get(snapshot.gameId) ?? [];
+    const logged = appendEvents(log, previous, snapshot);
+    if (logged !== log) this.events.set(snapshot.gameId, logged);
+    if (snapshot.phase === "completed" && previous?.phase !== "completed" && hasTauriRuntime() && !this.shortcutCreated.has(snapshot.gameId)) {
+      const game = this.jobs.get(snapshot.gameId)?.game;
+      if (game) {
+        this.shortcutCreated.add(snapshot.gameId);
+        void digitalProcessManager.status(game).then(status => {
+          if (!status.installed) return;
+          // Downloaded and installed: now it is a library game (Seba, 2026-11-09: one Download Manager, one library).
+          try { if (!libraryMembership.has(game)) libraryMembership.add(game); } catch { /* busy: the folder scan adds it */ }
+          // The Library Manager reads the folders: scanned again so the new "-ready" folder shows there at once.
+          void scanLibrary().catch(() => undefined);
+          return invoke("create_game_shortcut", { appId: game.app_id ?? game.id, name: game.name });
+        }).catch(error => {
+          this.shortcutCreated.delete(snapshot.gameId);
+          void narrate("No se pudo crear el acceso directo: " + String(error), { area: "SHORTCUT", level: "ERROR" });
+        });
+      }
+    }
+    if (snapshot.phase === "cancelled") {
+      // A cancelled download leaves the list (the Download Manager forgets it too).
+      this.jobs.delete(snapshot.gameId);
+      if (previous && previous.phase !== "cancelled") void this.queue.remove(this.appIdOf(snapshot.gameId)).catch(() => undefined);
+    }
+    // Progress ticks arrive every second per download; the stored rows only have to survive a restart,
+    // so they are written at phase changes and otherwise every few seconds.
+    if (previous?.phase !== snapshot.phase) this.persist();
+    else this.persistSoon();
+    for (const listener of this.listeners.get(snapshot.gameId) ?? []) {
+      try { listener(snapshot); } catch { /* a listener error must not break the update loop */ }
+    }
+    for (const listener of this.globalListeners) {
+      try { listener(snapshot); } catch { /* a listener error must not break the update loop */ }
+    }
+  }
+}
+
+export const digitalDownloadService = new DigitalDownloadService("gameaccess.digital.downloads.v1");

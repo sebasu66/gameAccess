@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GameAccess · Panel de control</title>
+<style>
+body{margin:0;background:#111416;color:#f5f5f5;font:15px system-ui}main{max-width:1280px;margin:32px auto;padding:24px}h1{margin:0 0 6px}h2{font-size:16px;margin:0 0 12px}p{color:#adb5bd;margin:4px 0}a{color:#ff8a3d}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}.stat{background:#191d20;padding:14px 18px;border-radius:12px;min-width:140px}.stat b{display:block;font-size:28px;color:#ff8a3d;font-variant-numeric:tabular-nums}.stat span{color:#adb5bd;font-size:13px}
+section{background:#191d20;border-radius:12px;padding:18px 20px;margin-top:18px}.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}.bar input,.bar select{font:inherit;background:#111416;color:#fff;border:1px solid #3a4146;border-radius:8px;padding:7px 10px}.bar input{flex:1;min-width:200px}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 12px;border-bottom:1px solid #ffffff14;font-size:13.5px;white-space:nowrap}th{color:#adb5bd;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em}
+td.num,th.num{font-variant-numeric:tabular-nums;text-align:right}tr.click{cursor:pointer}tr.click:hover{background:#ffffff0a}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:#2a3034;color:#adb5bd}.on{background:#1f3d2a;color:#7be09a}.dl{background:#4a2e12;color:#ffb15c}.bad{background:#4a1f1b;color:#ff7a6b}.plus{color:#ff8a3d}
+.err{color:#ff7a6b}.muted{color:#adb5bd}svg{width:100%;height:170px;display:block}.legend{font-size:12px;color:#adb5bd;margin-top:6px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 5px 0 12px}
+.hint{font-size:13px;color:#adb5bd;line-height:1.7}.hint b{color:#f5f5f5}
+tr.sub td{background:#14181a;padding:14px 18px;white-space:normal}.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.sub h3{font-size:13px;margin:0 0 8px;color:#ff8a3d}.sub ul{list-style:none;margin:0;padding:0;font-size:13px;line-height:1.7}.sub li time{color:#6c757d;margin-right:8px}
+.sub table{margin-top:4px}.sub th,.sub td{padding:6px 10px;border-bottom:1px solid #ffffff10}.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}.kv span:nth-child(odd){color:#adb5bd}
+</style>
+<main>
+<h1>Panel de control</h1>
+<p>Cada cliente con su llave, sus activaciones y lo que descargó. Se actualiza solo cada 10 segundos. <a href="/admin">Volver</a> · <a href="/admin/viking-tasks">Tareas en ejecución</a></p>
+<div id="error" class="err" role="alert"></div>
+
+<section>
+<h2>Clientes</h2>
+<div class="bar">
+<input id="search" type="search" placeholder="Buscar por cliente, juego o llave…" aria-label="Buscar">
+<select id="f-status" aria-label="Estado"><option value="">Todos</option><option value="online">Conectados</option><option value="downloading">Bajando</option><option value="offline">Desconectados</option></select>
+<select id="f-tier" aria-label="Plan"><option value="">Todos los planes</option><option value="plus">PLUS</option><option value="base">BASE</option></select>
+<select id="sort" aria-label="Ordenar"><option value="seen">Última conexión</option><option value="downloads">Más descargas</option><option value="bytes">Más datos</option><option value="first">Más nuevos</option></select>
+<select id="range" aria-label="Historia"><option value="1">Historia: 1 hora</option><option value="6">6 horas</option><option value="24" selected>24 horas</option><option value="168">7 días</option><option value="720">30 días</option></select>
+</div>
+<div class="wrap"><table><thead><tr><th>Cliente</th><th>Plan</th><th>Estado</th><th>Última conexión</th><th>Llave</th><th>Obtenida</th><th>Le queda</th><th class="num">Descargas</th><th class="num">Datos</th></tr></thead><tbody id="clients"></tbody></table></div>
+<p id="count" class="muted"></p></section>
+
+<section><h2>Resumen</h2>
+<div class="stats" style="margin-top:0">
+<div class="stat"><b id="online">–</b><span>conectados ahora</span></div>
+<div class="stat"><b id="downloading">–</b><span>bajando ahora</span></div>
+<div class="stat"><b id="total">–</b><span>clientes conocidos</span></div>
+<div class="stat"><b id="dl-today">–</b><span>descargas hoy</span></div>
+<div class="stat"><b id="dl-week">–</b><span>descargas (7 días)</span></div>
+<div class="stat"><b id="served24">–</b><span>servido (24 h)</span></div>
+<div class="stat"><b id="served7">–</b><span>servido (7 días)</span></div>
+</div>
+<div class="grid">
+<div><h2 id="chart-title">Actividad</h2><svg id="chart" viewBox="0 0 600 170" preserveAspectRatio="none" role="img" aria-label="Clientes conectados, bajando y velocidad servida"></svg>
+<div class="legend"><i style="background:#7be09a"></i>conectados<i style="background:#ffb15c"></i>bajando<i style="background:#6cb6ff"></i>Mbps servidos<i style="background:#c792ea"></i>trabajos activos</div></div>
+<div><h2>Para dimensionar el servidor</h2><div class="hint" id="capacity">–</div></div>
+</div></section>
+</main>
+<script>
+const q=id=>document.getElementById(id);
+const bytes=n=>{n=Number(n)||0;const u=["B","KB","MB","GB","TB"];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(n>=10||i===0?0:1)+" "+u[i]};
+const when=v=>v?new Date(v).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"–";
+const ago=v=>{if(!v)return"–";const s=Math.max(0,(Date.now()-new Date(v))/1000);return s<90?"hace "+Math.round(s)+" s":s<5400?"hace "+Math.round(s/60)+" min":s<172800?"hace "+Math.round(s/3600)+" h":when(v)};
+const remain=sec=>{if(sec==null)return"–";if(sec<=0)return"vencida";const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);return d?d+" d "+h+" h":h?h+" h "+m+" min":m+" min"};
+const STATUS={ready:["En Viking","on"],partial:["En Viking","on"],running:["Copiando a Viking","dl"],preparing:["Esperando a Torbox","dl"],failed:["Con error","bad"],completo:["Terminada en el cliente","on"],torrent:["Torrent directo","dl"],cancelado:["Cancelada",""],"en curso":["En curso","dl"],desconocido:["–",""]};
+const STEP={request:"Pedido",cache:"Ya estaba",resume:"Retoma",torbox:"Torbox",viking:"Viking",send:"Enviado",client:"Cliente",ready:"Listo",error:"Error"};
+const openTasks=new Set();
+const ACTIONS={"activation-redeem":"Activó una llave","activation-status":"Chequeo de acceso"};
+const REASONS={ok:"correcto",invalid_key:"llave inválida",key_expired:"llave vencida",key_used:"llave ya usada",revoked:"llave revocada"};
+let data=null,opened=new Set();
+function el(tag,text,cls){const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e}
+function cell(tr,text,cls){const td=el("td",text,cls);tr.appendChild(td);return td}
+function pill(td,text,cls){td.appendChild(el("span",text,"pill "+cls))}
+async function get(path){const r=await fetch(path,{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"No se pudo leer el estado.");return d}
+
+function stateOf(c){return c.downloading?"downloading":c.online?"online":"offline"}
+function visible(){
+  const text=q("search").value.trim().toLowerCase(),st=q("f-status").value,tier=q("f-tier").value;
+  let list=data.clients.filter(c=>{
+    if(st&&stateOf(c)!==st&&!(st==="online"&&c.downloading))return false;
+    if(tier&&(c.access_tier||"")!==tier)return false;
+    if(!text)return true;
+    const hay=[c.installation_id,c.access_tier,c.key&&c.key.state,...c.tasks.map(t=>t.item_name)].join(" ").toLowerCase();
+    return hay.includes(text)});
+  const by={seen:c=>-new Date(c.last_seen_at||0),downloads:c=>-c.tasks_count,bytes:c=>-c.bytes_in_range,first:c=>-new Date(c.first_seen_at||0)}[q("sort").value];
+  return list.sort((a,b)=>by(a)-by(b));
+}
+function subRow(c){
+  const tr=el("tr",null,"sub"),td=el("td");td.colSpan=9;const cols=el("div",null,"cols");
+  const left=el("div");left.appendChild(el("h3","Llave vinculada"));
+  const kv=el("div",null,"kv");const add=(k,v)=>{kv.appendChild(el("span",k));kv.appendChild(el("span",v))};
+  if(c.key){add("Plan",(c.key.tier||"").toUpperCase());add("Estado",c.key.state);add("Obtenida",when(c.key.obtained_at));add("Vence",when(c.key.expires_at));add("Le queda",remain(c.key.remaining_seconds));if(c.key.revoked_at)add("Revocada",when(c.key.revoked_at));add("Llaves usadas",c.key.keys_total)}
+  else add("Llave","Este cliente todavía no activó ninguna.");
+  add("Primera vez",when(c.first_seen_at));add("Id completo",c.installation_id);
+  left.appendChild(kv);
+  if(c.keys&&c.keys.length>1){left.appendChild(el("h3","Todas sus llaves ("+c.keys.length+")")).style.marginTop="14px";const kl=el("ul");
+    for(const k of c.keys){const li=el("li");li.appendChild(el("time",when(k.obtained_at)));li.appendChild(document.createTextNode((k.tier||"").toUpperCase()+" · "+k.state+" · le queda "+remain(k.remaining_seconds)));kl.appendChild(li)}left.appendChild(kl)}
+  left.appendChild(el("h3","Activaciones")).style.marginTop="14px";
+  const ul=el("ul");if(!c.activation_events.length)ul.appendChild(el("li","Sin eventos de activación."));
+  for(const e of c.activation_events){const li=el("li");li.appendChild(el("time",when(e.at)));li.appendChild(document.createTextNode((ACTIONS[e.action]||e.action)+" · "+(e.outcome==="allowed"?"permitido":e.outcome)+(e.reason&&e.reason!=="ok"?" ("+(REASONS[e.reason]||e.reason)+")":"")));ul.appendChild(li)}
+  left.appendChild(ul);
+  const right=el("div");right.appendChild(el("h3","Descargas en el período ("+c.tasks_count+")"));
+  if(!c.tasks.length)right.appendChild(el("p","Sin descargas en este período.","muted"));
+  else{const t=el("table");const head=el("tr");for(const h of ["Juego","Inicio","Estado","Archivos enviados","Datos enviados","Último paso"])head.appendChild(el("th",h));t.appendChild(head);
+    for(const k of c.tasks){const r=el("tr",null,"click");const tid=c.installation_id+k.job_id;r.onclick=e=>{e.stopPropagation();openTasks.has(tid)?openTasks.delete(tid):openTasks.add(tid);drawClients()};cell(r,(openTasks.has(tid)?"▾ ":"▸ ")+(k.item_name||k.job_id.slice(0,8)));cell(r,when(k.started_at));const s=cell(r,"");const st=STATUS[k.status]||[k.status,""];pill(s,st[0],st[1]);cell(r,k.pieces,"num");cell(r,bytes(k.bytes),"num");const m=cell(r,k.message||"–");m.style.whiteSpace="normal";t.appendChild(r);
+      if(openTasks.has(tid)){const sr=el("tr");const sd=el("td");sd.colSpan=6;const ul=el("ul");if(!(k.events||[]).length)ul.appendChild(el("li","Sin pasos registrados."));for(const e of k.events||[]){const li=el("li");li.appendChild(el("time",when(e.at)));const tag=el("b",(STEP[e.step]||e.step)+" · ");if(e.status==="error")li.style.color="#ff7a6b";else if(e.status==="ok")li.style.color="#7bd88f";li.appendChild(tag);li.appendChild(document.createTextNode(e.message));ul.appendChild(li)}sd.appendChild(ul);sr.appendChild(sd);t.appendChild(sr)}}
+    const w=el("div",null,"wrap");w.appendChild(t);right.appendChild(w)}
+  cols.append(left,right);td.appendChild(cols);tr.appendChild(td);return tr;
+}
+function drawClients(){
+  const rows=q("clients");rows.replaceChildren();if(!data)return;const list=visible();
+  if(!list.length){const tr=el("tr");cell(tr,"No hay clientes con ese filtro.").colSpan=9;rows.appendChild(tr)}
+  for(const c of list){
+    const tr=el("tr",null,"click");tr.onclick=()=>{opened.has(c.installation_id)?opened.delete(c.installation_id):opened.add(c.installation_id);drawClients()};
+    cell(tr,(opened.has(c.installation_id)?"▾ ":"▸ ")+c.installation_id.slice(0,8));
+    const plan=cell(tr,(c.access_tier||"–").toUpperCase());if(c.access_tier==="plus")plan.className="plus";
+    const st=cell(tr,"");if(c.downloading)pill(st,"bajando","dl");else if(c.online)pill(st,"conectado","on");else pill(st,"desconectado","");
+    cell(tr,ago(c.last_seen_at));
+    const k=cell(tr,"");if(c.key)pill(k,c.key.state,c.key.state==="activa"?"on":(c.key.state==="sin usar"?"":"bad"));else k.textContent="–";
+    cell(tr,c.key?when(c.key.obtained_at):"–");cell(tr,c.key?remain(c.key.remaining_seconds):"–");cell(tr,c.tasks_count,"num");cell(tr,bytes(c.bytes_in_range),"num");rows.appendChild(tr);
+    if(opened.has(c.installation_id))rows.appendChild(subRow(c));
+  }
+  q("count").textContent=list.length+" de "+data.clients.length+" clientes";
+}
+function chart(points){
+  const svg=q("chart");svg.replaceChildren();if(!points.length)return;
+  const W=600,H=170,n=points.length;const maxC=Math.max(1,...points.map(p=>Math.max(p.online,p.downloading,p.jobs)));const maxM=Math.max(1,...points.map(p=>p.mbps));
+  const line=(key,max,color)=>{const p=document.createElementNS("http://www.w3.org/2000/svg","polyline");
+    p.setAttribute("fill","none");p.setAttribute("stroke",color);p.setAttribute("stroke-width","2");p.setAttribute("vector-effect","non-scaling-stroke");
+    p.setAttribute("points",points.map((d,i)=>(n===1?W/2:i*W/(n-1)).toFixed(1)+","+(H-6-(d[key]/max)*(H-14)).toFixed(1)).join(" "));svg.appendChild(p)};
+  line("mbps",maxM,"#6cb6ff");line("jobs",maxC,"#c792ea");line("online",maxC,"#7be09a");line("downloading",maxC,"#ffb15c");
+}
+function summary(s){
+  q("online").textContent=s.clients_online;q("downloading").textContent=s.clients_downloading;q("total").textContent=s.clients_total;
+  q("dl-today").textContent=s.downloads_today;q("dl-week").textContent=s.downloads_7d;q("served24").textContent=bytes(s.bytes_served_24h);q("served7").textContent=bytes(s.bytes_served_7d);
+  q("chart-title").textContent="Actividad · "+(s.range_hours>=48?Math.round(s.range_hours/24)+" días":s.range_hours+" h");chart(s.series);
+  const box=q("capacity");box.replaceChildren();const p=s.peaks_7d,l=s.limits;
+  const add=(label,value)=>{const d=el("div");d.appendChild(el("b",label+": "));d.appendChild(document.createTextNode(value));box.appendChild(d)};
+  add("Pico de conectados (7 días)",p.online);add("Pico bajando a la vez",p.downloading);add("Pico de velocidad servida",p.mbps+" Mbps");
+  add("Trabajos de Torbox → Viking a la vez",l.max_jobs);add("Trabajos activos ahora",(s.jobs.preparing||0)+(s.jobs.running||0));
+  add("Guardado en Viking",bytes(s.bytes_stored_in_viking));add("Disco temporal del servidor",bytes(s.work_dir_bytes));
+  const note=el("div",p.downloading>=l.max_jobs*2?"Atención: hubo más clientes bajando que el doble de los trabajos permitidos; conviene subir GAMEACCESS_CHUNK_MAX_JOBS o sumar recursos.":"Con los picos actuales los límites alcanzan.");note.style.marginTop="8px";box.appendChild(note);
+}
+async function refresh(){
+  try{data=await get("/admin/api/clients-overview?hours="+q("range").value);summary(data.summary);drawClients();q("error").textContent=""}catch(e){q("error").textContent=e.message}
+}
+for(const id of ["search","f-status","f-tier","sort"])q(id).addEventListener("input",drawClients);
+q("range").addEventListener("change",refresh);
+refresh();setInterval(refresh,10000);
+</script>
+</html>

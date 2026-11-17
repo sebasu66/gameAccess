@@ -1,0 +1,28 @@
+/* The PLUS look (plusLook.ts; html.ga-plus while PLUS is on): the device wears thin gold. Only lines and accents
+   change colour; nothing moves or changes size. The frame (device-frame.css) and the opening's cover
+   (splash-screen.css) keep their shapes. The gold is the theme's (--ga-plus-* in gameaccess-theme.css). */
+
+/* The frame: gold accents, a gold lip where the metal meets the screen, faint gold engraved lines, and the name on
+   its tab lit in gold. */
+html.ga-plus .ga-frame-accent { stroke: var(--ga-plus-gold); stroke-opacity: .95; }
+html.ga-plus .ga-frame-lip-light { stroke: var(--ga-plus-gold); stroke-opacity: .42; }
+html.ga-plus .ga-frame-outer { stroke: var(--ga-plus-gold); stroke-opacity: .28; }
+html.ga-plus .ga-frame-inner { stroke: var(--ga-plus-gold); stroke-opacity: .16; }
+html.ga-plus .ga-frame-name { color: var(--ga-plus-gold-bright); text-shadow: 0 0 1px var(--ga-plus-glow-strong), 0 0 4px var(--ga-plus-glow); }
+
+/* The cover: each leaf's frame line in gold, gold engraved lines, the guide lines and the shadow line of the letters
+   in gold, and a PLUS mark in the right leaf's top corner. */
+html.ga-plus .gs-frame { box-shadow: inset 0 0 0 1px var(--ga-plus-cut), 0 0 0 1px var(--ga-plus-gold-soft), 0 0 12px var(--ga-plus-gold-faint); }
+html.ga-plus .gs-leaf-engrave {
+  background: linear-gradient(90deg, transparent 6%, var(--ga-plus-gold-line) 30%, var(--ga-plus-gold-line) 60%, transparent 78%) 0 50%/100% 1px no-repeat,
+    linear-gradient(90deg, transparent 10%, var(--ga-plus-gold-line-faint) 40%, transparent 75%) 0 22%/100% 1px no-repeat,
+    linear-gradient(90deg, transparent 10%, var(--ga-plus-gold-line-faint) 40%, transparent 75%) 0 78%/100% 1px no-repeat; }
+html.ga-plus .gs-word stop { stop-color: var(--ga-plus-gold); }
+html.ga-plus .gs-word-ghost { stroke: var(--ga-plus-gold); }
+html.ga-plus .gs-edge::after { background: var(--ga-plus-seam); box-shadow: 1px 0 var(--ga-plus-gold-soft); }
+
+.gs-plus-mark { display: none; }
+html.ga-plus .gs-plus-mark { position: absolute; z-index: 2; top: 26px; right: 64px; display: inline-flex; align-items: center; gap: 8px; pointer-events: none; }
+html.ga-plus .gs-plus-mark::before { content: "+"; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--ga-plus-gold-soft); border-radius: 5px;
+  font: 700 20px/1 Manrope, "Segoe UI", sans-serif; color: var(--ga-plus-gold); background: var(--ga-plus-gold-tint); box-shadow: 0 0 10px var(--ga-plus-gold-faint), inset 0 1px 0 var(--ga-plus-lip); }
+html.ga-plus .gs-plus-mark::after { content: "PLUS"; font: 400 15px/1 "Bebas Neue", sans-serif; letter-spacing: .18em; color: var(--ga-plus-gold-label); text-shadow: 0 0 4px var(--ga-plus-glow); }

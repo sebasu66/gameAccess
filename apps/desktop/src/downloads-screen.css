@@ -1,0 +1,4 @@
+/* The Download Manager as a screen (DownloadsScreen.tsx): the area's tabs, then the manager, in one scrolling column.
+   Layout only: the cards are the manager's own (digital-downloads.css). */
+.ga-downloads-content { overflow: auto; padding: var(--ga-space-2) 0 var(--ga-space-3); }
+.ga-downloads-content > .digital-downloads-screen { flex: none; }

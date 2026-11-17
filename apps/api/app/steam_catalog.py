@@ -13,6 +13,12 @@ class SteamCatalogError(RuntimeError):
 
 
 def steam_assets(app_id: int | None) -> dict[str, str | None]:
+    """Identity field only; artwork comes from the appdetails response itself.
+
+    This must not invent a cover URL: Steam serves covers from hashed paths, so
+    a derived `library_600x900_2x.jpg` answers 404 for most of the catalog. When
+    appdetails returns no image, the caller renders a placeholder instead.
+    """
     if not app_id:
         return {
             "header_image": None,
@@ -20,11 +26,10 @@ def steam_assets(app_id: int | None) -> dict[str, str | None]:
             "hero_image": None,
             "steam_url": None,
         }
-    base = f"https://cdn.akamai.steamstatic.com/steam/apps/{app_id}"
     return {
-        "header_image": f"{base}/header.jpg",
-        "capsule_image": f"{base}/library_600x900_2x.jpg",
-        "hero_image": f"{base}/library_hero.jpg",
+        "header_image": None,
+        "capsule_image": None,
+        "hero_image": None,
         "steam_url": f"https://store.steampowered.com/app/{app_id}/",
     }
 
@@ -55,6 +60,8 @@ class SteamCatalogAdapter:
             payload = json.loads(path.read_text(encoding="utf-8"))
             if not allow_stale and time.time() - float(payload.get("cached_at", 0)) > self.ttl_seconds:
                 return None
+            if not allow_stale and payload.get("schema_version") != 2:
+                return None
             data = payload.get("data")
             return data if isinstance(data, dict) else None
         except Exception:
@@ -62,7 +69,7 @@ class SteamCatalogAdapter:
 
     def _write_cache(self, app_id: int, language: str, country: str, data: dict[str, Any]) -> None:
         path = self._cache_path(app_id, language, country)
-        payload = {"cached_at": time.time(), "data": data}
+        payload = {"schema_version": 2, "cached_at": time.time(), "data": data}
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         tmp.replace(path)
@@ -96,6 +103,7 @@ class SteamCatalogAdapter:
         self._write_cache(app_id, language, country, normalized)
         return normalized
 
+
     def _normalize(self, app_id: int, raw: dict[str, Any]) -> dict[str, Any]:
         assets = steam_assets(app_id)
         screenshots = [
@@ -121,6 +129,7 @@ class SteamCatalogAdapter:
                     "thumbnail": item.get("thumbnail"),
                     "mp4": mp4.get("max") or mp4.get("480"),
                     "webm": webm.get("max") or webm.get("480"),
+                    "hls_h264": item.get("hls_h264"),
                     "highlight": bool(item.get("highlight")),
                 }
             )
@@ -135,6 +144,7 @@ class SteamCatalogAdapter:
             "app_id": app_id,
             "name": raw.get("name"),
             "type": raw.get("type"),
+            "controller_support": raw.get("controller_support"),
             "short_description": raw.get("short_description"),
             "about_the_game": raw.get("about_the_game"),
             "detailed_description": raw.get("detailed_description"),
@@ -146,6 +156,8 @@ class SteamCatalogAdapter:
             "release_date": release.get("date"),
             "coming_soon": bool(release.get("coming_soon")),
             "required_age": raw.get("required_age"),
+            "content_descriptors": raw.get("content_descriptors") if isinstance(raw.get("content_descriptors"), dict) else {},
+            "ratings": raw.get("ratings") if isinstance(raw.get("ratings"), dict) else {},
             "metacritic": raw.get("metacritic"),
             "recommendation_count": recommendations.get("total"),
             "achievement_count": achievements.get("total"),
@@ -161,7 +173,8 @@ class SteamCatalogAdapter:
             "header_image": raw.get("header_image") or assets["header_image"],
             "capsule_image": raw.get("capsule_imagev5") or assets["capsule_image"],
             "hero_image": assets["hero_image"],
-            "background": raw.get("background_raw") or raw.get("background") or assets["hero_image"],
+            "background": raw.get("background_raw") or raw.get("background") or assets["hero_image"],            "website": raw.get("website"),
+            "support_info": raw.get("support_info") if isinstance(raw.get("support_info"), dict) else {},
             "steam_url": assets["steam_url"],
             "source": "steam-store",
         }

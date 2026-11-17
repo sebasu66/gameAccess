@@ -1,0 +1,44 @@
+/* Settings › Plugins (PluginSettings.tsx, PluginForm.tsx): each plugin's state, source, on/off, the form it shares and
+   uninstalling it. Text, stacks and groups come from the dialog template (components/ga/content.css). */
+.ga-plugin-settings { max-width: 960px; }
+.ga-heading.ga-plugin-title { color: var(--ga-white); font: var(--ga-t2-font); letter-spacing: 0; }
+.ga-plugin-state { color: var(--ga-error); font-weight: 700; }
+.ga-plugin-state.is-on { color: var(--ga-ok); }
+.ga-plugin-state.is-off { color: var(--ga-muted); }
+.ga-plugin-list { display: grid; gap: 28px; padding-top: var(--ga-space-2); }
+.ga-plugin-list > .ga-plugin-settings + .ga-plugin-settings { padding-top: 28px; border-top: 1px solid var(--ga-line); }
+.ga-plugin-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; max-width: 960px; }
+.ga-plugin-switch { margin: 0; }
+.ga-plugin-link { display: inline-flex; align-items: center; gap: 5px; color: var(--ga-orange-ink); overflow-wrap: anywhere; }
+
+/* A field and its buttons in one row, all the same height; the field takes what is left. */
+.ga-plugin-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin: 0; }
+.ga-plugin-row > input:not([hidden]) { flex: 1 1 280px; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-field-bg); color: var(--ga-white); font: 14px var(--ga-text-family); }
+.ga-plugin-row > input:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+
+/* Lists: the feeds and the search results, one line each with its button at the end. */
+.ga-plugin-feeds, .ga-plugin-results { display: grid; margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--ga-line); }
+.ga-plugin-feeds:empty { display: none; }
+.ga-plugin-feeds > li, .ga-plugin-results > li { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 0; }
+.ga-plugin-feeds > li + li, .ga-plugin-results > li + li { border-top: 1px solid var(--ga-line); }
+.ga-plugin-feeds code { flex: 1; min-width: 0; overflow: hidden; color: var(--ga-orange-ink); text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-results { max-height: 420px; overflow-y: auto; }
+.ga-plugin-results > li { padding-inline: 8px; border-radius: 6px; cursor: context-menu; }
+.ga-plugin-results > li:hover { background: var(--ga-surface-2); }
+.ga-plugin-result-title { flex: 1; min-width: 0; overflow: hidden; color: var(--ga-white); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-result-meta { flex: none; color: var(--ga-muted); font-size: 13px; }
+.ga-plugin-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-surface); color: var(--ga-muted); font: 700 16px/1 var(--ga-text-family); cursor: pointer; }
+.ga-plugin-icon:hover:not(:disabled) { border-color: var(--ga-orange-line); color: var(--ga-orange-ink); }
+.ga-plugin-icon:focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 2px; }
+.ga-plugin-icon:disabled { opacity: .5; cursor: default; }
+
+/* The installed plugins on the screen, top right inside the frame (PluginIndicator.tsx): one column, one light each. */
+html body .plugin-indicator-group { position: fixed; z-index: 45; top: calc(var(--ga-frame-offset, 0px) + var(--ga-frame-top, 0px) + 10px); right: calc(var(--ga-frame-right, 0px) + 12px);
+  display: flex; flex-direction: column; align-items: stretch; gap: 0; max-width: 200px; padding: 3px; border: 1px solid var(--ga-tray-line); border-radius: var(--ga-tray-radius); background: var(--ga-tray-bg); backdrop-filter: var(--ga-tray-glass); }
+html body .plugin-indicator-group .plugin-indicator-item { display: flex; align-items: center; gap: 7px; height: 22px; min-width: 0; padding: 0 8px; border: 0; border-radius: 5px; background: none; color: var(--ga-tray-ink); font: var(--ga-tray-font); cursor: pointer; }
+html body .plugin-indicator-group .plugin-indicator-item:is(:hover, :focus-visible) { color: var(--ga-tray-ink-hover); background: var(--ga-tray-hover); }
+html body .plugin-indicator-item[data-connected="true"] i { background: var(--ga-light-on); }
+html body .plugin-indicator-item[data-connected="false"] i { background: var(--ga-light-fail); }
+html body .plugin-indicator-item[data-off] i { background: var(--ga-light-off); }
+.plugin-indicator-item[data-off] { opacity: .6; }
+html body.ga-big-screen .plugin-indicator-group { display: none; }

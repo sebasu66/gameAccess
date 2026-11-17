@@ -1,0 +1,12 @@
+/* Library › Manager › Accounts (AccountLibraries.tsx; docs/GUI_DESIGN.md §0c). The screen layer: only how the parts
+   are placed. Text, groups and buttons come from the general template (components/ga/content.css, GaButton); sizes
+   from the base and looks from the flavor, always through variables. */
+.ga-account-libraries { display: grid; gap: var(--ga-space-2); }
+.ga-account-store { display: grid; gap: var(--ga-space-2); }
+.ga-account-store-head, .ga-account-row, .ga-account-waiting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.ga-account-text { display: grid; gap: var(--ga-space-1); min-width: 0; }
+.ga-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-row-gap); }
+.ga-account-list { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.ga-account-row { padding: var(--ga-space-1) 0; border-top: 1px solid var(--ga-line); }
+.ga-account-name { font: var(--ga-t3-font); color: var(--ga-white); overflow-wrap: anywhere; }
+.ga-account-name .ga-hint { font: var(--ga-hint-font); }

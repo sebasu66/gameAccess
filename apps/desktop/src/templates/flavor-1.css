@@ -1,0 +1,19 @@
+/* Style 1: comic. Mode colors are fixed outside the flavor (vault/Rediseño de navegación.md §3). */
+:root[data-ga-flavor="estilo-1"] {
+  --ga-nav-panel-catalog: url('/styles/estilo-1/panel-1.jpg');
+  --ga-nav-panel-library: url('/styles/estilo-1/panel-0.jpg');
+  --ga-nav-panel-game-access: url('/styles/estilo-1/panel-2.jpg');
+  --ga-nav-panel-settings: url('/styles/estilo-1/panel-3.jpg');
+  --ga-nav-display-family: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
+  --ga-nav-display-style: normal; --ga-nav-display-case: uppercase;
+  --ga-nav-button-cut: 44px; --ga-nav-panel-corner: 26px; --ga-nav-button-radius: 0px;
+  --ga-nav-button-fill: solid; --ga-nav-icon-fill: flat; --ga-nav-rail-graphic: paper;
+  --ga-nav-glow: .5; --ga-nav-scan-opacity: 1; --ga-nav-grain-opacity: .28;
+  /* Submode pills: inked comic panel and a hard offset shadow. */
+  --ga-nav-pill-radius: 10px; --ga-nav-pill-slant: 0px; --ga-nav-pill-chamfer: 0px; --ga-nav-pill-edge: 2px;
+  --ga-nav-pill-line: #0a0705; --ga-nav-pill-line-on: #0a0705; --ga-nav-pill-base: #14100ce6;
+  --ga-nav-pill-shadow-x: 3px; --ga-nav-pill-shadow-y: 3px; --ga-nav-pill-shadow-blur: 0px; --ga-nav-pill-shadow-tint: 0%; --ga-nav-pill-shadow-ink: #000000;
+  --ga-nav-pill-dot-radius: 50%; --ga-nav-pill-dot-turn: 0deg;
+  --ga-nav-pill-family: var(--ga-text-family); --ga-nav-pill-weight: 800; --ga-nav-pill-case: none; --ga-nav-pill-tracking: 0; --ga-nav-pill-scale: .86;
+  --ga-nav-transition-time: .6s;
+}

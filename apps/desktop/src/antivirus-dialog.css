@@ -1,0 +1,25 @@
+/* The antivirus and the direct-download folders (AntivirusDialog.tsx). A large dialog by docs/GUI_DESIGN.md §4.26,
+   with the same measures as the kid mode's final dialog (kid-mode.css, .ga-kid-ready): standard header with a line
+   under it, an 18 px lead, the two notes as cards side by side and of the same height, header and buttons fixed. */
+.ga-overlay-dialog.ga-av { width: min(1200px, calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * clamp(24px, 4vw, 64px))) !important; max-height: calc(100vh - 48px) !important; padding: 40px 44px 36px !important; gap: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column; }
+.ga-av-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--ga-line); }
+.ga-av-titles { display: grid; gap: 10px; }
+.ga-av .ga-av-title { margin: 0 !important; color: var(--ga-orange) !important; font: 400 52px/1 "Bebas Neue", sans-serif !important; letter-spacing: .02em !important; }
+/* On a short screen the header and the buttons stay; only the text between them scrolls. */
+.ga-av-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-right: -12px; padding-right: 12px; }
+.ga-av-intro { padding-top: 24px; }
+.ga-av .ga-av-lead { --ga-p-size: 18px; max-width: 80ch; color: var(--ga-text-ink) !important; }
+.ga-av-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); align-items: stretch; gap: 16px; margin-top: 32px; }
+.ga-av-note { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 20px; padding: 22px 24px; border: 1px solid var(--ga-line); border-radius: 12px; background: var(--ga-surface); }
+.ga-av-note-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid currentColor; border-radius: 50%; }
+.ga-av-note.is-warn :is(.ga-av-note-icon, .ga-av-note-title) { color: var(--ga-warn); }
+.ga-av-note.is-ok :is(.ga-av-note-icon, .ga-av-note-title) { color: var(--ga-ok); }
+.ga-av-note-body { display: grid; gap: 10px; align-content: start; min-width: 0; --ga-p-size: 16px; }
+.ga-av-note-title { margin: 0; font: 700 20px/1.25 var(--ga-text-family); }
+.ga-av-section { display: grid; gap: 12px; margin-top: 32px; }
+.ga-av-folders { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ga-av-folders code { display: inline-block; max-width: 100%; padding: 8px 12px; overflow-wrap: anywhere; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-surface); color: var(--ga-text-ink); font: 500 15px/1.4 Consolas, "Cascadia Mono", monospace; }
+.ga-av-steps { display: grid; gap: 10px; max-width: 80ch; margin: 0; padding-left: 22px; color: var(--ga-text-ink); font: 400 16px/1.5 var(--ga-text-family); }
+.ga-av-note-line { margin-top: 24px !important; }
+/* `.ga-av` in front: `.ga-actions` (content.css) sets margin 0 and may load later. */
+.ga-av .ga-av-foot { justify-content: flex-end; margin-top: 32px; }

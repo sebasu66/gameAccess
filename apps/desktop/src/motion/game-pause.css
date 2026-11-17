@@ -1,0 +1,2 @@
+/* While a game runs or the window is hidden (motion/gamePause.ts): nothing animates, so the app takes no resources from the game. */
+html.ga-game-running *, html.ga-game-running *::before, html.ga-game-running *::after { animation-play-state: paused !important; transition-duration: 0s !important; transition-delay: 0s !important; }

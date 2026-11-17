@@ -1,0 +1,18 @@
+/* Tailwind utilities for the Library Manager only (no reset). Palette = the app's own (gameaccess-theme.css). */
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --lm-background: 17 20 22;        /* --ga-bg #111416 */
+  --lm-foreground: 244 244 242;     /* --ga-white */
+  --lm-card: 24 27 31;
+  --lm-muted: 36 38 44;
+  --lm-muted-foreground: 146 155 162; /* --ga-muted */
+  --lm-primary: 204 131 51;          /* --ga-orange */
+  --lm-primary-foreground: 17 17 17;
+  --lm-destructive: 190 71 80;      /* the app's close-button red */
+  --lm-success: 81 170 122;
+  --lm-warning: 204 143 51;
+  --lm-info: 120 162 221;
+  --lm-frost: 165 206 233; /* --ga-frost: frozen games */
+}

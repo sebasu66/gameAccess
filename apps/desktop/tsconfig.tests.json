@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"], "noEmit": true },
+  "include": ["src/catalogFixture.ts", "src/catalogReport.report.ts", "src/catalogRealData.test.ts", "src/libraryOrderingAndGenres.test.ts"],
+  "exclude": []
+}

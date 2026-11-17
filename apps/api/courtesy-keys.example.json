@@ -1,0 +1,9 @@
+{
+  "keys": [
+    {
+      "name": "developer",
+      "key": "REPLACE_WITH_PRIVATE_KEY",
+      "duration_months": 1
+    }
+  ]
+}

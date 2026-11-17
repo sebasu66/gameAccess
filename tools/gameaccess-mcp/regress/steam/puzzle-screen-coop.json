@@ -1,0 +1,7960 @@
+{
+ "id": "puzzle-screen-coop",
+ "steam": {
+  "tags": [
+   1664
+  ],
+  "category3": [
+   39
+  ]
+ },
+ "fetched": "2026-11-03T23:14:46.245Z",
+ "total": 1138,
+ "games": [
+  {
+   "app_id": 1289670,
+   "name": "EA Play",
+   "released": "Aug 31, 2020",
+   "score": 53,
+   "reviews": 13
+  },
+  {
+   "app_id": 2129530,
+   "name": "REANIMAL",
+   "released": "Feb 13, 2026",
+   "score": 82,
+   "reviews": 6054
+  },
+  {
+   "app_id": 1426210,
+   "name": "It Takes Two",
+   "released": "Mar 25, 2021",
+   "score": 95,
+   "reviews": 48514
+  },
+  {
+   "app_id": 620,
+   "name": "Portal 2",
+   "released": "Apr 18, 2011",
+   "score": 98,
+   "reviews": 174818
+  },
+  {
+   "app_id": 477160,
+   "name": "Human Fall Flat",
+   "released": "Jul 22, 2016",
+   "score": 95,
+   "reviews": 30988
+  },
+  {
+   "app_id": 3905450,
+   "name": "WheelMates",
+   "released": "Sep 1, 2026",
+   "score": 73,
+   "reviews": 766
+  },
+  {
+   "app_id": 2475460,
+   "name": "SOS OPS!",
+   "released": "Nov 30, 2023",
+   "score": 76,
+   "reviews": 1033
+  },
+  {
+   "app_id": 920210,
+   "name": "LEGO® Star Wars™: The Skywalker Saga",
+   "released": "Apr 5, 2022",
+   "score": 89,
+   "reviews": 26780
+  },
+  {
+   "app_id": 641990,
+   "name": "The Escapists 2",
+   "released": "Aug 21, 2017",
+   "score": 91,
+   "reviews": 11398
+  },
+  {
+   "app_id": 2950340,
+   "name": "LEGO® Harry Potter™ Collection",
+   "released": "Oct 8, 2024",
+   "score": 82,
+   "reviews": 1538
+  },
+  {
+   "app_id": 3914860,
+   "name": "Moss: The Forgotten Relic ",
+   "released": "Jul 16, 2026",
+   "score": 91,
+   "reviews": 446
+  },
+  {
+   "app_id": 341800,
+   "name": "Keep Talking and Nobody Explodes",
+   "released": "Oct 8, 2015",
+   "score": 98,
+   "reviews": 8145
+  },
+  {
+   "app_id": 837470,
+   "name": "Untitled Goose Game",
+   "released": "Sep 23, 2020",
+   "score": 96,
+   "reviews": 10410
+  },
+  {
+   "app_id": 1003590,
+   "name": "Tetris® Effect: Connected",
+   "released": "Aug 17, 2021",
+   "score": 94,
+   "reviews": 5683
+  },
+  {
+   "app_id": 238460,
+   "name": "BattleBlock Theater®",
+   "released": "May 15, 2014",
+   "score": 97,
+   "reviews": 23683
+  },
+  {
+   "app_id": 1138850,
+   "name": "Heavenly Bodies",
+   "released": "Dec 7, 2021",
+   "score": 95,
+   "reviews": 2303
+  },
+  {
+   "app_id": 1225570,
+   "name": "Unravel Two",
+   "released": "Jun 4, 2020",
+   "score": 74,
+   "reviews": 2892
+  },
+  {
+   "app_id": 2644470,
+   "name": "PICO PARK 2",
+   "released": "Sep 12, 2024",
+   "score": 94,
+   "reviews": 1306
+  },
+  {
+   "app_id": 2111550,
+   "name": "Schrodinger's Cat Burglar",
+   "released": "May 21, 2026",
+   "score": 97,
+   "reviews": 642
+  },
+  {
+   "app_id": 1123450,
+   "name": "Chicory: A Colorful Tale",
+   "released": "Jun 10, 2021",
+   "score": 97,
+   "reviews": 2251
+  },
+  {
+   "app_id": 710920,
+   "name": "Darksiders Genesis",
+   "released": "Dec 5, 2019",
+   "score": 84,
+   "reviews": 3540
+  },
+  {
+   "app_id": 1147860,
+   "name": "UFO 50",
+   "released": "Sep 18, 2024",
+   "score": 95,
+   "reviews": 6620
+  },
+  {
+   "app_id": 1509960,
+   "name": "PICO PARK",
+   "released": "May 7, 2021",
+   "score": 92,
+   "reviews": 9521
+  },
+  {
+   "app_id": 5041530,
+   "name": "Put Your Toys Away Together!",
+   "released": "Oct 30, 2026",
+   "score": 93,
+   "reviews": 49
+  },
+  {
+   "app_id": 1812090,
+   "name": "Escape Academy",
+   "released": "Jul 13, 2022",
+   "score": 86,
+   "reviews": 1152
+  },
+  {
+   "app_id": 1538550,
+   "name": "LEGO® Voyagers",
+   "released": "Sep 15, 2025",
+   "score": 89,
+   "reviews": 1945
+  },
+  {
+   "app_id": 4733900,
+   "name": "REANIMAL: The Prisoner",
+   "released": "Aug 7, 2026",
+   "score": 75,
+   "reviews": 445
+  },
+  {
+   "app_id": 5241370,
+   "name": "SOS OPS! - OVERBOOKED",
+   "released": "Sep 25, 2026",
+   "score": 75,
+   "reviews": 70
+  },
+  {
+   "app_id": 3100970,
+   "name": "Isle of Reveries",
+   "released": "Sep 4, 2026",
+   "score": 94,
+   "reviews": 159
+  },
+  {
+   "app_id": 2073910,
+   "name": "A Webbing Journey",
+   "released": "May 19, 2025",
+   "score": 98,
+   "reviews": 1340
+  },
+  {
+   "app_id": 1259790,
+   "name": "Puyo Puyo™ Tetris® 2",
+   "released": "Mar 23, 2021",
+   "score": 89,
+   "reviews": 1236
+  },
+  {
+   "app_id": 2216830,
+   "name": "The Jackbox Party Pack 10",
+   "released": "Oct 18, 2023",
+   "score": 64,
+   "reviews": 502
+  },
+  {
+   "app_id": 839870,
+   "name": "Wilmot's Warehouse",
+   "released": "Aug 29, 2019",
+   "score": 96,
+   "reviews": 532
+  },
+  {
+   "app_id": 2787320,
+   "name": "Revenge of the Savage Planet",
+   "released": "May 8, 2025",
+   "score": 88,
+   "reviews": 1597
+  },
+  {
+   "app_id": 3744430,
+   "name": "Together: Moon Escape",
+   "released": "Apr 21, 2026",
+   "score": 90,
+   "reviews": 942
+  },
+  {
+   "app_id": 1242980,
+   "name": "KeyWe",
+   "released": "Aug 31, 2021",
+   "score": 90,
+   "reviews": 1859
+  },
+  {
+   "app_id": 32510,
+   "name": "LEGO® Star Wars™ III - The Clone Wars™",
+   "released": "Mar 22, 2011",
+   "score": 94,
+   "reviews": 4176
+  },
+  {
+   "app_id": 5329940,
+   "name": "SCROLLS: Tidy up the Library of Olympus!",
+   "released": "Nov 1, 2026",
+   "score": 87,
+   "reviews": 16
+  },
+  {
+   "app_id": 4446280,
+   "name": "SOS OPS! - BACKROOMS",
+   "released": "Mar 5, 2026",
+   "score": 64,
+   "reviews": 134
+  },
+  {
+   "app_id": 3176060,
+   "name": "Emissary Zero",
+   "released": "Mar 28, 2025",
+   "score": 87,
+   "reviews": 1251
+  },
+  {
+   "app_id": 1071870,
+   "name": "Biped",
+   "released": "Mar 26, 2020",
+   "score": 89,
+   "reviews": 1775
+  },
+  {
+   "app_id": 572890,
+   "name": "Pikuniku",
+   "released": "Jan 24, 2019",
+   "score": 95,
+   "reviews": 4121
+  },
+  {
+   "app_id": 3756010,
+   "name": "SUPER BOMBERMAN COLLECTION",
+   "released": "Feb 5, 2026",
+   "score": 88,
+   "reviews": 316
+  },
+  {
+   "app_id": 2560240,
+   "name": "Biped 2",
+   "released": "Nov 5, 2025",
+   "score": 71,
+   "reviews": 862
+  },
+  {
+   "app_id": 3286930,
+   "name": "Heretic + Hexen",
+   "released": "Aug 7, 2025",
+   "score": 95,
+   "reviews": 1825
+  },
+  {
+   "app_id": 1641700,
+   "name": "Moving Out 2",
+   "released": "Aug 15, 2023",
+   "score": 72,
+   "reviews": 471
+  },
+  {
+   "app_id": 690640,
+   "name": "Trine 4: The Nightmare Prince",
+   "released": "Oct 8, 2019",
+   "score": 93,
+   "reviews": 2918
+  },
+  {
+   "app_id": 311770,
+   "name": "LEGO® Pirates of the Caribbean: The Video Game",
+   "released": "Oct 6, 2014",
+   "score": 87,
+   "reviews": 1741
+  },
+  {
+   "app_id": 1999520,
+   "name": "CATO: Buttered Cat",
+   "released": "Sep 5, 2024",
+   "score": 98,
+   "reviews": 444
+  },
+  {
+   "app_id": 35720,
+   "name": "Trine 2: Complete Story",
+   "released": "Jun 6, 2013",
+   "score": 94,
+   "reviews": 5720
+  },
+  {
+   "app_id": 2246110,
+   "name": "Q REMASTERED",
+   "released": "May 1, 2023",
+   "score": 82,
+   "reviews": 426
+  },
+  {
+   "app_id": 2477090,
+   "name": "Mosa Lina",
+   "released": "Oct 17, 2023",
+   "score": 95,
+   "reviews": 1744
+  },
+  {
+   "app_id": 295790,
+   "name": "Never Alone (Kisima Ingitchuna)",
+   "released": "Nov 18, 2014",
+   "score": 78,
+   "reviews": 2600
+  },
+  {
+   "app_id": 2543180,
+   "name": "POPUCOM",
+   "released": "Jun 1, 2025",
+   "score": 93,
+   "reviews": 356
+  },
+  {
+   "app_id": 5084260,
+   "name": "Fireboy & Watergirl 1: The Forest Temple",
+   "released": "Sep 1, 2026",
+   "score": 88,
+   "reviews": 371
+  },
+  {
+   "app_id": 1404090,
+   "name": "Trivia Tricks",
+   "released": "Oct 8, 2024",
+   "score": 93,
+   "reviews": 223
+  },
+  {
+   "app_id": 866140,
+   "name": "Arise: A Simple Story",
+   "released": "Dec 3, 2020",
+   "score": 91,
+   "reviews": 903
+  },
+  {
+   "app_id": 996770,
+   "name": "Moving Out",
+   "released": "Apr 28, 2020",
+   "score": 82,
+   "reviews": 1692
+  },
+  {
+   "app_id": 1346020,
+   "name": "Wargroove 2",
+   "released": "Oct 5, 2023",
+   "score": 69,
+   "reviews": 409
+  },
+  {
+   "app_id": 944080,
+   "name": "Pode",
+   "released": "Apr 3, 2020",
+   "score": 89,
+   "reviews": 591
+  },
+  {
+   "app_id": 35700,
+   "name": "Trine Enchanted Edition",
+   "released": "Jul 2, 2009",
+   "score": 94,
+   "reviews": 4665
+  },
+  {
+   "app_id": 4997190,
+   "name": "Alchemess: Tidy Up Your Potion Shop!",
+   "released": "Sep 17, 2026",
+   "score": 61,
+   "reviews": 44
+  },
+  {
+   "app_id": 1862520,
+   "name": "Just Go",
+   "released": "Aug 9, 2022",
+   "score": 89,
+   "reviews": 362
+  },
+  {
+   "app_id": 400630,
+   "name": "Wuppo: Definitive Edition",
+   "released": "Sep 29, 2016",
+   "score": 93,
+   "reviews": 1122
+  },
+  {
+   "app_id": 1447820,
+   "name": "The Girl from Arkanya",
+   "released": "Aug 21, 2025",
+   "score": 92,
+   "reviews": 157
+  },
+  {
+   "app_id": 592480,
+   "name": "Knights And Bikes",
+   "released": "Aug 26, 2019",
+   "score": 86,
+   "reviews": 484
+  },
+  {
+   "app_id": 2094070,
+   "name": "Quest Master",
+   "released": "May 29, 2024",
+   "score": 98,
+   "reviews": 360
+  },
+  {
+   "app_id": 3670180,
+   "name": "Baby Kings",
+   "released": "Aug 13, 2026",
+   "score": 85,
+   "reviews": 28
+  },
+  {
+   "app_id": 1124160,
+   "name": "VR Giants",
+   "released": "Jun 14, 2023",
+   "score": 80,
+   "reviews": 191
+  },
+  {
+   "app_id": 850320,
+   "name": "PHOGS!",
+   "released": "Dec 3, 2020",
+   "score": 78,
+   "reviews": 1188
+  },
+  {
+   "app_id": 2058140,
+   "name": "Henry Halfhead",
+   "released": "Sep 16, 2025",
+   "score": 97,
+   "reviews": 186
+  },
+  {
+   "app_id": 259810,
+   "name": "Home Sheep Home: Farmageddon Party Edition",
+   "released": "Feb 17, 2014",
+   "score": 93,
+   "reviews": 1037
+  },
+  {
+   "app_id": 5085370,
+   "name": "Fireboy & Watergirl 2: The Light Temple",
+   "released": "Sep 1, 2026",
+   "score": 96,
+   "reviews": 54
+  },
+  {
+   "app_id": 4401160,
+   "name": "Fireboy & Watergirl and Friends",
+   "released": "May 6, 2026",
+   "score": 91,
+   "reviews": 62
+  },
+  {
+   "app_id": 1781350,
+   "name": "Fireboy & Watergirl: Fairy Tales",
+   "released": "Nov 1, 2021",
+   "score": 93,
+   "reviews": 350
+  },
+  {
+   "app_id": 3222830,
+   "name": "DreamWorks Gabby’s Dollhouse: Ready to Party",
+   "released": "Sep 19, 2025",
+   "score": 94,
+   "reviews": 17
+  },
+  {
+   "app_id": 661280,
+   "name": "Dresden Files Cooperative Card Game",
+   "released": "Oct 30, 2017",
+   "score": 80,
+   "reviews": 115
+  },
+  {
+   "app_id": 1003480,
+   "name": "Fireboy & Watergirl: Elements",
+   "released": "Jan 24, 2019",
+   "score": 84,
+   "reviews": 1140
+  },
+  {
+   "app_id": 976890,
+   "name": "Hidden Deep",
+   "released": "Jan 24, 2022",
+   "score": 76,
+   "reviews": 1867
+  },
+  {
+   "app_id": 1778050,
+   "name": "Mythmatch",
+   "released": "Mar 13, 2026",
+   "score": 98,
+   "reviews": 127
+  },
+  {
+   "app_id": 809880,
+   "name": "Degrees of Separation",
+   "released": "Feb 13, 2019",
+   "score": 79,
+   "reviews": 1026
+  },
+  {
+   "app_id": 1952690,
+   "name": "Bytebond",
+   "released": "Sep 18, 2025",
+   "score": 87,
+   "reviews": 78
+  },
+  {
+   "app_id": 1347970,
+   "name": "Patch Quest",
+   "released": "Mar 2, 2023",
+   "score": 95,
+   "reviews": 1059
+  },
+  {
+   "app_id": 5085500,
+   "name": "Fireboy & Watergirl 3: The Ice Temple",
+   "released": "Sep 1, 2026",
+   "score": 84,
+   "reviews": 38
+  },
+  {
+   "app_id": 5085510,
+   "name": "Fireboy & Watergirl 4: The Crystal Temple",
+   "released": "Sep 1, 2026",
+   "score": 96,
+   "reviews": 25
+  },
+  {
+   "app_id": 2153350,
+   "name": "Brothers: A Tale of Two Sons Remake",
+   "released": "Feb 28, 2024",
+   "score": 69,
+   "reviews": 1032
+  },
+  {
+   "app_id": 2318070,
+   "name": "Little Big Adventure – Twinsen’s Quest",
+   "released": "Nov 14, 2024",
+   "score": 89,
+   "reviews": 737
+  },
+  {
+   "app_id": 2680440,
+   "name": "MONOWAVE",
+   "released": "Sep 16, 2026",
+   "score": 96,
+   "reviews": 81
+  },
+  {
+   "app_id": 3655610,
+   "name": "PancitoMerge",
+   "released": "Dec 9, 2025",
+   "score": 98,
+   "reviews": 168
+  },
+  {
+   "app_id": 2213330,
+   "name": "Tiny Lands 2",
+   "released": "Nov 6, 2025",
+   "score": 94,
+   "reviews": 127
+  },
+  {
+   "app_id": 359840,
+   "name": "Shift Happens",
+   "released": "Feb 22, 2017",
+   "score": 77,
+   "reviews": 679
+  },
+  {
+   "app_id": 1303950,
+   "name": "Toodee and Topdee",
+   "released": "Aug 4, 2021",
+   "score": 93,
+   "reviews": 674
+  },
+  {
+   "app_id": 1961160,
+   "name": "Cats Love Boxes",
+   "released": "Feb 28, 2024",
+   "score": 97,
+   "reviews": 437
+  },
+  {
+   "app_id": 2024070,
+   "name": "Party Quiz",
+   "released": "Jul 31, 2026",
+   "score": 81,
+   "reviews": 155
+  },
+  {
+   "app_id": 5221860,
+   "name": "Chess Folk",
+   "released": "Oct 7, 2026",
+   "score": 95,
+   "reviews": 20
+  },
+  {
+   "app_id": 1520380,
+   "name": "HALF DEAD 3",
+   "released": "Sep 9, 2022",
+   "score": 77,
+   "reviews": 491
+  },
+  {
+   "app_id": 3104020,
+   "name": "Deviation Game",
+   "released": "Dec 12, 2025",
+   "score": 90,
+   "reviews": 110
+  },
+  {
+   "app_id": 547480,
+   "name": "Carly and the Reaperman - Escape from the Underworld",
+   "released": "Jun 19, 2018",
+   "score": 86,
+   "reviews": 205
+  },
+  {
+   "app_id": 319910,
+   "name": "Trine 3: The Artifacts of Power",
+   "released": "Aug 20, 2015",
+   "score": 60,
+   "reviews": 2439
+  },
+  {
+   "app_id": 3589820,
+   "name": "Don't Pop The Balloon",
+   "released": "May 29, 2026",
+   "score": 98,
+   "reviews": 60
+  },
+  {
+   "app_id": 2273850,
+   "name": "Beacon Patrol",
+   "released": "Sep 17, 2025",
+   "score": 97,
+   "reviews": 75
+  },
+  {
+   "app_id": 2171690,
+   "name": "Handshakes",
+   "released": "Jan 13, 2023",
+   "score": 98,
+   "reviews": 1896
+  },
+  {
+   "app_id": 416600,
+   "name": "Full Metal Furies",
+   "released": "Jan 17, 2018",
+   "score": 90,
+   "reviews": 1004
+  },
+  {
+   "app_id": 1372000,
+   "name": "Flowstone Saga",
+   "released": "Sep 26, 2024",
+   "score": 81,
+   "reviews": 172
+  },
+  {
+   "app_id": 1085220,
+   "name": "Figment 2: Creed Valley",
+   "released": "Mar 9, 2023",
+   "score": 94,
+   "reviews": 918
+  },
+  {
+   "app_id": 61730,
+   "name": "Critter Crunch",
+   "released": "Sep 11, 2012",
+   "score": 94,
+   "reviews": 275
+  },
+  {
+   "app_id": 471810,
+   "name": "Death Squared",
+   "released": "Mar 13, 2017",
+   "score": 90,
+   "reviews": 473
+  },
+  {
+   "app_id": 702680,
+   "name": "Wattam",
+   "released": "Dec 18, 2020",
+   "score": 85,
+   "reviews": 547
+  },
+  {
+   "app_id": 3069340,
+   "name": "Blasterbug: Last Bug Standing! ",
+   "released": "Aug 24, 2026",
+   "score": 98,
+   "reviews": 146
+  },
+  {
+   "app_id": 1109820,
+   "name": "Pile Up! Box by Box",
+   "released": "Mar 18, 2021",
+   "score": 90,
+   "reviews": 64
+  },
+  {
+   "app_id": 561260,
+   "name": "The Rabbit and The Owl",
+   "released": "Aug 3, 2018",
+   "score": 100,
+   "reviews": 29
+  },
+  {
+   "app_id": 1752540,
+   "name": "Lost Twins 2",
+   "released": "Aug 14, 2025",
+   "score": 87,
+   "reviews": 48
+  },
+  {
+   "app_id": 1211110,
+   "name": "Petal Crash",
+   "released": "Oct 12, 2020",
+   "score": 96,
+   "reviews": 199
+  },
+  {
+   "app_id": 1531490,
+   "name": "Harmony's Odyssey",
+   "released": "Oct 19, 2022",
+   "score": 92,
+   "reviews": 311
+  },
+  {
+   "app_id": 2357950,
+   "name": "Q2 HUMANITY",
+   "released": "Dec 17, 2024",
+   "score": 89,
+   "reviews": 56
+  },
+  {
+   "app_id": 257750,
+   "name": "Bloody Trapland",
+   "released": "Nov 18, 2013",
+   "score": 82,
+   "reviews": 1325
+  },
+  {
+   "app_id": 596500,
+   "name": "Chippy & Noppo",
+   "released": "Mar 8, 2023",
+   "score": 92,
+   "reviews": 56
+  },
+  {
+   "app_id": 3178920,
+   "name": "Educational Family Games",
+   "released": "Jul 9, 2026",
+   "score": 100,
+   "reviews": 10
+  },
+  {
+   "app_id": 2686690,
+   "name": "Suika Shapes",
+   "released": "Nov 27, 2023",
+   "score": 95,
+   "reviews": 100
+  },
+  {
+   "app_id": 628660,
+   "name": "Lode Runner Legacy",
+   "released": "Jul 13, 2017",
+   "score": 78,
+   "reviews": 167
+  },
+  {
+   "app_id": 1661630,
+   "name": "KarmaZoo",
+   "released": "Nov 14, 2023",
+   "score": 88,
+   "reviews": 958
+  },
+  {
+   "app_id": 1444560,
+   "name": "Trine 4: Melody of Mystery",
+   "released": "Nov 19, 2020",
+   "score": 89,
+   "reviews": 288
+  },
+  {
+   "app_id": 504920,
+   "name": "39 Days to Mars",
+   "released": "Apr 25, 2018",
+   "score": 83,
+   "reviews": 243
+  },
+  {
+   "app_id": 3954470,
+   "name": "REANIMAL - Foxhead and Muttonhead Masks",
+   "released": "Feb 13, 2026",
+   "score": 83,
+   "reviews": 30
+  },
+  {
+   "app_id": 3990960,
+   "name": "Puzzle Bobble Everybubble!",
+   "released": "Apr 22, 2026",
+   "score": 59,
+   "reviews": 22
+  },
+  {
+   "app_id": 432980,
+   "name": "INVERSUS Deluxe",
+   "released": "Aug 16, 2016",
+   "score": 89,
+   "reviews": 273
+  },
+  {
+   "app_id": 2122880,
+   "name": "All Hands on Deck",
+   "released": "Nov 11, 2025",
+   "score": 72,
+   "reviews": 93
+  },
+  {
+   "app_id": 2840890,
+   "name": "Nekokami - The Human Restoration Project",
+   "released": "Apr 13, 2026",
+   "score": 96,
+   "reviews": 66
+  },
+  {
+   "app_id": 1823200,
+   "name": "Jumanji: Wild Adventures",
+   "released": "Nov 3, 2023",
+   "score": 84,
+   "reviews": 13
+  },
+  {
+   "app_id": 832320,
+   "name": "Mighty Switch Force! Collection",
+   "released": "Jul 25, 2019",
+   "score": 90,
+   "reviews": 122
+  },
+  {
+   "app_id": 806900,
+   "name": "Them Bombs",
+   "released": "Jul 10, 2019",
+   "score": 91,
+   "reviews": 69
+  },
+  {
+   "app_id": 2447260,
+   "name": "Cats on Duty",
+   "released": "Jul 29, 2024",
+   "score": 90,
+   "reviews": 144
+  },
+  {
+   "app_id": 1268370,
+   "name": "holedown",
+   "released": "Apr 9, 2020",
+   "score": 85,
+   "reviews": 54
+  },
+  {
+   "app_id": 889260,
+   "name": "Bonkies",
+   "released": "Sep 10, 2018",
+   "score": 94,
+   "reviews": 35
+  },
+  {
+   "app_id": 4414520,
+   "name": "Quadrix",
+   "released": "Jun 23, 2026",
+   "score": 86,
+   "reviews": 15
+  },
+  {
+   "app_id": 1561060,
+   "name": "Love Colors: Paint with Friends",
+   "released": "Sep 17, 2021",
+   "score": 84,
+   "reviews": 83
+  },
+  {
+   "app_id": 1624320,
+   "name": "Eigengrau",
+   "released": "Jun 5, 2023",
+   "score": 100,
+   "reviews": 87
+  },
+  {
+   "app_id": 1460050,
+   "name": "Adventure Bit",
+   "released": "Jan 10, 2021",
+   "score": 96,
+   "reviews": 52
+  },
+  {
+   "app_id": 400160,
+   "name": "Concrete Jungle",
+   "released": "Sep 23, 2015",
+   "score": 89,
+   "reviews": 325
+  },
+  {
+   "app_id": 1320490,
+   "name": "Princess Farmer",
+   "released": "Mar 31, 2022",
+   "score": 96,
+   "reviews": 126
+  },
+  {
+   "app_id": 431940,
+   "name": "Wildfire",
+   "released": "May 25, 2020",
+   "score": 83,
+   "reviews": 455
+  },
+  {
+   "app_id": 1452540,
+   "name": "Frincess&Cnight",
+   "released": "Sep 11, 2021",
+   "score": 95,
+   "reviews": 140
+  },
+  {
+   "app_id": 464900,
+   "name": "Pitfall Planet",
+   "released": "May 2, 2016",
+   "score": 98,
+   "reviews": 96
+  },
+  {
+   "app_id": 513980,
+   "name": "Oh No! Bugs!",
+   "released": "Aug 14, 2016",
+   "score": 80,
+   "reviews": 95
+  },
+  {
+   "app_id": 1305150,
+   "name": "UniDuni",
+   "released": "Dec 9, 2025",
+   "score": 95,
+   "reviews": 61
+  },
+  {
+   "app_id": 1173740,
+   "name": "Woodle Tree 2: Deluxe+",
+   "released": "Dec 17, 2019",
+   "score": 82,
+   "reviews": 84
+  },
+  {
+   "app_id": 623320,
+   "name": "Button Button Up!",
+   "released": "Aug 9, 2019",
+   "score": 96,
+   "reviews": 93
+  },
+  {
+   "app_id": 379610,
+   "name": "Animated Puzzles",
+   "released": "Dec 16, 2016",
+   "score": 94,
+   "reviews": 74
+  },
+  {
+   "app_id": 1331910,
+   "name": "Morkredd",
+   "released": "Dec 10, 2020",
+   "score": 71,
+   "reviews": 160
+  },
+  {
+   "app_id": 1914980,
+   "name": "Golfing in Aether",
+   "released": "Sep 23, 2022",
+   "score": 88,
+   "reviews": 18
+  },
+  {
+   "app_id": 678850,
+   "name": "Uurnog Uurnlimited",
+   "released": "Nov 16, 2017",
+   "score": 80,
+   "reviews": 78
+  },
+  {
+   "app_id": 1175770,
+   "name": "TopplePOP: Bungee Blockbusters",
+   "released": "Feb 5, 2025",
+   "score": 97,
+   "reviews": 35
+  },
+  {
+   "app_id": 632250,
+   "name": "DERU - The Art of Cooperation",
+   "released": "Nov 7, 2018",
+   "score": 89,
+   "reviews": 55
+  },
+  {
+   "app_id": 893690,
+   "name": "Rikki & Vikki",
+   "released": "Dec 26, 2018",
+   "score": 90,
+   "reviews": 103
+  },
+  {
+   "app_id": 1713080,
+   "name": "CrossOver: Roll For Initiative",
+   "released": "Jul 23, 2024",
+   "score": 80,
+   "reviews": 52
+  },
+  {
+   "app_id": 3579050,
+   "name": "Strawberry Chocolate",
+   "released": "May 28, 2025",
+   "score": 99,
+   "reviews": 956
+  },
+  {
+   "app_id": 1255980,
+   "name": "Portal Reloaded",
+   "released": "Apr 19, 2021",
+   "score": 95,
+   "reviews": 14393
+  },
+  {
+   "app_id": 4006090,
+   "name": "Froggin' Around Demo",
+   "released": "Nov 5, 2025",
+   "score": 96,
+   "reviews": 580
+  },
+  {
+   "app_id": 3486220,
+   "name": "Cats Together",
+   "released": "Sep 27, 2025",
+   "score": 89,
+   "reviews": 19
+  },
+  {
+   "app_id": 2367480,
+   "name": "Speed Crew",
+   "released": "Jan 31, 2024",
+   "score": 98,
+   "reviews": 68
+  },
+  {
+   "app_id": 3253920,
+   "name": "Tentacle Tango",
+   "released": "Nov 20, 2025",
+   "score": 100,
+   "reviews": 22
+  },
+  {
+   "app_id": 791470,
+   "name": "DYO",
+   "released": "Feb 13, 2018",
+   "score": 96,
+   "reviews": 618
+  },
+  {
+   "app_id": 1812560,
+   "name": "SUPER CRAZY RHYTHM CASTLE",
+   "released": "Nov 13, 2023",
+   "score": 78,
+   "reviews": 384
+  },
+  {
+   "app_id": 2943100,
+   "name": "Better With A Friend",
+   "released": "Aug 18, 2024",
+   "score": 100,
+   "reviews": 14
+  },
+  {
+   "app_id": 2781370,
+   "name": "EXIT KUN",
+   "released": "Feb 4, 2024",
+   "score": 85,
+   "reviews": 1127
+  },
+  {
+   "app_id": 2348810,
+   "name": "AMAZE!",
+   "released": "May 20, 2024",
+   "score": 88,
+   "reviews": 35
+  },
+  {
+   "app_id": 1010230,
+   "name": "Bleep Bloop",
+   "released": "Jan 31, 2019",
+   "score": 92,
+   "reviews": 50
+  },
+  {
+   "app_id": 925460,
+   "name": "Vectronom",
+   "released": "May 28, 2019",
+   "score": 96,
+   "reviews": 265
+  },
+  {
+   "app_id": 355740,
+   "name": "Never Alone: Foxtales",
+   "released": "Jul 28, 2015",
+   "score": 83,
+   "reviews": 137
+  },
+  {
+   "app_id": 453910,
+   "name": "Love is Dead",
+   "released": "May 31, 2018",
+   "score": 88,
+   "reviews": 43
+  },
+  {
+   "app_id": 700100,
+   "name": "Spooky Station",
+   "released": "Oct 29, 2019",
+   "score": 88,
+   "reviews": 345
+  },
+  {
+   "app_id": 2458250,
+   "name": "Cry Babies Magic Tears: The Big Game",
+   "released": "Sep 27, 2023",
+   "score": 80,
+   "reviews": 15
+  },
+  {
+   "app_id": 616040,
+   "name": "Tales of the Tiny Planet",
+   "released": "Aug 3, 2017",
+   "score": 90,
+   "reviews": 33
+  },
+  {
+   "app_id": 1098220,
+   "name": "Making it Home",
+   "released": "Sep 3, 2021",
+   "score": 91,
+   "reviews": 23
+  },
+  {
+   "app_id": 2320410,
+   "name": "Scavenger of Dunomini",
+   "released": "Sep 13, 2023",
+   "score": 100,
+   "reviews": 15
+  },
+  {
+   "app_id": 2106860,
+   "name": "Spy Bros. (Pipi & Bibi's DX)",
+   "released": "Feb 14, 2023",
+   "score": 92,
+   "reviews": 25
+  },
+  {
+   "app_id": 414370,
+   "name": "Raining Blobs",
+   "released": "Jan 15, 2016",
+   "score": 97,
+   "reviews": 37
+  },
+  {
+   "app_id": 604010,
+   "name": "Chimpology",
+   "released": "Jun 21, 2017",
+   "score": 86,
+   "reviews": 91
+  },
+  {
+   "app_id": 4353210,
+   "name": "Gravity's Edge",
+   "released": "May 6, 2026",
+   "score": 100,
+   "reviews": 26
+  },
+  {
+   "app_id": 3399580,
+   "name": "8 YOUs+ (from KUUKIYOMI 4: Consider It)",
+   "released": "Mar 12, 2025",
+   "score": 100,
+   "reviews": 17
+  },
+  {
+   "app_id": 1912380,
+   "name": "Soccer Story",
+   "released": "Nov 29, 2022",
+   "score": 53,
+   "reviews": 124
+  },
+  {
+   "app_id": 4251090,
+   "name": "Keep It Contained",
+   "released": "Aug 7, 2026",
+   "score": 100,
+   "reviews": 11
+  },
+  {
+   "app_id": 4256070,
+   "name": "Mayday Protocol",
+   "released": "Mar 2, 2026",
+   "score": 71,
+   "reviews": 21
+  },
+  {
+   "app_id": 2310810,
+   "name": "Tents and Trees",
+   "released": "Apr 23, 2024",
+   "score": 90,
+   "reviews": 42
+  },
+  {
+   "app_id": 4942610,
+   "name": "Handshakes: Hands On Demo",
+   "released": "Sep 21, 2026",
+   "score": 100,
+   "reviews": 78
+  },
+  {
+   "app_id": 1186880,
+   "name": "OctoFurry",
+   "released": "Jan 31, 2020",
+   "score": 88,
+   "reviews": 99
+  },
+  {
+   "app_id": 574590,
+   "name": "Koloro",
+   "released": "May 18, 2018",
+   "score": 93,
+   "reviews": 77
+  },
+  {
+   "app_id": 2950640,
+   "name": "Reaktor",
+   "released": "Oct 31, 2024",
+   "score": 90,
+   "reviews": 22
+  },
+  {
+   "app_id": 2239360,
+   "name": "Siheyuan",
+   "released": "Nov 30, 2023",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 3831990,
+   "name": "Sujefa",
+   "released": "Feb 20, 2026",
+   "score": 94,
+   "reviews": 98
+  },
+  {
+   "app_id": 1555400,
+   "name": "Gomoku Let's Go",
+   "released": "Jul 28, 2021",
+   "score": 88,
+   "reviews": 884
+  },
+  {
+   "app_id": 3678730,
+   "name": "Ball Maze",
+   "released": "Oct 14, 2026",
+   "score": 100,
+   "reviews": 14
+  },
+  {
+   "app_id": 3414480,
+   "name": "Double Trip",
+   "released": "May 8, 2025",
+   "score": 100,
+   "reviews": 32
+  },
+  {
+   "app_id": 3960940,
+   "name": "The Kindling",
+   "released": "Dec 9, 2025",
+   "score": 100,
+   "reviews": 23
+  },
+  {
+   "app_id": 339090,
+   "name": "Pig Eat Ball",
+   "released": "Sep 26, 2018",
+   "score": 94,
+   "reviews": 36
+  },
+  {
+   "app_id": 2845720,
+   "name": "NBB.EXE",
+   "released": "Sep 30, 2024",
+   "score": 100,
+   "reviews": 18
+  },
+  {
+   "app_id": 1492090,
+   "name": "Forgotten Fragments",
+   "released": "Sep 24, 2025",
+   "score": 72,
+   "reviews": 18
+  },
+  {
+   "app_id": 1131070,
+   "name": "Pixel Puzzles 3: Ukiyo-e Jigsaws",
+   "released": "Jun 20, 2024",
+   "score": 100,
+   "reviews": 12
+  },
+  {
+   "app_id": 249990,
+   "name": "FORCED: Slightly Better Edition",
+   "released": "Oct 24, 2013",
+   "score": 74,
+   "reviews": 1778
+  },
+  {
+   "app_id": 3325860,
+   "name": "Candivity",
+   "released": "Jun 18, 2025",
+   "score": 100,
+   "reviews": 11
+  },
+  {
+   "app_id": 502210,
+   "name": "Super Markup Man",
+   "released": "Aug 16, 2016",
+   "score": 81,
+   "reviews": 120
+  },
+  {
+   "app_id": 4019420,
+   "name": "REANIMAL Demo",
+   "released": "Oct 13, 2025",
+   "score": 93,
+   "reviews": 1730
+  },
+  {
+   "app_id": 3527810,
+   "name": "Rudolph the Red-Nosed Reindeer",
+   "released": "Sep 26, 2025",
+   "score": 69,
+   "reviews": 39
+  },
+  {
+   "app_id": 1890810,
+   "name": "A Tale of Synapse : The Chaos Theories",
+   "released": "Feb 11, 2022",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 690150,
+   "name": "Fossil Hunters",
+   "released": "Feb 13, 2018",
+   "score": 74,
+   "reviews": 47
+  },
+  {
+   "app_id": 2419690,
+   "name": "Quadroids",
+   "released": "Feb 22, 2024",
+   "score": 100,
+   "reviews": 19
+  },
+  {
+   "app_id": 1035780,
+   "name": "Pecker",
+   "released": "Apr 17, 2025",
+   "score": 91,
+   "reviews": 23
+  },
+  {
+   "app_id": 1787760,
+   "name": "Pets at Work",
+   "released": "Feb 28, 2022",
+   "score": 94,
+   "reviews": 140
+  },
+  {
+   "app_id": 596390,
+   "name": "Over My Dead Body (For You)",
+   "released": "Sep 11, 2017",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 1839540,
+   "name": "Grocket",
+   "released": "Sep 9, 2022",
+   "score": 89,
+   "reviews": 59
+  },
+  {
+   "app_id": 1939270,
+   "name": "Past Synergy",
+   "released": "Apr 4, 2022",
+   "score": 84,
+   "reviews": 65
+  },
+  {
+   "app_id": 2692570,
+   "name": "Sonder",
+   "released": "Feb 15, 2024",
+   "score": 90,
+   "reviews": 842
+  },
+  {
+   "app_id": 2151450,
+   "name": "Quack my Duck",
+   "released": "Sep 20, 2026",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 3242870,
+   "name": "Pushmania",
+   "released": "Apr 18, 2025",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 2543490,
+   "name": "Train Traffic Manager",
+   "released": "Sep 13, 2024",
+   "score": 94,
+   "reviews": 19
+  },
+  {
+   "app_id": 1597200,
+   "name": "ConnecTank",
+   "released": "Sep 28, 2021",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 3585400,
+   "name": "Steal The Pig",
+   "released": "Jul 24, 2025",
+   "score": 86,
+   "reviews": 73
+  },
+  {
+   "app_id": 3142930,
+   "name": "UnPlugged",
+   "released": "Nov 20, 2024",
+   "score": 75,
+   "reviews": 20
+  },
+  {
+   "app_id": 4198180,
+   "name": "Escape Academy 2: Back 2 School Demo",
+   "released": "Dec 9, 2025",
+   "score": 86,
+   "reviews": 66
+  },
+  {
+   "app_id": 3493170,
+   "name": "Schrodinger's Cat Burglar Demo",
+   "released": "Feb 10, 2025",
+   "score": 96,
+   "reviews": 215
+  },
+  {
+   "app_id": 670850,
+   "name": "Sokoban Land DX",
+   "released": "Jul 27, 2017",
+   "score": 75,
+   "reviews": 16
+  },
+  {
+   "app_id": 1530630,
+   "name": "Couch Monsters",
+   "released": "Mar 24, 2021",
+   "score": 100,
+   "reviews": 35
+  },
+  {
+   "app_id": 1151100,
+   "name": "Hamster Scramble",
+   "released": "Nov 9, 2023",
+   "score": 95,
+   "reviews": 20
+  },
+  {
+   "app_id": 1096100,
+   "name": "Skellboy Refractured",
+   "released": "Jan 13, 2021",
+   "score": 83,
+   "reviews": 53
+  },
+  {
+   "app_id": 253690,
+   "name": "Tiny Brains",
+   "released": "Dec 11, 2013",
+   "score": 78,
+   "reviews": 397
+  },
+  {
+   "app_id": 1483470,
+   "name": "Catty & Batty: The Spirit Guide",
+   "released": "Feb 10, 2021",
+   "score": 100,
+   "reviews": 19
+  },
+  {
+   "app_id": 3114360,
+   "name": "ViruStream",
+   "released": "Aug 5, 2024",
+   "score": 100,
+   "reviews": 30
+  },
+  {
+   "app_id": 487160,
+   "name": "Trials of Azra",
+   "released": "Sep 15, 2016",
+   "score": 87,
+   "reviews": 113
+  },
+  {
+   "app_id": 2866410,
+   "name": "OxRox",
+   "released": "Jun 1, 2024",
+   "score": 91,
+   "reviews": 47
+  },
+  {
+   "app_id": 1891640,
+   "name": "AZUR BEAM",
+   "released": "Mar 31, 2022",
+   "score": 75,
+   "reviews": 238
+  },
+  {
+   "app_id": 1195420,
+   "name": "Filthy Animals | Heist Simulator",
+   "released": "Apr 4, 2023",
+   "score": 72,
+   "reviews": 121
+  },
+  {
+   "app_id": 1631500,
+   "name": "Dumpy and Bumpy",
+   "released": "May 27, 2021",
+   "score": 96,
+   "reviews": 31
+  },
+  {
+   "app_id": 3009540,
+   "name": "The JerryMaya Detective Agency",
+   "released": "Jul 16, 2024",
+   "score": 83,
+   "reviews": 12
+  },
+  {
+   "app_id": 1327440,
+   "name": "Flewfie's Adventure",
+   "released": "Sep 23, 2021",
+   "score": 95,
+   "reviews": 24
+  },
+  {
+   "app_id": 2550230,
+   "name": "Kinduo 2 - Frostbite",
+   "released": "Oct 30, 2023",
+   "score": 100,
+   "reviews": 32
+  },
+  {
+   "app_id": 1634130,
+   "name": "Color Escape: VR Coop",
+   "released": "Oct 5, 2021",
+   "score": 100,
+   "reviews": 10
+  },
+  {
+   "app_id": 1427210,
+   "name": "From the Shadows",
+   "released": "Nov 27, 2020",
+   "score": 84,
+   "reviews": 259
+  },
+  {
+   "app_id": 4140170,
+   "name": "Looters",
+   "released": "Apr 10, 2026",
+   "score": 88,
+   "reviews": 75
+  },
+  {
+   "app_id": 4112550,
+   "name": "REANIMAL – Season Pass",
+   "released": "Feb 13, 2026",
+   "score": 89,
+   "reviews": 79
+  },
+  {
+   "app_id": 3823460,
+   "name": "That One Otter Game",
+   "released": "Jul 15, 2025",
+   "score": 87,
+   "reviews": 1363
+  },
+  {
+   "app_id": 5280720,
+   "name": "Stepwell Demo",
+   "released": "Oct 6, 2026",
+   "score": 91,
+   "reviews": 12
+  },
+  {
+   "app_id": 1750980,
+   "name": "Horror Maze",
+   "released": "Sep 29, 2021",
+   "score": 73,
+   "reviews": 15
+  },
+  {
+   "app_id": 1404530,
+   "name": "RoboSkate",
+   "released": "Oct 15, 2020",
+   "score": 89,
+   "reviews": 82
+  },
+  {
+   "app_id": 356790,
+   "name": "Galacide",
+   "released": "Jul 28, 2015",
+   "score": 82,
+   "reviews": 35
+  },
+  {
+   "app_id": 522240,
+   "name": "Pool Panic",
+   "released": "Jul 19, 2018",
+   "score": 82,
+   "reviews": 140
+  },
+  {
+   "app_id": 1618330,
+   "name": "Out of Order",
+   "released": "Mar 16, 2022",
+   "score": 87,
+   "reviews": 16
+  },
+  {
+   "app_id": 2265520,
+   "name": "Drop It: Block Paradise!",
+   "released": "Feb 13, 2023",
+   "score": 100,
+   "reviews": 12
+  },
+  {
+   "app_id": 2082580,
+   "name": "Come Together",
+   "released": "Nov 3, 2023",
+   "score": 100,
+   "reviews": 16
+  },
+  {
+   "app_id": 517930,
+   "name": "The Castles of Dr. Creep",
+   "released": "Sep 2, 2016",
+   "score": 93,
+   "reviews": 47
+  },
+  {
+   "app_id": 2410820,
+   "name": "Too Many Sheep",
+   "released": "Jul 25, 2023",
+   "score": 93,
+   "reviews": 15
+  },
+  {
+   "app_id": 2235340,
+   "name": "Urban Flow",
+   "released": "Jun 1, 2023",
+   "score": 78,
+   "reviews": 50
+  },
+  {
+   "app_id": 3376130,
+   "name": "Perplex",
+   "released": "Apr 10, 2025",
+   "score": 94,
+   "reviews": 19
+  },
+  {
+   "app_id": 516790,
+   "name": "Fat Mask",
+   "released": "May 15, 2017",
+   "score": 85,
+   "reviews": 28
+  },
+  {
+   "app_id": 1631540,
+   "name": "Squeakers II",
+   "released": "Jun 2, 2021",
+   "score": 87,
+   "reviews": 33
+  },
+  {
+   "app_id": 3041770,
+   "name": "Breakout Beyond",
+   "released": "Mar 25, 2025",
+   "score": 83,
+   "reviews": 49
+  },
+  {
+   "app_id": 3061030,
+   "name": "Balloon Friends",
+   "released": "Mar 5, 2025",
+   "score": 92,
+   "reviews": 13
+  },
+  {
+   "app_id": 1824010,
+   "name": "QuaQua",
+   "released": "Feb 4, 2022",
+   "score": 83,
+   "reviews": 12
+  },
+  {
+   "app_id": 947450,
+   "name": "Super BOO Quest",
+   "released": "Oct 21, 2018",
+   "score": 81,
+   "reviews": 27
+  },
+  {
+   "app_id": 3874440,
+   "name": "Wires And Whiskers",
+   "released": "Jul 31, 2025",
+   "score": 94,
+   "reviews": 1856
+  },
+  {
+   "app_id": 4957140,
+   "name": "We Don't Exist Demo",
+   "released": "Aug 10, 2026",
+   "score": 100,
+   "reviews": 53
+  },
+  {
+   "app_id": 2788740,
+   "name": "Phantom Bound",
+   "released": "Feb 17, 2025",
+   "score": 84,
+   "reviews": 13
+  },
+  {
+   "app_id": 1662570,
+   "name": "Rescue Party: Live!",
+   "released": "Jan 13, 2022",
+   "score": 70,
+   "reviews": 164
+  },
+  {
+   "app_id": 2104750,
+   "name": "Arcade Party",
+   "released": "Feb 22, 2023",
+   "score": 80,
+   "reviews": 36
+  },
+  {
+   "app_id": 413540,
+   "name": "Recourse",
+   "released": "Feb 29, 2016",
+   "score": 94,
+   "reviews": 17
+  },
+  {
+   "app_id": 431320,
+   "name": "Recourse Demo",
+   "released": "Mar 29, 2016",
+   "score": 100,
+   "reviews": 14
+  },
+  {
+   "app_id": 853590,
+   "name": "Goroons",
+   "released": "May 17, 2018",
+   "score": 90,
+   "reviews": 11
+  },
+  {
+   "app_id": 3809740,
+   "name": "TOJIBO",
+   "released": "Nov 21, 2025",
+   "score": 90,
+   "reviews": 21
+  },
+  {
+   "app_id": 555720,
+   "name": "Grave Danger",
+   "released": "Dec 19, 2016",
+   "score": 83,
+   "reviews": 12
+  },
+  {
+   "app_id": 3890490,
+   "name": "Capy Castaway Demo",
+   "released": "Aug 7, 2025",
+   "score": 83,
+   "reviews": 49
+  },
+  {
+   "app_id": 5150970,
+   "name": "Me and You Demo",
+   "released": "Sep 11, 2026",
+   "score": 87,
+   "reviews": 47
+  },
+  {
+   "app_id": 1545590,
+   "name": "World Splitter",
+   "released": "Apr 21, 2021",
+   "score": 91,
+   "reviews": 12
+  },
+  {
+   "app_id": 1997670,
+   "name": "Treats Please!",
+   "released": "Jun 7, 2022",
+   "score": 88,
+   "reviews": 18
+  },
+  {
+   "app_id": 1067080,
+   "name": "BH Trials",
+   "released": "Apr 10, 2020",
+   "score": 94,
+   "reviews": 17
+  },
+  {
+   "app_id": 1402030,
+   "name": "Strings Theory",
+   "released": "Dec 14, 2021",
+   "score": 100,
+   "reviews": 36
+  },
+  {
+   "app_id": 1843980,
+   "name": "Two of us",
+   "released": "Jan 10, 2022",
+   "score": 90,
+   "reviews": 11
+  },
+  {
+   "app_id": 2781960,
+   "name": "Melon Madness",
+   "released": "Jan 31, 2024",
+   "score": 100,
+   "reviews": 11
+  },
+  {
+   "app_id": 2251320,
+   "name": "Sylvio And The Mountain Giants",
+   "released": "Jun 1, 2023",
+   "score": 89,
+   "reviews": 19
+  },
+  {
+   "app_id": 2894250,
+   "name": "Drop It: Block Paradise! Builder Edition",
+   "released": "Mar 21, 2025",
+   "score": 94,
+   "reviews": 18
+  },
+  {
+   "app_id": 3126620,
+   "name": "Phantom Relics",
+   "released": "Apr 3, 2025",
+   "score": 70,
+   "reviews": 20
+  },
+  {
+   "app_id": 1355560,
+   "name": "Aloof",
+   "released": "Mar 25, 2021",
+   "score": 85,
+   "reviews": 20
+  },
+  {
+   "app_id": 1486790,
+   "name": "Portal Mortal",
+   "released": "Apr 1, 2022",
+   "score": 100,
+   "reviews": 18
+  },
+  {
+   "app_id": 1270080,
+   "name": "Magic Twins",
+   "released": "Mar 18, 2021",
+   "score": 100,
+   "reviews": 20
+  },
+  {
+   "app_id": 643940,
+   "name": "Jim is Moving Out!",
+   "released": "Jul 19, 2019",
+   "score": 83,
+   "reviews": 12
+  },
+  {
+   "app_id": 2306020,
+   "name": "Limbs",
+   "released": "Oct 31, 2024",
+   "score": 70,
+   "reviews": 62
+  },
+  {
+   "app_id": 1003190,
+   "name": "Alpacapaca Double Dash",
+   "released": "Jan 28, 2020",
+   "score": 90,
+   "reviews": 10
+  },
+  {
+   "app_id": 1468250,
+   "name": "Kukoos: Lost Pets",
+   "released": "Dec 14, 2021",
+   "score": 81,
+   "reviews": 16
+  },
+  {
+   "app_id": 1648100,
+   "name": "Kinduo",
+   "released": "Jul 29, 2021",
+   "score": 96,
+   "reviews": 100
+  },
+  {
+   "app_id": 1651680,
+   "name": "The Colorful Creature",
+   "released": "Aug 28, 2023",
+   "score": 93,
+   "reviews": 29
+  },
+  {
+   "app_id": 2509700,
+   "name": "Mimi the Cat - Meow Together",
+   "released": "Dec 15, 2023",
+   "score": 94,
+   "reviews": 17
+  },
+  {
+   "app_id": 1373240,
+   "name": "Cube Raiders",
+   "released": "Oct 30, 2020",
+   "score": 72,
+   "reviews": 11
+  },
+  {
+   "app_id": 1103550,
+   "name": "Princess Castle Quest",
+   "released": "Mar 24, 2021",
+   "score": 97,
+   "reviews": 44
+  },
+  {
+   "app_id": 9500,
+   "name": "Gish",
+   "released": "Jul 20, 2007",
+   "score": 60,
+   "reviews": 309
+  },
+  {
+   "app_id": 2057610,
+   "name": "Soul Link",
+   "released": "May 22, 2024",
+   "score": 93,
+   "reviews": 16
+  },
+  {
+   "app_id": 3238070,
+   "name": "Bubbits Demo",
+   "released": "Oct 4, 2024",
+   "score": 100,
+   "reviews": 22
+  },
+  {
+   "app_id": 2988850,
+   "name": "Crabity",
+   "released": "Jun 6, 2024",
+   "score": 94,
+   "reviews": 19
+  },
+  {
+   "app_id": 5065750,
+   "name": "Pawcel: Bounce Demo",
+   "released": "Aug 18, 2026",
+   "score": 100,
+   "reviews": 22
+  },
+  {
+   "app_id": 5146530,
+   "name": "On Any Journey Demo",
+   "released": "Oct 3, 2026",
+   "score": 84,
+   "reviews": 19
+  },
+  {
+   "app_id": 3176210,
+   "name": "Emissary Zero Demo",
+   "released": "Oct 21, 2024",
+   "score": 88,
+   "reviews": 580
+  },
+  {
+   "app_id": 1990060,
+   "name": "Unbearable",
+   "released": "Mar 5, 2024",
+   "score": 65,
+   "reviews": 43
+  },
+  {
+   "app_id": 1268100,
+   "name": "War Islands: A Co-op Adventure",
+   "released": "Jun 29, 2020",
+   "score": 72,
+   "reviews": 18
+  },
+  {
+   "app_id": 2407900,
+   "name": "B-B0 The Delivery Bot",
+   "released": "Nov 23, 2023",
+   "score": 80,
+   "reviews": 30
+  },
+  {
+   "app_id": 2875340,
+   "name": "Tamako",
+   "released": "Aug 18, 2025",
+   "score": 100,
+   "reviews": 10
+  },
+  {
+   "app_id": 3336140,
+   "name": "Chimken",
+   "released": "Mar 11, 2025",
+   "score": 81,
+   "reviews": 11
+  },
+  {
+   "app_id": 1605440,
+   "name": "Ragdoll Madness",
+   "released": "May 8, 2021",
+   "score": 74,
+   "reviews": 27
+  },
+  {
+   "app_id": 2201660,
+   "name": "Marabundle",
+   "released": "Jun 12, 2023",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 2260230,
+   "name": "Midnight Dash",
+   "released": "Jan 9, 2023",
+   "score": 90,
+   "reviews": 20
+  },
+  {
+   "app_id": 675270,
+   "name": "Rockets Are Super Hard",
+   "released": "May 19, 2020",
+   "score": 73,
+   "reviews": 19
+  },
+  {
+   "app_id": 4320000,
+   "name": "Whisk Demo",
+   "released": "Jan 22, 2026",
+   "score": 99,
+   "reviews": 515
+  },
+  {
+   "app_id": 2465080,
+   "name": "Jelly & Toast",
+   "released": "Sep 15, 2023",
+   "score": 73,
+   "reviews": 19
+  },
+  {
+   "app_id": 489110,
+   "name": "Putty Pals",
+   "released": "Feb 15, 2017",
+   "score": 95,
+   "reviews": 104
+  },
+  {
+   "app_id": 1542060,
+   "name": "Forgotten Spirits",
+   "released": "May 10, 2021",
+   "score": 87,
+   "reviews": 16
+  },
+  {
+   "app_id": 2984220,
+   "name": "Aard and Wyzz: The rise of minions",
+   "released": "Jul 15, 2024",
+   "score": 87,
+   "reviews": 24
+  },
+  {
+   "app_id": 1812170,
+   "name": "Danghost",
+   "released": "Sep 27, 2023",
+   "score": 100,
+   "reviews": 27
+  },
+  {
+   "app_id": 896950,
+   "name": "JUMANJI: The Video Game",
+   "released": "Nov 8, 2019",
+   "score": 53,
+   "reviews": 66
+  },
+  {
+   "app_id": 4432420,
+   "name": "Salty & Slobbery Demo",
+   "released": "Feb 22, 2026",
+   "score": 91,
+   "reviews": 12
+  },
+  {
+   "app_id": 929850,
+   "name": "Diamond Caves",
+   "released": "Nov 15, 2018",
+   "score": 90,
+   "reviews": 43
+  },
+  {
+   "app_id": 449320,
+   "name": "Dino Eggs: Rebirth",
+   "released": "Jun 8, 2016",
+   "score": 77,
+   "reviews": 18
+  },
+  {
+   "app_id": 911680,
+   "name": "REZ PLZ",
+   "released": "Jul 15, 2020",
+   "score": 75,
+   "reviews": 24
+  },
+  {
+   "app_id": 2918130,
+   "name": "Deepest Trench",
+   "released": "Oct 30, 2024",
+   "score": 70,
+   "reviews": 10
+  },
+  {
+   "app_id": 508760,
+   "name": "Ball of Wonder",
+   "released": "Oct 28, 2016",
+   "score": 69,
+   "reviews": 76
+  },
+  {
+   "app_id": 1986980,
+   "name": "The Legend of Chibi Ninja",
+   "released": "Sep 29, 2022",
+   "score": 100,
+   "reviews": 24
+  },
+  {
+   "app_id": 3415440,
+   "name": "Lab Cats Demo",
+   "released": "Jan 10, 2025",
+   "score": 90,
+   "reviews": 10
+  },
+  {
+   "app_id": 4855980,
+   "name": "SOS OPS! - Lootbound",
+   "released": "Aug 5, 2026",
+   "score": 84,
+   "reviews": 39
+  },
+  {
+   "app_id": 2488660,
+   "name": "Brave Escape Friend's Pass",
+   "released": "Dec 28, 2023",
+   "score": 93,
+   "reviews": 30
+  },
+  {
+   "app_id": 3675410,
+   "name": "Baby Kings Demo",
+   "released": "Apr 24, 2025",
+   "score": 95,
+   "reviews": 20
+  },
+  {
+   "app_id": 633930,
+   "name": "Yeah Jam Fury: U, Me, Everybody!",
+   "released": "Dec 15, 2017",
+   "score": 100,
+   "reviews": 26
+  },
+  {
+   "app_id": 675870,
+   "name": "Ruby Hunter",
+   "released": "Oct 20, 2017",
+   "score": 84,
+   "reviews": 19
+  },
+  {
+   "app_id": 1931980,
+   "name": "Local Paper Small Town",
+   "released": "May 17, 2022",
+   "score": 86,
+   "reviews": 23
+  },
+  {
+   "app_id": 1149290,
+   "name": "Derpy Conga",
+   "released": "Feb 10, 2022",
+   "score": 73,
+   "reviews": 19
+  },
+  {
+   "app_id": 2858720,
+   "name": "Exit Kun - Play Together",
+   "released": "Feb 27, 2024",
+   "score": 89,
+   "reviews": 19
+  },
+  {
+   "app_id": 848230,
+   "name": "Let's Go Nuts!",
+   "released": "Jun 1, 2018",
+   "score": 92,
+   "reviews": 51
+  },
+  {
+   "app_id": 2890580,
+   "name": "Weeny Wise Demo",
+   "released": "Sep 23, 2024",
+   "score": 81,
+   "reviews": 37
+  },
+  {
+   "app_id": 1511880,
+   "name": "Slime Heroes",
+   "released": "Mar 6, 2025",
+   "score": 65,
+   "reviews": 32
+  },
+  {
+   "app_id": 1457920,
+   "name": "VITATIO 3",
+   "released": "Dec 18, 2020",
+   "score": 70,
+   "reviews": 10
+  },
+  {
+   "app_id": 652360,
+   "name": "BFF or Die",
+   "released": "Sep 13, 2018",
+   "score": 65,
+   "reviews": 43
+  },
+  {
+   "app_id": 1387170,
+   "name": "Similo: The Card Game",
+   "released": "Sep 17, 2020",
+   "score": 63,
+   "reviews": 36
+  },
+  {
+   "app_id": 1612900,
+   "name": "Two Against the Legion",
+   "released": "Mar 6, 2022",
+   "score": 77,
+   "reviews": 22
+  },
+  {
+   "app_id": 1080040,
+   "name": "Moo Lander",
+   "released": "May 26, 2022",
+   "score": 85,
+   "reviews": 27
+  },
+  {
+   "app_id": 4390290,
+   "name": "Don't Pop The Balloon Demo",
+   "released": "Feb 6, 2026",
+   "score": 85,
+   "reviews": 21
+  },
+  {
+   "app_id": 4958920,
+   "name": "Squarelings Demo",
+   "released": "Sep 24, 2026",
+   "score": 100,
+   "reviews": 13
+  },
+  {
+   "app_id": 2225610,
+   "name": "Ready, Steady, Ship!",
+   "released": "Apr 19, 2024",
+   "score": 66,
+   "reviews": 103
+  },
+  {
+   "app_id": 363670,
+   "name": "Seeders",
+   "released": "Aug 21, 2015",
+   "score": 57,
+   "reviews": 28
+  },
+  {
+   "app_id": 1237890,
+   "name": "Goomanuvr",
+   "released": "Feb 8, 2022",
+   "score": 78,
+   "reviews": 19
+  },
+  {
+   "app_id": 4380270,
+   "name": "Pumuckl und die Krone des Piratenkönigs Demo",
+   "released": "Feb 12, 2026",
+   "score": 78,
+   "reviews": 14
+  },
+  {
+   "app_id": 2684830,
+   "name": "Alchemy Frogs",
+   "released": "May 1, 2024",
+   "score": 78,
+   "reviews": 99
+  },
+  {
+   "app_id": 3582640,
+   "name": "• Dread Chess ✣",
+   "released": "Sep 7, 2025",
+   "score": 78,
+   "reviews": 107
+  },
+  {
+   "app_id": 603550,
+   "name": "Schlag den Star - Das Spiel",
+   "released": "Nov 30, 2017",
+   "score": 40,
+   "reviews": 74
+  },
+  {
+   "app_id": 795110,
+   "name": "IIN",
+   "released": "Mar 5, 2018",
+   "score": 66,
+   "reviews": 36
+  },
+  {
+   "app_id": 2530060,
+   "name": "Improbability Control Bureau",
+   "released": "Oct 30, 2024",
+   "score": 50,
+   "reviews": 10
+  },
+  {
+   "app_id": 3419690,
+   "name": "Chicken Run: Eggstraction",
+   "released": "Oct 24, 2025",
+   "score": 89,
+   "reviews": 29
+  },
+  {
+   "app_id": 2082950,
+   "name": "Hansel And Gretel",
+   "released": "Nov 4, 2022",
+   "score": 53,
+   "reviews": 28
+  },
+  {
+   "app_id": 4428340,
+   "name": "WheelMates - Friend's Pass",
+   "released": "May 6, 2026",
+   "score": 70,
+   "reviews": 596
+  },
+  {
+   "app_id": 1271110,
+   "name": "Healing Spree",
+   "released": "Oct 20, 2021",
+   "score": 51,
+   "reviews": 83
+  },
+  {
+   "app_id": 2393790,
+   "name": "Sweetland Slumber Party",
+   "released": "Jun 16, 2025",
+   "score": 80,
+   "reviews": 10
+  },
+  {
+   "app_id": 538840,
+   "name": "City Climber",
+   "released": "Feb 24, 2017",
+   "score": 76,
+   "reviews": 367
+  },
+  {
+   "app_id": 1278190,
+   "name": "Jumpala",
+   "released": "Jan 19, 2021",
+   "score": 69,
+   "reviews": 33
+  },
+  {
+   "app_id": 3712090,
+   "name": "Overgrown",
+   "released": "Sep 26, 2025",
+   "score": 57,
+   "reviews": 21
+  },
+  {
+   "app_id": 4420050,
+   "name": "The Unrealtor",
+   "released": "Jun 20, 2026",
+   "score": 64,
+   "reviews": 14
+  },
+  {
+   "app_id": 4213370,
+   "name": "Panel Attack",
+   "released": "Dec 15, 2025",
+   "score": 68,
+   "reviews": 16
+  },
+  {
+   "app_id": 1063120,
+   "name": "Damaged In Transit",
+   "released": "Mar 23, 2020",
+   "score": 100,
+   "reviews": 11
+  },
+  {
+   "app_id": 3597820,
+   "name": "Chumps Chained Demo",
+   "released": "Feb 24, 2026",
+   "score": 100,
+   "reviews": 17
+  },
+  {
+   "app_id": 2712910,
+   "name": "Spark & Kling",
+   "released": "Feb 12, 2024",
+   "score": 63,
+   "reviews": 148
+  },
+  {
+   "app_id": 440000,
+   "name": "Portal 2: Community Edition",
+   "released": "Apr 17, 2026",
+   "score": 92,
+   "reviews": 887
+  },
+  {
+   "app_id": 860990,
+   "name": "Chroma Shift",
+   "released": "Oct 12, 2018",
+   "score": 62,
+   "reviews": 16
+  },
+  {
+   "app_id": 2249590,
+   "name": "All You Need is Help",
+   "released": "Sep 26, 2024",
+   "score": 60,
+   "reviews": 15
+  },
+  {
+   "app_id": 1356800,
+   "name": "Keepers of the Trees",
+   "released": "Aug 7, 2020",
+   "score": 53,
+   "reviews": 144
+  },
+  {
+   "app_id": 1482840,
+   "name": "Come with Me",
+   "released": "May 14, 2021",
+   "score": 74,
+   "reviews": 1811
+  },
+  {
+   "app_id": 573660,
+   "name": "AereA",
+   "released": "Jun 2, 2017",
+   "score": 46,
+   "reviews": 41
+  },
+  {
+   "app_id": 985780,
+   "name": "Jack Axe",
+   "released": "Oct 6, 2021",
+   "score": 66,
+   "reviews": 77
+  },
+  {
+   "app_id": 617690,
+   "name": "Endless Winter",
+   "released": "Jun 1, 2017",
+   "score": 81,
+   "reviews": 37
+  },
+  {
+   "app_id": 1208220,
+   "name": "Escape from Life Inc",
+   "released": "May 29, 2020",
+   "score": 76,
+   "reviews": 17
+  },
+  {
+   "app_id": 503480,
+   "name": "Mahluk:Dark Demon",
+   "released": "Jul 19, 2016",
+   "score": 69,
+   "reviews": 98
+  },
+  {
+   "app_id": 1341050,
+   "name": "BALAN WONDERWORLD",
+   "released": "Mar 26, 2021",
+   "score": 55,
+   "reviews": 459
+  },
+  {
+   "app_id": 1077510,
+   "name": "Breaking Box",
+   "released": "Aug 10, 2023",
+   "score": 77,
+   "reviews": 18
+  },
+  {
+   "app_id": 2562980,
+   "name": "Kwark",
+   "released": "Oct 16, 2023",
+   "score": 73,
+   "reviews": 30
+  },
+  {
+   "app_id": 538920,
+   "name": "Fiery Disaster",
+   "released": "Nov 7, 2016",
+   "score": 53,
+   "reviews": 45
+  },
+  {
+   "app_id": 712180,
+   "name": "Mugsters",
+   "released": "Jul 17, 2018",
+   "score": 68,
+   "reviews": 72
+  },
+  {
+   "app_id": 1934530,
+   "name": "Escape Academy: Escape From Anti-Escape Island",
+   "released": "Nov 10, 2022",
+   "score": 62,
+   "reviews": 43
+  },
+  {
+   "app_id": 3986890,
+   "name": "Revenge of the Savage Planet - Remix Mode",
+   "released": "Sep 29, 2025",
+   "score": 100,
+   "reviews": 11
+  },
+  {
+   "app_id": 1278090,
+   "name": "Collection Quest",
+   "released": "May 18, 2020",
+   "score": 68,
+   "reviews": 44
+  },
+  {
+   "app_id": 2830090,
+   "name": "Sixth Force",
+   "released": "Jun 23, 2026",
+   "score": 72,
+   "reviews": 43
+  },
+  {
+   "app_id": 1887310,
+   "name": "Paperman: Adventure Delivered",
+   "released": "Sep 21, 2023",
+   "score": 68,
+   "reviews": 19
+  },
+  {
+   "app_id": 1655220,
+   "name": "Star Trek Prodigy: Supernova",
+   "released": "Oct 14, 2022",
+   "score": 60,
+   "reviews": 74
+  },
+  {
+   "app_id": 1133050,
+   "name": "Good Night, Knight",
+   "released": "Feb 16, 2021",
+   "score": 70,
+   "reviews": 48
+  },
+  {
+   "app_id": 1714190,
+   "name": "Breakout: Recharged",
+   "released": "Feb 10, 2022",
+   "score": 81,
+   "reviews": 94
+  },
+  {
+   "app_id": 484890,
+   "name": "Crazy Otto",
+   "released": "Jun 12, 2016",
+   "score": 58,
+   "reviews": 31
+  },
+  {
+   "app_id": 1249410,
+   "name": "Bloodwych",
+   "released": "Mar 26, 2020",
+   "score": 50,
+   "reviews": 20
+  },
+  {
+   "app_id": 661920,
+   "name": "Claybook",
+   "released": "Aug 31, 2018",
+   "score": 61,
+   "reviews": 186
+  },
+  {
+   "app_id": 814660,
+   "name": "The Unintended Consequences of Curiosity",
+   "released": "Mar 22, 2019",
+   "score": 50,
+   "reviews": 12
+  },
+  {
+   "app_id": 1565530,
+   "name": "避雨2🌧",
+   "released": "Jan 18, 2023",
+   "score": 69,
+   "reviews": 92
+  },
+  {
+   "app_id": 2969240,
+   "name": "Shepherds",
+   "released": "Nov 21, 2024",
+   "score": 77,
+   "reviews": 18
+  },
+  {
+   "app_id": 1058330,
+   "name": "Fort Boyard",
+   "released": "Jun 27, 2019",
+   "score": 53,
+   "reviews": 41
+  },
+  {
+   "app_id": 2617190,
+   "name": "Soulshard",
+   "released": "Feb 12, 2024",
+   "score": 100,
+   "reviews": 16
+  },
+  {
+   "app_id": 1234840,
+   "name": "Bone Marrow",
+   "released": "Mar 16, 2020",
+   "score": 69,
+   "reviews": 43
+  },
+  {
+   "app_id": 2533370,
+   "name": "Heads Up! Phones Down Edition",
+   "released": "Nov 9, 2023",
+   "score": 64,
+   "reviews": 25
+  },
+  {
+   "app_id": 5108990,
+   "name": "WheelMates - Supporter Pack",
+   "released": "Sep 1, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4007490,
+   "name": "Winx Club: The Magic is Back",
+   "released": "Apr 30, 2026",
+   "score": 36,
+   "reviews": 91
+  },
+  {
+   "app_id": 4860070,
+   "name": "SusDoku: Clues & Suspects",
+   "released": "Jul 8, 2026",
+   "score": 33,
+   "reviews": 39
+  },
+  {
+   "app_id": 2396060,
+   "name": "Survivor - Castaway Island",
+   "released": "Oct 3, 2023",
+   "score": 37,
+   "reviews": 53
+  },
+  {
+   "app_id": 1812230,
+   "name": "Astro Chef",
+   "released": "Mar 14, 2024",
+   "score": 30,
+   "reviews": 10
+  },
+  {
+   "app_id": 3465710,
+   "name": "The Cat in the Hat: Rainy Day Mayhem",
+   "released": "Oct 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2500080,
+   "name": "Webventure",
+   "released": "Sep 15, 2023",
+   "score": 36,
+   "reviews": 69
+  },
+  {
+   "app_id": 234370,
+   "name": "Shattered Haven",
+   "released": "Mar 18, 2013",
+   "score": 38,
+   "reviews": 21
+  },
+  {
+   "app_id": 2716490,
+   "name": "Portal 2: Confinement",
+   "released": "Jan 16, 2024",
+   "score": 36,
+   "reviews": 238
+  },
+  {
+   "app_id": 1644140,
+   "name": "Valley of No Roads",
+   "released": "Jun 10, 2021",
+   "score": 33,
+   "reviews": 12
+  },
+  {
+   "app_id": 1312740,
+   "name": "Schlag den Star - Das 2. Spiel",
+   "released": "Oct 29, 2020",
+   "score": 7,
+   "reviews": 13
+  },
+  {
+   "app_id": 2399540,
+   "name": "Schlag den Star - Das 3. Spiel",
+   "released": "Sep 28, 2023",
+   "score": 9,
+   "reviews": 11
+  },
+  {
+   "app_id": 4489230,
+   "name": "Schrodinger's Cat Burglar - Supporter Pack",
+   "released": "May 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 542680,
+   "name": "Super Puzzle Sisters",
+   "released": "Oct 17, 2016",
+   "score": 36,
+   "reviews": 19
+  },
+  {
+   "app_id": 4594370,
+   "name": "Guys with Magnets",
+   "released": "Oct 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 544680,
+   "name": "Holy Avenger",
+   "released": "Nov 15, 2017",
+   "score": 33,
+   "reviews": 42
+  },
+  {
+   "app_id": 4794460,
+   "name": "Trine 6: Together in Time Demo",
+   "released": "Jun 15, 2026",
+   "score": 37,
+   "reviews": 70
+  },
+  {
+   "app_id": 1111650,
+   "name": "Never BreakUp",
+   "released": "Jul 15, 2022",
+   "score": 35,
+   "reviews": 14
+  },
+  {
+   "app_id": 2097840,
+   "name": "Co OPERATION: MultiTurn",
+   "released": "Nov 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2654210,
+   "name": "Phasmonauts",
+   "released": "Oct 29, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4551220,
+   "name": "COLORFALL",
+   "released": "Oct 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3273550,
+   "name": "Dora™: Rainforest Rescue",
+   "released": "Oct 24, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4584880,
+   "name": "Blasterbug: Last Bug Standing! - Absolum Pack",
+   "released": "Aug 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4539410,
+   "name": "Cubie",
+   "released": "Oct 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4090410,
+   "name": "Rudolph the Red-Nosed Reindeer - King Moonracer’s Kingdom of Misfits",
+   "released": "Oct 16, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2930170,
+   "name": "Sheep Sweep",
+   "released": "Jun 21, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3864960,
+   "name": "Pumuckl and the Crown of the Pirate King",
+   "released": "Mar 4, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1653790,
+   "name": "Sisters of Silent Liberty Online Multiplayer Shooter REBRANDED",
+   "released": "Jul 8, 2021",
+   "score": 15,
+   "reviews": 13
+  },
+  {
+   "app_id": 2886410,
+   "name": "Dresden Files Cooperative Card Game - Faithful Friends",
+   "released": "Aug 29, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4908640,
+   "name": "THW's Calcudoku",
+   "released": "Nov 2, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3792610,
+   "name": "Jigsaw Puzzle",
+   "released": "Oct 27, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3233400,
+   "name": "Snow Bros Classic Collection",
+   "released": "Feb 6, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2597660,
+   "name": "100 in 1 Game Collection",
+   "released": "Jun 19, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2654940,
+   "name": "Mortadelo y Filemón: Dos vaqueros chapuceros",
+   "released": "Feb 9, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4148570,
+   "name": "SurrounDead Poly Construction",
+   "released": "May 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4135890,
+   "name": "GLUE BLOCKS",
+   "released": "Sep 25, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1373750,
+   "name": "Super Box Land Demake",
+   "released": "Jul 31, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5052210,
+   "name": "Pastimes",
+   "released": "Aug 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4653950,
+   "name": "Zentris",
+   "released": "Jul 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5210830,
+   "name": "The Halloway Haunting",
+   "released": "Oct 26, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3399570,
+   "name": "YOU Game+ (from KUUKIYOMI 4: Consider It)",
+   "released": "Feb 12, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4156150,
+   "name": "Whoowasit?",
+   "released": "Mar 26, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2882910,
+   "name": "Minesweep Together",
+   "released": "Jul 17, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3317140,
+   "name": "Art Spotting Co-op",
+   "released": "Nov 28, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2138970,
+   "name": "Golfing in Aether - Deluxe Edition Upgrade",
+   "released": "Sep 23, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3833820,
+   "name": "Gobo & Spike",
+   "released": "Jul 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1373710,
+   "name": "Mina & Michi",
+   "released": "Sep 22, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2928570,
+   "name": "Néro & Sci ∫ Integral Edition",
+   "released": "Aug 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4043080,
+   "name": "Miautemágica",
+   "released": "Jan 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4079490,
+   "name": "Boyfiend & Ghoulfriend",
+   "released": "Feb 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3268600,
+   "name": "Milo's Dream",
+   "released": "Dec 4, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2838000,
+   "name": "AMAZE! Level Pack 2",
+   "released": "May 20, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2837990,
+   "name": "AMAZE! Level Pack 1",
+   "released": "May 20, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1434270,
+   "name": "ANTE",
+   "released": "Dec 10, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3469270,
+   "name": "IINTWO",
+   "released": "Jun 10, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4048470,
+   "name": "Chicks In Trouble",
+   "released": "Oct 15, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3428010,
+   "name": "Ray Cheng Trivia Editor",
+   "released": "Apr 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4922130,
+   "name": "Puzzle Cottage",
+   "released": "Jul 31, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3621820,
+   "name": "Bytebond – Makeover Kit",
+   "released": "Sep 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3237030,
+   "name": "Black Zen White",
+   "released": "Jun 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3816010,
+   "name": "Cat and Shadow and Death's Four Friends",
+   "released": "Oct 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5064960,
+   "name": "Bee on a Roll",
+   "released": "Sep 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4447550,
+   "name": "Linebound",
+   "released": "May 31, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3165470,
+   "name": "Treasure Drop",
+   "released": "Dec 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4801680,
+   "name": "Goddle",
+   "released": "Oct 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3791080,
+   "name": "Let's Paint Toast",
+   "released": "Jun 23, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2130980,
+   "name": "Todd's Adventures in Slime World (Lynx/Mega Drive)",
+   "released": "Oct 7, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4309090,
+   "name": "TNT Bomb",
+   "released": "Sep 14, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3916340,
+   "name": "Breath Bound",
+   "released": "May 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2931140,
+   "name": "SEARCH AND RESCUE | Snowman From Outer Space",
+   "released": "Apr 21, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2565450,
+   "name": "Greebles",
+   "released": "Mar 8, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3908710,
+   "name": "Dramatour",
+   "released": "May 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1167730,
+   "name": "A Time Paradox",
+   "released": "Sep 1, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1595890,
+   "name": "Traxion 3000",
+   "released": "Oct 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1798340,
+   "name": "Taqoban",
+   "released": "Mar 25, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3337420,
+   "name": "Candivity: North Pole DLC",
+   "released": "Jun 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3337410,
+   "name": "Candivity: Deep Mines DLC",
+   "released": "Jun 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3337400,
+   "name": "Candivity: Outer Space DLC",
+   "released": "Jun 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 993520,
+   "name": "The Mars Agenda",
+   "released": "Jul 27, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2425970,
+   "name": "Minesweeper Madness",
+   "released": "Sep 23, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4702200,
+   "name": "Stack Mates",
+   "released": "Aug 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3223370,
+   "name": "There's Nothing Underground",
+   "released": "Dec 12, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4631200,
+   "name": "Bring The Rift",
+   "released": "Jun 25, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4727160,
+   "name": "图说八道",
+   "released": "Jun 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 549780,
+   "name": "Rainbow Rage Squad",
+   "released": "Nov 7, 2016",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3282450,
+   "name": "Baggy Duo",
+   "released": "Nov 17, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5467660,
+   "name": "Spin It Lupin!",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4600240,
+   "name": "Bobbobs – The Crystal Quest",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5221200,
+   "name": "Minefield Mayhem",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3398700,
+   "name": "SantaCorps: Snow Patrol",
+   "released": "Jan 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5193700,
+   "name": "Quadra Break: Variations Demo",
+   "released": "Sep 4, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1444700,
+   "name": "Zen! Slider",
+   "released": "Oct 22, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3334360,
+   "name": "Proton & Electron",
+   "released": "Jul 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3651030,
+   "name": "Candivity: Under Water DLC",
+   "released": "Jun 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 879520,
+   "name": "Ruby & Majesty: Treasure Team",
+   "released": "Aug 31, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1553560,
+   "name": "I wish Michael Phantomino were here",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2290360,
+   "name": "Targets",
+   "released": "Feb 12, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4501000,
+   "name": "Zwamman",
+   "released": "Jul 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4575420,
+   "name": "Push and Pull",
+   "released": "Aug 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4828750,
+   "name": "Jigsaw Puzzle Demo",
+   "released": "Jun 23, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2276090,
+   "name": "Goblin Party",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1284850,
+   "name": "Batu Ta Batu",
+   "released": "Sep 18, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5438690,
+   "name": "Oh Baby Blocks",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5090120,
+   "name": "NICO DRAW",
+   "released": "December 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5320020,
+   "name": "Boioshies",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2314990,
+   "name": "Siheyuan Demo",
+   "released": "Mar 3, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4293800,
+   "name": "For Good Measure",
+   "released": "Dec 15, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5211370,
+   "name": "For Good Measure Demo",
+   "released": "Sep 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1253930,
+   "name": "Seeker: My Shadow",
+   "released": "Aug 12, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3459320,
+   "name": "The Two Thinkers",
+   "released": "Apr 16, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1552280,
+   "name": "Dice Mice",
+   "released": "Dec 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4457950,
+   "name": "Olive Smash",
+   "released": "Apr 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4463000,
+   "name": "Tinyverse: CatLord Catastrophe",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5167060,
+   "name": "Quadra Break: Variations",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1836790,
+   "name": "Amshay",
+   "released": "May 9, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5432760,
+   "name": "Tiny Worlds: 3D Nonograms",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3784590,
+   "name": "Block Plop Demo",
+   "released": "Jun 5, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3276220,
+   "name": "PicoMix by NuSan",
+   "released": "Jan 16, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 406120,
+   "name": "Astral Breakers",
+   "released": "Feb 4, 2016",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5280520,
+   "name": "Nonogram Duel",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1391650,
+   "name": "Loch Mess",
+   "released": "Mar 4, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4857190,
+   "name": "Shining Shattering Sky ~ Reverie of Breaking Unreality",
+   "released": "Jul 23, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4405400,
+   "name": "SurrounDead Poly Construction Rapier",
+   "released": "Feb 6, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 794750,
+   "name": "MineSweepVR",
+   "released": "Apr 4, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4282620,
+   "name": "SurrounDead Poly Construction Endless Desert",
+   "released": "Jan 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5287880,
+   "name": "Warm Worm: Together",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4478400,
+   "name": "SurrounDead Poly Construction Metal Polearm",
+   "released": "Mar 2, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4460420,
+   "name": "SurrounDead Poly Construction Metal Axe",
+   "released": "Feb 26, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4408980,
+   "name": "SurrounDead Poly Construction Sword",
+   "released": "Feb 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4399820,
+   "name": "SurrounDead Poly Construction Curved Sword",
+   "released": "Feb 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3220160,
+   "name": "taat",
+   "released": "Nov 24, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4590200,
+   "name": "Creepy Scary",
+   "released": "Apr 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1651020,
+   "name": "Loopindex",
+   "released": "Jun 25, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1669030,
+   "name": "Indigo 7",
+   "released": "Jul 26, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4797870,
+   "name": "Babitonga: Puzzle Attack",
+   "released": "Jun 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2140110,
+   "name": "Chiky Poky",
+   "released": "Oct 18, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4491950,
+   "name": "SurrounDead Poly Construction Starfish Axe",
+   "released": "Apr 22, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3045390,
+   "name": "Newma Holiday",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4336730,
+   "name": "Minesweep Together Demo",
+   "released": "Feb 7, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4371530,
+   "name": "SurrounDead Poly Construction Wooden Club",
+   "released": "Jan 29, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4486010,
+   "name": "SurrounDead Poly Construction Bone Polearm",
+   "released": "Apr 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4468210,
+   "name": "SurrounDead Poly Construction Bone Hammer",
+   "released": "Feb 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4388230,
+   "name": "SurrounDead Poly Construction Bone Leg",
+   "released": "Feb 4, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4381800,
+   "name": "SurrounDead Poly Construction Broken Shovel",
+   "released": "Jan 31, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4896710,
+   "name": "The Labyrinth",
+   "released": "Jul 31, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2769800,
+   "name": "Color Escape - The Love Levels",
+   "released": "Feb 13, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4325800,
+   "name": "SurrounDead Poly Construction Bone Arm",
+   "released": "Jan 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4345720,
+   "name": "Gravelix",
+   "released": "Mar 1, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2789390,
+   "name": "Paddlenoid",
+   "released": "Mar 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3155610,
+   "name": "XEYYEX 2: Colour Wars",
+   "released": "Sep 16, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 600440,
+   "name": "Cyber Complex",
+   "released": "Aug 4, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 622780,
+   "name": "Raining Blobs Demo",
+   "released": "Apr 11, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5380950,
+   "name": "Blackstart",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4576240,
+   "name": "GRAVITOMINO",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4026740,
+   "name": "Packs of Panties",
+   "released": "Nov 7, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3106870,
+   "name": "Crater Song",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5329290,
+   "name": "Stealthmate: A chess puzzle Demo",
+   "released": "Oct 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1870660,
+   "name": "(Dis)assemble",
+   "released": "Sep 25, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1870680,
+   "name": "(Dis)Assemble Demo",
+   "released": "Feb 26, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4729910,
+   "name": "Piece Block",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4933500,
+   "name": "Me and You",
+   "released": "Nov 25, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5101320,
+   "name": "First-Person Jigsaw",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1058230,
+   "name": "Cozy Jigsaw Puzzles",
+   "released": "Dec 5, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3510970,
+   "name": "Blackbeard's Treasure",
+   "released": "Feb 26, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2463650,
+   "name": "Bomb Squad",
+   "released": "Mar 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3782840,
+   "name": "Mingle",
+   "released": "Dec 14, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4493050,
+   "name": "Kankao in Action",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4573340,
+   "name": "Mingle Demo",
+   "released": "Apr 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5203690,
+   "name": "Legends of Hearts",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4657260,
+   "name": "Kin Tandem",
+   "released": "Jun 23, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4199220,
+   "name": "Just A Block",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3580650,
+   "name": "ArcanaTris",
+   "released": "Jul 7, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4386460,
+   "name": "Not Done Yet",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4836170,
+   "name": "Cell Conquest",
+   "released": "Jun 29, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3148200,
+   "name": "Tiny Pods Rescue - 2D Board Game Edition",
+   "released": "Oct 11, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2107780,
+   "name": "Sokoboxes Duo",
+   "released": "Jun 20, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2143000,
+   "name": "Nothing Can",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2894880,
+   "name": "Misfits",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3998730,
+   "name": "Gravity 4",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4635310,
+   "name": "Quadrix Demo",
+   "released": "May 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3551590,
+   "name": "Furei - Journey of Two Spirits",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3939810,
+   "name": "Claw Dropper",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1090650,
+   "name": "Unknown Castle",
+   "released": "Aug 19, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4756770,
+   "name": "RogueBlocks Demo",
+   "released": "Jun 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5062080,
+   "name": "Blubber",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4970260,
+   "name": "Arsmagia",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4977960,
+   "name": "DuoFall",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5444790,
+   "name": "Cubies",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4606370,
+   "name": "Creepy Scary - Premium Edition",
+   "released": "Apr 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4689290,
+   "name": "SiegeBlock",
+   "released": "Jul 7, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5417250,
+   "name": "Llama and Lizard",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2704790,
+   "name": "Block Control",
+   "released": "Dec 12, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5291570,
+   "name": "Patadas",
+   "released": "February 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4244260,
+   "name": "what-if",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4957450,
+   "name": "A Wee Flee",
+   "released": "Sep 29, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2086760,
+   "name": "Quatros Noir",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2093560,
+   "name": "Flowstone Saga Demo",
+   "released": "Oct 3, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2239200,
+   "name": "Animal Across: Afrika",
+   "released": "Mar 10, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4078280,
+   "name": "LabRATory",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4539340,
+   "name": "The Spaces We Share",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1066070,
+   "name": "Cave In: Miner Rescue Team",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4662390,
+   "name": "RogueBlocks",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5042550,
+   "name": "Waifu Bubble",
+   "released": "Jan 18, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1375290,
+   "name": "Working Zombies Steam Edition",
+   "released": "Mar 6, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2611110,
+   "name": "Atomic Hazard",
+   "released": "Oct 19, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1153330,
+   "name": "Puzzle Patrol",
+   "released": "Feb 7, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1759720,
+   "name": "A Step Forward",
+   "released": "Dec 12, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1760430,
+   "name": "A Step Forward Demo",
+   "released": "Oct 10, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3179170,
+   "name": "Mo 'n Fro",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3745170,
+   "name": "Pip Puzzle Demo",
+   "released": "May 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4304060,
+   "name": "SONIC PICO PARK",
+   "released": "Nov 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3300840,
+   "name": "Pharaoh's Riches",
+   "released": "Nov 6, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3680750,
+   "name": "Cats Ritual",
+   "released": "Feb 26, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3130120,
+   "name": "SUSHI Drop",
+   "released": "Aug 12, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 658810,
+   "name": "Flux8",
+   "released": "Aug 7, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5237260,
+   "name": "The Halloway Haunting Demo",
+   "released": "Oct 1, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5503180,
+   "name": "Olympegs",
+   "released": "December 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5426910,
+   "name": "Gluto",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5486980,
+   "name": "Grim Deck",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1231680,
+   "name": "The Magical Quest of Molly The Marble",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1147990,
+   "name": "Them Bombs Demo",
+   "released": "Aug 29, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1396290,
+   "name": "Chess Mega Bundle",
+   "released": "Jun 7, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2179210,
+   "name": "My Hidden Pets: Find My Duck",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1891240,
+   "name": "Otter Chaos",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2738070,
+   "name": "Suika Shapes Demo",
+   "released": "Dec 14, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3094630,
+   "name": "Adventure of the Bucket",
+   "released": "Sep 17, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1915300,
+   "name": "Gematombe Demo",
+   "released": "Feb 18, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3673520,
+   "name": "100 in 1 Game Collection Demo",
+   "released": "May 23, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3561860,
+   "name": "Twist-tac-toe",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3254620,
+   "name": "Old Magic Grandtower",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3808180,
+   "name": "Maze In Your Mind",
+   "released": "Jun 30, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4101320,
+   "name": "Miautemágica Demo",
+   "released": "Nov 17, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5360910,
+   "name": "Pawtings! Hidden Dogs Demo",
+   "released": "Oct 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3802760,
+   "name": "Together: Moon Escape DEMO",
+   "released": "Sep 9, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4226620,
+   "name": "LabRATory Demo",
+   "released": "Dec 17, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2245130,
+   "name": "Handshakes: Hands On",
+   "released": "Nov 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4808610,
+   "name": "Mictla",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4468080,
+   "name": "Tiny Lands 2 - Diorama set 1",
+   "released": "Jun 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3854800,
+   "name": "Wrongly Accused",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4004930,
+   "name": "Crimanimals",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4978960,
+   "name": "MixUp!",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 976680,
+   "name": "Minimal Move",
+   "released": "Mar 31, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5525080,
+   "name": "Nothing Is Impossible Demo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4367480,
+   "name": "Nothing Is Impossible",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4895800,
+   "name": "Chess",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4015160,
+   "name": "Tetro Runner",
+   "released": "Mar 4, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5389270,
+   "name": "Glooky: Cursors in the City Demo",
+   "released": "Oct 15, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5512030,
+   "name": "Towa Powa Demo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2069160,
+   "name": "Platfuzzles",
+   "released": "Sep 4, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2650610,
+   "name": "SwapPics: Knights vs Demons",
+   "released": "May 13, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3048980,
+   "name": "Rat Raze / Road to Riches - Tilt Five",
+   "released": "Jul 15, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2975240,
+   "name": "Out Of Shape",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1917170,
+   "name": "Ink'n'Think",
+   "released": "Mar 11, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3475920,
+   "name": "Out Of Shape Demo",
+   "released": "Feb 13, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3894620,
+   "name": "Fractals",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4916120,
+   "name": "Glooky: Cursors in the City",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5210030,
+   "name": "Towa Powa",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5141490,
+   "name": "Stealthmate: A chess puzzle",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4567820,
+   "name": "Kankao in Action Demo",
+   "released": "Apr 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3784700,
+   "name": "Interstellar Drive",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1415980,
+   "name": "Morkredd - ODE",
+   "released": "Dec 10, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5324690,
+   "name": "Slime Playgrounds",
+   "released": "Oct 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3791070,
+   "name": "Egg Reality",
+   "released": "Oct 9, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3633720,
+   "name": "Gemima",
+   "released": "Apr 20, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1201780,
+   "name": "39 Days to Mars Demo",
+   "released": "Nov 28, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2216340,
+   "name": "Spy Bros. (Pipi &amp; Bibi's DX) Demo",
+   "released": "Feb 6, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3087000,
+   "name": "Fulvinter",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4286840,
+   "name": "Two of A Kind",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3264890,
+   "name": "Goobi's Dimension",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3491660,
+   "name": "Double Trip Demo",
+   "released": "Feb 11, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4018440,
+   "name": "Treasure Drop: Open Sea DLC",
+   "released": "Dec 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4018450,
+   "name": "Treasure Drop: Deep Trench DLC",
+   "released": "Dec 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4018460,
+   "name": "Treasure Drop: Algae Valley DLC",
+   "released": "Dec 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4018470,
+   "name": "Treasure Drop: Coral Reef DLC",
+   "released": "Dec 4, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1865940,
+   "name": "Lead the Way - Full Collection",
+   "released": "Apr 19, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1084010,
+   "name": "Bombuzal",
+   "released": "Aug 15, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4306820,
+   "name": "ROTETRA",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4405840,
+   "name": "Junk Force",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4069270,
+   "name": "Bit It",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4382160,
+   "name": "Air Cadets",
+   "released": "Mar 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5095230,
+   "name": "DrakenBond Demo",
+   "released": "Aug 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5071290,
+   "name": "DrakenBond",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1330300,
+   "name": "Roopit and Boopit",
+   "released": "Jun 16, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2816390,
+   "name": "Paintball - the puzzle game",
+   "released": "Feb 28, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 949570,
+   "name": "Rand-O-mazE",
+   "released": "Oct 24, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1402060,
+   "name": "Dung Beetle Strike",
+   "released": "Oct 13, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2905910,
+   "name": "Hold The Levee",
+   "released": "Nov 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5489540,
+   "name": "Something Under",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1334960,
+   "name": "Purrseus",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1191430,
+   "name": "Help The Minotaur",
+   "released": "Jan 10, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1487130,
+   "name": "Catty and Batty: The Spirit Guide Demo",
+   "released": "Jan 21, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2072540,
+   "name": "icosi-do",
+   "released": "Nov 11, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2079420,
+   "name": "icosi-do Demo",
+   "released": "Jul 14, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2312680,
+   "name": "KarmaZoo Demo",
+   "released": "Oct 9, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2928930,
+   "name": "Mineclearer VR",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5531220,
+   "name": "Emotional Baggage",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2976620,
+   "name": "Super Crane HD",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1916150,
+   "name": "SnakeByte",
+   "released": "Mar 19, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2459760,
+   "name": "Limbs Demo",
+   "released": "Aug 3, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3720540,
+   "name": "Pip Puzzle: Pip and Ooma's Battle Demo",
+   "released": "May 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3274700,
+   "name": "Reaktor Demo",
+   "released": "Oct 5, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3359860,
+   "name": "Cappy & Tappy: Temples of Peril",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3502790,
+   "name": "Art Spotting Co-op Demo",
+   "released": "Feb 6, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3405010,
+   "name": "Lil Lootin Lizards",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3422110,
+   "name": "Cappy & Tappy: Demo of Peril",
+   "released": "Dec 31, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4492330,
+   "name": "Land of Nod",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4323360,
+   "name": "Carry the Pack Rack Demo",
+   "released": "Feb 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3720540,
+   "name": "Pip Puzzle: Pip and Ooma's Battle Demo",
+   "released": "May 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4638020,
+   "name": "Do You Even Brick?!",
+   "released": "Jul 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4615550,
+   "name": "Gravity's Edge: Demo",
+   "released": "Apr 14, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4125880,
+   "name": "Litter Factory",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3538190,
+   "name": "The Adventures of Freddie and Squeak",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1916150,
+   "name": "SnakeByte",
+   "released": "Mar 19, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4993140,
+   "name": "PLINTH",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4995500,
+   "name": "Pawcel: Bounce",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5019740,
+   "name": "2 Etoiles sont nées",
+   "released": "2028",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5021950,
+   "name": "2 Etoiles sont nées Demo",
+   "released": "Aug 4, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5080980,
+   "name": "Waifu Bubble Demo",
+   "released": "Sep 9, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4298170,
+   "name": "Carry the Pack Rack",
+   "released": "Nov 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4709630,
+   "name": "Do You Even Brick?! Demo",
+   "released": "May 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4136620,
+   "name": "Emissary One",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5202370,
+   "name": "Four Lives Demo",
+   "released": "Sep 20, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1409600,
+   "name": "回纹平台跳跃",
+   "released": "Sep 29, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2693660,
+   "name": "Radiant Bricks",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3582480,
+   "name": "Goop Up!",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1394230,
+   "name": "Similo: History",
+   "released": "Sep 17, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1394231,
+   "name": "Similo: Myths",
+   "released": "Nov 25, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3581070,
+   "name": "Harmonicord",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4309780,
+   "name": "Keep It Contained Demo",
+   "released": "Jan 29, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5189100,
+   "name": "It Takes Poop",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2816760,
+   "name": "Ooka Ooka Adventure",
+   "released": "Feb 20, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2027850,
+   "name": "RecNaviClub",
+   "released": "Sep 14, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1614680,
+   "name": "Perspective",
+   "released": "May 21, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2965820,
+   "name": "One Minute to Close Demo",
+   "released": "Feb 24, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2176240,
+   "name": "Pedra Crystal Caves",
+   "released": "Oct 22, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2676350,
+   "name": "Pikuniku 2",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4102620,
+   "name": "Gemima - The Ice Golem Fortress",
+   "released": "Nov 10, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3261060,
+   "name": "Twisted Logic: Abbotsfield",
+   "released": "Oct 26, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5419330,
+   "name": "Mini Sweeper",
+   "released": "Feb 2, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1524620,
+   "name": "Chriss Cross",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 710680,
+   "name": "DERU - The Art of Cooperation Demo",
+   "released": "Jun 22, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2281520,
+   "name": "Dino Dash Party",
+   "released": "Apr 12, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1875180,
+   "name": "Wonderbirds",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1627770,
+   "name": "The Kostka",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1936390,
+   "name": "Wormstep",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2726030,
+   "name": "Grapplers and Space Stuff",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1807020,
+   "name": "Chicken Nuggets",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3597240,
+   "name": "Black Zen White Demo",
+   "released": "May 21, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2799060,
+   "name": "Co OPERATION: MultiTurn - Demo",
+   "released": "Jan 31, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3071810,
+   "name": "Project Solar",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3163430,
+   "name": "Project Solar Demo",
+   "released": "Sep 4, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2515320,
+   "name": "Tents and Trees Demo",
+   "released": "Sep 26, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2486360,
+   "name": "Squeeks: Trickshot Festival",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2561940,
+   "name": "The Jackbox Party Pack 10 Demo",
+   "released": "Sep 28, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3360860,
+   "name": "SneakBit",
+   "released": "Dec 11, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2989800,
+   "name": "Tales of the Valente",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2629320,
+   "name": "Reverse Dungeon",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3244320,
+   "name": "Archaeology Rush",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1156480,
+   "name": "My Very Own Light",
+   "released": "Nov 25, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2483270,
+   "name": "Bubbits",
+   "released": "Nov 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3335050,
+   "name": "Lab Cats",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4698280,
+   "name": "Litter Factory Demo",
+   "released": "May 25, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3553220,
+   "name": "Addie Shen Demo",
+   "released": "Feb 26, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3754030,
+   "name": "Play Possum",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3386930,
+   "name": "Tools of the trade",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3369870,
+   "name": "Pushmania Demo",
+   "released": "Feb 12, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3929160,
+   "name": "Secret of Havendor",
+   "released": "May 11, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4001780,
+   "name": "Colorami",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4112590,
+   "name": "SEMO Demo",
+   "released": "Nov 21, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4163770,
+   "name": "Out of Order zero",
+   "released": "Jan 8, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4532880,
+   "name": "No Trust",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4353180,
+   "name": "Quantris",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4630920,
+   "name": "OMG: Oh My Gravity",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3510390,
+   "name": "Chumps Chained",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3470460,
+   "name": "Better With A Friend Demo",
+   "released": "Feb 3, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1990510,
+   "name": "Night Out",
+   "released": "Feb 19, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2014940,
+   "name": "QuVerse",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4022340,
+   "name": "Colorami Demo",
+   "released": "Sep 22, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5016510,
+   "name": "FUTURE AXIS BATTLE",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4966870,
+   "name": "Sticky Words",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5090440,
+   "name": "Ghostly Late Night Show",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4866600,
+   "name": "FlatPackers",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4216840,
+   "name": "Greak 2: Alliance of the Storms ",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2643540,
+   "name": "Age Twisters",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4779980,
+   "name": "Stepwell",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5230510,
+   "name": "Juso Sumo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2002550,
+   "name": "Chloe Puzzle Game",
+   "released": "Jun 3, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2536990,
+   "name": "Tomb Stalkers",
+   "released": "Dec 6, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1364750,
+   "name": "pop and well",
+   "released": "Jul 22, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 580590,
+   "name": "Cublast HD",
+   "released": "Apr 28, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3288390,
+   "name": "GRAVIT",
+   "released": "Sep 5, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3986800,
+   "name": "TOTS",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 930720,
+   "name": "The Rabbit and The Owl Demo",
+   "released": "Aug 27, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 905330,
+   "name": "oOo: Ascension",
+   "released": "Sep 26, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3248030,
+   "name": "Rapid Eye Madness",
+   "released": "Oct 25, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1423140,
+   "name": "Assimilate! (A Party Game)",
+   "released": "Aug 26, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 797260,
+   "name": "DYO Demo",
+   "released": "Feb 9, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5254220,
+   "name": "Pawtings! Hidden Dogs",
+   "released": "Dec 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5479640,
+   "name": "Plushie Ops Demo",
+   "released": "November 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1409660,
+   "name": "Hamster Scramble Demo",
+   "released": "Sep 22, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1481840,
+   "name": "Frisbros",
+   "released": "Mar 18, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 879550,
+   "name": "Ruby &amp; Majesty: Treasure Team Demo",
+   "released": "Jun 11, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1276080,
+   "name": "Princess Castle Quest Demo",
+   "released": "Apr 8, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 879550,
+   "name": "Ruby &amp; Majesty: Treasure Team Demo",
+   "released": "Jun 11, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1785580,
+   "name": "The Book of Buja",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1314220,
+   "name": "Bonkies Demo",
+   "released": "Aug 19, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1502430,
+   "name": "Controller King",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2089690,
+   "name": "Eigengrau Demo",
+   "released": "Dec 19, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2189050,
+   "name": "Think And Co-op",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2225310,
+   "name": "Color Escape: VR Coop Demo",
+   "released": "Dec 4, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2242010,
+   "name": "Come Together Demo",
+   "released": "Dec 30, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1582120,
+   "name": "A Couple Of Cubes",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2699910,
+   "name": "Train Traffic Manager Demo",
+   "released": "May 19, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2926710,
+   "name": "Steambots",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2471020,
+   "name": "Scramble Star Crossing",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2349000,
+   "name": "LAPSUS",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2125510,
+   "name": "RecNavi Club Demo",
+   "released": "Sep 14, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2524210,
+   "name": "Scramble Star Crossing Demo",
+   "released": "Aug 2, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2835350,
+   "name": "No Gasoline",
+   "released": "Q2 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3680200,
+   "name": "Clowntown",
+   "released": "January 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3354160,
+   "name": "Toxic Toads",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3277890,
+   "name": "The Book of Buja Demo",
+   "released": "Oct 14, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3172410,
+   "name": "A Wizard's Wool",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3497780,
+   "name": "The Two Thinkers Demo",
+   "released": "Jan 31, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3475890,
+   "name": "WayPoint Demo",
+   "released": "Mar 11, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3962650,
+   "name": "Pixel Pegz",
+   "released": "Jan 12, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5250320,
+   "name": "Clowntown Demo",
+   "released": "Oct 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4693540,
+   "name": "The Last Tale",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4324550,
+   "name": "Pun Chan Pop",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3793550,
+   "name": "Forklift Certified : Stacked and Loaded Demo",
+   "released": "Jun 9, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3628890,
+   "name": "Forklift Certified : Stacked and Loaded",
+   "released": "May 5, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3666210,
+   "name": "Myths of Switzerland",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3971500,
+   "name": "Pixel Pegz Demo",
+   "released": "Oct 2, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4616990,
+   "name": "GemPals",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4976060,
+   "name": "Toy Worlds Atlas Demo",
+   "released": "Aug 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 963950,
+   "name": "Paws in the Maze",
+   "released": "Mar 22, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1036550,
+   "name": "Levers & Buttons",
+   "released": "Apr 13, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 776100,
+   "name": "One Night On The Road",
+   "released": "Jan 23, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1107160,
+   "name": "Pew Pew Puzzle Defense",
+   "released": "Feb 12, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 596260,
+   "name": "S-COPTER: Trials of Quick Fingers and Logic",
+   "released": "Feb 12, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5263050,
+   "name": "Goddle Demo",
+   "released": "Oct 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1523460,
+   "name": "Dstroy 2",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2005820,
+   "name": "Soul Shard",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2639500,
+   "name": "Party Friends",
+   "released": "Mar 15, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1520660,
+   "name": "Crystorld",
+   "released": "Feb 11, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2958900,
+   "name": "Ascension: The Immortal Alchemist",
+   "released": "Jan 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2989700,
+   "name": "Fluff's Adventure: A Tale of Fur and Steel",
+   "released": "Aug 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5287650,
+   "name": "Wobblebound Demo",
+   "released": "Sep 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5256860,
+   "name": "Wobblebound",
+   "released": "Mar 4, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5537000,
+   "name": "Blob Buddies",
+   "released": "December 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1327220,
+   "name": "Derpy Conga Demo",
+   "released": "Jun 16, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1340080,
+   "name": "Bunny Memory",
+   "released": "Jun 19, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 568740,
+   "name": "Shadow Codex",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1235980,
+   "name": "Nice Try!",
+   "released": "Feb 12, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1347700,
+   "name": "Spherical alliance",
+   "released": "Oct 27, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1699890,
+   "name": "The Hungry Elevator (Alpha)",
+   "released": "Nov 11, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2058690,
+   "name": "Abyssal",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1983100,
+   "name": "Lost Bits",
+   "released": "Jun 22, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2163280,
+   "name": "Match Match Mania! Demo",
+   "released": "Sep 30, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2293060,
+   "name": "Golfing in Aether - Leviathan",
+   "released": "Mar 2, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2300950,
+   "name": "Undergrown",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2268640,
+   "name": "Dstroy 2 Demo",
+   "released": "Feb 5, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2197230,
+   "name": "DragonShift",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1947020,
+   "name": "Ukrainians: Our battle",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1628120,
+   "name": "Rollers of the Realm: Reunion",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1574020,
+   "name": "Automation* of Sorts",
+   "released": "Oct 4, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3147370,
+   "name": "Spirit of the Obelisk",
+   "released": "Apr 2, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2907580,
+   "name": "Mr. Trumpet's Temper Tantrum",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3248350,
+   "name": "Dungeon Patrol",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3032670,
+   "name": "Tomb Stalkers Demo",
+   "released": "Sep 23, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3217780,
+   "name": "Steady, Steady, Steady!",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2751670,
+   "name": "Sacrament",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2479560,
+   "name": "Top Out",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3053830,
+   "name": "Errand Task Force",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1654090,
+   "name": "Automation* of Sorts Demo",
+   "released": "Jun 17, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2444930,
+   "name": "WORM GAME",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2628180,
+   "name": "SOLCIALISTS",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2457330,
+   "name": "Quest Master Demo",
+   "released": "Jun 19, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3317510,
+   "name": "SokobotS",
+   "released": "Apr 20, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3578350,
+   "name": "Shout Out!",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3580060,
+   "name": "Karma and Jonar - The Rock Trolls",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3598430,
+   "name": "Wanted: Cat",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3679590,
+   "name": "Fox & Finch, 1, 2, jellies!",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3571960,
+   "name": "Top Out Demo",
+   "released": "Mar 7, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4342770,
+   "name": "Wolley's Dungeon Adventure Demo",
+   "released": "Feb 15, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3356670,
+   "name": "Proton & Electron Demo",
+   "released": "Nov 21, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3359190,
+   "name": "Wolley's Dungeon Adventure",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3528230,
+   "name": "Fading Light",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3746220,
+   "name": "Whisperborn: Child of the Forest",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3364130,
+   "name": "Addie Shen",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4092680,
+   "name": "WORM GAME Demo",
+   "released": "Oct 15, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3907670,
+   "name": "Bytebond – Wallpaper Pack",
+   "released": "Sep 24, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3932260,
+   "name": "Alisa: The Parting Demo",
+   "released": "Oct 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4676720,
+   "name": "Zwamman Demo",
+   "released": "May 1, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4232320,
+   "name": "线偶Marionette",
+   "released": "Apr 8, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4887300,
+   "name": "Squarelings",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1999530,
+   "name": "CATO: Buttered Cat Demo",
+   "released": "May 31, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3868960,
+   "name": "Walls And Tower Party",
+   "released": "Oct 20, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5313670,
+   "name": "Tidy Up the Library of Alexandria Demo",
+   "released": "Oct 8, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3790280,
+   "name": "Over the Radio",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3853570,
+   "name": "Veg Uprising",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4006460,
+   "name": "Golfing in Aether - Anniversary",
+   "released": "Mar 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3053830,
+   "name": "Errand Task Force",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3217780,
+   "name": "Steady, Steady, Steady!",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2444930,
+   "name": "WORM GAME",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3359190,
+   "name": "Wolley's Dungeon Adventure",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3364130,
+   "name": "Addie Shen",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4676720,
+   "name": "Zwamman Demo",
+   "released": "May 1, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4342770,
+   "name": "Wolley's Dungeon Adventure Demo",
+   "released": "Feb 15, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4624840,
+   "name": "Ball Maze Demo",
+   "released": "May 27, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4559730,
+   "name": "Passage 5",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4887300,
+   "name": "Squarelings",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4728560,
+   "name": "Solis",
+   "released": "2028",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4005900,
+   "name": "Froggin' Around",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4411580,
+   "name": "Geareo",
+   "released": "Dec 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3260750,
+   "name": "Stage Fright",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3547910,
+   "name": "Alisa: The Parting",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3757660,
+   "name": "Station 58",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5075360,
+   "name": "Tidy Up the Library of Alexandria",
+   "released": "Nov 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5012980,
+   "name": "Snuggly Tails",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5029720,
+   "name": "OmOchim",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5147720,
+   "name": "Boom Crew: Co-op Minesweeper",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4749300,
+   "name": "PIKI BOMB",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4179370,
+   "name": "Bearly Flying",
+   "released": "Mar 17, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1838540,
+   "name": "Stealth Kart",
+   "released": "Sep 2, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3309120,
+   "name": "Block_Up Demo",
+   "released": "Oct 25, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2550420,
+   "name": "Block_Up",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1707290,
+   "name": "Rescue Party: Live! Demo",
+   "released": "Oct 1, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3965290,
+   "name": "Keep Crafting",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4772980,
+   "name": "Dragon Up! Together",
+   "released": "Dec 18, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 717170,
+   "name": "Mulletman and the Molemen",
+   "released": "Nov 1, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4451820,
+   "name": "Swordless",
+   "released": "Jul 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1133860,
+   "name": "Jim is Moving Out! Demo",
+   "released": "Oct 4, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 840830,
+   "name": "Noonie",
+   "released": "May 2, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1394232,
+   "name": "Similo: Fables",
+   "released": "Sep 17, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3764130,
+   "name": "Super Dog Adventure",
+   "released": "Jun 11, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5333640,
+   "name": "Somewhere Else Demo",
+   "released": "Oct 10, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5242590,
+   "name": "Somewhere Else",
+   "released": "February 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5245740,
+   "name": "Shiny Gen: AI Game Maker",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1291940,
+   "name": "SpinZap Demo",
+   "released": "Apr 28, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1278640,
+   "name": "Magic Twins Demo",
+   "released": "Apr 28, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1283380,
+   "name": "SpinZap",
+   "released": "May 1, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1314740,
+   "name": "Jumpala Demo",
+   "released": "May 11, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1595900,
+   "name": "Knight Flight",
+   "released": "Dec 22, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1658590,
+   "name": "ConnecTank Demo",
+   "released": "Jun 13, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1424670,
+   "name": "Healing Spree Demo",
+   "released": "Sep 23, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1427450,
+   "name": "Dino Drink",
+   "released": "Aug 4, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1397420,
+   "name": "Aloof Demo",
+   "released": "Sep 29, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1398460,
+   "name": "Line Leader",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1361900,
+   "name": "Outland Rapture",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1498080,
+   "name": "Forgotten Fragments Demo",
+   "released": "Feb 12, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 932000,
+   "name": "INVERSUS Deluxe Demo",
+   "released": "Oct 15, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3157950,
+   "name": "Hidalgo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3135980,
+   "name": "Nasal Nomad: Sniffer's Delight",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2341110,
+   "name": "Narcalid",
+   "released": "Aug 8, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2305100,
+   "name": "Loppy: Planet Hopper",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2318380,
+   "name": "Loppy: Planet Hopper [DEMO]",
+   "released": "Feb 15, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2371690,
+   "name": "Fun2Box",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2219830,
+   "name": "Ricky's Rockin' Arcade",
+   "released": "Dec 9, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2097480,
+   "name": "Jam Scrapz Collection",
+   "released": "Apr 12, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1573290,
+   "name": "Communication Breakdown",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2148190,
+   "name": "Durus",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1908380,
+   "name": "Binary Golf",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1908520,
+   "name": "Binary Golf Demo",
+   "released": "Feb 20, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2674640,
+   "name": "The Hydra Experiment",
+   "released": "2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2702350,
+   "name": "Eden: Project New Earth",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2710470,
+   "name": "午夜惊坤",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2818740,
+   "name": "Bytebond Demo",
+   "released": "Feb 11, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2960330,
+   "name": "UNDER THE CONCRETE WAVE",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2639660,
+   "name": "Call fur Help",
+   "released": "Nov 23, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2577930,
+   "name": "Golfing in Aether - Dustbowl",
+   "released": "Nov 14, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2790620,
+   "name": "Narcalid Demo",
+   "released": "Jan 26, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1961310,
+   "name": "The Mystery Cleaner",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2168440,
+   "name": "Golfing in Aether - Autumn",
+   "released": "Oct 21, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2168441,
+   "name": "Golfing in Aether - Winter",
+   "released": "Dec 8, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4059790,
+   "name": "Anna & Emma - Paper Adventure",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2432480,
+   "name": "Danghost Demo",
+   "released": "May 17, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2455730,
+   "name": "Light of Hope: The Redeemer",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3316060,
+   "name": "Trapped Together",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4325550,
+   "name": "Tetro Runner Demo",
+   "released": "Jan 16, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4400020,
+   "name": "The Dust Between: Observer",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3971090,
+   "name": "DosQubos",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4281550,
+   "name": "Salty & Slobbery",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3522380,
+   "name": "Kamioza (Ch1 Azaria)",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3554960,
+   "name": "Wish for Eternity",
+   "released": "2028",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2999530,
+   "name": "Golfing in Aether - Cauldron",
+   "released": "Sep 23, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3059770,
+   "name": "Leveleers",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3084560,
+   "name": "TWIN FLAMES",
+   "released": "Nov 23, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3257630,
+   "name": "Foxyball",
+   "released": "Nov 13, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1782980,
+   "name": "Stunt Coordinator",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4681410,
+   "name": "Marco Polo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4427620,
+   "name": "Tilelings!",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4298330,
+   "name": "Wrongly Accused Demo",
+   "released": "Jan 13, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4552160,
+   "name": "Help Me Get Up",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4553860,
+   "name": "Hela: Of Mice & Magic Demo",
+   "released": "Oct 8, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4808140,
+   "name": "Drive To The Top",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3479080,
+   "name": "Dreampainters",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4891570,
+   "name": "koinori",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2861080,
+   "name": "Haunted Paws",
+   "released": "May 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3296060,
+   "name": "Escape Academy 2: Back 2 School",
+   "released": "Nov 5, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2509360,
+   "name": "Water Me & You",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2932260,
+   "name": "Trine 6: Together in Time",
+   "released": "Mar 4, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2509360,
+   "name": "Water Me & You",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4922750,
+   "name": "We Don't Exist",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2932260,
+   "name": "Trine 6: Together in Time",
+   "released": "Mar 4, 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4906480,
+   "name": "Drive To The Top Demo",
+   "released": "Jul 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4552560,
+   "name": "Dreamland Journey",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 695560,
+   "name": "Building Block Heroes",
+   "released": "Oct 3, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 569580,
+   "name": "Grave Danger Demo",
+   "released": "Dec 13, 2016",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1956990,
+   "name": "Samurai",
+   "released": "Jul 12, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4822660,
+   "name": "Rocoumie and Bouquet",
+   "released": "Jul 16, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1622570,
+   "name": "Out of Sight",
+   "released": "Jun 27, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4216740,
+   "name": "Toot Odyssey",
+   "released": "Apr 24, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3903010,
+   "name": "Cosmic Scramble",
+   "released": "Feb 2, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3068450,
+   "name": "Lab Sorters",
+   "released": "Mar 7, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2944230,
+   "name": "House of Everlast Demo",
+   "released": "May 30, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3678070,
+   "name": "Connected",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3715530,
+   "name": "Connected Demo",
+   "released": "May 12, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 857210,
+   "name": "Building Block Heroes: Rush Edition",
+   "released": "May 16, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4255920,
+   "name": "2mazing",
+   "released": "Jan 19, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1576540,
+   "name": "WaveTiles",
+   "released": "Aug 13, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1642430,
+   "name": "Star in the Hollow",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1473990,
+   "name": "Princess Farmer Demo",
+   "released": "Feb 3, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1810630,
+   "name": "Lokko",
+   "released": "Dec 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1468110,
+   "name": "Elements",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1502570,
+   "name": "Story of a tiny earth, the symbolic ages",
+   "released": "Feb 22, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2092500,
+   "name": "Out of Sight Demo",
+   "released": "Jul 20, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2331800,
+   "name": "Quiz Quest Demo",
+   "released": "Mar 24, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2937300,
+   "name": "Ripple and Frawg: The Seasonal Song Demo",
+   "released": "Oct 13, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2903510,
+   "name": "Alien Rush",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2738610,
+   "name": "Ripple and Frawg: The Seasonal Song",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3075040,
+   "name": "EggGarden",
+   "released": "Oct 1, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3003430,
+   "name": "TINY METAL 2",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3004770,
+   "name": "NBB.EXE Demo",
+   "released": "May 28, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3186300,
+   "name": "Nuclei",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3187070,
+   "name": "Nuclei Demo",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2405520,
+   "name": "Speed Crew Demo",
+   "released": "Jun 7, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3356100,
+   "name": "Lab Sorters Demo",
+   "released": "Feb 10, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4078600,
+   "name": "PiPu Party",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4079380,
+   "name": "Hatch Flap",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1591560,
+   "name": "Tiny Vikings",
+   "released": "Feb 28, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4445980,
+   "name": "Educational Family Games Demo",
+   "released": "Jun 14, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2216420,
+   "name": "Friendship Dungeon: Party Puzzler",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1123930,
+   "name": "Chicory: A Colorful Tale Demo",
+   "released": "Dec 12, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 939070,
+   "name": "Carly and the Reaperman Demo",
+   "released": "Sep 7, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4030330,
+   "name": "Bad Sector",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3278600,
+   "name": "Tentacle Tango Demo",
+   "released": "Oct 23, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3244430,
+   "name": "Archaeology Rush Demo",
+   "released": "Nov 4, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4306870,
+   "name": "Graph Box",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4052650,
+   "name": "Cosmic Scramble Demo",
+   "released": "Sep 23, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3648320,
+   "name": "Marbies Party",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3982340,
+   "name": "Forca Recurva",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3509680,
+   "name": "Play Friends: Party Games Demo",
+   "released": "Apr 30, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1361090,
+   "name": "Restitched",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1129180,
+   "name": "Glitch Puzzle",
+   "released": "Jul 26, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4846170,
+   "name": "Help Me Get Up Demo",
+   "released": "Oct 14, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4216750,
+   "name": "Twin Balls Journey",
+   "released": "Aug 20, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1653190,
+   "name": "Sumorbit",
+   "released": "Nov 22, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 510430,
+   "name": "Stacks On Stacks (On Stacks)",
+   "released": "Apr 1, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2575150,
+   "name": "Conquistador Rex",
+   "released": "Feb 15, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3404170,
+   "name": "Together We Play: Help Me Help You",
+   "released": "Jan 31, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1127250,
+   "name": "Deadly Maze: Phase 1",
+   "released": "Aug 8, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4325120,
+   "name": "You Lose: Retry",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 994760,
+   "name": "The Last Crystal Demo",
+   "released": "Nov 6, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 858640,
+   "name": "The Last Crystal",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 793340,
+   "name": "Quest Hunter: Original Artbook",
+   "released": "Jan 26, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1349340,
+   "name": "Alias",
+   "released": "Aug 31, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 368690,
+   "name": "Chronoclysm",
+   "released": "Nov 12, 2015",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5320040,
+   "name": "BloooBleee",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5284080,
+   "name": "Blawkade",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5522390,
+   "name": "BloooBleee Demo",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1470880,
+   "name": "BakuMari",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 833960,
+   "name": "Mr. Grayscale",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1267570,
+   "name": "Vectronom Demo",
+   "released": "Mar 19, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1204770,
+   "name": "Deadly Maze: Phase 1 Demo Demo",
+   "released": "Dec 16, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1080650,
+   "name": "Moo Lander Demo",
+   "released": "May 16, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2150110,
+   "name": "Secret Blade",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2877280,
+   "name": "Baby Formula: Tiny Hands, Big Tasks",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2915580,
+   "name": "Exit Kun-Steam Workshop Upload and Management",
+   "released": "Jun 24, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2968300,
+   "name": "Mr. Shootem Breaks Out!",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3477520,
+   "name": "Ragdoll Chimps",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3502330,
+   "name": "PicoMix By NuSan : Pico-8 Cartdriges Pack",
+   "released": "Feb 5, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3505030,
+   "name": "Red & Blue Demo",
+   "released": "Feb 9, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4662350,
+   "name": "Chess 2",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4780280,
+   "name": "Ornament Tower",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4800020,
+   "name": "Shadows of Imalor",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3863670,
+   "name": "Mr. Shootem Breaks Out! - THE Demo",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3488740,
+   "name": "Red & Blue",
+   "released": "2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4050190,
+   "name": "Speed Tactic Ninja",
+   "released": "Dec 1, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2622450,
+   "name": "Multiversal Affairs",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4668880,
+   "name": "Silk & Sorrow",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4982680,
+   "name": "The Doi",
+   "released": "Oct 30, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 878770,
+   "name": "Spear Master",
+   "released": "May 15, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3644070,
+   "name": "Block Sky Rise",
+   "released": "Apr 21, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1380280,
+   "name": "Crazy Fun Ball",
+   "released": "Nov 29, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1405230,
+   "name": "Crazy Fun Ball Demo",
+   "released": "Oct 21, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1239720,
+   "name": "Pallas of Vines",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3040730,
+   "name": "All You Need is Help (Free Trial)",
+   "released": "Dec 18, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1758980,
+   "name": "VR Giants - Friend's Pass",
+   "released": "Oct 1, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 894400,
+   "name": "Lame &amp; Cheesy Demo",
+   "released": "Jul 5, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 869460,
+   "name": "The Experimental Adventures of Lame & Cheesy",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1312350,
+   "name": "Skellboy Demo",
+   "released": "Jun 16, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2465110,
+   "name": "HEAVY Sword",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3620730,
+   "name": "Trash Dude Hustle",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3251150,
+   "name": "SNOW BROS. 2 SPECIAL Demo",
+   "released": "Oct 13, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3858810,
+   "name": "SEMO",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3914530,
+   "name": "Rock the Boom",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5175340,
+   "name": "The Doi Demo",
+   "released": "Sep 2, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 894400,
+   "name": "Lame &amp; Cheesy Demo",
+   "released": "Jul 5, 2018",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 869460,
+   "name": "The Experimental Adventures of Lame & Cheesy",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4321400,
+   "name": "Gold Up",
+   "released": "Aug 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 613370,
+   "name": "Upside-Down Dimensions",
+   "released": "Aug 9, 2017",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1446540,
+   "name": "Fillit",
+   "released": "Jun 2, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4999260,
+   "name": "Sixth Force - Candy Cane Supporter Pack",
+   "released": "Aug 3, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2995920,
+   "name": "It Takes Two Friend's Pass",
+   "released": "May 25, 2021",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1853660,
+   "name": "Squirrels are going nuts",
+   "released": "Feb 5, 2022",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2455130,
+   "name": "Squirrels are going nuts Demo",
+   "released": "Jun 3, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2687340,
+   "name": "Sumorbit Demo",
+   "released": "Jan 25, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3451190,
+   "name": "Sixth Force Demo",
+   "released": "Feb 9, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3602260,
+   "name": "The Escapists 3",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 5103550,
+   "name": "Shadows of Imalor Demo",
+   "released": "Sep 17, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1035270,
+   "name": "Furry Chronicles",
+   "released": "Mar 10, 2019",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1845500,
+   "name": "I Believe In Giants",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1280140,
+   "name": "PHOGS! Demo",
+   "released": "Jun 16, 2020",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3281600,
+   "name": "Eyes on Yuki!",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3874140,
+   "name": "Revenge of the Savage Planet Demo",
+   "released": "Aug 18, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3156020,
+   "name": "Gloomveil",
+   "released": "Coming soon",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4685960,
+   "name": "Pawbay - Silly Hats",
+   "released": "Aug 21, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4685990,
+   "name": "Pawbay - Cool Shades",
+   "released": "Oct 12, 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3614440,
+   "name": "Jumpscare Simulator: Deluxe Supporter Edition",
+   "released": "Mar 28, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 4112050,
+   "name": "Macaron Mash",
+   "released": "Nov 21, 2025",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 1731130,
+   "name": "At Your Service",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3827720,
+   "name": "HoneyMoon To Hell",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3602270,
+   "name": "Whisk",
+   "released": "Q1 2027",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3109770,
+   "name": "All You Need is Help: The Lively Friends Pack",
+   "released": "Sep 26, 2024",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2527940,
+   "name": "Little Cheese Works",
+   "released": "Q4 2026",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3329520,
+   "name": "LabyrinTheam",
+   "released": "2030",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 2480320,
+   "name": "SEARCH AND RESCUE | YOSEMITE NATIONAL PARK | USA",
+   "released": "Aug 28, 2023",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3498890,
+   "name": "With Friends Like These",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  },
+  {
+   "app_id": 3527730,
+   "name": "Retirement Holmes",
+   "released": "To be announced",
+   "score": null,
+   "reviews": null
+  }
+ ]
+}

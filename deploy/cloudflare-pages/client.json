@@ -1,0 +1,10 @@
+{
+  "latest_version": "0.1.0",
+  "minimum_version": "0.1.0",
+  "mandatory": false,
+  "download_url": "https://github.com/sebasu66/gameAccess/releases/latest",
+  "message": {
+    "es": "Game Access está en beta. Las actualizaciones son manuales por ahora.",
+    "en": "Game Access is in beta. Updates are manual for now."
+  }
+}

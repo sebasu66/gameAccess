@@ -1,0 +1,11 @@
+/* Settings › Plugins, what is inside a search result (PluginForm.tsx, ResultFiles): a torrent's files with their sizes.
+   Screen layer only (docs/GUI_DESIGN.md §0c): label, hint, status and error come from components/ga/content.css; every
+   size, font and colour is a variable of templates/base.css or of the flavor. */
+.ga-plugin-files { display: grid; gap: var(--ga-space-1); padding-top: var(--ga-space-1); }
+.ga-plugin-files-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.ga-plugin-files-title { margin: 0; overflow: hidden; color: var(--ga-white); font: var(--ga-status-font); text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-files-list { display: grid; max-height: var(--ga-files-max-h); margin: 0; padding: 0; overflow-y: auto; list-style: none; border-block: 1px solid var(--ga-line); }
+.ga-plugin-files-list > li { display: flex; align-items: center; gap: var(--ga-space-2); min-height: var(--ga-files-row-h); padding-inline: var(--ga-space-1); }
+.ga-plugin-files-list > li + li { border-top: 1px solid var(--ga-line); }
+.ga-plugin-file-path { flex: 1; min-width: 0; overflow: hidden; color: var(--ga-white); font: var(--ga-files-path-font); text-overflow: ellipsis; white-space: nowrap; }
+.ga-plugin-file-size { flex: none; color: var(--ga-muted); font: var(--ga-files-size-font); font-variant-numeric: tabular-nums; }

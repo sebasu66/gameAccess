@@ -24,7 +24,7 @@ jobs:
           node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
       - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Prepare desktop resources
         run: npm run prepare-icons
       - name: Build NSIS installer

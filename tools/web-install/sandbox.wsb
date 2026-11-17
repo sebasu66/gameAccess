@@ -1,0 +1,10 @@
+<!-- A clean Windows for trying the one-click install (vault/Instalador web.md): opens with the Run dialog (Win + R)
+     waiting, the way a player starts. Start the local server first (serve-local.ps1), copy the command from the page,
+     paste it here and press Enter. The clipboard is shared with this PC. -->
+<Configuration>
+  <Networking>Enable</Networking>
+  <ClipboardRedirection>Enable</ClipboardRedirection>
+  <LogonCommand>
+    <Command>explorer.exe shell:::{2559a1f3-21d7-11d4-bdaf-00c04f60b9f0}</Command>
+  </LogonCommand>
+</Configuration>

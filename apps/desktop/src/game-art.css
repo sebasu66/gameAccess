@@ -1,0 +1,17 @@
+/* Game artwork that repaired itself (GameArt.tsx): a grid never shows a hole or a broken image. */
+
+/* Last resort: the title over a warm background. Classes of the picture it replaces (ga-bento-feature, ...) still place it. */
+.ga-art-fallback { width: 100%; height: 100%; display: grid; place-items: center; box-sizing: border-box; padding: 12px; overflow: hidden; text-align: center;
+  background: radial-gradient(120% 80% at 50% 0%, var(--ga-orange-tint), transparent 70%), linear-gradient(165deg, var(--ga-surface-2), var(--ga-bg) 75%);
+  color: var(--ga-white); font: 400 26px/1 "Bebas Neue", sans-serif; letter-spacing: .03em; }
+.ga-art-fallback > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
+/* Thumbnails too small for a title (library manager, kid mode): two letters. */
+.ga-art-fallback.is-compact { padding: 0; color: var(--ga-orange); font-size: 22px; }
+
+/* A portrait card with only wide art: the picture whole, over a blurred copy of itself, and the title under it. */
+.ga-art-composed { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: var(--ga-bg); }
+.ga-art-composed > img.ga-art-composed-backdrop { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(18px) brightness(.55) saturate(1.2); }
+.ga-art-composed > img.ga-art-composed-image { position: absolute; top: 34%; left: 0; width: 100%; height: auto; transform: translateY(-50%); object-fit: contain; box-shadow: 0 10px 28px color-mix(in srgb, var(--ga-bg) 80%, transparent); }
+.ga-art-composed:not([data-loaded]) > img { visibility: hidden; }
+.ga-art-composed-title { position: absolute; left: 10px; right: 10px; bottom: 14%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; text-align: center;
+  color: var(--ga-white); font: 400 24px/1 "Bebas Neue", sans-serif; letter-spacing: .03em; text-shadow: 0 2px 10px var(--ga-bg); }

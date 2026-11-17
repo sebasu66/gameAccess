@@ -1,0 +1,30 @@
+[
+  {
+    "id": "racing-same-screen",
+    "title": "Carreras para jugar en la misma pantalla, de los últimos 5 años, con 70 % o más",
+    "steam": { "tags": [699], "category3": [24] },
+    "ours": { "filters": { "genres": ["Racing"], "features": ["multiplayer", "shared_split_screen"], "minReviewScore": 70, "maxAgeDays": 1825, "spareUnprovenGames": false } },
+    "minScore": 70, "maxAgeDays": 1825
+  },
+  {
+    "id": "roguelike-online-coop",
+    "title": "Roguelikes cooperativos online de los últimos 3 años, con 80 % o más (etiqueta de Steam)",
+    "steam": { "tags": [1716], "category3": [38] },
+    "ours": { "query": "roguelike", "filters": { "features": ["multiplayer", "online_coop"], "minReviewScore": 80, "maxAgeDays": 1095, "spareUnprovenGames": false } },
+    "minScore": 80, "maxAgeDays": 1095
+  },
+  {
+    "id": "survival-online-coop",
+    "title": "Supervivencia cooperativa online de los últimos 3 años, con 80 % o más (etiqueta de Steam)",
+    "steam": { "tags": [1662], "category3": [38] },
+    "ours": { "query": "survival", "filters": { "features": ["multiplayer", "online_coop"], "minReviewScore": 80, "maxAgeDays": 1095, "spareUnprovenGames": false } },
+    "minScore": 80, "maxAgeDays": 1095
+  },
+  {
+    "id": "puzzle-screen-coop",
+    "title": "Puzles cooperativos en la misma pantalla, cualquier fecha, con 85 % o más (etiqueta de Steam)",
+    "steam": { "tags": [1664], "category3": [39] },
+    "ours": { "query": "puzzle", "filters": { "features": ["multiplayer", "shared_split_screen", "coop"], "minReviewScore": 85, "spareUnprovenGames": false } },
+    "minScore": 85
+  }
+]

@@ -34,6 +34,13 @@
   box-shadow: 0 38px 110px rgba(0,0,0,.62);
 }
 
+.app-dialog-backdrop { z-index: 12001; }
+.app-dialog-card { width: min(540px, 94vw); min-height: 0; }
+.app-dialog-card .session-content { width: 100%; padding: 42px; }
+.app-dialog-card .session-content h2 { font-size: clamp(27px, 4vw, 40px); line-height: 1.04; }
+.app-dialog-card .session-content p { overflow-wrap: anywhere; }
+.app-dialog-actions { position: relative; z-index: 2; }
+
 .session-shade {
   position: absolute;
   inset: 0;
@@ -57,12 +64,12 @@
   display: grid;
   place-items: center;
   color: #06110d;
-  background: linear-gradient(145deg, #8affca, #49d79d);
-  box-shadow: 0 16px 42px rgba(78, 226, 166, .2);
+  background: linear-gradient(145deg, #a1e8c8, #65bb98);
+  box-shadow: 0 16px 42px rgba(108,196,160, .2);
 }
 
-.session-status-icon.success { background: #65f0b2; }
-.session-status-icon.error { background: #ff8c8c; color: #250606; }
+.session-status-icon.success { background: #81d4af; }
+.session-status-icon.error { background: #e8a3a3; color: #1f0c0c; }
 
 .session-content h2 {
   margin: 9px 0 5px;
@@ -83,12 +90,18 @@
   font-size: 14px;
 }
 
+.session-content p.steam-install-fallback-error {
+  margin-top: 12px;
+  color: #eebbbb;
+  overflow-wrap: anywhere;
+}
+
 .session-log {
   max-height: 180px;
   margin-top: 18px;
   overflow: auto;
   padding: 12px 14px;
-  border: 1px solid rgba(101,240,178,.16);
+  border: 1px solid rgba(129,212,175,.16);
   border-radius: 10px;
   background: rgba(2,6,9,.78);
   color: #b9c8c2;
@@ -96,7 +109,7 @@
 }
 
 .session-log div { display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
-.session-log span { color: #65f0b2; }
+.session-log span { color: #81d4af; }
 
 .session-steps {
   display: grid;
@@ -116,9 +129,9 @@
   background: rgba(255,255,255,.12);
 }
 
-.session-steps span.current { color: #c9fff0; }
-.session-steps span.done { color: #65f0b2; }
-.session-steps span.done + i { background: rgba(101,240,178,.42); }
+.session-steps span.current { color: #d4f4eb; }
+.session-steps span.done { color: #81d4af; }
+.session-steps span.done + i { background: rgba(129,212,175,.42); }
 
 .session-close { margin-top: 30px; }
 

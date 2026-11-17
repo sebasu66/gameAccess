@@ -10,23 +10,22 @@ const status = (overrides: Partial<SteamDownloadStatus>): SteamDownloadStatus =>
 });
 
 describe("GameStateManager", () => {
-  it("keeps technical state separate from Play-button readiness", () => {
+  it("keeps prepared games playable and legacy frozen games unavailable", () => {
     const prepared = gameStateManager.resolve(status({ state: "prepared" }));
     expect(prepared.installed).toBe(false);
     expect(prepared.prepared).toBe(true);
     expect(prepared.playButtonReady).toBe(true);
     expect(prepared.primaryAction).toBe("play");
 
-    const frozen = gameStateManager.resolve(status({ state: "frozen" }));
-    expect(frozen.installed).toBe(false);
-    expect(frozen.frozen).toBe(true);
-    expect(frozen.playButtonReady).toBe(true);
-    expect(frozen.primaryAction).toBe("play");
+    const legacyFrozen = gameStateManager.resolve(status({ state: "frozen" }));
+    expect(legacyFrozen.installed).toBe(false);
+    expect(legacyFrozen.playButtonReady).toBe(false);
+    expect(legacyFrozen.primaryAction).toBe("download");
   });
 
-  it("maps active and transitional states to one primary UI action", () => {
+  it("maps active download states to one primary UI action", () => {
     expect(gameStateManager.resolve(status({ state: "downloading" })).primaryAction).toBe("cancel");
-    expect(gameStateManager.resolve(status({ state: "freezing" })).primaryAction).toBe("wait");
+    expect(gameStateManager.resolve(status({ state: "freezing" })).primaryAction).toBe("download");
     expect(gameStateManager.resolve(status({ state: "not-installed" })).primaryAction).toBe("download");
     expect(gameStateManager.resolve(status({ state: "unknown" })).primaryAction).toBe("verify");
   });
@@ -57,12 +56,32 @@ describe("GameStateManager", () => {
     expect(merged.progress).toBe(25);
   });
 
-  it("requires a concrete provider target before provider-only installed cache is trusted", () => {
+  it("treats provider installed cache as stale when Steam reports the game uninstalled", () => {
     const steam = status({ state: "not-installed" });
-    const stale = status({ state: "installed", installed: true, prepared_target: null });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(steam, stale).state).toBe("not-installed");
-    const validated = status({ state: "installed", installed: true, prepared_target: "C:/Games/42" });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(steam, validated).state).toBe("installed");
+    const stale = status({
+      state: "installed",
+      installed: true,
+      progress: 100,
+      prepared_target: "C:/Program Files (x86)/Steam/steamapps/common/MK10",
+    });
+    const result = gameStateManager.reconcileSteamAndProviderStatus(steam, stale);
+    expect(result.state).toBe("not-installed");
+    expect(result.installed).toBe(false);
+    expect(gameStateManager.resolve(result).primaryAction).toBe("download");
+  });
+
+  it("keeps a prepared Game Access download playable until Steam adopts it", () => {
+    const steam = status({ state: "not-installed" });
+    const prepared = status({
+      state: "prepared",
+      installed: false,
+      progress: 100,
+      prepared_target: "C:/Games/42",
+    });
+    const result = gameStateManager.reconcileSteamAndProviderStatus(steam, prepared);
+    expect(result.state).toBe("prepared");
+    expect(result.installed).toBe(false);
+    expect(gameStateManager.resolve(result).primaryAction).toBe("play");
   });
 
   it("releases a stale preparing state when the worker reports terminal failure", () => {
@@ -73,9 +92,10 @@ describe("GameStateManager", () => {
     expect(result?.error).toBe("No verified provider");
   });
 
-  it("keeps Frozen authoritative over stale provider installation state", () => {
+  it("does not treat legacy frozen storage data as installed", () => {
     const frozen = status({ state: "frozen", installed: false });
     const provider = status({ state: "installed", installed: true, provider_id: "provider" });
-    expect(gameStateManager.reconcileSteamAndProviderStatus(frozen, provider).state).toBe("frozen");
+    expect(gameStateManager.resolve(frozen).playButtonReady).toBe(false);
+    expect(gameStateManager.resolve(frozen).primaryAction).toBe("download");
   });
 });
