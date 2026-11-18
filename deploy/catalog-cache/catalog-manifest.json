@@ -1,25 +1,25 @@
 {
   "schema_version": 1,
-  "revision": "8bc5726ec320e78a",
-  "generated_at": "2026-11-17T14:20:59.587343+00:00",
-  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-8bc5726ec320e78a.sqlite.gz",
-  "sha256": "189f0ff12aefebff63d0cf6d98fd2403f6f10bd340be4d50c1c8861ea9e9b3ea",
-  "catalog_count": 64609,
+  "revision": "dc0a602eacf161ce",
+  "generated_at": "2026-11-18T13:57:55.669479+00:00",
+  "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-cache-dc0a602eacf161ce.sqlite.gz",
+  "sha256": "05a4fff162dcae7f329d12195e9402b4b851b437a4dc77becd9042b36edbdce6",
+  "catalog_count": 65537,
   "detail_count": 677,
-  "compressed_bytes": 22973824,
-  "uncompressed_bytes": 146681856,
+  "compressed_bytes": 23297491,
+  "uncompressed_bytes": 148594688,
   "coverage": {
-    "released_since": "2025-11-17",
-    "through": "2026-11-17",
+    "released_since": "2025-11-18",
+    "through": "2026-11-18",
     "recent_complete": true,
-    "recent_count": 32052,
+    "recent_count": 32210,
     "popular_limit": 5000,
     "source": "https://store.steampowered.com/search/?sort_by=Released_DESC&category1=998&ignore_preferences=1",
-    "important_since": "2016-11-17",
+    "important_since": "2016-11-18",
     "important_min_reviews": 100,
-    "important_count": 17481,
+    "important_count": 17483,
     "demo_limit": 2000,
-    "demo_count": 1398,
+    "demo_count": 1520,
     "demo_source": "https://store.steampowered.com/search/?category1=10&ignore_preferences=1",
     "cooptimus": {
       "processed": 0,
@@ -27,47 +27,47 @@
       "state": "not-requested"
     },
     "artwork": {
-      "matched": 64527,
-      "capsule": 64511,
-      "hero": 61429,
-      "header": 64494,
-      "missing": 82,
-      "descriptors": 16263,
-      "adult_only": 3979,
-      "nudity": 6650,
-      "categories": 64427,
-      "reviews": 56524,
-      "tags": 64512,
+      "matched": 65454,
+      "capsule": 65438,
+      "hero": 62314,
+      "header": 65421,
+      "missing": 83,
+      "descriptors": 16465,
+      "adult_only": 4005,
+      "nudity": 6705,
+      "categories": 65350,
+      "reviews": 57679,
+      "tags": 65439,
       "free_promos": 0,
-      "developers": 64485,
-      "franchises": 10002,
-      "spanish": 24714,
-      "required_age": 853,
-      "steam_deck": 25166,
-      "controller": 24194,
-      "requests": 647,
+      "developers": 65412,
+      "franchises": 10086,
+      "spanish": 25122,
+      "required_age": 850,
+      "steam_deck": 25184,
+      "controller": 24637,
+      "requests": 656,
       "cache_hits": 0
     },
     "server_games_added": 0,
     "server_fields_filled": 0,
-    "updated_at": "2026-11-17T14:20:55.529503+00:00",
-    "tagged_count": 64535
+    "updated_at": "2026-11-18T13:57:51.528209+00:00",
+    "tagged_count": 65463
   },
   "updates": {
+    "8bc5726ec320e78a": {
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-8bc5726ec320e78a-dc0a602eacf161ce.json.gz",
+      "sha256": "6d74b9a4a2dd04a95db650b3a2a38607d57d1b254430e8fc476ff645aec867f6",
+      "compressed_bytes": 4023983
+    },
     "91bef25a6d517108": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-91bef25a6d517108-8bc5726ec320e78a.json.gz",
-      "sha256": "dd578b1a3c9c265f8a61acc8e1fca96ee54853d80ea126d1947402f5315504fa",
-      "compressed_bytes": 3145216
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-91bef25a6d517108-dc0a602eacf161ce.json.gz",
+      "sha256": "8bf35cc9a12c2ec3a547336f3be2666293a703c943e71a4687728d8a47a343f1",
+      "compressed_bytes": 5671097
     },
     "2c5939c7a5e19391": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-2c5939c7a5e19391-8bc5726ec320e78a.json.gz",
-      "sha256": "9432c38bc920e703d42ca6da34e6d1e9b69b67dcf656f6be34c89a6acb2bece5",
-      "compressed_bytes": 3727170
-    },
-    "08dfde36cc0b5304": {
-      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-08dfde36cc0b5304-8bc5726ec320e78a.json.gz",
-      "sha256": "4db2dc1173e6e42df813cf2def1347660b40e42bac35270d0967f70c905522a7",
-      "compressed_bytes": 4240734
+      "artifact_url": "https://raw.githubusercontent.com/sebasu66/gameAccess/refs/heads/dev/deploy/catalog-cache/catalog-update-2c5939c7a5e19391-dc0a602eacf161ce.json.gz",
+      "sha256": "63773b3d4bca5b3423a5a4c416f91cc4fe10fb01e8bfbc768f33686ebe1acfd4",
+      "compressed_bytes": 6026925
     }
   }
 }
