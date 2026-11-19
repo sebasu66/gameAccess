@@ -11,6 +11,10 @@ actualizado: 2026-11-03
 
 > 🧪 **Lo nuevo que Seba tiene que probar está en [[Pruebas pendientes]]** (dónde está el código y cómo se prueba cada cosa).
 
+## Colecciones de Librería
+
+- [x] **Encargo 1 · Especificación del paquete** (Codex, 2026-11-19). Entregada en [[Formato de paquetes de colección]], con las cinco variantes y el ejemplo completo de carreras. Propuesta para revisión de Seba.
+
 ## 🚀 Lanzamiento de la beta pública (Seba, 2026-11-03) — se tacha de a uno
 > Decisión de Seba: **salir ya con lo que funciona** y terminar el resto con usuarios reales. Esta lista manda sobre el resto de este archivo para el lanzamiento. Lo que no está acá no bloquea la salida.
 > Estado real corregido por Seba (2026-11-03): el **modo niño funciona** (cuenta del niño, horarios de entrada y horas por día los hace cumplir **Windows**; probado entrando y jugando); el **servidor de Render** solo controla PLUS y acelera descargas, y **se publica desde `dev`**; **gameaccess.site está online** (hay que actualizarla); `STEAM_WEB_API_KEY` está en Render; el instalador **sale sin firmar** (se explica en la página de descarga).

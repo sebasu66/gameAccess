@@ -663,3 +663,4 @@ elease` cuando la copia de la raíz tiene la etiqueta. Probado: la app abre. Pen
 
 - 2026-11-16 · Claude: el indicador de plan de Escena (`ga-scene-plan`) es una insignia de metal: BASE plateada, PLUS dorada con resplandor y un brillo que la cruza cada pocos segundos (sin animación con movimiento reducido). Medidas en `base.css`, metales en el sabor terminal. check:css y pruebas de plantillas OK; visto en la vista previa (PLUS simulada al lado de BASE); sin commit.
 - 2026-11-17 · Commit `630ad85` (insignia de plan, mazo de una carta, errores de vinculación de Steam). Anotados en [[Tareas]] EN11 (submodos de IA del catálogo sin enchufar) y en [[Pruebas pendientes]] la prueba por MCP con el próximo build.
+- 2026-11-19 11:28 | Codex | commit | Encargo 1, [[Formato de paquetes de colección]]. Comprobados el JSON de carreras, inventario de imágenes, traducciones, variables, géneros y parámetros del ejemplo. | `ae72b62`

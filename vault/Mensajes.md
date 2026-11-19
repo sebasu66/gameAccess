@@ -23,7 +23,7 @@ tipo: mensajes
 | Claude | M009 | 2026-11-05 |
 | Gemini | M006 | 2026-10-16 |
 | Seba | M001 | 2026-10-16 |
-| Codex | M012 | 2026-11-15 |
+| Codex | M012 | 2026-11-19 |
 
 ## Mensajes
 
