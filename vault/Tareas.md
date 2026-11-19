@@ -14,6 +14,7 @@ actualizado: 2026-11-03
 ## Colecciones de Librería
 
 - [x] **Encargo 1 · Especificación del paquete** (Codex, 2026-11-19). Entregada en [[Formato de paquetes de colección]], con las cinco variantes y el ejemplo completo de carreras. Propuesta para revisión de Seba.
+- [x] **Encargo 2 · Maquetas de las cinco distribuciones** (Codex, 2026-11-19). [Vista previa en el marco Escena](../examples/colecciones/index.html) y un HTML autónomo por variante. Pendiente la elección visual de Seba.
 
 ## 🚀 Lanzamiento de la beta pública (Seba, 2026-11-03) — se tacha de a uno
 > Decisión de Seba: **salir ya con lo que funciona** y terminar el resto con usuarios reales. Esta lista manda sobre el resto de este archivo para el lanzamiento. Lo que no está acá no bloquea la salida.
