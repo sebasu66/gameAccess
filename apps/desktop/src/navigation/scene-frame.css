@@ -25,11 +25,13 @@
   width: calc(var(--ga-nav-mode-w) + var(--ga-nav-sections-w) + var(--ga-nav-column-gap));
   display: flex; justify-content: space-evenly; gap: var(--ga-scene-dock-gap);
 }
+.ga-scene-dock-base { position: absolute; left: 0; bottom: calc(-1 * (var(--ga-scene-dock-inset) + var(--ga-nav-status-gap))); width: 100%; height: var(--ga-scene-dock-base-height); fill: var(--ga-nav-stage-base); pointer-events: none; }
+.ga-scene-mode[aria-current="page"] img { scale: var(--ga-scene-active-scale); }
 .ga-scene-mode {
   position: relative; flex: 0 1 var(--ga-scene-dock-button); aspect-ratio: 1;
   border: 0; padding: 0; border-radius: 50%; background: none; cursor: pointer;
 }
-.ga-scene-mode img { display: block; width: 100%; height: 100%; }
+.ga-scene-mode-motion, .ga-scene-mode img { display: block; width: 100%; height: 100%; }
 .ga-scene-mode:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-mode[aria-current="page"] { cursor: default; }
 .ga-scene-mode em {
@@ -66,6 +68,7 @@ html.ga-navigation-shell { --ga-nav-content-left: calc(var(--ga-nav-left) + var(
 .ga-nav-shell::before { content: ""; position: absolute; z-index: -1; top: var(--ga-nav-top); bottom: var(--ga-nav-bottom); left: calc(var(--ga-nav-content-left) - var(--ga-scene-column-space)); width: var(--ga-scene-column-space); background: var(--ga-scene-surround); pointer-events: none; }
 html.ga-navigation-shell body::before {
   left: var(--ga-nav-content-left);
+  bottom: calc(var(--ga-nav-bottom) - var(--ga-nav-status-gap));
   border: 0; clip-path: none; background: var(--ga-nav-stage-base);
   border-radius: var(--ga-scene-radius);
 }
@@ -75,19 +78,17 @@ html.ga-navigation-shell body::before {
   border-radius: var(--ga-scene-radius); background: var(--ga-scene-figure-bg); overflow: visible;
   font-family: var(--ga-scene-text-family);
 }
-.ga-scene-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--ga-scene-radius); }
+/* An image is being dragged onto the character (useFigureDrop.ts): the column says it takes it. */
+.ga-scene-navigation[data-dropping] { outline: var(--ga-scene-drop-w) dashed var(--ga-scene-drop-ink); outline-offset: var(--ga-scene-drop-gap); }
+/* Keep the scene clipped at the left, top and bottom while allowing the figure to extend to the right. */
+.ga-scene-art { position: absolute; inset: 0; pointer-events: none; overflow: visible; clip-path: inset(0 -100vw 0 0); }
 .ga-scene-art-glow { position: absolute; left: var(--ga-scene-glow-left); top: 2%; width: 78%; aspect-ratio: 1; border-radius: 50%; background: var(--ga-mode); filter: blur(var(--ga-scene-glow-blur)); opacity: var(--ga-scene-glow-opacity); animation: ga-scene-glow var(--ga-scene-glow-time) ease-in-out infinite; }
 /* The plan, always in sight at the column's top right, over the art (the number sits lower). */
-.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); padding: var(--ga-scene-plan-pad); border: 0; border-radius: var(--ga-scene-plan-pad); font: 400 var(--ga-scene-plan-size)/1 var(--ga-scene-word-family); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: filter var(--ga-nav-drawer-time); }
+.ga-scene-plan { position: absolute; z-index: 9; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); right: calc(100vw - var(--ga-nav-left) - var(--ga-nav-drawer-span) + var(--ga-scene-inner)); display: block; padding: 0; border: 0; border-radius: var(--ga-scene-plan-radius); background: none; cursor: pointer; transition: filter var(--ga-nav-drawer-time); }
 html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-content-right) + var(--ga-scene-inner)); }
-/* A metal badge: silver BASE, gold PLUS with a light that sweeps across it now and then. */
-.ga-scene-plan { overflow: hidden; isolation: isolate; padding: var(--ga-scene-plan-pad) var(--ga-scene-plan-pad-x); border-radius: var(--ga-scene-plan-radius);
-  background: var(--ga-plan-base-metal); color: var(--ga-plan-base-ink); box-shadow: inset 0 0 0 var(--ga-scene-plan-edge) var(--ga-plan-base-edge), 0 0 var(--ga-scene-plan-pad-x) var(--ga-plan-base-glow); }
-.ga-scene-plan.is-plus { background: var(--ga-plan-plus-metal); color: var(--ga-plan-plus-ink); box-shadow: inset 0 0 0 var(--ga-scene-plan-edge) var(--ga-plan-plus-edge), 0 0 calc(var(--ga-scene-plan-pad-x) * 1.6) var(--ga-plan-plus-glow); }
-.ga-scene-plan.is-plus::after { content: ""; position: absolute; inset: 0; z-index: -1; width: var(--ga-scene-plan-shine-w); background: var(--ga-plan-shine); mix-blend-mode: overlay; transform: translateX(-120%) skewX(-18deg); animation: ga-plan-shine var(--ga-scene-plan-shine-time) ease-in-out infinite; pointer-events: none; }
-@keyframes ga-plan-shine { 0%, 55% { transform: translateX(-120%) skewX(-18deg); } 100% { transform: translateX(340%) skewX(-18deg); } }
+/* The badge is art (assets/plans/plan-badge-*.webp, §4.36b): the plan's name is in the image and in the button's label. */
+.ga-scene-plan img { display: block; height: var(--ga-scene-plan-h); width: auto; pointer-events: none; }
 .ga-scene-plan:hover { filter: brightness(1.12); }
-@media (prefers-reduced-motion: reduce) { .ga-scene-plan.is-plus::after { animation: none; opacity: 0; } }
 .ga-scene-plan:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-accent); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-art-number { position: absolute; right: var(--ga-scene-number-right); top: var(--ga-scene-number-top); color: transparent; -webkit-text-stroke: var(--ga-scene-number-stroke) var(--ga-scene-number-ink); font: 400 var(--ga-scene-number-size)/.8 var(--ga-scene-display-family); user-select: none; }
 .ga-scene-particles { position: absolute; top: 0; bottom: 0; left: 0; right: calc(-1 * var(--ga-scene-particle-overhang)); pointer-events: none !important; }
@@ -114,6 +115,10 @@ html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-cont
   right: calc(var(--ga-scene-figure-x) * -1 + (1 - var(--ga-scene-figure-scale)) * var(--ga-scene-art-height) / 3);
   mask-image: linear-gradient(to bottom, currentColor 80%, transparent 99%);
 }
+/* The bundled portraits extend below the old bust; custom 2:3 images keep their existing geometry. */
+.ga-scene-art img.ga-scene-art-default {
+  height: calc(var(--ga-scene-art-height) * 1.6 * var(--ga-scene-figure-scale));
+}
 .ga-scene-word { position: absolute; top: var(--ga-scene-art-top); left: var(--ga-scene-inner); writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; text-transform: uppercase; color: var(--ga-scene-word-ink); font: 400 var(--ga-scene-word-size)/.8 var(--ga-scene-word-family); }
 .ga-scene-word > span { display: inline-block; }
 .ga-scene-word-front > span[data-under] { visibility: hidden; }
@@ -136,23 +141,17 @@ html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-cont
 .ga-scene-figure-smoke i, .ga-scene-figure-smoke b { position: absolute; inset: calc(-1 * var(--ga-scene-smoke-bleed)); background: var(--ga-scene-smoke-image) 0 0 / 600px 600px; filter: blur(var(--ga-scene-smoke-blur)); opacity: var(--ga-scene-smoke-opacity); animation: ga-scene-smoke var(--ga-scene-smoke-time) ease-in-out infinite alternate; }
 .ga-scene-figure-smoke b { background: var(--ga-mode); mask: var(--ga-scene-smoke-image) 0 0 / 760px 760px; animation-duration: var(--ga-scene-smoke-color-time); animation-direction: alternate-reverse; }
 @keyframes ga-scene-smoke { to { transform: translate3d(var(--ga-scene-smoke-bleed), calc(-1 * var(--ga-scene-smoke-bleed)), 0); } }
-.ga-scene-liquid-body { rx: var(--ga-scene-panel-radius); }
-.ga-scene-liquid-cut { x: var(--ga-scene-inner); width: calc(100% - var(--ga-scene-inner) + var(--ga-scene-column-space) + var(--ga-scene-cut-radius)); rx: var(--ga-scene-cut-radius); transition: y var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease), height var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease); }
-.ga-scene-liquid-edge { x: calc(100% + var(--ga-scene-column-space) - var(--ga-scene-bridge-edge) / 2); width: var(--ga-scene-bridge-edge); transition: y var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease), height var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease); }
-.ga-scene-liquid-neck { x: calc(var(--ga-scene-lobe-x) - var(--ga-scene-neck-width) / 2); y: calc(100% - var(--ga-scene-neck-overlap)); width: var(--ga-scene-neck-width); height: calc(var(--ga-scene-lobe-center) + var(--ga-scene-neck-overlap)); transition: x var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease); }
-.ga-scene-liquid-lobe { cx: var(--ga-scene-lobe-x); cy: calc(100% + var(--ga-scene-lobe-center)); r: calc(var(--ga-scene-lobe-size) / 2); transition: cx var(--ga-scene-liquid-time) var(--ga-scene-liquid-ease); }
-@media (prefers-reduced-motion: reduce) { .ga-scene-liquid-neck, .ga-scene-liquid-lobe, .ga-scene-liquid-cut, .ga-scene-liquid-edge { transition: none; } }
 .ga-scene-menu-head { position: relative; display: flex; align-items: center; gap: var(--ga-scene-menu-head-gap); padding: 0 var(--ga-scene-menu-head-side) var(--ga-scene-menu-head-bottom); }
 .ga-scene-menu-head::after { content: ""; position: absolute; bottom: 0; left: var(--ga-scene-rule-inset); right: var(--ga-scene-rule-inset); height: var(--ga-scene-rule-width); background: color-mix(in srgb, var(--ga-scene-menu-ink) 20%, transparent); }
 .ga-scene-menu-head span { display: grid; place-items: center; height: var(--ga-scene-lock-size); min-width: var(--ga-scene-lock-size); padding-inline: var(--ga-scene-menu-gap); border-radius: var(--ga-scene-lock-size); background: var(--ga-scene-icon-black); color: var(--ga-accent); font-weight: 800; }
 .ga-scene-menu-head strong { font-size: var(--ga-scene-menu-head-size); }
 .ga-scene-list { display: flex; flex-direction: column; gap: var(--ga-scene-list-gap); list-style: none; margin: var(--ga-scene-list-top) 0 0; padding: 0; }
 .ga-scene-section { width: 100%; min-height: var(--ga-scene-row-height); display: flex; align-items: center; gap: var(--ga-scene-row-gap); padding: 0 var(--ga-scene-row-pad); border: 0; border-radius: var(--ga-scene-row-height); background: transparent; color: inherit; text-align: left; cursor: pointer; font-family: inherit; }
-.ga-scene-section[aria-current="page"] { width: calc(100% + var(--ga-scene-menu-pad)); border-radius: var(--ga-scene-row-height) 0 0 var(--ga-scene-row-height); background: transparent; color: var(--ga-nav-shell-ink); }
+.ga-scene-section[aria-current="page"] { padding-inline-start: var(--ga-scene-menu-pad); width: calc(100% + var(--ga-scene-menu-pad)); min-height: calc(var(--ga-scene-row-height) + var(--ga-space-1)); border-radius: var(--ga-scene-row-height) 0 0 var(--ga-scene-row-height); background: transparent; color: var(--ga-nav-shell-ink); }
 .ga-scene-section:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--ga-scene-ink) var(--ga-scene-icon-tint), transparent); }
 .ga-scene-section:focus-visible { outline: var(--ga-scene-dock-focus) solid currentColor; }
 .ga-scene-section-icon { flex: none; width: var(--ga-scene-icon-size); height: var(--ga-scene-icon-size); display: grid; place-items: center; border-radius: 50%; background: var(--ga-scene-icon-black); color: var(--ga-accent); }
-.ga-scene-section[aria-current="page"] .ga-scene-section-icon { background: var(--ga-mode); color: var(--ga-scene-ink); }
+.ga-scene-section[aria-current="page"] .ga-scene-section-icon { width: var(--ga-scene-selected-icon-size); height: var(--ga-scene-selected-icon-size); --ga-scene-icon-drawing: var(--ga-scene-selected-icon-drawing); background: var(--ga-mode); color: var(--ga-scene-ink); }
 .ga-scene-section-icon svg { width: var(--ga-scene-icon-drawing); height: var(--ga-scene-icon-drawing); fill: none; stroke: currentColor; stroke-width: var(--ga-scene-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
 .ga-scene-section-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--ga-scene-copy-gap); }
 .ga-scene-section-copy strong, .ga-scene-section-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -163,7 +162,7 @@ html[data-ga-nav-drawer="closed"] .ga-scene-plan { right: calc(var(--ga-nav-cont
 .ga-scene-content-title { position: absolute; z-index: 2; top: calc(var(--ga-nav-top) + var(--ga-scene-inner)); left: calc(var(--ga-nav-content-left) + var(--ga-nav-content-pad)); right: calc(var(--ga-nav-content-right) + var(--ga-nav-content-pad)); display: flex; flex-direction: column; gap: var(--ga-scene-tabs-gap); font-family: var(--ga-scene-text-family); }
 .ga-scene-content-heading { min-height: var(--ga-nav-hero-h); max-width: 50%; overflow: hidden; }
 .ga-scene-content-heading span { color: var(--ga-accent); font-size: var(--ga-scene-heading-label); font-weight: 600; }
-.ga-scene-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 var(--ga-scene-heading-size)/1 var(--ga-scene-text-family); }
+.ga-scene-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 var(--ga-scene-heading-size)/1.2 var(--ga-scene-text-family); }
 .ga-scene-content-title .ga-nav-tabs { padding: 0; gap: var(--ga-scene-tabs-gap); }
 .ga-scene-content-title .ga-nav-tab { height: var(--ga-scene-tab-height); padding: 0 var(--ga-scene-tab-pad); border: var(--ga-scene-rule-width) solid var(--ga-nav-shell-line); border-radius: var(--ga-scene-tab-height); font-family: var(--ga-scene-text-family); }
 .ga-scene-content-title .ga-nav-tab::before, .ga-scene-content-title .ga-nav-tab::after, .ga-scene-content-title .ga-nav-tab-dot { display: none; }
@@ -175,23 +174,30 @@ html.ga-navigation-shell, html.ga-navigation-shell[data-ga-nav-head="games"] { -
 /* Whole or not at all (base.css, --ga-nav-content-min): its full width while the room fits it, else none; the ramp
    between the two is under a pixel wide, so it never shows squeezed. */
 @media (min-width: 1101px) { html.ga-navigation-shell { --ga-nav-activity-w: clamp(0px, (var(--ga-nav-activity-room) - var(--ga-scene-activity-w)) * 1000, var(--ga-scene-activity-w)); } }
-.ga-nav-activity { border: 0; border-radius: var(--ga-scene-radius); clip-path: none; background: linear-gradient(160deg, var(--ga-scene-gradient-start), var(--ga-scene-surface) 45%, var(--ga-scene-gradient-end)); color: var(--ga-scene-activity-ink); font-family: var(--ga-scene-text-family); }
+.ga-nav-activity { border: 0; border-radius: var(--ga-scene-radius); clip-path: none; background: var(--ga-scene-icon-black); color: var(--ga-nav-shell-ink); font-family: var(--ga-scene-text-family); }
+.ga-scene-activity-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ga-nav-activity-scroll { position: relative; }
 .ga-nav-activity-scroll { padding: var(--ga-scene-activity-pad) var(--ga-scene-activity-pad) 0; }
 .ga-nav-activity-scroll .ga-activity { min-height: 100%; }
 .ga-scene-activity { display: flex; flex-direction: column; gap: var(--ga-scene-activity-gap); }
 /* The title takes the big word's lettering (the one the player chose in Appearance, sceneLook.ts). */
-.ga-scene-activity-title { padding-inline: var(--ga-scene-activity-gap); font: 400 var(--ga-scene-activity-title-size)/1 var(--ga-scene-word-family); text-transform: uppercase; }
-/* Both sections are dark rounded blocks, like the main menu's; the light text is the shell's, not the mode's. */
-.ga-scene-activity > :is(.ga-process-tasks, .ga-scene-history) { padding: var(--ga-scene-activity-gap); border-radius: var(--ga-scene-activity-card-radius); background: var(--ga-scene-activity-bg); color: var(--ga-nav-shell-ink); }
+.ga-scene-activity-title { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: var(--ga-scene-activity-gap); color: var(--ga-mode); font: 400 var(--ga-scene-activity-title-size)/1 var(--ga-scene-word-family); text-transform: uppercase; }
+.ga-scene-activity-mark { position: relative; flex: none; display: grid; place-items: center; width: var(--ga-scene-activity-mark); height: var(--ga-scene-activity-mark); border-radius: 50%; background: transparent; color: var(--ga-scene-ink); }
+.ga-scene-activity-mark svg { width: 55%; height: 55%; }
+/* Both sections lie on the panel's mode gradient with the mode's dark ink, like the main menu's rows (Seba, 2026-11-17):
+   only their titles are marked in black. */
+.ga-scene-activity > :is(.ga-process-tasks, .ga-scene-history) { padding: 0; background: none; color: var(--ga-nav-shell-ink); }
 .ga-scene-history { flex: 1; display: flex; flex-direction: column; gap: var(--ga-scene-menu-gap); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { color: inherit; }
-/* Each section's title (En curso, Historial): larger, with a rule under it and room before its content. */
-.ga-scene-activity :is(.ga-process-tasks, .ga-scene-history) > .ga-label { margin: 0 0 var(--ga-scene-activity-gap); padding-bottom: var(--ga-scene-activity-gap); border-bottom: var(--ga-scene-rule-width) solid var(--ga-scene-activity-card-line); font-size: var(--ga-scene-activity-section-size); }
+/* Each section's title (En curso, Historial): a black pill with the shell's light ink, like the main menu's chosen
+   section, and room before its content. */
+.ga-scene-activity :is(.ga-process-tasks, .ga-scene-history) > .ga-label { margin: 0 0 var(--ga-scene-activity-gap); padding: var(--ga-scene-activity-head-y) var(--ga-scene-activity-head-x); border-radius: var(--ga-scene-row-height); background: transparent; color: var(--ga-nav-shell-ink); font-size: var(--ga-scene-activity-section-size); }
 .ga-scene-history .ga-label, .ga-scene-activity .ga-label { display: flex; gap: var(--ga-scene-menu-gap); align-items: center; margin: var(--ga-feed-tight) 0 0; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); letter-spacing: .12em; text-transform: uppercase; }
 .ga-scene-history .ga-label span, .ga-scene-activity .ga-label span { opacity: var(--ga-scene-muted-opacity); letter-spacing: normal; }
 .ga-scene-history .ga-hint { color: inherit; }
-.ga-scene-history-group { display: grid; gap: var(--ga-scene-menu-gap); }
-.ga-scene-history-group-head { box-sizing: border-box; display: flex; align-items: center; gap: var(--ga-scene-menu-gap); width: 100%; padding: var(--ga-scene-activity-head-y) var(--ga-scene-activity-head-x) var(--ga-feed-tight); border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.ga-scene-history-group { position: relative; isolation: isolate; margin-right: calc(-1 * var(--ga-scene-activity-pad) + var(--ga-scene-rule-width)); display: grid; gap: var(--ga-scene-menu-gap); }
+.ga-scene-history-notch { position: absolute; z-index: -1; top: calc(-1 * var(--ga-space-1)); right: var(--ga-scene-rule-width); width: var(--ga-scene-notice-notch-w); height: calc(100% + 2 * var(--ga-space-1)); pointer-events: none; }
+.ga-scene-history-group-head { box-sizing: border-box; display: flex; align-items: center; gap: var(--ga-scene-menu-gap); width: 100%; padding: var(--ga-scene-activity-head-y) var(--ga-scene-activity-head-x); border: 0; border-radius: var(--ga-scene-row-height); background: var(--ga-scene-notice-bg); color: inherit; font: inherit; text-align: left; }
 button.ga-scene-history-group-head { cursor: pointer; }
 .ga-scene-history-kind { flex: none; display: grid; place-items: center; width: var(--ga-scene-activity-head-icon); height: var(--ga-scene-activity-head-icon); color: var(--ga-scene-severity); background: var(--ga-scene-icon-black); border-radius: 50%; }
 .ga-scene-history-group-head svg, .ga-scene-history-filters svg { flex: none; width: var(--ga-scene-activity-icon); height: var(--ga-scene-activity-icon); }
@@ -201,23 +207,24 @@ button.ga-scene-history-group-head { cursor: pointer; }
 .ga-scene-history-group-head[aria-expanded="true"] .ga-scene-history-chevron { rotate: 180deg; }
 .ga-scene-history-group ul { display: grid; gap: var(--ga-scene-menu-gap); list-style: none; padding: 0; margin: 0; }
 /* Every notice keeps its own body and border, grouped or not: they collapse together but never merge into a wall of text. */
-.ga-scene-history-group li { overflow: hidden; border: var(--ga-nav-line-w) solid var(--ga-scene-activity-card-line); border-radius: var(--ga-scene-activity-radius); background: var(--ga-scene-activity-card-bg); }
-.ga-scene-history-entry { box-sizing: border-box; display: grid; gap: var(--ga-feed-tight); width: 100%; padding: var(--ga-scene-menu-gap) var(--ga-scene-activity-head-x); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; transition: padding-left .2s; }
+.ga-scene-history-group li { position: relative; isolation: isolate; }
+.ga-scene-history-entry { box-sizing: border-box; border-radius: var(--ga-scene-row-height); display: grid; grid-template-columns: var(--ga-scene-activity-head-icon) minmax(0, 1fr); gap: var(--ga-scene-menu-gap); width: 100%; padding: var(--ga-scene-menu-gap) var(--ga-scene-activity-head-x); border: var(--ga-nav-line-w) solid var(--ga-scene-activity-card-line); background: var(--ga-scene-notice-bg); color: inherit; font: inherit; text-align: left; transition: background .2s; }
 button.ga-scene-history-entry { cursor: pointer; }
 .ga-scene-history-entry:hover { background: var(--ga-scene-activity-card-line); }
+.ga-scene-history-entry-copy { min-width: 0; display: grid; gap: var(--ga-feed-tight); }
 .ga-scene-history-entry strong { font: 600 var(--ga-scene-activity-entry-size)/1.25 var(--ga-scene-text-family); }
-.ga-scene-history-entry > span, .ga-scene-history-entry time { font: 500 var(--ga-scene-activity-meta-size)/1.3 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
+.ga-scene-history-entry-copy > span, .ga-scene-history-entry time { font: 500 var(--ga-scene-activity-meta-size)/1.3 var(--ga-scene-text-family); opacity: var(--ga-scene-muted-opacity); }
 .ga-scene-history-more { width: 100%; padding: var(--ga-feed-tight) var(--ga-scene-activity-head-x) var(--ga-scene-activity-head-y) var(--ga-scene-activity-entry-inset); border: 0; background: none; color: inherit; font: 800 var(--ga-scene-activity-label-size)/1 var(--ga-scene-text-family); text-align: left; opacity: .75; cursor: pointer; }
 /* The filters float as a capsule inside the column, clear of its edges, so no dark corner meets its rounded edge. */
-.ga-scene-history-filters { position: sticky; bottom: var(--ga-scene-activity-pad); display: flex; gap: var(--ga-feed-tight); flex-wrap: wrap; margin: auto 0 var(--ga-scene-activity-pad); padding: var(--ga-feed-tight); border-radius: var(--ga-scene-activity-filter-radius); background: var(--ga-scene-activity-bg); box-shadow: var(--ga-scene-activity-float-shadow); }
+.ga-scene-history-filters { position: sticky; bottom: var(--ga-scene-activity-pad); display: flex; gap: var(--ga-feed-tight); flex-wrap: wrap; margin: auto 0 var(--ga-scene-activity-pad); padding: var(--ga-feed-tight); border-radius: var(--ga-scene-activity-filter-radius); background: var(--ga-scene-activity-bg); }
 .ga-scene-history-filters button { width: var(--ga-scene-activity-filter); height: var(--ga-scene-activity-filter); display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ga-scene-severity, var(--ga-nav-shell-ink)); cursor: pointer; transition: background .2s, color .2s; }
 .ga-scene-history-filters button:hover:not(:disabled) { background: color-mix(in srgb, var(--ga-nav-shell-ink) 16%, transparent); }
 .ga-scene-history-filters button[aria-pressed="true"] { background: var(--ga-mode); color: var(--ga-scene-ink); }
 .ga-scene-history-filters button:last-child { margin-left: auto; }
 .ga-scene-history-filters button:disabled { opacity: var(--ga-scene-muted-opacity); cursor: default; }
-.ga-scene-activity .ga-process-task-open { border: 0; background: color-mix(in srgb, var(--ga-scene-ink) 9%, transparent); color: var(--ga-scene-ink); }
-.ga-scene-activity .ga-process-task-state, .ga-scene-activity .ga-process-task-kind { color: var(--ga-scene-ink); }
-.ga-scene-activity .ga-process-task-bar > i { background: var(--ga-scene-ink); }
+.ga-scene-activity .ga-process-task-open { border: 0; background: transparent; color: var(--ga-nav-shell-ink); }
+.ga-scene-activity .ga-process-task-state, .ga-scene-activity .ga-process-task-kind { color: var(--ga-nav-shell-ink); }
+.ga-scene-activity .ga-process-task-bar > i { background: var(--ga-mode); }
 .ga-scene-history :is(button):focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-accent); outline-offset: var(--ga-scene-dock-focus); }
 .ga-scene-history [data-severity="error"] { --ga-scene-severity: var(--ga-scene-severity-error); }
 .ga-scene-history [data-severity="warning"] { --ga-scene-severity: var(--ga-scene-severity-warning); }
@@ -240,16 +247,17 @@ html[data-ga-nav-drawer="open"] :is(.ga-scene-navigation, .ga-scene-dock) { z-in
 .ga-nav-drawer-tab, .ga-nav-activity-tab {
   position: absolute; z-index: 9; top: calc((var(--ga-nav-top) + 100vh - var(--ga-nav-bottom)) / 2); margin-top: calc(var(--ga-nav-drawer-tab-h) / -2);
   height: var(--ga-nav-drawer-tab-h); display: grid; place-items: center; padding: 0;
-  border: 0; border-radius: var(--ga-nav-drawer-tab-radius); background: var(--ga-nav-handle-bg); color: var(--ga-nav-handle-ink); cursor: pointer;
+  box-sizing: border-box; border: var(--ga-nav-handle-border) solid var(--ga-mode); border-radius: var(--ga-nav-drawer-tab-radius); background: var(--ga-scene-icon-black); color: var(--ga-mode); cursor: pointer;
   transition: background var(--ga-nav-drawer-time), color var(--ga-nav-drawer-time), width var(--ga-nav-drawer-time), right var(--ga-nav-drawer-time) ease;
 }
 .ga-nav-drawer-tab { left: var(--ga-nav-drawer-tab-x); width: var(--ga-nav-drawer-tab-w); }
-:is(.ga-nav-drawer-tab, .ga-nav-activity-tab):hover, html[data-ga-nav-drawer="closed"] .ga-nav-drawer-tab, html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab { background: var(--ga-mode); color: var(--ga-scene-ink); }
+:is(.ga-nav-drawer-tab, .ga-nav-activity-tab):hover { background: var(--ga-mode); color: var(--ga-scene-ink); }
+:is(.ga-nav-drawer-tab, .ga-nav-activity-tab) svg { stroke-width: var(--ga-nav-handle-arrow-stroke); }
 .ga-nav-activity-tab svg { width: var(--ga-nav-activity-tab-icon); height: var(--ga-nav-activity-tab-icon); transition: rotate var(--ga-nav-drawer-time); }
 .ga-nav-drawer-tab svg { width: var(--ga-nav-drawer-tab-icon); height: var(--ga-nav-drawer-tab-icon); transition: rotate var(--ga-nav-drawer-time); }
 html[data-ga-nav-drawer="closed"] .ga-nav-drawer-tab svg { rotate: 180deg; }
-.ga-nav-drawer-tab:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
-@media (prefers-reduced-motion: reduce) { .ga-nav-drawer-tab svg { transition: none; } }
+:is(.ga-nav-drawer-tab, .ga-nav-activity-tab):focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
+
 html[data-ga-nav-activity="hidden"] .ga-nav-activity { visibility: hidden; }
 /* The activity column folds (activityFold.ts) with its handle, halfway down.
    height. Folded, the column slides out to the right, the content takes its room up to the handle at the window's edge. */
@@ -258,9 +266,9 @@ html[data-ga-nav-activity-fold="closed"] .ga-nav-activity { translate: calc(100%
 .ga-nav-activity { transition: translate var(--ga-nav-drawer-time) ease; }
 /* Open, the activity handle is set into the column, in its left padding (it covers nothing); folded, it stands at the
    window's edge at the left drawer tab's width. */
-.ga-nav-activity-tab { right: calc(var(--ga-nav-right) + var(--ga-nav-activity-w) - var(--ga-nav-activity-tab-inset) - var(--ga-nav-activity-tab-gap)); width: var(--ga-nav-activity-tab-inset); background: var(--ga-nav-handle-inset-bg); color: var(--ga-scene-activity-ink); }
+.ga-nav-activity-tab { right: calc(var(--ga-nav-right) + var(--ga-nav-activity-w) - var(--ga-nav-drawer-tab-w) / 2); width: var(--ga-nav-drawer-tab-w); }
 html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab { right: var(--ga-nav-right); width: var(--ga-nav-drawer-tab-w); }
 html[data-ga-nav-activity="hidden"]:not([data-ga-nav-activity-fold]) .ga-nav-activity-tab { display: none; }
 html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab:focus-visible { outline: var(--ga-scene-dock-focus) solid var(--ga-nav-shell-ink); outline-offset: var(--ga-scene-dock-focus); }
-@media (prefers-reduced-motion: reduce) { .ga-nav-activity, .ga-nav-activity-tab, .ga-nav-activity-tab svg, html[data-ga-nav-activity-fold="closed"] .ga-nav-activity { transition: none; } }
+
 html[data-ga-nav-activity-fold="closed"] .ga-nav-activity-tab svg { rotate: 180deg; } 

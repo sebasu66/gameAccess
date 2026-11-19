@@ -54,7 +54,7 @@ body:has(.catalog-bottom-actions) .ga-global-language { display: none !important
 .catalog-bottom-actions .ga-backend-status { min-width: 0; height: 38px; padding: 0 12px; border-radius: 8px; gap: 0; }
 .catalog-bottom-actions .ga-backend-status > span { max-width: 0; opacity: 0; overflow: hidden; transition: max-width .35s, opacity .2s, margin .35s; }
 .catalog-bottom-actions .ga-backend-status:hover > span { max-width: 120px; opacity: 1; margin-left: 8px; }
-@media (prefers-reduced-motion: reduce) { .ga-footer-language-pop, .catalog-bottom-actions .ga-backend-status > span { transition: none; } }
+
 /* Older per-button rules (settings, help, big screen, refresh) placed them by hand; in the dock every cube sits in the row. */
 .ga-dock .ga-cube, .ga-footer-left .ga-cube {
   position: relative !important; inset: auto !important; transform: none !important; margin: 0 !important;

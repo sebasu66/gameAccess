@@ -8,6 +8,7 @@ import { getAppLocale, translate, type TranslationKey } from "../i18n";
 import { narrate } from "../narrationLog";
 import { invoke } from "@tauri-apps/api/core";
 import type { CatalogGame } from "../types";
+import { uiDemo } from "../devDemo/uiDemo";
 import {
   applyCatalogSources,
   queryCatalogCache,
@@ -127,7 +128,16 @@ async function plugins(): Promise<PluginManifest[]> {
  * and installed by hand from its page; until then the game detail offers Play or "View on Steam" instead of a
  * download button (the synced sources stay usable while the plugin is closed).
  */
+/** The browser preview (`?uiDemo=1`, no Tauri): a plugin answers with three sample sources, so the detail's Downloads tab can be seen. */
+const demoPlugin = () => typeof window !== "undefined" && Boolean(window.location) && !("__TAURI_INTERNALS__" in window) && uiDemo();
+const demoSources = (game: CatalogGame): PluginSource[] => [
+  { title: `${game.name} v1.4.2 [Repack]`, url: `demo://${game.id}/1`, type: "torrent", size: "62.4 GB", score: 9, pluginName: "Demo", sourceName: "FitGirl" },
+  { title: `${game.name} Deluxe Edition`, url: `demo://${game.id}/2`, type: "direct", size: "78.1 GB", score: 7, pluginName: "Demo", sourceName: "DODI", delivery: "browser" },
+  { title: `${game.name} (sin actualizar)`, url: `demo://${game.id}/3`, type: "torrent", size: "", score: 3, pluginName: "Demo", sourceName: "ElAmigos" },
+];
+
 export async function sourcePluginReady(): Promise<boolean> {
+  if (demoPlugin()) return true;
   try {
     const registered = await invoke<PluginManifest[]>("get_registered_plugins");
     return registered.some(plugin => plugin.type === "source_provider" && plugin.enabled !== false && getSavedPluginRevision(plugin.id) !== "");
@@ -179,6 +189,7 @@ function normalizeSource(value: unknown, plugin: PluginManifest): PluginSource[]
 /** Sources for one game. The local catalog database already holds which games the plugins' indexes match, so a
  * game it lists without sources asks no plugin; the plugin is asked only for the links of a game that has them. */
 export function getPluginSources(game: CatalogGame): Promise<PluginSource[]> {
+  if (demoPlugin()) return Promise.resolve(demoSources(game));
   const key = keyOf(game), stamp = answerStamp();
   const known = gameAnswers.get(key);
   if (known?.stamp === stamp) return known.sources;

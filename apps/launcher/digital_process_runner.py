@@ -459,6 +459,38 @@ class DigitalProcessRunner:
                     request = json.loads(command or "{}")
                     return {**result, "ok": True, "space": library.check_space(int(request.get("bytes", 0)), int(request.get("app_id") or 0),
                                                                                   str(request.get("name") or ""))}
+                if action == "library-drives":
+                    # Manager › Space: the disks; one of their roles turned on or off ({drive, role, on}; without a
+                    # role, installing); their kind and speed measured ({profile: true, only_missing}) (drives.py).
+                    from game_library_manager.drives import LibraryDrives
+                    request = json.loads(command or "{}")
+                    drives = LibraryDrives(library)
+                    if request.get("profile"):
+                        listed = drives.profile(only_missing=bool(request.get("only_missing", True)))
+                    elif request.get("drive"):
+                        listed = drives.set_role(str(request["drive"]), str(request.get("role") or "install"), bool(request.get("on")))
+                    else:
+                        listed = drives.list()
+                    return {**result, "ok": True, "drives": listed}
+                if action == "library-drive-evacuate":
+                    # Free a disk: {source, target: "auto" | letter, plan_only}. The plan is checked before anything moves.
+                    from game_library_manager.drives import LibraryDrives
+                    request = json.loads(command)
+                    drives = LibraryDrives(library)
+                    try:
+                        source, target = str(request["source"]), str(request.get("target") or "auto")
+                        outcome = drives.evacuate_plan(source, target) if request.get("plan_only") else drives.evacuate(source, target)
+                    except (OSError, ValueError) as error:
+                        outcome = {"ok": False, "error": str(error)}
+                    return {**result, "ok": True, "evacuate": outcome}
+                if action == "library-drive-move":
+                    from game_library_manager.drives import LibraryDrives
+                    request = json.loads(command)
+                    try:
+                        moved = LibraryDrives(library).move(int(request["app_id"]), str(request["target"]))
+                    except (OSError, ValueError) as error:
+                        moved = {"ok": False, "error": str(error)}
+                    return {**result, "ok": True, "moved": moved}
                 if action == "library-relocate-plan":
                     return {**result, "ok": True, "plan": library.relocate_plan(json.loads(command)["target"])}
                 if action == "library-relocate":
@@ -797,7 +829,7 @@ def run_process(action, app_id, name, command="", working_dir=None, auto_install
 
 def main():
     parser = argparse.ArgumentParser(description="Digital folder lifecycle")
-    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install", "steam-link-start", "steam-link-poll", "steam-account-remove"], required=True)
+    parser.add_argument("--action", choices=["play", "verify-run", "launch-diagnose", "open-launcher", "auto-fix", "save-learned-fix", "restore-language", "kid-entry", "uninstall", "status", "snapshot", "open-folder", "settings", "save-settings", "local-games", "game-options", "save-game-options", "repair-language", "install-setup", "game-log", "game-analyze", "game-repair", "library-list", "library-plan", "library-space", "library-drives", "library-drive-move", "library-drive-evacuate", "library-batch", "library-relocate-plan", "library-relocate", "library-relocate-finish", "library-autofreeze", "import-drives", "import-scan", "import-run", "set-label", "probe-source", "freeze", "deep-freeze", "thaw", "freeze-recover", "steam-status", "steam-save-settings", "steam-sync", "steam-install", "steam-link-start", "steam-link-poll", "steam-account-remove"], required=True)
     parser.add_argument("--app-id", type=int, required=True)
     parser.add_argument("--name", default="")
     parser.add_argument("--command", default="")

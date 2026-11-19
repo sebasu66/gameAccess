@@ -126,7 +126,7 @@ export default function DownloadWizard({ name, cover, snapshot, events, samples 
   const card = useRef<HTMLElement>(null);
   const wasExpanded = useRef(expanded);
   useEffect(() => {
-    if (expanded && !wasExpanded.current) card.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (expanded && !wasExpanded.current) card.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     wasExpanded.current = expanded;
   }, [expanded]);
   const overall = Math.max(0, Math.min(100, snapshot.progress ?? 0));

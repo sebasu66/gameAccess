@@ -49,3 +49,27 @@ export function useAppVersion(): string {
   }, []);
   return version;
 }
+
+/*
+ * The disks in the status bar (Seba, 2026-11-19): not one disk, **every disk the player turned on for games**, and
+ * what matters about them is how little room is left. Each one is its letter and the share still free; the ones
+ * running out are marked, and that mark is the reason this is in the bar at all.
+ */
+export type DiskLevel = "fine" | "low" | "critical";
+export interface DiskFree { letter: string; name: string; percent: number; level: DiskLevel }
+
+/** The same thresholds as the disk cards in Manager › Space: under 25 % free it warns, under 10 % it is critical. */
+export function diskLevel(percent: number, tooFull = false): DiskLevel {
+  if (tooFull || percent < 10) return "critical";
+  return percent < 25 ? "low" : "fine";
+}
+
+/** The disks in use, worst first, so what is running out is read before anything else. */
+export function disksInUse(drives: Array<{ letter: string; name?: string; enabled: boolean; free_bytes: number; total_bytes: number; too_full?: boolean }> | null): DiskFree[] {
+  return (drives ?? []).filter(drive => drive.enabled && drive.total_bytes > 0)
+    .map(drive => {
+      const percent = Math.max(0, Math.min(100, Math.round((drive.free_bytes / drive.total_bytes) * 100)));
+      return { letter: drive.letter, name: drive.name ?? "", percent, level: diskLevel(percent, drive.too_full) };
+    })
+    .sort((a, b) => a.percent - b.percent);
+}

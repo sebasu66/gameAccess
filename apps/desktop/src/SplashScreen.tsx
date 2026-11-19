@@ -183,7 +183,7 @@ export default function SplashScreen({ stage, onIntroReady, onDockStart, onDocke
  const [audioState, setAudioState] = useState("idle");
  const [opening, setOpening] = useState(false);
  const [landing, setLanding] = useState(false);
- const reduced = !loadPixelStyle().animate || matchMedia("(prefers-reduced-motion: reduce)").matches;
+ const reduced = !loadPixelStyle().animate;
  const [lock, setLock] = useState<"sealed" | "turning">(reduced ? "turning" : "sealed");
  const sound = useRef<HTMLAudioElement | null>(null);
  const started = useRef(false);

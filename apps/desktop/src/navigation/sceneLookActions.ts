@@ -4,7 +4,8 @@
  */
 import { loadShellLook, saveShellLook, type ShellLook } from "./shellLook";
 import {
-  DEFAULT_FIGURE, DEFAULT_SCENE, FIGURE_IMAGE_EVENT, MAX_SCENE_VARIATIONS, SCENE_GRADIENTS, SCENE_MODES, SCENE_PALETTES, checkFigure, storeFigure,
+  DEFAULT_FIGURE, DEFAULT_SCENE, FIGURE_IMAGE_EVENT, MAX_SCENE_VARIATIONS, SCENE_GRADIENTS, SCENE_MODES, SCENE_PALETTES, checkFigure, figureBox,
+  figureFrame, figureImageBlob, fitFigure, storeFigure,
   type FigureCheck, type SceneFigure, type SceneGradient, type SceneLook, type SceneMode, type SceneWordFont,
 } from "./sceneLook";
 
@@ -46,14 +47,32 @@ export function setSceneFigure(mode: SceneMode, patch: Partial<SceneFigure> | nu
   });
 }
 
-/** Checks and stores a new figure for a mode; it keeps the mode's scale and position. */
-export async function setSceneFigureImage(mode: SceneMode, blob: Blob): Promise<FigureCheck> {
+/**
+ * Checks and stores a new figure for a mode. With `fit` it is also **placed by itself** (Seba, 2026-11-19): the
+ * drawing's top right corner goes to the art's corner and its height is always the same, whatever transparent room
+ * the image carries, so a dropped image lands where the eye expects it. Without it the mode keeps its scale and
+ * place. Either way the player can go on moving it by hand with the sliders afterwards.
+ */
+export async function setSceneFigureImage(mode: SceneMode, blob: Blob, fit = false): Promise<FigureCheck> {
   const check = await checkFigure(blob);
   if (!check.ok) return check;
   const image = await storeFigure(blob);
-  setSceneFigure(mode, { image });
+  const frame = fit ? figureFrame() : null;
+  const box = frame ? await figureBox(blob) : null;
+  setSceneFigure(mode, box && frame ? { image, ...fitFigure(box, frame) } : { image });
   window.dispatchEvent(new Event(FIGURE_IMAGE_EVENT));
   return check;
+}
+
+/** Places the figure a mode already has by itself, the same way a dropped one is placed. True when it could. */
+export async function fitSceneFigure(mode: SceneMode): Promise<boolean> {
+  const image = loadShellLook().scene.figures[mode]?.image;
+  const frame = figureFrame();
+  const blob = image ? await figureImageBlob(image) : null;
+  const box = blob && frame ? await figureBox(blob) : null;
+  if (!box || !frame) return false;
+  setSceneFigure(mode, fitFigure(box, frame));
+  return true;
 }
 
 export const setSceneWordFont = (wordFont: SceneWordFont): ShellLook => saveScene(scene => ({ ...scene, wordFont }));

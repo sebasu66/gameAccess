@@ -112,7 +112,7 @@
 .ga-wz-none { color: var(--ga-nav-shell-muted); }
 @keyframes ga-wz-in { from { opacity: 0; transform: translateY(calc(var(--ga-wz-line-pad) * -2)); } }
 @keyframes ga-wz-blink { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .ga-wz-line, .ga-wz-line.is-new > span:last-child::after { animation: none; } }
+
 
 /* A short window: the line under the name goes, the stage and its actions stay in view. */
 @media (max-height: 820px) { .ga-wz-lead { display: none; } }

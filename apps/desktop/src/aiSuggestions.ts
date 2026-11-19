@@ -165,6 +165,36 @@ Explain in 2 to 4 sentences why they would enjoy it: name the player's games it 
   return long;
 }
 
+const COMPARE_KEY = "gameaccess:ai-compare";
+
+/**
+ * "Is this game like others I played?" (Seba, 2026-11-17; the detail's AI section): Gemma compares the game with the
+ * player's library, likes and recent games and answers in a few sentences. Kept a week per game and choices.
+ */
+export async function aiCompare(game: CatalogGame, signals: TasteSignals): Promise<string | null> {
+  const key = `${game.id}|${signalsSignature(signals)}`;
+  const all = read<Record<string, { text: string; at: number }>>(COMPARE_KEY, {});
+  if (all[key] && Date.now() - all[key].at < QUERY_TTL) return all[key].text;
+  if (!native()) {
+    if (!(import.meta.env.DEV && uiDemo())) return null;
+    const genre = genreLabels(game.genres)[0];
+    return getAppLocale() === "es"
+      ? `Sí, bastante: ${game.name} comparte ${genre ?? "el ritmo"} con juegos de tu biblioteca. Si te gustaron, este va por el mismo camino (respuesta de ejemplo).`
+      : `Quite a bit: ${game.name} shares ${genre ?? "the pace"} with games in your library. If you liked them, this one goes the same way (sample answer).`;
+  }
+  const answer = await askGemma<{ explanation?: unknown }>(`The player's choices:
+${describe(signals)}
+
+The game: ${JSON.stringify(compact(game))}
+
+The player asks: is this game like others I have played? Answer in 2 to 4 sentences in ${language()}, in the second person: name the player's own games it is most like and what they share, or say plainly that it is unlike what they play and how.`, EXPLAIN_SCHEMA);
+  const text = typeof answer?.explanation === "string" ? answer.explanation.replace(/\s+/g, " ").trim().slice(0, 900) : "";
+  if (!text) return null;
+  const entries = Object.entries({ ...all, [key]: { text, at: Date.now() } }).sort((a, b) => b[1].at - a[1].at).slice(0, 40);
+  write(COMPARE_KEY, Object.fromEntries(entries));
+  return text;
+}
+
 let running: Promise<AiPicksState | null> | null = null;
 
 /**

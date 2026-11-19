@@ -1,0 +1,18 @@
+{
+  "name": "game-access-hdd-component",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Animated HDD Web Component for Game Access / Tauri",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

@@ -1,0 +1,250 @@
+/* The game's detail as a file (DetailSheet.tsx, LibraryDetailPanel WideDetail; docs/GUI_DESIGN.md §4.43), from Seba's
+   mock-up. Layout only: sizes --ga-sheet-* in templates/base.css, colours and type in the flavor. A main area (a bar,
+   the art with the logo and the information beside it, a strip of media, three panels) and, when there are extras
+   (the AI, download sources, co-op, the long text), a column on the right. */
+/* The sheet fills the viewport. Fade only the backdrop, so the controls stay crisp. */
+.ga-detail-overlay:has(.ga-game-detail-wide.is-sheet) { padding: 0; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+.ga-detail-overlay:has(.ga-game-detail-wide.is-sheet) > .ga-screen-dimmer { display: none; }
+.ga-detail-overlay:has(.ga-game-detail-wide.is-sheet) .ga-detail-dialog {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.ga-game-detail.ga-game-detail-wide.is-sheet {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: var(--ga-sheet-gap);
+  padding: var(--ga-sheet-pad);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: auto;
+}
+.ga-game-detail.ga-game-detail-wide.is-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--ga-sheet-fog);
+  backdrop-filter: blur(var(--ga-sheet-blur));
+  mask-image: linear-gradient(to right, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-sheet-fade)), transparent),
+    linear-gradient(to bottom, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-sheet-fade)), transparent);
+  mask-composite: intersect;
+}
+.ga-game-detail.ga-game-detail-wide.is-sheet.has-extras { grid-template-columns: minmax(0, 1fr) var(--ga-sheet-extras-w); }
+/* Reading the description (Seba): the panels grow up to about half the screen and push the media up over the art. */
+.ga-game-detail.ga-game-detail-wide.is-sheet.is-reading .ga-sheet-main { grid-template-rows: max-content minmax(0, 1fr) var(--ga-sheet-media-min) var(--ga-sheet-panels-open-h); }
+.ga-game-detail.is-sheet.is-reading .ga-sheet-info { visibility: hidden; }
+/* The art keeps its size (measured when the description opens) and the media and the panels (on a solid ground) go over it. */
+.ga-game-detail.is-sheet.is-reading .ga-sheet-stage { grid-row: 1 / -1; align-self: start; height: var(--ga-sheet-stage-h, auto); }
+.ga-game-detail.is-sheet.is-reading .ga-sheet-panels .ga-sheet-panel { background: var(--ga-sheet-panel-tint), var(--ga-detail-wide-deep); }
+/* Nothing for the right column: the main area takes the width and the information grows. */
+.ga-game-detail.ga-game-detail-wide.is-sheet:not(.has-extras) .ga-sheet-main { grid-template-columns: minmax(0, 1fr) var(--ga-sheet-info-w-solo); }
+
+.ga-sheet-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ga-sheet-info-w);
+  /* The information never gets cut: on a low screen the media strip and the panels give up height first. */
+  grid-template-rows: max-content minmax(min-content, 1fr) minmax(var(--ga-sheet-media-min), var(--ga-sheet-media-h)) minmax(var(--ga-sheet-panels-min), var(--ga-sheet-panels-h));
+  grid-template-areas: "bar bar" "art info" "media media" "panels panels";
+  gap: var(--ga-sheet-gap);
+  min-width: 0;
+  min-height: 0;
+}
+.ga-sheet-main > :not(.ga-sheet-stage), .ga-sheet-extras { position: relative; z-index: 2; min-width: 0; min-height: 0; }
+
+/* The art: Steam's wide hero picture (library_hero, made to be cropped around its centre, where the game puts its
+   protagonist) fills the box of the bar and the hero, from the frame's edge. It runs the whole width, so it is also
+   seen behind the title and the information (Seba, 2026-11-19), and fades out near the right edge and into the media
+   below; the shade underneath keeps the words readable over it. */
+.ga-sheet-stage { position: relative; grid-row: 1 / 3; grid-column: 1 / -1; z-index: 0; margin: calc(-1 * var(--ga-sheet-pad)) calc(-1 * var(--ga-sheet-pad)) 0 calc(-1 * var(--ga-sheet-pad)); pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) var(--ga-sheet-art-solid-x), transparent), linear-gradient(to bottom, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) var(--ga-sheet-art-solid-y), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) var(--ga-sheet-art-solid-x), transparent), linear-gradient(to bottom, transparent, var(--ga-detail-wide-mask-ink) var(--ga-sheet-fade), var(--ga-detail-wide-mask-ink) var(--ga-sheet-art-solid-y), transparent);
+  mask-composite: intersect; }
+/* Over the old detail's rule for the same art (gameaccess-theme.css): no border, the whole box. */
+.ga-game-detail .ga-sheet-stage .library-detail-header-art { position: absolute; inset: 0; overflow: hidden; border: 0; }
+.ga-game-detail.is-sheet .ga-sheet-stage .library-detail-header-art img {
+  width: calc(100% + 2 * var(--ga-sheet-parallax-travel)); height: calc(100% + 2 * var(--ga-sheet-parallax-travel)); margin: calc(-1 * var(--ga-sheet-parallax-travel));
+  object-fit: cover; object-position: var(--ga-sheet-art-focus);
+  transform: translate(calc(var(--ga-detail-pointer-x) * -1 * var(--ga-sheet-parallax-travel)), calc(var(--ga-detail-pointer-y) * -1 * var(--ga-sheet-parallax-travel))) scale(1.04);
+  transition: transform var(--ga-sheet-parallax-ease) ease-out;
+}
+/* A glow of the highlight from the top left and a darker foot, so the logo and the bar read on any picture. */
+.ga-sheet-shade { position: absolute; inset: 0; background:
+  radial-gradient(var(--ga-sheet-glow-size) at var(--ga-sheet-glow-at), var(--ga-sheet-glow), transparent 70%),
+  linear-gradient(0deg, var(--ga-sheet-art-foot) 0, transparent var(--ga-sheet-shade-y)),
+  linear-gradient(270deg, var(--ga-sheet-art-foot) 0, transparent var(--ga-sheet-shade-right)),
+  linear-gradient(180deg, var(--ga-sheet-art-top) 0, transparent var(--ga-sheet-shade-top)); }
+
+/* The bar: where the game is, then its tools (in your Steam library, refresh, options, close). */
+.ga-sheet-bar { grid-area: bar; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ga-sheet-gap); }
+.ga-sheet-path { display: flex; align-items: center; gap: var(--ga-sheet-crumb-gap); min-width: 0; color: var(--ga-sheet-crumb-ink); font: var(--ga-sheet-crumb-font); letter-spacing: var(--ga-sheet-crumb-track); text-transform: uppercase; white-space: nowrap; }
+.ga-sheet-path svg { flex: none; width: var(--ga-sheet-crumb-icon); height: var(--ga-sheet-crumb-icon); fill: currentColor; }
+.ga-sheet-path i { font-style: normal; opacity: var(--ga-sheet-crumb-dim); }
+.ga-sheet-path span { flex: none; }
+.ga-sheet-path b { overflow: hidden; text-overflow: ellipsis; color: var(--ga-detail-wide-ink); font-weight: inherit; }
+.ga-sheet-tools { display: flex; flex: none; align-items: center; gap: var(--ga-detail-wide-tool-gap); }
+.ga-sheet-tools button { display: grid; place-items: center; width: var(--ga-detail-wide-tool); height: var(--ga-detail-wide-tool); padding: 0; border: 0; border-radius: 50%; cursor: pointer; box-shadow: var(--ga-detail-wide-tool-shadow); transition: background var(--ga-detail-wide-entry), color var(--ga-detail-wide-entry), scale var(--ga-detail-wide-entry); }
+.ga-sheet-tools svg { width: var(--ga-detail-wide-tool-icon); height: var(--ga-detail-wide-tool-icon); stroke-width: 2.6; }
+.ga-sheet-tools .ga-steam-refresh { position: static; background: var(--ga-detail-wide-deep); color: var(--ga-detail-wide-soft); }
+.ga-sheet-tools .ga-steam-refresh:hover:not(:disabled) { color: var(--ga-detail-wide-ink); }
+.ga-sheet-tools button:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-ink); outline-offset: var(--ga-space-1); }
+.ga-sheet-owned { display: inline-flex; align-items: center; gap: var(--ga-sheet-crumb-gap); height: var(--ga-detail-wide-tool); padding: 0 var(--ga-sheet-chip-pad); box-sizing: border-box;
+  border: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); border-radius: var(--ga-detail-wide-tool); background: var(--ga-sheet-panel-bg);
+  color: var(--ga-detail-wide-ink); font: var(--ga-sheet-crumb-font); letter-spacing: var(--ga-sheet-crumb-track); text-transform: uppercase; }
+.ga-sheet-owned svg { width: var(--ga-sheet-crumb-icon); height: var(--ga-sheet-crumb-icon); color: var(--ga-sheet-ink); stroke-width: 3; }
+
+/* The maker and the logo (or the name) open the information, where the title belongs (Seba). */
+.ga-sheet-summary { display: grid; gap: var(--ga-sheet-info-gap); }
+.ga-sheet-info > :not(:first-child) {
+  padding-block-start: var(--ga-sheet-section-pad);
+  border-block-start: var(--ga-sheet-line-w) solid var(--ga-sheet-rule);
+}
+.ga-sheet-hero { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ga-sheet-info-gap); }
+.ga-sheet-maker { margin: 0; padding: var(--ga-sheet-maker-pad); border-radius: var(--ga-sheet-radius-s); background: var(--ga-sheet-panel-bg); color: var(--ga-detail-wide-soft); font: var(--ga-sheet-mono-font); letter-spacing: var(--ga-sheet-mono-track); text-transform: uppercase; }
+.ga-sheet-title { max-width: 100%; margin: 0; overflow: hidden; white-space: nowrap; text-align: center; color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-title-font); letter-spacing: var(--ga-detail-wide-title-track); text-shadow: var(--ga-detail-wide-title-shadow); }
+.ga-sheet-hero { align-self: stretch; }
+.ga-sheet-title.has-logo { display: flex; align-items: flex-end; width: 100%; height: var(--ga-sheet-logo-h); }
+/* Every logo gets about the same area (Seba: they looked of different sizes): its height shrinks with the square root
+   of how much wider than the reference shape it is; never wider than the column. */
+.ga-sheet-title img { display: block; width: auto; max-width: 100%; height: calc(var(--ga-sheet-logo-h) * min(1, sqrt(var(--ga-sheet-logo-ref-aspect) / var(--ga-logo-aspect, var(--ga-sheet-logo-ref-aspect))))); object-fit: contain; object-position: left bottom; filter: drop-shadow(var(--ga-sheet-logo-shadow)); }
+.ga-sheet-title:not(.has-logo) { display: -webkit-box; white-space: normal; text-align: start; text-wrap: balance; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  color: var(--ga-sheet-ink); font: var(--ga-sheet-name-font); letter-spacing: var(--ga-sheet-title-track); text-transform: uppercase; }
+
+/* The information: the file's number, genres, the short text, three stats, the keys and "more like this". */
+.ga-sheet-info { grid-area: info; display: flex; flex-direction: column; justify-content: flex-end; gap: var(--ga-sheet-info-gap); min-height: 0; }
+.ga-sheet-file { display: inline-flex; align-self: flex-start; align-items: center; gap: var(--ga-sheet-crumb-gap); margin: 0; padding: var(--ga-sheet-maker-pad); border: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); border-radius: var(--ga-detail-wide-tool);
+  background: var(--ga-sheet-panel-bg); color: var(--ga-detail-wide-soft); font: var(--ga-sheet-mono-font); letter-spacing: var(--ga-sheet-mono-track); text-transform: uppercase; }
+.ga-sheet-file i { width: var(--ga-sheet-dot); height: var(--ga-sheet-dot); border: var(--ga-sheet-dot-ring) solid var(--ga-sheet-ink); border-radius: 50%; }
+.ga-sheet-file span { opacity: var(--ga-sheet-crumb-dim); }
+.ga-sheet-genres { margin: 0; color: var(--ga-sheet-ink); font: var(--ga-sheet-genre-font); letter-spacing: var(--ga-sheet-crumb-track); text-transform: uppercase; }
+.ga-sheet-lead { flex: none; display: -webkit-box; margin: 0; overflow: hidden; -webkit-line-clamp: var(--ga-sheet-lead-lines); -webkit-box-orient: vertical; color: var(--ga-detail-wide-soft); font: var(--ga-sheet-lead-font); text-shadow: var(--ga-detail-wide-text-shadow); }
+/* The score: the number, a segmented bar beside it and a small label under the bar; the bar in the colour of how
+   well the game is rated. When it was last played: one small line. */
+.ga-sheet-score { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "value bar" "value label"; align-items: center; column-gap: var(--ga-sheet-gap); row-gap: var(--ga-sheet-score-row-gap); max-width: var(--ga-sheet-score-w); }
+.ga-sheet-score.is-good { --ga-sheet-score-ink: var(--ga-sheet-score-good); }
+.ga-sheet-score.is-mixed { --ga-sheet-score-ink: var(--ga-sheet-score-mixed); }
+.ga-sheet-score.is-poor { --ga-sheet-score-ink: var(--ga-sheet-score-poor); }
+.ga-sheet-score b { grid-area: value; color: var(--ga-sheet-score-ink); font: var(--ga-sheet-stat-font); }
+.ga-sheet-score small { font: var(--ga-sheet-stat-unit-font); }
+.ga-sheet-score-bar { grid-area: bar; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: var(--ga-sheet-score-seg-gap); align-self: end; height: var(--ga-sheet-score-bar-h); }
+.ga-sheet-score-bar i { border-radius: var(--ga-sheet-score-seg-round); background: var(--ga-sheet-score-off); }
+.ga-sheet-score-bar i.is-on { background: var(--ga-sheet-score-ink); box-shadow: var(--ga-sheet-score-glow); }
+.ga-sheet-score-label { grid-area: label; align-self: start; color: var(--ga-detail-wide-soft); font: var(--ga-sheet-mono-font); letter-spacing: var(--ga-sheet-mono-track); text-transform: uppercase; }
+.ga-sheet-rating { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--ga-sheet-info-gap) var(--ga-sheet-gap); }
+.ga-sheet-score { flex: 1 1 var(--ga-sheet-score-min); }
+.ga-sheet-critic { display: inline-flex; align-items: center; gap: var(--ga-sheet-crumb-gap); color: var(--ga-sheet-ink); font: var(--ga-sheet-mono-font); letter-spacing: var(--ga-sheet-mono-track); text-transform: uppercase; text-decoration: underline; text-decoration-color: var(--ga-sheet-edge); text-underline-offset: var(--ga-sheet-underline); }
+span.ga-sheet-critic { text-decoration: none; }
+.ga-sheet-critic svg { width: var(--ga-sheet-crumb-icon); height: var(--ga-sheet-crumb-icon); }
+a.ga-sheet-critic:hover { text-decoration-color: currentColor; }
+a.ga-sheet-critic:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-ink); outline-offset: var(--ga-space-1); }
+.ga-sheet-played { display: inline-flex; align-items: center; gap: var(--ga-sheet-crumb-gap); margin: 0; color: var(--ga-detail-wide-soft); font: var(--ga-sheet-mono-font); letter-spacing: var(--ga-sheet-mono-track); text-transform: uppercase; }
+.ga-sheet-played svg { flex: none; width: var(--ga-sheet-crumb-icon); height: var(--ga-sheet-crumb-icon); color: var(--ga-sheet-ink); }
+.ga-game-detail.is-sheet .ga-sheet-info .ga-wide-actions { grid-column: auto; grid-row: auto; flex-wrap: wrap; margin: 0; }
+.ga-sheet-ask-link:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-ink); outline-offset: var(--ga-space-1); }
+
+/* The media as a strip: the trailer (or the chosen picture) and the screenshots beside it. */
+.ga-sheet-media { grid-area: media; min-height: 0; padding-top: var(--ga-sheet-gap); border-top: var(--ga-sheet-line-w) solid var(--ga-sheet-ink); }
+/* A row: the trailer at 16:9 from the strip's height, the pictures sharing the rest (a grid left a gap after the trailer). */
+.ga-game-detail.is-sheet .ga-sheet-media .library-detail-media { display: flex; flex-direction: row; gap: var(--ga-sheet-gap); height: 100%; max-height: none; }
+.ga-game-detail.is-sheet .ga-sheet-media .library-room-feature-media { flex: none; height: 100%; width: auto; min-width: 0; aspect-ratio: 16 / 9; border-radius: var(--ga-sheet-radius); box-shadow: 0 0 0 var(--ga-sheet-line-w) var(--ga-sheet-edge), var(--ga-sheet-active-glow); }
+.ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails { flex: 1 1 0; min-width: 0; grid-template-columns: repeat(var(--ga-sheet-shots), minmax(0, 1fr)); height: 100%; }
+.ga-game-detail.is-sheet .ga-sheet-media .library-detail-media.is-expanded .library-room-feature-media { aspect-ratio: auto; }
+/* Four pictures; on a very wide screen (21:9 and up) six, so none gets stretched (Seba). */
+@media not (min-aspect-ratio: 2 / 1) { .ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails button:nth-child(n + 5) { display: none; } }
+@media (min-aspect-ratio: 2 / 1) { .ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails { --ga-sheet-shots: var(--ga-sheet-shots-wide); } }
+.ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails button { height: 100%; aspect-ratio: auto; border-radius: var(--ga-sheet-radius); }
+/* A thin, subtle edge on the trailer and each picture; the one shown takes the highlight (Seba). */
+.ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails button { border: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); }
+.ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails button[aria-pressed="true"] { border-color: var(--ga-sheet-ink); }
+/* No labels over the media: the trailer and the pictures speak for themselves (Seba). A picture opens full screen. */
+.ga-game-detail.is-sheet .ga-sheet-media :is(.ga-media-bottom, .ga-media-caption, .ga-media-badge) { display: none; }
+.ga-game-detail.is-sheet .ga-sheet-media .library-detail-media:not(.is-expanded) .library-room-feature-media:not(:has(.library-room-video)), .ga-game-detail.is-sheet .ga-sheet-media .ga-media-thumbnails button { cursor: zoom-in; }
+
+/* The panels: an icon, the title in the display type, stripes on the right; their content scrolls inside. */
+.ga-sheet-panels { grid-area: panels; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ga-sheet-gap); min-height: 0; }
+.ga-sheet-panel { display: flex; flex-direction: column; min-height: 0; border: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); border-radius: var(--ga-sheet-radius); background: var(--ga-sheet-panel-tint); box-shadow: var(--ga-sheet-panel-shadow); overflow: hidden; }
+.ga-sheet-panel-head { display: flex; flex: none; align-items: center; gap: var(--ga-sheet-head-gap); margin: 0; padding: var(--ga-sheet-head-pad); border-bottom: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); background: var(--ga-sheet-head-tint);
+  color: var(--ga-sheet-ink); font: var(--ga-sheet-title-font); letter-spacing: var(--ga-sheet-title-track); text-transform: uppercase; }
+.ga-sheet-panel-icon { display: inline-flex; }
+.ga-sheet-panel-icon svg { width: var(--ga-sheet-head-icon); height: var(--ga-sheet-head-icon); }
+.ga-sheet-stripes { flex: none; width: var(--ga-sheet-stripes-w); height: var(--ga-sheet-stripes-h); margin-left: auto;
+  background: repeating-linear-gradient(var(--ga-sheet-stripes-angle), var(--ga-sheet-ink) 0 var(--ga-sheet-stripe), transparent var(--ga-sheet-stripe) calc(2 * var(--ga-sheet-stripe))); opacity: var(--ga-sheet-stripes-opacity); }
+.ga-sheet-panel-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--ga-sheet-edge) transparent; padding: var(--ga-sheet-body-pad);
+  color: var(--ga-detail-wide-read); font: var(--ga-sheet-body-font); }
+.ga-sheet-panel-body .steam-rich-text { color: var(--ga-detail-wide-soft); font: var(--ga-sheet-body-font); }
+.ga-sheet-panel-body .steam-rich-text img { max-width: 100%; height: auto; border-radius: var(--ga-sheet-radius-s); }
+.ga-sheet-fold { display: grid; flex: none; place-items: center; width: var(--ga-sheet-fold); height: var(--ga-sheet-fold); margin-left: var(--ga-sheet-head-gap); padding: 0; border: var(--ga-sheet-line-w) solid var(--ga-sheet-edge); border-radius: var(--ga-sheet-radius-s); background: var(--ga-sheet-panel-bg); color: var(--ga-sheet-ink); cursor: pointer; }
+.ga-sheet-fold svg { width: var(--ga-sheet-stat-icon); height: var(--ga-sheet-stat-icon); }
+.ga-sheet-fold:hover { border-color: var(--ga-sheet-ink); background: var(--ga-sheet-ink-fill); }
+.ga-sheet-fold:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-ink); outline-offset: var(--ga-space-1); }
+.ga-game-detail.is-sheet:not(.is-reading) .ga-sheet-panel.is-description .steam-rich-text :is(img, video, .bb_img_ctn) { display: none; }
+.ga-sheet-copy { margin: 0; color: var(--ga-detail-wide-soft); font: var(--ga-sheet-body-font); }
+.ga-sheet-panel-body > * + * { margin-top: var(--ga-sheet-info-gap); }
+.ga-game-detail.is-sheet .ga-sheet-summary .ga-detail-modes { gap: var(--ga-sheet-crumb-gap); }
+.ga-game-detail.is-sheet .ga-sheet-summary .ga-detail-modes .ga-sheet-owned { height: var(--ga-detail-wide-chip-h); padding: 0 var(--ga-space-2); font: var(--ga-detail-wide-small-font); }
+
+/* Lists: the requirements (Steam's own list), the tags with a check, the details with an icon. */
+.ga-sheet-panel.is-list .steam-rich-text :is(ul) { margin: 0; padding: 0; list-style: none; }
+.ga-sheet-panel.is-list .steam-rich-text li { padding: var(--ga-sheet-row-pad) 0; border-bottom: var(--ga-sheet-line-w) solid var(--ga-sheet-rule); color: var(--ga-detail-wide-soft); font: var(--ga-sheet-body-font); }
+.ga-sheet-panel.is-list .steam-rich-text strong { color: var(--ga-sheet-ink); font-weight: inherit; }
+.ga-sheet-panel.is-list .steam-rich-text > strong:first-child, .ga-sheet-panel.is-list .steam-rich-text br { display: none; }
+.ga-sheet-checks { display: grid; gap: var(--ga-sheet-row-pad); margin: 0; padding: 0; list-style: none; }
+.ga-sheet-checks li { display: flex; align-items: center; gap: var(--ga-sheet-head-gap); color: var(--ga-detail-wide-ink); font: var(--ga-sheet-body-font); }
+.ga-sheet-checks svg { flex: none; width: var(--ga-sheet-check); height: var(--ga-sheet-check); padding: var(--ga-sheet-check-pad); border-radius: 50%; background: var(--ga-sheet-ink); color: var(--ga-detail-wide-void); stroke-width: 3.5; }
+.ga-sheet-rows { display: grid; margin: 0; }
+.ga-sheet-rows div { display: grid; grid-template-columns: minmax(0, var(--ga-sheet-row-label)) minmax(0, 1fr); align-items: center; gap: var(--ga-sheet-head-gap); padding: var(--ga-sheet-row-pad) 0; border-bottom: var(--ga-sheet-line-w) solid var(--ga-sheet-rule); }
+.ga-sheet-rows div:last-child { border-bottom: 0; }
+.ga-sheet-rows dt { display: flex; align-items: center; gap: var(--ga-sheet-head-gap); color: var(--ga-detail-wide-soft); font: var(--ga-sheet-body-font); }
+.ga-sheet-rows dt svg { flex: none; width: var(--ga-sheet-stat-icon); height: var(--ga-sheet-stat-icon); color: var(--ga-detail-wide-soft); }
+.ga-sheet-rows dd { display: flex; align-items: center; gap: var(--ga-sheet-crumb-gap); min-width: 0; margin: 0; color: var(--ga-detail-wide-ink); font: var(--ga-sheet-value-font); }
+.ga-sheet-dot { flex: none; width: var(--ga-sheet-dot); height: var(--ga-sheet-dot); border-radius: 50%; background: var(--ga-detail-wide-muted); }
+.ga-sheet-dot.is-on { background: var(--ga-detail-wide-good); }
+
+/* The extras column: the AI, the download sources, co-op and the long text, one panel under the other. */
+.ga-sheet-extras { display: flex; flex-direction: column; gap: var(--ga-sheet-gap); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--ga-sheet-edge) transparent; }
+.ga-sheet-extras .ga-sheet-panel { flex: none; overflow: visible; }
+/* Secondary to the game (Seba): smaller titles and covers than the main panels. */
+.ga-sheet-extras .ga-sheet-panel-head { padding: var(--ga-sheet-side-head-pad); font: var(--ga-sheet-side-title-font); }
+.ga-sheet-extras .ga-sheet-panel-icon svg { width: var(--ga-sheet-side-head-icon); height: var(--ga-sheet-side-head-icon); }
+.ga-sheet-similar .ga-ai-pick { grid-template-columns: var(--ga-sheet-pick-cover) minmax(0, 1fr); gap: var(--ga-sheet-head-gap); padding: var(--ga-sheet-pick-pad); }
+.ga-sheet-extras .ga-sheet-panel-body { overflow: visible; }
+.ga-sheet-extras.is-ai-open .ga-sheet-panel.is-ai {
+  flex: 1;
+  overflow: hidden;
+  background: var(--ga-sheet-ai-tint);
+  border-color: var(--ga-sheet-ai-edge);
+}
+.ga-sheet-panel.is-ai .ga-sheet-panel-head { color: var(--ga-sheet-score-good); }
+.ga-sheet-panel.is-ai .ga-sheet-panel-body { overflow: auto; }
+.ga-sheet-panel.is-ai .ga-sheet-ask-link { color: var(--ga-sheet-score-good); }
+.ga-sheet-extras .steam-rich-text img { max-width: 100%; height: auto; border-radius: var(--ga-sheet-radius-s); }
+.ga-sheet-extras .ga-ai-reason { margin: 0; }
+.ga-sheet-extras .ga-detail-dl-row.is-compact { align-items: flex-start; gap: var(--ga-sheet-head-gap); padding: var(--ga-sheet-pick-pad); }
+.ga-sheet-extras .ga-detail-dl-row.is-compact .ga-detail-dl-text strong { white-space: normal; overflow-wrap: anywhere; }
+.ga-sheet-extras .ga-detail-dl-cube { flex: none; width: var(--ga-sheet-dl-cube); min-width: 0; height: var(--ga-sheet-dl-cube); padding: 0; justify-content: center; }
+.ga-sheet-asks { display: grid; gap: var(--ga-sheet-gap); }
+.ga-sheet-ask { display: grid; gap: var(--ga-sheet-info-gap); }
+.ga-sheet-ask-link { display: inline-flex; align-items: center; justify-self: start; gap: var(--ga-sheet-crumb-gap); padding: 0; border: 0; background: none; color: var(--ga-sheet-ink); font: var(--ga-sheet-value-font); text-align: start; text-decoration: underline; text-decoration-color: var(--ga-sheet-edge); text-underline-offset: var(--ga-sheet-underline); cursor: pointer; }
+.ga-sheet-ask-link svg { flex: none; width: var(--ga-sheet-stat-icon); height: var(--ga-sheet-stat-icon); }
+.ga-sheet-ask-link:hover:not(:disabled) { text-decoration-color: currentColor; }
+.ga-sheet-ask-link:disabled { cursor: progress; opacity: var(--ga-sheet-crumb-dim); }
+.ga-sheet-similar { display: grid; gap: var(--ga-sheet-info-gap); }
+.ga-sheet-similar .ga-ai-picks { display: grid; gap: var(--ga-sheet-row-pad); margin: 0; padding: 0; list-style: none; }
+
+/* A narrow window: one column that scrolls as a whole. */
+@media (max-width: 1100px) {
+  .ga-game-detail.ga-game-detail-wide.is-sheet, .ga-game-detail.ga-game-detail-wide.is-sheet.has-extras { display: flex; flex-direction: column; gap: var(--ga-sheet-gap); }
+  .ga-game-detail.ga-game-detail-wide.is-sheet .ga-sheet-main { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content var(--ga-sheet-art-narrow-h) repeat(3, max-content); grid-template-areas: "bar" "art" "info" "media" "panels"; }
+  .ga-sheet-media { height: var(--ga-sheet-media-h); }
+  .ga-sheet-panels { grid-template-columns: minmax(0, 1fr); }
+  .ga-game-detail.ga-game-detail-wide.is-sheet:not(.has-extras) .ga-sheet-main { grid-template-columns: minmax(0, 1fr); }
+  .ga-sheet-panel-body, .ga-sheet-extras { overflow: visible; }
+  .ga-sheet-extras { flex: none; }
+}

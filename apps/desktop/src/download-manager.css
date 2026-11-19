@@ -168,6 +168,4 @@
   cursor: pointer;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .library-room-card-color-fill { transition: none; }
-}
+

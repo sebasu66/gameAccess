@@ -1,0 +1,20 @@
+/* TEMPLATE: every scrollbar of the app (docs/GUI_DESIGN.md §4.51). Loaded once from main.tsx, like content.css.
+
+   Until now only the places that mounted `CircularScrollbar` (the overlay handle with the round knob) looked like the
+   app; anything else that scrolled got the browser's grey bar, so a view built later looked like another program
+   (Seba, 2026-11-19). This is the general rule, so **every** scrolling area gets the app's bar without doing anything:
+   a hairline track and a round knob that takes the app's amber when the cursor is on it.
+
+   The overlay handle (circle-scrollbar.css) is still the one for the big reading surfaces; where it is mounted, its
+   own element hides this one. Values are tokens: measures in templates/base.css, colours in the flavor. */
+
+/* Firefox takes the two-value form; everything else uses the WebKit pseudo-elements below (Tauri is Chromium). */
+* { scrollbar-width: thin; scrollbar-color: var(--ga-scroll-thumb) transparent; }
+
+::-webkit-scrollbar { width: var(--ga-scroll-w); height: var(--ga-scroll-w); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: var(--ga-scroll-pad) solid transparent; border-radius: var(--ga-radius-round);
+  background: var(--ga-scroll-thumb); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--ga-scroll-thumb-hot); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:active { background: var(--ga-scroll-thumb-on); background-clip: padding-box; }

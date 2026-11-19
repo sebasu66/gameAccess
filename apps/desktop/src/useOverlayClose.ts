@@ -13,7 +13,6 @@ export function useOverlayClose(onClosed: () => void, animateOut?: () => Promise
   const [morphing,setMorphing] = useState(false);
   const close = useCallback(() => {
     if(timer.current !== null || busy.current) return;
-    if(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { latest.current(); return; }
     const custom = exit.current?.();
     if(custom) {
       busy.current=true; setMorphing(true);

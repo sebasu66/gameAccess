@@ -27,7 +27,10 @@
 .ga-scene-look-color { display: grid; gap: var(--ga-space-1); }
 .ga-scene-look-color input { width: var(--ga-control-h); height: var(--ga-control-h); padding: 0; border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-radius-m); background: none; cursor: pointer; }
 .ga-scene-look-figure-row { display: flex; gap: var(--ga-space-2); align-items: start; }
-.ga-scene-look-thumb { flex: none; width: var(--ga-scene-look-thumb); aspect-ratio: 2 / 3; object-fit: contain; border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-radius-m); background: var(--ga-scene-figure-bg); }
+.ga-scene-look-thumb { flex: none; display: block; width: var(--ga-scene-look-thumb); aspect-ratio: 2 / 3; border: 1px solid var(--ga-scene-look-line); border-radius: var(--ga-radius-m); background: var(--ga-scene-figure-bg); }
+.ga-scene-look-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* An image is being dragged over it (useFigureDrop.ts): the same mark the character takes on the scene. */
+.ga-scene-look-thumb[data-dropping] { outline: var(--ga-scene-drop-w) dashed var(--ga-scene-drop-ink); outline-offset: var(--ga-scene-drop-gap); }
 .ga-scene-look-figure-body { display: grid; gap: var(--ga-space-1); min-width: 0; }
 .ga-scene-look-actions { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); }
 .ga-scene-look-variation-list { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }

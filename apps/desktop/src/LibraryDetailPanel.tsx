@@ -1,5 +1,5 @@
 import { genreLabels } from "./libraryGenres";
-import {Download, Store} from "lucide-react";
+import { ChevronDown, ChevronUp, Download, ExternalLink, Store } from "lucide-react";
 import { isSteamOwned } from "./steamLibrary";
 import { digitalCatalogService } from "./catalog/DigitalCatalog";
 import { useLibraryEntry } from "./libraryScan";
@@ -24,8 +24,8 @@ import { cachedLibraryCover } from "./libraryCoverResolver";
 import { selectSteamTrailer, steamTrailerSource } from "./steamTrailer";
 import { useSteamTrailer } from "./useSteamTrailer";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, RefObject } from "react";
-import { Globe, Image as ImageIcon, Loader2, Maximize2, Minimize2, Monitor, MoreHorizontal, Network, Pause, Play, RotateCw, ThumbsDown, ThumbsUp, User, Users, Volume2, VolumeX, X } from "lucide-react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
+import { Check, Clock, Cpu, FileText, Gamepad2, Globe, Image as ImageIcon, Info, Loader2, Maximize2, Minimize2, Monitor, MoreHorizontal, Network, Pause, Play, RotateCw, Sparkles, Tags, ThumbsDown, ThumbsUp, Trophy, User, Users, Volume2, VolumeX, X } from "lucide-react";
 import { hasTauriRuntime } from "./native";
 import { gameMatchesLibraryFeature, normalizeSearchText, type LibraryFeatureKey } from "./librarySearch";
 
@@ -47,6 +47,13 @@ import type { CatalogGame, GameDetails, SteamMovie } from "./types";
 import { useSelectedGameDetails } from "./useSelectedGameDetails";
 import { navigationShellEnabled } from "./navigation/navigationSelection";
 import "./game-detail-wide.css";
+import DetailDownloads from "./DetailDownloads";
+import { GaPadButton } from "./components/ga/PadButton";
+import { DetailEditorial } from "./DetailEditorial";
+import { GameLogo, SheetPanel, SheetRows, SheetScore, AskDetailAi, useDetailAiReady, useMoreLikeThis, RelatedGames } from "./DetailSheet";
+
+import GaTabs from "./GaTabs";
+import { GaButton } from "./components/ga/Buttons";
 
 const SCREENSHOT_HOLD_MS = 8_000;
 
@@ -121,6 +128,8 @@ function sanitizeSteamRichHtml(value?: string | null): string {
     const src = node.tagName === "IMG" ? node.getAttribute("src") : null;
     const alt = node.tagName === "IMG" ? node.getAttribute("alt") : null;
     for (const attribute of Array.from(node.attributes)) node.removeAttribute(attribute.name);
+    // Steam's own headings get one class of ours, so the detail can style them apart from its paragraphs.
+    if (/^H[1-4]$/.test(node.tagName)) node.setAttribute("class", "steam-heading");
     if (href?.startsWith("https://")) {
       node.setAttribute("href", href);
       node.setAttribute("target", "_blank");
@@ -140,17 +149,7 @@ function SteamRichText({ html }: { html: string }) {
   return <div className="steam-rich-text" dangerouslySetInnerHTML={{ __html: sanitizeSteamRichHtml(html) }} />;
 }
 
-function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setReduced(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-  return reduced;
-}
+function useReducedMotion(): boolean { return false; }
 
 function useCrossfadeArtwork(source?: string) {
   const initial: [string | null, string | null] = [source ?? null, null];
@@ -202,17 +201,26 @@ export interface FeaturePanelProps {
   closeRef?: RefObject<HTMLButtonElement>;
   onMore?: (anchor: DOMRect) => void;
   moreOpen?: boolean;
+  /** Opens another game's detail (the AI's "more like this" answers). */
+  onOpenGame?: (game: CatalogGame) => void;
 }
+
+/** The new detail's keys (Seba, 2026-11-17; docs/GUI_DESIGN.md §4.42): pads with a black hairline and a soft shadow
+ * behind their content, in the detail's pad colour (set on `.ga-wide-actions`). */
+const PAD_INK = { ink: "outlined", halo: true } as const;
+type PadLook = { className?: string };
 
 function actionClass(action: LibraryAction, selected: boolean): string {
   const kind = action.kind === "play" ? "play" : action.kind === "manage" ? "manage" : "download";
   return `glass-action ${kind} ${selected ? "is-selected" : ""}`.trim();
 }
 
-function SteamStoreButton({ game, primary, className, buttonRef, onFocus }: { game: CatalogGame; primary?: boolean; className?: string; buttonRef?: (node: HTMLButtonElement | null) => void; onFocus?: () => void }) {
+function SteamStoreButton({ game, primary, className, buttonRef, onFocus, pad }: { game: CatalogGame; primary?: boolean; className?: string; buttonRef?: (node: HTMLButtonElement | null) => void; onFocus?: () => void; pad?: PadLook }) {
   const { t } = useI18n();
   const appId = game.app_id ?? 0;
   if (!appId) return null;
+  if (pad) return <GaPadButton {...PAD_INK} lit={primary} className={pad.className} ref={buttonRef} onFocus={onFocus} data-action="steam" label={t("detailViewOnSteam")}
+    icon={<Store />} onClick={() => void openSteamStore(appId)}>{primary ? t("detailViewOnSteam") : null}</GaPadButton>;
   return <button type="button" ref={buttonRef} onFocus={onFocus} data-action="steam" title={t("detailViewOnSteam")} aria-label={t("detailViewOnSteam")}
     className={primary ? className : "source-options-toggle steam-store-small"} onClick={() => void openSteamStore(appId)}>
     {primary ? <><span className="glass-action-icon"><Store size={23} /></span><span className="glass-action-label">{t("detailViewOnSteam")}</span></> : <Store size={20} />}
@@ -220,7 +228,7 @@ function SteamStoreButton({ game, primary, className, buttonRef, onFocus }: { ga
 }
 
 /** A Steam game one of the player's accounts owns is installed by Steam, not by a download source. */
-function SteamInstallButton({ game, className, buttonRef, onFocus }: { game: CatalogGame; className: string; buttonRef: (node: HTMLButtonElement | null) => void; onFocus: () => void }) {
+function SteamInstallButton({ game, className, buttonRef, onFocus, pad }: { game: CatalogGame; className: string; buttonRef: (node: HTMLButtonElement | null) => void; onFocus: () => void; pad?: PadLook }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const install = async () => {
@@ -230,13 +238,23 @@ function SteamInstallButton({ game, className, buttonRef, onFocus }: { game: Cat
     catch (error) { notify(t("steamInstallError", { error: error instanceof Error ? error.message : String(error) }), { tone: "error" }); }
     finally { setBusy(false); }
   };
+  if (pad) return <GaPadButton {...PAD_INK} lit className={pad.className} ref={buttonRef} onFocus={onFocus} data-action="steam-install" disabled={busy} onClick={() => void install()}
+    label={t("steamInstallMenu")} icon={busy ? <Loader2 className="spin" /> : <Download />}>{t("steamInstallMenu")}</GaPadButton>;
   return <button type="button" ref={buttonRef} onFocus={onFocus} data-action="steam-install" className={className} disabled={busy} onClick={() => void install()}>
     <span className="glass-action-icon">{busy ? <Loader2 className="spin" size={23} /> : <Download size={23} />}</span>
     <span className="glass-action-label">{t("steamInstallMenu")}</span>
   </button>;
 }
 
-function ActionButtons(props: FeaturePanelProps) {
+/** In the new detail a direct download starts only in its Downloads tab: the main button takes the player there. */
+type DownloadsTab = { count: number | null; open: () => void };
+
+function ActionButtons(props: FeaturePanelProps & { downloadsTab?: DownloadsTab; pad?: boolean }) {
+  if (props.pad) return <PadActions {...props} />;
+  return <GlassActions {...props} />;
+}
+
+function GlassActions(props: FeaturePanelProps & { downloadsTab?: DownloadsTab }) {
   const { t } = useI18n();
   const steamOwned = isSteamOwned(useLibraryEntry(props.game.app_id ?? undefined));
   // The download plugin is optional and installed by hand: until it is installed and synced the detail never
@@ -247,6 +265,16 @@ function ActionButtons(props: FeaturePanelProps) {
       ? <SteamInstallButton key="steam-install" game={props.game} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
       : action.kind === "download" && !pluginReady
       ? <SteamStoreButton key="steam" game={props.game} primary className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : action.kind === "download" && props.downloadsTab && props.downloadsTab.count === 0
+      ? <SteamStoreButton key="steam" game={props.game} primary className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
+      : action.kind === "download" && props.downloadsTab
+      ? <button type="button" key="downloads-tab" data-action="download" disabled={action.disabled || props.downloadsTab.count === null}
+        ref={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }}
+        className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)}
+        onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} onClick={props.downloadsTab.open}>
+        <span className="glass-action-icon">{props.downloadsTab.count === null ? <Loader2 size={23} className="spin" /> : <Download size={23} />}</span>
+        <span className="glass-action-label">{props.downloadsTab.count === null ? t("sourcesChecking") : t("detailSeeDownloads", { count: props.downloadsTab.count })}</span>
+      </button>
       : action.kind === "download"
       ? <PluginDownloadButton key={props.game.id} game={props.game} disabled={action.disabled} className={actionClass(action, props.focusZone === "actions" && props.actionIndex === index)} buttonRef={node => { if (props.actionRefs.current) props.actionRefs.current[index] = node; }} onFocus={() => { props.setFocusZone("actions"); props.setActionIndex(index); }} />
       : <button type="button" key={action.kind}
@@ -258,7 +286,27 @@ function ActionButtons(props: FeaturePanelProps) {
         <span className="glass-action-icon">{action.icon}</span>
         <span className="glass-action-label">{action.kind === "play" ? t("downloadsPlay") : action.label}</span>
       </button>)}
-  {(pluginReady || props.actions.some(action => action.kind === "play")) && <SteamStoreButton game={props.game} />}
+  {(pluginReady || props.actions.some(action => action.kind === "play")) && props.downloadsTab?.count !== 0 && <SteamStoreButton game={props.game} />}
+  </div>;
+}
+
+/** The detail's actions as pad keys: the same choices as GlassActions. */
+function PadActions(props: FeaturePanelProps & { downloadsTab?: DownloadsTab }) {
+  const { t } = useI18n();
+  const steamOwned = isSteamOwned(useLibraryEntry(props.game.app_id ?? undefined));
+  const pluginReady = usePluginReady() === true;
+  return <div className="library-room-actions">
+    {props.actions.map((action, index) => {
+      const selected = props.focusZone === "actions" && props.actionIndex === index;
+      const look = { className: selected ? "is-selected" : undefined };
+      const ref = (node: HTMLButtonElement | null) => { if (props.actionRefs.current) props.actionRefs.current[index] = node; };
+      const focus = () => { props.setFocusZone("actions"); props.setActionIndex(index); };
+      if (action.kind === "download") return steamOwned ? <SteamInstallButton key="steam-install" game={props.game} className="" pad={look} buttonRef={ref} onFocus={focus} /> : null;
+      const text = action.kind === "play" ? t("downloadsPlay") : action.label;
+      return <GaPadButton {...PAD_INK} lit={action.kind === "play"} key={action.kind} ref={ref} onFocus={focus} {...look} data-action={action.kind}
+        title={action.reason ?? text} disabled={action.disabled} onClick={() => props.onAction(index)} label={text} icon={action.icon}>{text}</GaPadButton>;
+    })}
+    <SteamStoreButton game={props.game} pad={{}} />
   </div>;
 }
 
@@ -351,30 +399,49 @@ function MediaControls({ model, expanded, onExpand }: { model: MediaController; 
   };
   return (
     <div className="library-room-media-controls">
-      <button type="button" onClick={toggle} aria-label={model.paused ? "Reanudar medios" : "Pausar medios"}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
-      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? "Activar sonido" : "Silenciar"}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
+      <button type="button" onClick={toggle} aria-label={model.paused ? t("mediaResume") : t("mediaPause")} title={model.paused ? t("mediaResume") : t("mediaPause")}>{model.paused ? <Play size={16} /> : <Pause size={16} />}</button>
+      {model.videoSrc ? <><button type="button" onClick={() => model.setMuted((current) => !current)} aria-label={model.muted ? t("mediaUnmute") : t("mediaMute")} title={model.muted ? t("mediaUnmute") : t("mediaMute")}>{model.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><input aria-label={t("uiVolumenDelVideo")} type="range" min="0" max="1" step="0.02" value={model.muted ? 0 : model.volume} onChange={(event) => { const next = Number(event.currentTarget.value); model.setVolume(next); model.setMuted(next <= 0); }} /></> : null}
       {onExpand ? <button type="button" className="ga-media-expand" onClick={onExpand} aria-pressed={expanded} aria-label={expanded ? t("mediaRestore") : t("mediaMaximize")} title={expanded ? t("mediaRestore") : t("mediaMaximize")}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button> : null}
     </div>
   );
 }
 
 /**
- * The trailer and screenshots can fill the whole detail window: the media box grows from its place to the window's
- * size (Flip) and back. Escape, the same button or a double click returns it; Escape then does not close the detail.
+ * The trailer and screenshots fill the screen (the browser's full screen, Seba 2026-11-17: the box grown inside the
+ * detail clipped and lost its controls) and come back with Escape, the same button or a double click. Where full
+ * screen is refused, the media box grows over the detail window instead (Flip) and Escape returns it without closing
+ * the detail.
  */
 function useExpandedMedia() {
   const [expanded, setExpanded] = useState(false);
   const flipState = useRef<Flip.FlipState | null>(null);
   const toggle = () => {
-    const media = document.querySelector<HTMLElement>(".ga-detail-gallery .library-room-feature-media, .ga-wide-media .library-room-feature-media");
-    flipState.current = media && motionOk() ? Flip.getState(media) : null;
-    setExpanded(current => !current);
+    const media = document.querySelector<HTMLElement>(".ga-wide-media .library-room-feature-media, .ga-detail-gallery .library-room-feature-media");
+    if (document.fullscreenElement) { void document.exitFullscreen().catch(() => undefined); return; }
+    const grow = () => {
+      flipState.current = media && motionOk() ? Flip.getState(media) : null;
+      setExpanded(current => !current);
+    };
+    if (!expanded && media?.requestFullscreen) {
+      // Refused, or no answer at all (a window in the background): it grows over the detail instead.
+      let settled = false;
+      const fallback = window.setTimeout(() => { if (!settled && !document.fullscreenElement) { settled = true; grow(); } }, 500);
+      media.requestFullscreen().then(() => { settled = true; window.clearTimeout(fallback); }, () => { window.clearTimeout(fallback); if (!settled) { settled = true; grow(); } });
+      return;
+    }
+    grow();
   };
+  useEffect(() => {
+    const changed = () => setExpanded(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", changed);
+    return () => { document.removeEventListener("fullscreenchange", changed); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); };
+  }, []);
   useEffect(() => {
     const state = flipState.current;
     flipState.current = null;
     if (state) Flip.from(state, { duration: .5, ease: "expo.inOut", absolute: false, zIndex: 40 });
-    if (!expanded) return;
+    // In full screen the browser takes Escape itself.
+    if (!expanded || document.fullscreenElement) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -387,24 +454,25 @@ function useExpandedMedia() {
   return { expanded, toggle };
 }
 
-function DesktopDetailMedia({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+/** `shots`: how many screenshots sit beside the trailer (the file sheet shows more on a wide screen and hides the rest in CSS). */
+function DesktopDetailMedia({ game, details, shots = 4 }: { game: CatalogGame; details: GameDetails | null; shots?: number }) {
   const { t } = useI18n();
   const model = useDesktopMedia(game, details);
   const { expanded, toggle } = useExpandedMedia();
   return (
     <div className={`library-detail-media${expanded ? " is-expanded" : ""}`}>
       <div className="library-room-feature-ambient" aria-hidden="true">{model.artwork.layers.map((source, index) => source ? <img key={`ambient-${index}-${source}`} className={index === model.artwork.activeLayer ? "is-active" : ""} src={source} alt="" draggable={false} /> : null)}</div>
-      <div className="library-room-feature-media" onDoubleClick={toggle}>
+      <div className="library-room-feature-media" onDoubleClick={toggle} onClick={event => { if (model.state.phase === "image" && !expanded && !(event.target as HTMLElement).closest("button")) toggle(); }}>
         {model.artwork.layers.map((source, index) => source ? <img key={`detail-${index}-${source}`} className={`library-room-hero-layer ${index === model.artwork.activeLayer ? "is-active" : ""}`} src={source} alt="" draggable={false} onError={() => model.setState((current) => removeFailedDetailImage(current, source))} /> : null)}
         {model.videoSrc && model.state.phase === "video" && model.state.videoAvailable ? <video key={`${game.id}-${model.videoSrc}`} ref={model.videoRef} className={`library-room-video ${model.readyVideo ? "is-ready" : ""}`} poster={model.fallback} autoPlay={!model.paused} muted={model.muted} playsInline preload="metadata" onCanPlay={() => { model.setReadyVideo(true); if (!model.paused) void model.videoRef.current?.play().catch(() => undefined); }} onEnded={() => model.setState((current) => afterDetailVideo(current))} onError={() => model.setState((current) => disableDetailVideo(current))} /> : null}
         <div className="library-room-feature-shade" />
         {model.videoSrc && (model.paused || model.state.phase !== "video") ? <button type="button" className="ga-media-play" aria-label={t("uiReproducirTrailer")} onClick={() => { model.setState(current => ({ ...current, phase: "video", videoAvailable: true })); model.setPaused(false); }}><Play size={48} fill="currentColor" strokeWidth={0} /></button> : null}
         <span className="ga-media-badge">{t("uiTrailerYCapturas")}</span>
-        <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? "Tráiler del juego" : "Capturas del juego"}</span>
+        <span className="ga-media-caption"><ImageIcon aria-hidden="true" />{model.state.phase === "video" ? t("mediaTrailerCaption") : t("mediaShotsCaption")}</span>
         <MediaControls model={model} expanded={expanded} onExpand={toggle} />
       </div>
-      <div className="ga-media-thumbnails">{model.state.images.slice(0, 4).map((source, index) => <button type="button" key={source} aria-label={`Ver captura ${index + 1}`} aria-pressed={model.state.phase === "image" && model.state.imageIndex === index} onClick={() => { model.setPaused(true); model.setState(current => ({ ...current, phase: "image", imageIndex: index })); }}><img src={source} alt="" /></button>)}</div>
-      <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{model.state.images.length} capturas</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>
+      <div className="ga-media-thumbnails">{model.state.images.slice(0, shots).map((source, index) => <button type="button" key={source} aria-label={t("mediaShotView", { n: index + 1 })} aria-pressed={model.state.phase === "image" && model.state.imageIndex === index} onClick={() => { model.setPaused(true); model.setState(current => ({ ...current, phase: "image", imageIndex: index })); if (!expanded) toggle(); }}><img src={source} alt="" /></button>)}</div>
+      <div className="ga-media-bottom"><span><ImageIcon aria-hidden="true" />{t("mediaShotCount", { count: model.state.images.length })}</span><span className="ga-media-pagination" aria-hidden="true">{model.state.images.slice(0, 4).map((source, index) => <i key={source} className={model.state.imageIndex === index ? "is-active" : ""} />)}</span></div>
     </div>
   );
 }
@@ -433,7 +501,7 @@ function SteamHeaderArtwork({ game, details }: { game: CatalogGame; details: Gam
 }
 
 /** Only single-player / multiplayer capabilities belong in the detail view. */
-function DetailPlayModes({ game, details }: { game: CatalogGame; details: GameDetails | null }) {
+function DetailPlayModes({ game, details, lead }: { game: CatalogGame; details: GameDetails | null; lead?: ReactNode }) {
   const { t } = useI18n();
   const categories = details?.steam?.categories ?? game.categories ?? [];
   const normalized = categories.map(normalizeSearchText);
@@ -453,7 +521,7 @@ function DetailPlayModes({ game, details }: { game: CatalogGame; details: GameDe
   // General Steam flags are useful when the source has no local/online subtype.
   if (!modes.some(mode => mode.key.includes("coop") && mode.visible) && has("coop", ["cooperativo", "co-op"])) modes.push({ key: "coop", label: t("modeCoop"), Icon: Users, visible: true });
   if (!modes.some(mode => mode.key.includes("multiplayer") && mode.visible) && has("multiplayer", ["multijugador", "multi-player"])) modes.push({ key: "multiplayer", label: t("modeMulti"), Icon: Users, visible: true });
-  return <div className="ga-detail-modes">{modes.filter(mode => mode.visible).map(({ key, label, Icon }) => <span key={key}><Icon aria-hidden="true" />{label}</span>)}</div>;
+  return <div className="ga-detail-modes">{lead}{modes.filter(mode => mode.visible).map(({ key, label, Icon }) => <span key={key}><Icon aria-hidden="true" />{label}</span>)}</div>;
 }
 
 function platforms(details: GameDetails | null): string {
@@ -589,53 +657,12 @@ export function FeaturePanel(props: FeaturePanelProps) {
   return navigationShellEnabled() ? <WideDetail key={props.game.id} {...props} /> : <DesktopFeature key={props.game.id} {...props} />;
 }
 
-type DetailSection = "description" | "ai" | "coop" | "downloads";
+type DetailSection = "description" | "about" | "details" | "ai" | "coop" | "downloads";
+/** The summary shows this many tags; the rest are counted. */
 
 const GAUGE_SEGMENTS = 44;
 
 /** The Steam reviews as a gauge of segments that light up to the share of positive ones (EN10): compact, the media column's width. */
-function RatingGauge({ score, count, recommendations, metacritic }: { score: number | null; count?: number | null; recommendations?: number | null; metacritic?: number | null }) {
-  const { t, localeTag } = useI18n();
-  const percent = score == null ? 0 : Math.max(0, Math.min(100, score));
-  const [shown, setShown] = useState(0);
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    const counter = { value: 0 };
-    setOn(false);
-    const frame = requestAnimationFrame(() => setOn(true));
-    const tween = gsap.to(counter, { value: percent, duration: motionOk() ? .9 : 0, ease: "power2.out", onUpdate: () => setShown(counter.value) });
-    return () => { cancelAnimationFrame(frame); tween.kill(); };
-  }, [percent]);
-  const tone = score == null ? "unknown" : percent >= 70 ? "good" : percent >= 40 ? "mixed" : "bad";
-  const verdict = score == null ? t("noScore") : percent >= 95 ? t("ratingOverwhelming") : percent >= 80 ? t("ratingVeryPositive") : percent >= 70 ? t("ratingMostlyPositive") : percent >= 40 ? t("ratingMixed") : t("ratingNegative");
-  const lit = Math.round(percent / 100 * GAUGE_SEGMENTS);
-  const total = count ?? 0;
-  const positive = Math.round(total * percent / 100);
-  const number = (value: number) => value.toLocaleString(localeTag);
-  return <section className="ga-wide-rating" data-tone={tone} aria-label={t("uiValoracionDeUsuariosEn")}>
-    <div className={`ga-wide-gauge${on ? " is-on" : ""}`} role="img" aria-label={score == null ? t("noScore") : t("ratingGaugeAria", { percent: Math.round(percent) })}>
-      <svg viewBox="-100 -100 200 172" aria-hidden="true">
-        {Array.from({ length: GAUGE_SEGMENTS }, (_, index) => <rect key={index} className={index < lit ? "is-lit" : undefined} x="-4" y="-92" width="8" height={index % 11 === 0 ? 26 : 20} rx="4"
-          transform={`rotate(${-135 + index * 270 / (GAUGE_SEGMENTS - 1)})`} style={{ "--ga-gauge-i": index } as CSSProperties} />)}
-        {score == null ? null : <circle className="ga-wide-gauge-dot" r="5" transform={`rotate(${-135 + percent / 100 * 270}) translate(0 -58)`} />}
-      </svg>
-      <div className="ga-wide-gauge-value"><b>{score == null ? "—" : Math.round(shown)}{score == null ? null : <small>%</small>}</b><i>{t("ratingPositiveWord")}</i></div>
-    </div>
-    <div className="ga-wide-rating-info">
-      <strong>{verdict}</strong>
-      <span className="ga-wide-rating-sub">{total ? t("ratingReviewsSub", { count: number(total) }) : t("noScore")}</span>
-      {total ? <>
-        <div className="ga-wide-rating-bar" aria-hidden="true"><i className="is-positive" style={{ flexGrow: percent }} /><i className="is-negative" style={{ flexGrow: 100 - percent }} /></div>
-        <div className="ga-wide-rating-legend"><span className="is-positive"><ThumbsUp aria-hidden="true" />{number(positive)}</span><span className="is-negative">{number(total - positive)}<ThumbsDown aria-hidden="true" /></span></div>
-      </> : null}
-      <div className="ga-wide-rating-chips">
-        <div><small>{t("ratingMetacritic")}</small><b>{typeof metacritic === "number" ? metacritic : "—"}</b></div>
-        <div><small>{t("factRecommendations")}</small><b>{typeof recommendations === "number" ? number(recommendations) : "—"}</b></div>
-      </div>
-    </div>
-  </section>;
-}
-
 /** How long ago, in the player's language ("hace 3 días"). */
 function sinceText(iso: string | undefined, localeTag: string): string | null {
   const when = iso ? Date.parse(iso) : NaN;
@@ -645,14 +672,7 @@ function sinceText(iso: string | undefined, localeTag: string): string | null {
   return Math.abs(days) >= 30 ? format.format(Math.round(days / 30), "month") : format.format(days, "day");
 }
 
-/**
- * EN10: the game's detail in the new shell. Header: the title with its close (at its height, on the grid's right edge)
- * and its options; under it the genre, the play modes and the edition (developer, release, size, platforms), which the
- * description does not repeat. Body: tabs with their own scroll | the trailer and screenshots, then a compact rating
- * of the same width. Footer: the actions (Play, Install or the store, like, dislike) and, for a game in the library,
- * how much it was played. A tab only shows when it has something: AI when the AI commented on the game, Co-Optimus
- * when it has its co-op data, Downloads with the plugin. Extra and Similar of the prototype have no source yet.
- */
+/** The Escena game detail, with optional downloads and AI in the side column. */
 function WideDetail(props: FeaturePanelProps) {
   const { t, localeTag } = useI18n();
   const detailState = useSelectedGameDetails({ selectedGameId: props.game.id, localSteamAppId: props.game.app_id, knownGame: props.game });
@@ -662,17 +682,23 @@ function WideDetail(props: FeaturePanelProps) {
   const description = plainText(steam?.short_description) || plainText(props.game.short_description);
   const installSize = useInstallSize(props.game.app_id);
   const entry = useLibraryEntry(props.game.app_id ?? undefined);
-  const [section, setSection] = useState<DetailSection>("description");
+  const steamOwned = isSteamOwned(entry);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLElement>(null);
+  const downloadsRef = useRef<HTMLElement>(null);
   const pluginReady = usePluginReady() === true;
   const playable = props.actions.some(action => action.kind === "play");
   const [sources, setSources] = useState<PluginSource[] | null>(null);
   const [coop, setCoop] = useState<CoopDetails | null>(null);
-  const [coopLoading, setCoopLoading] = useState(false);
   const [aiSeen] = useState(() => !props.showcaseMode && Boolean(aiWhy(props.game.id)));
+  const aiReady = useDetailAiReady();
+  const canAskAi = !props.showcaseMode && aiReady;
+  const [aiOpen, setAiOpen] = useState(false);
+  const showAi = canAskAi && aiOpen;
+  const similar = useMoreLikeThis(props.game);
+  const related = similar.state?.picks ?? [];
+  const aiPanelId = `ga-detail-ai-${props.game.id}`;
   useMagneticButtons(actionsRef);
 
   useEffect(() => {
@@ -684,17 +710,17 @@ function WideDetail(props: FeaturePanelProps) {
   }, [pluginReady, playable, props.game]);
 
   useEffect(() => {
-    if (props.showcaseMode || !props.game.app_id) { setCoop(null); setCoopLoading(false); return; }
+    if (props.showcaseMode || !props.game.app_id) { setCoop(null); return; }
     let active = true;
-    setCoop(null); setCoopLoading(true);
+    setCoop(null);
     void loadCooptimusDetails(props.game.app_id, props.game.name).then(value => {
-      if (active) { setCoop(value?.state === "ready" ? value : null); setCoopLoading(false); }
-    }).catch(() => { if (active) setCoopLoading(false); });
+      if (active) setCoop(value?.state === "ready" ? value : null);
+    }).catch(() => undefined);
     return () => { active = false; };
   }, [props.game.app_id, props.game.name, props.showcaseMode]);
 
   const moveParallax = (event: React.PointerEvent<HTMLElement>) => {
-    if (!motionOk() || event.pointerType !== "mouse") return;
+    if (event.pointerType !== "mouse") return;
     const bounds = event.currentTarget.getBoundingClientRect();
     stageRef.current?.style.setProperty("--ga-detail-pointer-x", String((event.clientX - bounds.left) / bounds.width - .5));
     stageRef.current?.style.setProperty("--ga-detail-pointer-y", String((event.clientY - bounds.top) / bounds.height - .5));
@@ -704,10 +730,10 @@ function WideDetail(props: FeaturePanelProps) {
     stageRef.current?.style.setProperty("--ga-detail-pointer-y", "0");
   };
 
-  // The title fills its column on one line: it shrinks down to its least size, never under the close button.
+  // A title written out (no logo) fills its place on one line: it shrinks down to its least size.
   useLayoutEffect(() => {
     const title = titleRef.current;
-    if (!title) return;
+    if (!title || title.classList.contains("has-logo")) return;
     const fit = () => {
       title.style.fontSize = "";
       let size = parseFloat(getComputedStyle(title).fontSize);
@@ -725,86 +751,108 @@ function WideDetail(props: FeaturePanelProps) {
   }, [props.game.name]);
 
   const showDownloads = pluginReady && !playable && (sources === null || sources.length > 0);
-  const tabs: Array<{ id: DetailSection; label: string; count?: number }> = [
-    { id: "description", label: t("detailTabDescription") },
-    ...(aiSeen ? [{ id: "ai" as const, label: t("aiTab") }] : []),
-    ...(coopLoading || coop ? [{ id: "coop" as const, label: t("detailTabCoop") }] : []),
-    ...(showDownloads ? [{ id: "downloads" as const, label: t("downloadsTitle"), count: sources?.length }] : []),
-  ];
-  const tabIds = tabs.map(tab => tab.id).join();
-  useEffect(() => {
-    if (!tabIds.split(",").includes(section)) setSection("description");
-  }, [section, tabIds]);
-  useEffect(() => { paneRef.current?.scrollTo({ top: 0 }); }, [section]);
-
   const rated = details ?? props.game;
-  const score = typeof rated.steam_review_score === "number" ? rated.steam_review_score : null;
-  const developers = steam?.developers?.join(" · ") || props.game.developers?.join(" · ") || t("notReported");
-  const release = steam?.release_date ?? props.game.release_date ?? t("notReported");
+  const score = typeof rated.steam_review_score === "number" ? Math.round(rated.steam_review_score) : null;
+  const metacritic = steam?.metacritic?.score ?? props.game.metacritic_score ?? null;
+  const criticUrl = /^https:\/\//.test(steam?.metacritic?.url ?? "") ? steam?.metacritic?.url : undefined;
+  const inLibrary = Boolean(entry) || playable;
+  const [reading, setReading] = useState(false);
+  useEffect(() => setReading(false), [props.game.id]);
+  const developer = steam?.developers?.[0] || props.game.developers?.[0] || "";
+  const release = steam?.release_date ?? props.game.release_date ?? "";
+  const year = /\d{4}/.exec(release)?.[0] ?? "";
   const since = sinceText(entry?.last_played, localeTag);
-  const plays = entry?.plays ?? 0;
+  const shownSize = installSize === t("notReported") && sources?.[0]?.size ? sources[0].size : installSize;
+  const genres = genreLabels(steam?.genres ?? props.game.genres);
+  const categories = (steam?.categories ?? props.game.categories ?? []).map(normalizeSearchText);
+  const controller = categories.some(value => value.includes("full controller") || value.includes("total con el control")) ? t("detailSheetControllerFull")
+    : categories.some(value => value.includes("partial controller") || value.includes("parcial con el control")) ? t("detailSheetControllerPartial") : "";
+  const languages = (plainText(steam?.supported_languages) || "").replace(/\*/g, "").split(/,\s*/).map(value => value.trim()).filter(Boolean);
+  const requirements = steam?.minimum_requirements || steam?.recommended_requirements || "";
+  const tags = props.game.tags ?? [];
+  const sized = shownSize !== t("notReported") && shownSize !== t("sizeChecking") ? ` (${shownSize})` : "";
+  const rows = [
+    { icon: <Monitor />, label: t("factPlatforms"), value: platforms(details) },
+    { icon: <Download />, label: t("detailSheetState"), value: <><i className={playable ? "ga-sheet-dot is-on" : "ga-sheet-dot"} />{(playable ? t("detailEdReady") : t("detailEdNotInstalled")) + sized}</> },
+    ...(controller ? [{ icon: <Gamepad2 />, label: t("detailSheetController"), value: controller }] : []),
+    ...(steam?.achievement_count ? [{ icon: <Trophy />, label: t("factAchievements"), value: String(steam.achievement_count) }] : []),
+    ...(languages.length ? [{ icon: <Globe />, label: t("factLanguages"), value: languages.length > 3 ? `${languages.slice(0, 3).join(", ")} +${languages.length - 3}` : languages.join(", ") }] : []),
+    ...(props.game.app_id ? [{ icon: <Info />, label: t("infoAppId"), value: String(props.game.app_id) }] : []),
+  ].filter(row => row.value && row.value !== t("notReported"));
+  const extras = showAi || showDownloads;
+  const requirementsContent = requirements ? <SteamRichText html={requirements} /> :
+    <ul className="ga-sheet-checks">{tags.slice(0, 12).map(tag => <li key={tag}><Check aria-hidden="true" />{tag}</li>)}</ul>;
+  const requirementsLabel = requirements ? t("detailSheetRequirements") : t("uiEtiquetas");
+  const detailsContent = <SheetRows rows={rows} />;
+  const downloadsTab = pluginReady && !playable ? { count: sources === null ? null : sources.length, open: () => { setAiOpen(false); requestAnimationFrame(() => downloadsRef.current?.scrollIntoView({ block: "nearest" })); } } : undefined;
 
-  return <article ref={stageRef} className="ga-game-detail ga-game-detail-wide" onPointerMove={moveParallax} onPointerLeave={resetParallax}>
-    <SteamHeaderArtwork game={props.game} details={details} />
-    <div className="ga-wide-shade" aria-hidden="true" />
-    <header className="ga-wide-heading">
-      <div className="ga-wide-title-row">
-        <h1 ref={titleRef} className="ga-wide-title">{props.game.name}</h1>
-        <div className="ga-wide-title-tools">
+  return <article ref={stageRef} className={`ga-game-detail ga-game-detail-wide is-sheet${extras ? " has-extras" : ""}${reading ? " is-reading" : ""}`} onPointerMove={moveParallax} onPointerLeave={resetParallax}>
+    <div className="ga-sheet-main">
+      <div className="ga-sheet-stage" aria-hidden="true"><SteamHeaderArtwork game={props.game} details={details} /><div className="ga-sheet-shade" /><DetailEditorial /></div>
+      <div className="ga-sheet-bar">
+        <nav className="ga-sheet-path" aria-label={t("detailSheetPath")}>
+          <Play aria-hidden="true" /><span>{entry ? t("navModeLibrary") : t("navModeCatalog")}</span>
+          {genres[0] ? <><i aria-hidden="true">/</i><span>{genres[0]}</span></> : null}
+          <i aria-hidden="true">/</i><b>{props.game.name}</b>
+        </nav>
+        <div className="ga-sheet-tools">
+          {hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw className={detailState.refreshingSteam ? "is-refreshing" : undefined} aria-hidden="true" /></button> : null}
           {props.onMore ? <button type="button" className="ga-wide-more" aria-label={t("moreOptionsForAria", { name: props.game.name })} aria-haspopup="menu" aria-expanded={Boolean(props.moreOpen)} onClick={event => props.onMore?.(event.currentTarget.getBoundingClientRect())}><MoreHorizontal aria-hidden="true" /></button> : null}
           {props.onClose ? <button ref={props.closeRef} type="button" className="ga-wide-close" aria-label={t("uiCerrarDetalles")} onClick={props.onClose}><X aria-hidden="true" /></button> : null}
         </div>
       </div>
-      <div className="ga-wide-genre-line">
-        <span className="ga-wide-genre">{genreLabels(steam?.genres ?? props.game.genres).join(" · ")}</span>
-        <DetailPlayModes game={props.game} details={details} />
-        {hasTauriRuntime() && props.game.app_id ? <button className="ga-steam-refresh" type="button" title={t("uiActualizarDatosDeSteam")} aria-label={t("uiActualizarDatosDeSteam")} disabled={!details || detailState.refreshingSteam} onClick={() => void detailState.refreshSteam()}><RotateCw className={detailState.refreshingSteam ? "is-refreshing" : undefined} aria-hidden="true" /></button> : null}
-      </div>
-      <dl className="ga-wide-edition">
-        <div><dt>{t("factDeveloper")}</dt><dd>{developers}</dd></div>
-        <div><dt>{t("factRelease")}</dt><dd>{release}</dd></div>
-        <div><dt>{t("factSize")}</dt><dd>{installSize}</dd></div>
-        <div><dt>{t("factPlatforms")}</dt><dd>{platforms(details)}</dd></div>
-      </dl>
-    </header>
-    <div className="ga-wide-body">
-      <nav className="ga-wide-tabs" role="tablist" aria-label={t("uiInformacionDelJuego")} aria-orientation="horizontal">
-        {tabs.map(tab => <button key={tab.id} type="button" role="tab" id={`ga-detail-tab-${tab.id}`} aria-selected={section === tab.id} aria-controls="ga-detail-pane" onClick={() => setSection(tab.id)}>
-          {tab.label}{typeof tab.count === "number" ? <span className="ga-wide-tab-count">{tab.count}</span> : null}
-        </button>)}
-      </nav>
-      <div className="ga-wide-pane-frame">
-        <div ref={paneRef} className="ga-wide-pane" role="tabpanel" id="ga-detail-pane" aria-labelledby={`ga-detail-tab-${section}`}>
-          {section === "description" ? <>
-            <section className="ga-wide-sec">
-              <p className="ga-detail-lead">{description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"))}</p>
-              {detailState.loading ? <span role="status">{t("uiCargandoFichaDeSteam")}</span> : null}
-              <ActiveDownloadFacts download={props.download} />
-              {props.game.tags?.length ? <><h3 className="ga-wide-sec-title">{t("uiEtiquetas")}</h3><div className="ga-detail-tags">{props.game.tags.map(tag => <span key={tag}>{tag}</span>)}</div></> : null}
-            </section>
-            {about ? <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiAcercaDelJuego")}</h3><SteamRichText html={about} /></section> : null}
-            <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiMasInformacion")}</h3><SteamFacts details={details} game={props.game} edition={false} /></section>
-            {steam?.minimum_requirements || steam?.recommended_requirements ? <section className="ga-wide-sec"><h3 className="ga-wide-sec-title">{t("uiRequisitosDelJuego")}</h3>
-              <div className="ga-wide-requirements">{steam?.minimum_requirements ? <div><h4 className="ga-wide-sub-title">{t("uiRequisitosMinimos")}</h4><SteamRichText html={steam.minimum_requirements} /></div> : null}
-                {steam?.recommended_requirements ? <div><h4 className="ga-wide-sub-title">{t("uiRequisitosRecomendados")}</h4><SteamRichText html={steam.recommended_requirements} /></div> : null}</div>
-            </section> : null}
-          </> : null}
-          {section === "ai" ? <AiReasonPanel game={props.game} /> : null}
-          {section === "coop" ? coopLoading ? <span role="status"><Loader2 className="spin" />{t("uiConsultandoCooperativo")}</span> : coop ? <CoopFacts data={coop} es={localeTag.startsWith("es")} /> : null : null}
-          {section === "downloads" ? sources === null ? <span role="status"><Loader2 className="spin" />{t("sourcesChecking")}</span>
-            : <div className="ga-wide-source-list">{sources.map((source, index) => <div key={source.url} className={index === 0 ? "is-best" : ""}><strong>{source.title}</strong><span>{source.sourceName} · {source.size || t("downloadsSizeUnknown")}</span></div>)}</div> : null}
+      <div className="ga-sheet-info">
+        <header className="ga-sheet-hero">
+          {developer ? <p className="ga-sheet-maker">{developer}</p> : null}
+          <GameLogo appId={props.game.app_id} name={props.game.name} titleRef={titleRef} />
+        </header>
+        <div className="ga-sheet-summary">
+          <DetailPlayModes game={props.game} details={details} lead={inLibrary ? <span className="ga-sheet-owned"><Check aria-hidden="true" />{t("detailSheetInLibrary")}</span> : null} />
+          {genres.length || year ? <p className="ga-sheet-genres">{[...genres.slice(0, 3), year].filter(Boolean).join(" · ")}</p> : null}
+          <p className="ga-sheet-lead">{description || (detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable"))}</p>
         </div>
-        <CircularScrollbar targetRef={paneRef} label={t("uiDesplazarInformacionDelJuego")} />
+        <div className="ga-sheet-rating">
+          {score != null ? <SheetScore value={score} percent label={rated.steam_review_count ? t("detailSheetSteamScoreCount", { count: new Intl.NumberFormat(localeTag).format(rated.steam_review_count) }) : t("detailSheetSteamScore")} source="steam" />
+            : metacritic != null ? <SheetScore value={metacritic} percent={false} label={t("detailSheetMetascore")} source="metacritic" /> : null}
+          {score != null && metacritic != null ? (criticUrl
+            ? <a className="ga-sheet-critic" href={criticUrl} target="_blank" rel="noopener noreferrer" title={t("detailSheetCriticOpen")}>{t("detailSheetCritic", { score: metacritic })}<ExternalLink aria-hidden="true" /></a>
+            : <span className="ga-sheet-critic">{t("detailSheetCritic", { score: metacritic })}</span>) : null}
+          <p className="ga-sheet-played"><Clock aria-hidden="true" />{since ? t("detailSheetPlayedOn", { when: since }) : t("detailSheetNeverPlayed")}</p>
+        </div>
+        <div ref={actionsRef} className="ga-wide-actions"><ActionButtons {...props} pad downloadsTab={downloadsTab} />
+          <GaPadButton {...PAD_INK} toggle lit={props.preference === 1} label={t("uiMeGusta")} icon={<ThumbsUp fill="currentColor" />} onClick={() => props.onPreference(1)} />
+          <GaPadButton {...PAD_INK} toggle lit={props.preference === -1} label={t("uiNoMeGusta")} icon={<ThumbsDown fill="currentColor" />} onClick={() => props.onPreference(-1)} />
+          {canAskAi ? <GaPadButton {...PAD_INK} toggle lit={showAi} label={t("detailSheetConsultAi")} icon={<Sparkles />}
+            aria-expanded={showAi} aria-controls={showAi ? aiPanelId : undefined} onClick={() => setAiOpen(open => !open)}>{t("detailSheetConsultAi")}</GaPadButton> : null}
+        </div>
+      </div>
+      <section className="ga-sheet-media ga-wide-media" aria-label={t("uiVideosYCapturas")}><DesktopDetailMedia game={props.game} details={details} shots={6} /></section>
+      <div className="ga-sheet-panels">
+        <SheetPanel icon={<FileText />} title={t("detailSheetDescription")} className="is-description"
+          action={<button type="button" className="ga-sheet-fold" aria-expanded={reading} aria-label={reading ? t("detailSheetReadLess") : t("detailSheetReadMore")} title={reading ? t("detailSheetReadLess") : t("detailSheetReadMore")} onClick={() => { const stage = stageRef.current?.querySelector<HTMLElement>(".ga-sheet-stage"); if (!reading && stage) stageRef.current?.style.setProperty("--ga-sheet-stage-h", `${stage.offsetHeight}px`); setReading(open => !open); }}>{reading ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}>
+          {about ? <SteamRichText html={about} /> : <p className="ga-sheet-copy">{detailState.loading ? t("descriptionLoading") : t("descriptionUnavailable")}</p>}
+        </SheetPanel>
+        <SheetPanel icon={requirements ? <Cpu /> : <Tags />} title={requirementsLabel} className="is-list">
+          {related.length && props.onOpenGame ? <GaTabs label={requirementsLabel} tabs={[
+            { id: "requirements", label: requirementsLabel, content: requirementsContent },
+            { id: "related", label: t("detailSheetRelated"), content: <RelatedGames picks={related} onOpenGame={props.onOpenGame} /> },
+          ]} /> : requirementsContent}
+        </SheetPanel>
+        <SheetPanel icon={<Info />} title={t("detailTabDetails")}>
+          {coop ? <GaTabs label={t("detailTabDetails")} tabs={[
+            { id: "details", label: t("detailTabDetails"), content: detailsContent },
+            { id: "coop", label: t("detailTabCoop"), content: <CoopFacts data={coop} es={localeTag.startsWith("es")} /> },
+          ]} /> : detailsContent}
+        </SheetPanel>
       </div>
     </div>
-    <aside className="ga-wide-side" aria-label={t("uiVideosYCapturas")}>
-      <div className="ga-wide-media"><DesktopDetailMedia game={props.game} details={details} /></div>
-      <RatingGauge score={score} count={rated.steam_review_count} recommendations={steam?.recommendation_count ?? props.game.recommendation_count} metacritic={steam?.metacritic?.score ?? props.game.metacritic_score} />
-    </aside>
-    <div ref={actionsRef} className="ga-wide-actions"><ActionButtons {...props} />
-      <button type="button" className="ga-favorite" aria-label={t("uiMeGusta")} aria-pressed={props.preference === 1} onClick={() => props.onPreference(1)}><ThumbsUp fill="currentColor" aria-hidden="true" /></button>
-      <button type="button" className="ga-favorite" aria-label={t("uiNoMeGusta")} aria-pressed={props.preference === -1} onClick={() => props.onPreference(-1)}><ThumbsDown fill="currentColor" aria-hidden="true" /></button>
-    </div>
-    {entry && (plays || since) ? <p className="ga-wide-played">{plays ? <b>{t("detailPlays", { count: plays.toLocaleString(localeTag) })}</b> : null}{plays && since ? <span aria-hidden="true">·</span> : null}{since ? t("detailLastPlayed", { when: since }) : null}</p> : null}
+    {extras ? <aside className={showAi ? "ga-sheet-extras is-ai-open" : "ga-sheet-extras"} id={showAi ? aiPanelId : undefined} aria-label={t("detailSheetExtras")}>
+      {showAi ? <SheetPanel icon={<Sparkles />} title={t("detailSheetConsultAi")} className="is-ai"
+        action={showDownloads ? <GaButton onClick={() => setAiOpen(false)}>{t("downloadsTitle")}</GaButton> : undefined}>
+        {aiSeen ? <AiReasonPanel game={props.game} /> : null}
+        <AskDetailAi game={props.game} similar={similar} canShowRelated={Boolean(props.onOpenGame)} />
+      </SheetPanel> : null}
+      {showDownloads ? <div hidden={showAi}><SheetPanel panelRef={downloadsRef} icon={<Download />} title={t("downloadsTitle")}><DetailDownloads game={props.game} sources={sources} compact /></SheetPanel></div> : null}
+    </aside> : null}
   </article>;
 }

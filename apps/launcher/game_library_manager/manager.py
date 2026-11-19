@@ -18,6 +18,7 @@ from pathlib import Path
 import game_journal as journal
 from atomic_json import write_json
 from .freeze_control import FreezeBusy, FreezeCancelled, holder as freeze_holder
+from .mover import staging_of
 import app_log
 from game_execution_manager import GameExecutionManager
 from disk_space import allocated_size, check_download, check_space, disk_info, folder_size
@@ -457,15 +458,27 @@ class GameLibraryManager:
     def check_space(self, download_bytes: int, app_id: int = 0, name: str = "") -> dict:
         """Can this download and its unpacking fit? Called before any download starts. With the game's AppID, what an
         unfinished download of it already has on disk counts: resuming 94 of 104 GB needs room for the rest only."""
-        temporary = Path(self.storage.preferences.load()["temporary_root"])
-        transfer = self.storage.transfer_folder(int(app_id), name) if app_id else None
-        if transfer is not None and transfer.is_dir():
-            on_disk = allocated_size(transfer)
-            room = check_download(download_bytes, on_disk, self.storage.root, temporary)
+        # Which disks this download and its install go to (storage.plan_placement): the fastest allowed disk with room.
+        # A download that already began stays where it is, and only what is left of it counts.
+        began = self.storage.transfer_folder(int(app_id), name) if app_id else None
+        began = began if began is not None and began.is_dir() else None
+        on_disk = allocated_size(began) if began is not None else 0
+        plan = self.storage.plan_placement(int(app_id or 0), download_bytes, download_left=int(download_bytes) - on_disk,
+                                           download_at=began.parent if began is not None else None)
+        if not plan["install"] or not plan["download"]:
+            # No allowed disk takes it and keeps its reserve free (storage.keep_free): nothing starts.
+            role = "instalar" if not plan["install"] else "descargar"
+            message = (f"Ningún disco habilitado para {role} tiene lugar para este juego dejando libre su reserva. "
+                       f"Liberá espacio o habilitá otro disco en Espacio.")
+            self.log.warning("Download refused (%s bytes): %s", download_bytes, message)
+            return {"ok": False, "needed_bytes": int(download_bytes), "free_bytes": 0, "message": message}
+        games, temporary = Path(plan["install"]), Path(plan["download"])
+        if began is not None:
+            room = check_download(download_bytes, on_disk, games, began.parent)
             self.log.info("Space for AppID %s: %s bytes, %s already on disk; %s", app_id, download_bytes, on_disk,
                           "fits" if room["ok"] else "does not fit")
         else:
-            room = check_space(download_bytes, self.storage.root, temporary)
+            room = check_space(download_bytes, games, temporary)
         if not room["ok"]:
             self.log.warning("Download refused (%s bytes): %s", download_bytes, room["message"])
         return room
@@ -481,7 +494,7 @@ class GameLibraryManager:
     def import_scan(self, drives: list[str], progress=lambda text: None, folders: list[str] = (), report=None) -> list[dict]:
         """Games found on the chosen disks and in the folders the player added that are not in the library yet."""
         known = [g["app_id"] for g in self.list_games(with_sizes=False) if g["app_id"] is not None]
-        exclude = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"])]
+        exclude = [*self.storage.roots, *self.storage.temporary_roots()]
         return GameScanner(exclude=exclude, known_app_ids=known, progress=progress, report=report).scan(drives, list(folders))
 
     def relocate_plan(self, target: str) -> dict:
@@ -551,7 +564,7 @@ class GameLibraryManager:
                 return self._linked_move(app_id, record, folder, resume=action == "linked_move_resume")
             if action == "linked_move_discard":
                 return self._discard_move(app_id)
-            keep = [*self.storage.roots, Path(self.storage.preferences.load()["temporary_root"]), self.storage.launcher,
+            keep = [*self.storage.roots, *self.storage.temporary_roots(), self.storage.launcher,
                     *(Path(r["path"]) for r in self.storage.linked.all() if int(r["app_id"]) != int(app_id))]
             reason = deletable_reason(folder, keep)
             if reason:
@@ -571,7 +584,7 @@ class GameLibraryManager:
         except (OSError, ValueError):
             return None
         target = Path(state.get("target") or "")
-        if state.get("action") != "move" or not state.get("resumable") or not state.get("target") or not target.is_dir():
+        if state.get("action") != "move" or not state.get("resumable") or not state.get("target") or not (target.is_dir() or staging_of(target).is_dir()):
             return None
         return {"percent": float(state.get("percent") or 0), "target": str(target), "bytes": int(state.get("done_bytes") or 0)}
 
@@ -584,7 +597,7 @@ class GameLibraryManager:
         inside = any(target.resolve().parent == root.resolve() for root in self.storage.roots)
         if not inside or not target.name.startswith(f"{int(app_id)}-"):
             return {"ok": False, "error": "La copia a medias no está en la carpeta de juegos."}
-        shutil.rmtree(target)
+        shutil.rmtree(staging_of(target) if staging_of(target).is_dir() else target)
         path = self.freezer.records / f"{int(app_id)}.progress.json"
         state = json.loads(path.read_text(encoding="utf-8"))
         state.update(resumable=False, discarded=True)
@@ -604,7 +617,7 @@ class GameLibraryManager:
         except FreezeBusy as error:
             return {"ok": False, "error": str(error)}
         progress = self.freezer._progress(app_id, "move", folder)
-        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        target = self.storage.install_root() / f"{int(app_id)}-{self.storage.folder_name(name)}"
         # What a later start needs to put a move cut short right (GameFreezer.recover).
         progress.state.update(source=str(folder), target=str(target), name=name, executable=executable)
         started = time.time()
@@ -625,7 +638,7 @@ class GameLibraryManager:
         except (OSError, ValueError, RuntimeError) as error:
             relink()
             # What was copied stays for a later "Continue" (pending_move), unless nothing was.
-            progress.state["resumable"] = target.is_dir() and folder.is_dir()
+            progress.state["resumable"] = (target.is_dir() or staging_of(target).is_dir()) and folder.is_dir()
             progress.finish(False, error=str(error))
             journal.note(log, "move", f"no se pudo mover: {error}")
             raise

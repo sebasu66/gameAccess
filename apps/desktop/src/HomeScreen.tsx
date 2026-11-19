@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { House, Sparkles } from "lucide-react";
+import { Check, House, Sparkles } from "lucide-react";
 import AccountCard from "./AccountCard";
 import AiPicks from "./AiPicks";
 import { ACTIVATION_CHANGED_EVENT, getActivationTier } from "./activation";
@@ -18,6 +18,17 @@ import { OPEN_PREMIUM_EVENT } from "./PremiumEntry";
 import { OPEN_RELEASE_NOTES_EVENT, takePendingReleaseNotes, useReleaseNotes } from "./releaseNotes";
 import type { CatalogGame } from "./types";
 import "./home-screen.css";
+import { GaSliceCard, type SliceArt } from "./components/ga/SliceCard";
+import baseHead from "./assets/plans/plan-card-base-head.webp";
+import basicHead from "./assets/plans/plan-card-basic-head.webp";
+import baseBody from "./assets/plans/plan-card-base-body.webp";
+import baseFoot from "./assets/plans/plan-card-base-foot.webp";
+import plusHead from "./assets/plans/plan-card-plus-head.webp";
+import plusBody from "./assets/plans/plan-card-plus-body.webp";
+import plusFoot from "./assets/plans/plan-card-plus-foot.webp";
+
+// In English the free plan is BASIC: its card keeps the body and footer, with its own header.
+const PLAN_ART: Record<"base" | "basic" | "plus", SliceArt> = { base: { head: baseHead, body: baseBody, foot: baseFoot }, basic: { head: basicHead, body: baseBody, foot: baseFoot }, plus: { head: plusHead, body: plusBody, foot: plusFoot } };
 
 const subscribeTier = (listener: () => void) => {
   window.addEventListener(ACTIVATION_CHANGED_EVENT, listener);
@@ -79,13 +90,22 @@ function Home({ games, onOpenGame }: { games: CatalogGame[]; onOpenGame: (game: 
         <h3 id="ga-home-changes-title" className="ga-home-card-title">{t("homeChangesTitle", { version: notes.version })}</h3>
         <div className="ga-home-changes-body ga-stack"><AnnouncementBody text={notes.changes.map(line => `- ${line}`).join("\n")} /></div>
       </section> : null}
-      {inSubscription("plan") ? <section className={tier ? "ga-home-card ga-home-plus is-on" : "ga-home-card ga-home-plus"} aria-labelledby="ga-home-plus-title">
-        <div className="ga-stack">
-          <h3 id="ga-home-plus-title" className="ga-home-card-title"><Sparkles size={20} aria-hidden="true" />{t(tier ? "homePlusOnTitle" : "homeBaseTitle")}</h3>
-          <p>{t(tier ? "homePlusOnText" : "homeBaseText")}</p>
-        </div>
-        {tier ? null : <GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("homeActivatePlus")}</GaButton>}
-      </section> : null}
+      {/* Subscription › Plan: the two plans side by side on their cards of art (§4.41), the one in use marked. */}
+      {inSubscription("plan") ? <div className="ga-plan-cards">
+        <GaSliceCard className={`ga-plan-card is-base${tier ? "" : " is-current"}`} art={locale === "en" ? PLAN_ART.basic : PLAN_ART.base} title={t("navPlanBase")} titleId="ga-plan-base-title"
+          footer={tier ? null : <span className="ga-plan-current">{t("planCurrent")}</span>}>
+          <p className="ga-plan-lead">{t("planBaseLead")}</p>
+          <ul className="ga-plan-list">{(["planBase1", "planBase2", "planBase3", "planBase4", "planBase5", "planBase6", "planBase7", "planBase8", "planBase9"] as const).map(key => <li key={key}><Check size={18} aria-hidden="true" />{t(key)}</li>)}</ul>
+          <p className="ga-hint">{t("planBasePendingSources")}</p>
+        </GaSliceCard>
+        <GaSliceCard className={`ga-plan-card is-plus${tier ? " is-current" : ""}`} art={PLAN_ART.plus} title={t("navPlanPlus")} titleId="ga-plan-plus-title"
+          footer={tier ? <span className="ga-plan-current">{t("planCurrent")}</span>
+            : <GaButton variant="primary" icon={<Sparkles size={16} aria-hidden="true" />} onClick={() => window.dispatchEvent(new Event(OPEN_PREMIUM_EVENT))}>{t("homeActivatePlus")}</GaButton>}>
+          <p className="ga-plan-lead">{t("planPlusLead")}</p>
+          <ul className="ga-plan-list">{(["planPlus1", "planPlus2", "planPlus3", "planPlus4", "planPlus5", "planPlus6", "planPlus7", "planPlus8", "planPlus9"] as const).map(key => <li key={key}><Check size={18} aria-hidden="true" />{t(key)}</li>)}</ul>
+          <p className="ga-hint">{t("planPlusPendingOptimization")}</p>
+        </GaSliceCard>
+      </div> : null}
       {newShell ? null : <AiPicks onOpenGame={game => { setAppScreen("games"); onOpenGame(game); }} />}
       {inSubscription("account") ? <AccountCard /> : null}
       {newShell && chosen === "news" && newsTab === "announcements" ? <section className="ga-home-card" aria-labelledby="ga-home-news-title">

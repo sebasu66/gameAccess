@@ -3,6 +3,74 @@
   "_help": "What changed in each version, for the card at the top of Home (releaseNotes.ts). Ships inside the app, so the notes always match the installed version. Newest first; one short line per change, in the player's words. Add the new version's entry in the same commit that raises the version.",
   "versions": [
     {
+      "version": "0.5.0",
+      "date": "2026-11-17",
+      "changes": {
+        "es": [
+          "**Instalar un juego de Steam abre solo Steam**: si cancelás ahí, no queda una descarga colgada en Game Access.",
+          "**Ordenar la grilla del gestor de biblioteca** ya no tilda la app cuando un juego tiene más de una carpeta."
+        ],
+        "en": [
+          "**Installing a Steam game opens only Steam**: cancel there and no stuck download is left in Game Access.",
+          "**Sorting the Library Manager grid** no longer freezes the app when a game has more than one folder."
+        ]
+      }
+    },
+    {
+      "version": "0.4.0",
+      "date": "2026-11-17",
+      "changes": {
+        "es": [
+          "**Ficha más clara**: el botón principal es Jugar o Instalar desde tu Steam; las descargas, la co-op y la IA quedan en la columna de la derecha.",
+          "**Puntaje de Steam primero**, con el enlace a Metacritic; los modos de juego y si está en tu biblioteca, bajo el logo.",
+          "**Descripción que se agranda** con la flecha, sin tapar el resto; la ficha se ve bien en pantallas ultrawide.",
+          "**Cerrar Game Access lo cierra del todo**: ya se puede volver a abrir enseguida, y los plugins se detienen al salir."
+        ],
+        "en": [
+          "**A clearer game card**: the main button is Play or Install from your Steam; downloads, co-op and the AI sit in the right column.",
+          "**Steam score first**, with the Metacritic link; play modes and whether it is in your library, under the logo.",
+          "**A description that grows** with the arrow, without covering the rest; the card looks right on ultrawide screens.",
+          "**Closing Game Access closes it for good**: you can open it again right away, and plugins stop when you leave."
+        ]
+      }
+    },
+    {
+      "version": "0.3.0",
+      "date": "2026-11-17",
+      "changes": {
+        "es": [
+          "**Ficha de juego como expediente**: el arte del juego, su logo, el puntaje con una barra de color y los paneles de descripción, requisitos y detalles.",
+          "**Preguntarle a la IA** desde la ficha: juegos parecidos a este y si se parece a otros que jugaste.",
+          "**Capturas a pantalla completa** con un clic, igual que el tráiler.",
+          "**Teclas nuevas** en la ficha, con más relieve."
+        ],
+        "en": [
+          "**The game card as a file**: the game's art, its logo, the score with a coloured bar and panels for the description, requirements and details.",
+          "**Ask the AI** from the game card: games like this one, and whether it is like others you played.",
+          "**Screenshots full screen** with one click, like the trailer.",
+          "**New keys** on the game card, with more depth."
+        ]
+      }
+    },
+    {
+      "version": "0.2.0",
+      "date": "2026-11-16",
+      "changes": {
+        "es": [
+          "**Mazos por género** en la librería: pasá el cursor y ves la lista de juegos de cada mazo.",
+          "**Panel de Actividad** plegable, con lo que la app está haciendo en este momento.",
+          "**Ficha de juego** nueva, con un solo lugar para decidir de dónde descargar.",
+          "**Marca de tu plan** a la vista y avisos más claros cuando falla un link de Steam."
+        ],
+        "en": [
+          "**Genre decks** in the library: hover one to see the list of its games.",
+          "**Activity panel** that folds away and shows what the app is doing right now.",
+          "**New game card**, with one place to decide where to download from.",
+          "**Your plan's badge** in sight and clearer notices when a Steam link fails."
+        ]
+      }
+    },
+    {
       "version": "0.1.13",
       "date": "2026-11-05",
       "changes": {

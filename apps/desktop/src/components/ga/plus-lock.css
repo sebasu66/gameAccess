@@ -1,0 +1,13 @@
+/* The padlock over what BASE does not include (PlusLock.tsx, docs/GUI_DESIGN.md §4.48). Layout only: measures in
+   templates/base.css, colours in the flavor. It reads exactly as the navigation's lock: PLUS gold and the same
+   tooltip that rises on hover or when the control holding it takes focus. */
+.ga-plus-lock { position: relative; flex: none; display: grid; place-items: center; width: var(--ga-plus-lock-size); height: var(--ga-plus-lock-size);
+  color: var(--ga-plus-lock-ink); cursor: help; }
+.ga-plus-lock svg { width: 100%; height: 100%; }
+.ga-plus-lock::after { content: attr(data-tip); position: absolute; z-index: 5; bottom: calc(100% + var(--ga-plus-lock-tip-gap)); right: 0;
+  width: max-content; max-width: var(--ga-plus-lock-tip-w); transform: translate(0, var(--ga-plus-lock-tip-rise));
+  padding: var(--ga-plus-lock-tip-pad); border: var(--ga-nav-line-w) solid var(--ga-plus-lock-tip-line); border-radius: var(--ga-plus-lock-tip-radius);
+  background: var(--ga-plus-lock-tip-bg); color: var(--ga-plus-lock-tip-ink); font: var(--ga-hint-font); letter-spacing: normal; text-transform: none;
+  opacity: 0; pointer-events: none; transition: opacity .15s ease, transform .15s ease; }
+/* Se abre hacia la izquierda del candado: en una columna angosta, centrado se saldria del panel. */
+.ga-plus-lock:hover::after, :focus-visible > .ga-plus-lock::after, :focus-visible .ga-plus-lock::after { opacity: 1; transform: translate(0, 0); }

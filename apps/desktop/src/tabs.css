@@ -26,4 +26,6 @@
 .ga-tabs .ga-tab[aria-selected="true"] { background-image: linear-gradient(var(--ga-tab-lift), var(--ga-tab-lift)); border-color: #d79e60; color: #fff; }
 .ga-tabs .ga-tab:focus-visible { outline: 2px solid #d79e60; outline-offset: 2px; }
 .ga-tabs-panel { min-height: 0; }
-@media (prefers-reduced-motion: reduce) { .ga-tabs .ga-tab { transition: none; } }
+
+/* Una pestaña que es de PLUS: su candado al lado del nombre, alineados en su medio (§4.48). */
+.ga-tab[data-locked] { display: inline-flex; align-items: center; gap: var(--ga-nav-lock-inline-gap); }

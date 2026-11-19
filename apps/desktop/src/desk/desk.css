@@ -30,7 +30,7 @@ html body .ga-view-rail { left: var(--ga-desk-left, 0px); }
 .ga-desk-panel[data-mode="page"] .ga-desk-body { padding: 4px 32px 110px; }
 /* While a panel covers the screen the catalog behind it does not need to be drawn. */
 .ga-desk-paged .app-shell > main { visibility: hidden; }
-@media (prefers-reduced-motion: reduce) { .ga-desk-card { transition: none; } }
+
 /* One scrollbar look everywhere: the app's round handle (CircularScrollbar) instead of the native bar. */
 .ga-desk-frame { flex: 1; min-height: 0; }
 .ga-desk-frame > .ga-desk-body { height: 100%; box-sizing: border-box; scrollbar-width: none; }

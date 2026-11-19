@@ -44,9 +44,7 @@
 @keyframes ga-notice-timer { to { stroke-dashoffset: 0; } }
 @keyframes ga-notice-spin { to { transform: rotate(360deg); } }
 @keyframes ga-notice-sweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
-@media (prefers-reduced-motion: reduce) {
-  .ga-notice-steps li[data-state="running"] i, .ga-notice-progress[data-indeterminate] b { animation: none; }
-}
+
 /* A folded section (the log of a failed download): its text scrolls inside a fixed height. */
 .ga-notice-details { margin: -4px 0 0; font-size: 12.5px; color: #929ba2; }
 .ga-notice-details summary { cursor: pointer; width: max-content; color: #c9ced2; }

@@ -38,6 +38,4 @@
 .ga-scan-empty { margin: 0; padding: 18px 4px; font-size: 13px; color: #929ba2; }
 @keyframes ga-scan-found { from { opacity: 0; transform: translateY(8px); background: #cc833333; } to { opacity: 1; transform: none; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .ga-scan-platter, .ga-scan-arm, .ga-scan-led, .ga-scan-list li { animation: none; }
-}
+

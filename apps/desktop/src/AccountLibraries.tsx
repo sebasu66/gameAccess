@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, LogIn, RefreshCw, Trash2 } from "lucide-react";
 import { GaButton } from "./components/ga/Buttons";
-import { confirmNotice, hideNotice } from "./notice/notice";
+import { confirmNotice, hideNotice, showNotice } from "./notice/notice";
 import { useI18n, type TranslationKey } from "./i18n";
 import { linkSteamAccount, removeSteamAccount, steamStatus, syncSteamLibrary, type SteamLinkStatus, type SteamStatus } from "./steamLibrary";
 import { uiDemo } from "./devDemo/uiDemo";
@@ -34,7 +34,11 @@ export default function AccountLibraries() {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const load = () => steamStatus().then(setStatus).catch(failure => setSaid({ tone: "error", text: String(failure) }));
+  const [syncing, setSyncing] = useState(false);
+  const load = () => steamStatus().then(value => { setStatus(value); return value; }).catch(failure => { setSaid({ tone: "error", text: String(failure) }); return null; });
+  const count = (value: number | undefined) => (value ?? 0).toLocaleString(locale === "es" ? "es-AR" : "en-US");
+  /** Seba, 2026-11-17: every press says what it is doing and how it ended, with the games it brought. */
+  const syncingNotice = () => { setSyncing(true); showNotice({ title: t("acctSyncing"), tone: "info", progress: null, activity: false }); };
   useEffect(() => { if (native) void load(); return () => abort.current?.abort(); }, [native]);
 
   const LINK_SAID: Record<Exclude<SteamLinkStatus, "pending">, { tone: "ok" | "warn" | "error"; key: TranslationKey }> = {
@@ -56,13 +60,28 @@ export default function AccountLibraries() {
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
+    const before = status;
     setLinking(who); setSaid(null);
     try {
-      const outcome = await linkSteamAccount({ signal: controller.signal });
-      if (outcome !== "pending") setSaid({ tone: LINK_SAID[outcome].tone, text: t(LINK_SAID[outcome].key) });
-      await load();
-    } catch (failure) { setSaid({ tone: "error", text: failureText(failure) }); }
-    finally { if (abort.current === controller) { abort.current = null; setLinking(null); } }
+      let reached = false;
+      const outcome = await linkSteamAccount({ signal: controller.signal, onSyncing: () => { reached = true; syncingNotice(); } });
+      const after = await load();
+      if (outcome === "done" && after) {
+        const known = new Set((before?.accounts ?? []).map(account => account.steam_id64));
+        const added = after.accounts.find(account => !known.has(account.steam_id64)) ?? after.accounts.find(account => account.active) ?? after.accounts[0];
+        const text = t("acctLinkDoneCount", { name: added ? (added.persona_name || added.account_name || added.steam_id64) : "Steam",
+          owned: count(added?.owned_count), installed: count(added?.installed_count), added: count(Math.max(0, (after.owned_count ?? 0) - (before?.owned_count ?? 0))) });
+        setSaid({ tone: "ok", text });
+        showNotice({ title: t("acctLinkDoneTitle"), text, tone: "ok" });
+      } else if (outcome !== "pending") {
+        setSaid({ tone: LINK_SAID[outcome].tone, text: t(LINK_SAID[outcome].key) });
+        if (reached || outcome === "failed" || outcome === "expired") showNotice({ title: t(LINK_SAID[outcome].key), tone: outcome === "failed" ? "error" : "info" });
+      }
+    } catch (failure) {
+      const text = failureText(failure);
+      setSaid({ tone: "error", text });
+      showNotice({ title: t("acctSyncFailedTitle"), text, tone: "error" });
+    } finally { setSyncing(false); if (abort.current === controller) { abort.current = null; setLinking(null); } }
   };
   const cancel = () => { abort.current?.abort(); abort.current = null; setLinking(null); };
   const remove = async (id64: string, name: string) => {
@@ -75,10 +94,20 @@ export default function AccountLibraries() {
     finally { setBusy(false); }
   };
   const syncNow = async () => {
-    setBusy(true); setSaid(null);
-    try { await syncSteamLibrary([], { refresh: true }); await load(); setSaid({ tone: "ok", text: t("acctSynced") }); }
-    catch (failure) { setSaid({ tone: "error", text: String(failure instanceof Error ? failure.message : failure) }); }
-    finally { setBusy(false); }
+    const before = status;
+    setBusy(true); setSaid(null); syncingNotice();
+    try {
+      await syncSteamLibrary([], { refresh: true });
+      const after = await load();
+      const added = Math.max(0, (after?.owned_count ?? 0) - (before?.owned_count ?? 0));
+      const text = t(added ? "acctSyncedNew" : "acctSyncedSame", { owned: count(after?.owned_count), added: count(added) });
+      setSaid({ tone: "ok", text });
+      showNotice({ title: t("acctSyncedTitle"), text, tone: "ok" });
+    } catch (failure) {
+      const text = String(failure instanceof Error ? failure.message : failure);
+      setSaid({ tone: "error", text });
+      showNotice({ title: t("acctSyncFailedTitle"), text, tone: "error" });
+    } finally { setBusy(false); setSyncing(false); }
   };
 
   const accounts = status?.accounts ?? [];
@@ -94,13 +123,14 @@ export default function AccountLibraries() {
         </div>
         <div className="ga-account-actions">
           {accounts.length ? <GaButton disabled={busy || linking !== null || !native} icon={<RefreshCw size={16} aria-hidden="true" />} onClick={() => void syncNow()}>{t("acctSyncNow")}</GaButton> : null}
-          <GaButton variant="primary" disabled={linking !== null || !native} icon={<LogIn size={16} aria-hidden="true" />} onClick={() => void link()}>{t("acctSteamLink")}</GaButton>
+          <GaButton variant="primary" disabled={linking !== null || !native} icon={<LogIn size={16} aria-hidden="true" />} onClick={() => void link()}>{accounts.length ? t("acctSteamLinkAnother") : t("acctSteamLink")}</GaButton>
         </div>
       </div>
       {linking !== null ? <div className="ga-account-waiting">
-        <p role="status" className="ga-status"><Loader2 size={16} className="animate-spin" aria-hidden="true" />{linking ? t("acctWaitingFor", { name: linking }) : t("acctWaiting")}</p>
+        <p role="status" className="ga-status"><Loader2 size={16} className="animate-spin" aria-hidden="true" />{syncing ? t("acctSyncing") : linking ? t("acctWaitingFor", { name: linking }) : t("acctWaiting")}</p>
         <GaButton onClick={cancel}>{t("noticeCancel")}</GaButton>
       </div> : null}
+      {busy && syncing && linking === null ? <p role="status" className="ga-status"><Loader2 size={16} className="animate-spin" aria-hidden="true" />{t("acctSyncing")}</p> : null}
       {said ? <p role="status" className={`ga-status is-${said.tone}`}>{said.text}</p> : null}
       {accounts.length ? <ul className="ga-account-list">
         {accounts.map(account => {

@@ -32,4 +32,4 @@
 .gs-keypad-forgot { padding: 4px 8px; border: 0; background: none; color: #9aa3aa; font: 600 12px Manrope, "Segoe UI", sans-serif; text-decoration: underline; cursor: pointer; }
 .gs-keypad-forgot:hover:not(:disabled), .gs-keypad-forgot:focus-visible { color: var(--ga-white, #f4f4f2); }
 
-@media (prefers-reduced-motion: reduce) { .gs-keypad, .gs-lcd-dots i { animation: none; } }
+

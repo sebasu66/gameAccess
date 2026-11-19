@@ -34,8 +34,6 @@ export const NAVIGATION = [
         { id: "accounts", label: "navAccounts" },
         { id: "space", label: "navSpace" },
         { id: "freeze", label: "navFreeze" },
-        { id: "move", label: "navMove" },
-        { id: "import", label: "navImport" },
       ] },
     ],
   },

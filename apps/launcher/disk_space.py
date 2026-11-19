@@ -73,18 +73,22 @@ def disk_info(path: Path) -> dict:
 
 
 def check_space(download_bytes: int, games_root: Path, temporary_root: Path, factor: float = EXTRACTION_FACTOR) -> dict:
-    """Can `download_bytes` be downloaded and unpacked? Checks every disk that will be written."""
-    needed = int(download_bytes * factor) + SAFETY_MARGIN
-    disks = {}
-    for label, path in (("juegos", games_root), ("descargas", temporary_root)):
+    """Can `download_bytes` be downloaded and unpacked? Each disk is asked only for what lands on it (Seba,
+    2026-11-18): the download in the temporary folder, the unpacked game (`factor` - 1 times it, at least once) in the
+    games folder; on one disk both add up. `factor` 1 is a game moved in as it is: only the games folder is written."""
+    size = int(download_bytes)
+    wanted: dict[str, list] = {}
+    pieces = (("descargas", temporary_root, size if factor > 1 else 0), ("juegos", games_root, int(size * max(1.0, factor - 1))))
+    for label, path, bytes_ in pieces:
         resolved = Path(path).resolve()
-        disks.setdefault(os.path.splitdrive(str(resolved))[0] or str(resolved.anchor), (label, disk_info(path)["disk_free_bytes"]))
-    short = [(label, free) for label, free in disks.values() if free < needed]
-    if short:
-        label, free = short[0]
-        return {"ok": False, "needed_bytes": needed, "free_bytes": free,
-                "message": f"No hay espacio para descargar y descomprimir este juego: hacen falta {needed / GIB:.1f} GB libres en la carpeta de {label} y hay {free / GIB:.1f} GB."}
-    return {"ok": True, "needed_bytes": needed, "free_bytes": min(free for _, free in disks.values()), "message": ""}
+        drive = os.path.splitdrive(str(resolved))[0] or str(resolved.anchor)
+        entry = wanted.setdefault(drive, [label, disk_info(path)["disk_free_bytes"], SAFETY_MARGIN])
+        entry[2] += bytes_
+    for label, free, needed in wanted.values():
+        if free < needed:
+            return {"ok": False, "needed_bytes": needed, "free_bytes": free,
+                    "message": f"No hay espacio para descargar y descomprimir este juego: hacen falta {needed / GIB:.1f} GB libres en la carpeta de {label} y hay {free / GIB:.1f} GB."}
+    return {"ok": True, "needed_bytes": max(entry[2] for entry in wanted.values()), "free_bytes": min(entry[1] for entry in wanted.values()), "message": ""}
 
 
 def check_download(total_bytes: int, on_disk_bytes: int, games_root: Path, temporary_root: Path) -> dict:

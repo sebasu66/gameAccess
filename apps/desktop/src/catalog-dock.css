@@ -34,7 +34,7 @@ html body .library-catalog-tabs > button.ga-view-toggle:not(#_):is(:hover, :focu
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_):hover { filter: brightness(1.06); }
 html body .library-catalog-tabs > button.ga-view-toggle:not(#_):focus-visible { outline: 2px solid #f4f4f2; outline-offset: 3px; }
 @keyframes ga-view-toggle-in { from { opacity: 0; transform: translateY(8px); } }
-@media (prefers-reduced-motion: reduce) { html body .library-catalog-tabs > button.ga-view-toggle:not(#_)::before, html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face { animation: none; } html body .library-catalog-tabs > button.ga-view-toggle:not(#_) .ga-view-toggle-face > span { transition: none; } }
+
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button { background: #242d32d9 !important; border: 1px solid #ffffff2c !important; color: #f4f4f2 !important; box-shadow: 0 10px 30px #0007 !important; text-shadow: none; backdrop-filter: blur(28px); }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button:hover { background: #2e383ee6 !important; }
 html body:not(.ga-pixel-field-on) .library-catalog-tabs > button.ga-led-button[aria-selected="true"] { background: #cc8333 !important; border-color: #cc8333 !important; color: #140a02 !important; box-shadow: 0 10px 30px #cc833355 !important; }
@@ -116,7 +116,7 @@ html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):focus-within { border-color: var(--ga-orange) !important; }
 html body:not(.ga-pixel-field-on) .library-catalog-toolbar .global-search:not(#_):not(:hover):not(:focus-within):has(input:placeholder-shown) { background: #20282c73; box-shadow: none; }
 /* The library manager in the grid's place: it spans the whole row of covers and keeps the desk panel's heading. */
-.library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.library-room-grid > .ga-manager-view { grid-column: 1 / -1; min-width: 0; width: 100%; font-family: var(--ga-text-family); }
 .ga-manager-view > .ga-desk-head { padding: 8px 0 20px; }
 /* The manager is not held to the covers' width: the central frame (the box that holds the catalog, the library or the
    manager, with the round scrollbar on its right edge) takes a bit of the free margins, most of the right one and a
@@ -139,4 +139,4 @@ html:not(.ga-desk-right-open) .library-room:not(.surface-display):not(.surface-t
 .ga-grid-toolbar .ga-catalog-refresh { margin-right: auto; }
 .ga-catalog-refresh:disabled { cursor: wait; opacity: .55; }
 .ga-catalog-refresh[aria-busy="true"] svg { animation: ga-download-spin 1.5s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .ga-catalog-refresh[aria-busy="true"] svg { animation: none; } }
+

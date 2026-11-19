@@ -1,0 +1,13 @@
+/* TEMPLATE: the on/off switch (Switch.tsx, docs/GUI_DESIGN.md §4.39). Layout only: sizes are --ga-switch-* in
+   templates/base.css, colours and the font in the flavor. */
+.ga-switch { display: inline-flex; align-items: center; gap: var(--ga-switch-gap); min-height: var(--ga-control-h); padding: 0 var(--ga-space-1); border: 0; border-radius: var(--ga-radius-m); background: none; color: var(--ga-switch-ink); font: var(--ga-switch-font); letter-spacing: var(--ga-switch-track-spacing); text-transform: uppercase; cursor: pointer; }
+.ga-switch-track { position: relative; flex: none; width: var(--ga-switch-w); height: var(--ga-switch-h); border: var(--ga-nav-line-w) solid var(--ga-switch-line); border-radius: var(--ga-switch-h); background: var(--ga-switch-off); transition: background var(--ga-switch-time), border-color var(--ga-switch-time), box-shadow var(--ga-switch-time); }
+.ga-switch-thumb { position: absolute; top: 50%; left: var(--ga-switch-inset); width: var(--ga-switch-thumb); height: var(--ga-switch-thumb); border-radius: 50%; background: var(--ga-switch-thumb-off); transform: translateY(-50%); transition: transform var(--ga-switch-time) ease, background var(--ga-switch-time); }
+.ga-switch[aria-checked="true"] { color: var(--ga-switch-ink-on); }
+.ga-switch[aria-checked="true"] .ga-switch-track { border-color: var(--ga-switch-on); background: var(--ga-switch-on); box-shadow: var(--ga-switch-glow); }
+.ga-switch[aria-checked="true"] .ga-switch-thumb { background: var(--ga-switch-thumb-on); transform: translate(calc(var(--ga-switch-w) - var(--ga-switch-thumb) - 2 * var(--ga-switch-inset) - 2 * var(--ga-nav-line-w)), -50%); }
+.ga-switch:hover:not(:disabled, [aria-disabled="true"]) .ga-switch-track { border-color: var(--ga-switch-on); }
+.ga-switch:focus-visible { outline: var(--ga-switch-focus-w) solid var(--ga-switch-on); outline-offset: var(--ga-switch-focus-offset); }
+.ga-switch:is(:disabled, [aria-disabled="true"]) { cursor: default; opacity: var(--ga-switch-disabled); }
+.ga-switch.is-busy { cursor: progress; }
+

@@ -22,4 +22,4 @@
 .ga-news-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ga-news-link-col), 1fr)); gap: var(--ga-feed-tight) var(--ga-space-2); }
 .ga-news-link { padding: 0; border: 0; background: none; font: 500 var(--ga-text-min)/var(--ga-text-leading) var(--ga-text-family); color: var(--ga-text-ink); text-align: start; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .ga-news-link:hover, .ga-news-link:focus-visible { color: var(--ga-orange); text-decoration: underline; }
-@media (prefers-reduced-motion: reduce) { .ga-news-tile-cover { transition: none; } .ga-news-tile:hover .ga-news-tile-cover { transform: none; } }
+

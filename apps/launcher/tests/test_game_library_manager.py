@@ -32,12 +32,12 @@ def test_list_reports_state_size_warning_and_plays(tmp_path):
 
 def test_space_check_blocks_when_unpacking_would_not_fit(tmp_path):
     storage, lib = library(tmp_path)
-    class Usage:  # 10 GB free
+    class Usage:  # 10 GB free; the disk keeps 5 GB free (the smaller of 5 % and 30 GB)
         total, used, free = 100 * GIB, 90 * GIB, 10 * GIB
-    with patch("disk_space.shutil.disk_usage", return_value=Usage):
-        assert lib.check_space(3 * GIB)["ok"]                      # 3*2 + 1 = 7 GB <= 10
-        refused = lib.check_space(6 * GIB)                          # 6*2 + 1 = 13 GB > 10
-    assert not refused["ok"] and "No hay espacio" in refused["message"] and "13.0 GB" in refused["message"]
+    with patch("disk_space.shutil.disk_usage", return_value=Usage), patch("game_library_manager.storage.shutil.disk_usage", return_value=Usage):
+        assert lib.check_space(2 * GIB)["ok"]                      # 2*2 + 1 + 5 reserved = 10 GB <= 10
+        refused = lib.check_space(6 * GIB)                          # 6*2 + 1 + 5 = 18 GB > 10
+    assert not refused["ok"] and "Ningún disco" in refused["message"]
 
 def test_batch_uninstall_and_repair_continue_after_failures(tmp_path):
     storage, lib = library(tmp_path)
@@ -142,12 +142,12 @@ def test_space_check_counts_what_an_unfinished_download_already_has(tmp_path):
     transfer = storage.transfer_folder(7, "Big")
     transfer.mkdir(parents=True)
     (transfer / "part.bin").write_bytes(b"z" * (4 * 1024 * 1024))
-    class Usage:  # 10 GB free
-        total, used, free = 100 * GIB, 90 * GIB, 10 * GIB
-    with patch("disk_space.shutil.disk_usage", return_value=Usage), \
+    class Usage:  # 15 GB free; the disk keeps 5 GB free
+        total, used, free = 100 * GIB, 85 * GIB, 15 * GIB
+    with patch("disk_space.shutil.disk_usage", return_value=Usage), patch("game_library_manager.storage.shutil.disk_usage", return_value=Usage), \
          patch("game_library_manager.manager.allocated_size", return_value=4 * GIB):
-        assert not lib.check_space(6 * GIB)["ok"]                   # a new download: 6*2 + 1 = 13 GB > 10
-        resumed = lib.check_space(6 * GIB, 7, "Big")                # (6-4) + 6 + 1 = 9 GB <= 10
+        assert not lib.check_space(6 * GIB)["ok"]                   # a new download: 6*2 + 1 + 5 = 18 GB > 15
+        resumed = lib.check_space(6 * GIB, 7, "Big")                # (6-4) + 6 + 1 = 9 GB <= 15, the install keeps 5
     assert resumed["ok"] and resumed["needed_bytes"] == 9 * GIB
 
 

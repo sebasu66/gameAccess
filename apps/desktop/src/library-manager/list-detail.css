@@ -1,0 +1,59 @@
+/* Manager › Juegos como lista con detalle (GameDetail.tsx, docs/GUI_DESIGN.md §4.49). Solo distribución: medidas en
+   templates/base.css (--ga-lm-*), colores y fuentes del sabor. El detalle queda fijo mientras la lista se desplaza. */
+.lm-split { display: grid; grid-template-columns: var(--ga-lm-detail-w) minmax(0, 1fr); gap: var(--ga-lm-detail-gap); align-items: stretch; }
+/* Las dos columnas miden lo mismo y se desplazan por dentro: la grilla no estira la pagina hacia abajo (Seba). */
+.lm-split > .lm-grid-wrap { max-height: var(--ga-lm-pane-h); overflow-y: auto; }
+@container lm-content (max-width: 900px) { .lm-split { grid-template-columns: minmax(0, 1fr); } }
+.lm-detail-pane { container-type: inline-size; position: sticky; top: 0; display: grid; gap: var(--ga-space-2); align-content: start; box-sizing: border-box;
+  max-height: var(--ga-lm-pane-h); overflow-y: auto;
+  padding: var(--ga-space-2); border: var(--ga-nav-line-w) solid var(--ga-line); border-radius: var(--ga-radius-l); background: var(--ga-surface); }
+.lm-detail-pane.is-empty { align-content: center; min-height: var(--ga-lm-cover-max-h); }
+.lm-detail-many { margin: 0; color: var(--ga-orange-ink); font: var(--ga-hint-font); }
+/* La portada ocupa todo el ancho del detalle, pegada a sus bordes, con la cabecera debajo. */
+.lm-detail-art { margin: calc(var(--ga-space-2) * -1) calc(var(--ga-space-2) * -1) 0; overflow: hidden;
+  border-radius: calc(var(--ga-radius-l) - var(--ga-nav-line-w)) calc(var(--ga-radius-l) - var(--ga-nav-line-w)) 0 0; background: var(--ga-surface-2); }
+.lm-detail-art > * { display: block; width: 100%; }
+/* `!important` porque SteamCover fija `object-fit` en el atributo style: acá la portada recorta para llenar el ancho. */
+.lm-detail-art img { display: block; width: 100%; max-height: var(--ga-lm-cover-max-h); object-fit: cover !important; object-position: center top; }
+.lm-detail-head { display: grid; gap: var(--ga-space-1); }
+.lm-detail-name { --ga-heading-size: 26px; line-height: 1.05; overflow-wrap: anywhere; }
+.lm-detail-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-space-1); margin: 0; }
+/* Las propiedades: el acordeon (§4.50) y, debajo, la accion de guardar alineada a la derecha. */
+.lm-props { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ga-space-2); }
+.lm-props .lm-history { max-width: none; }
+/* Filas alternadas: un gris apenas más claro en una de cada dos, para seguir la línea con la vista. Cede ante la fila
+   que el cursor toca, la marcada y la que el detalle muestra. */
+.lm-grid tbody tr.lm-row:nth-child(even of .lm-row):not(:hover):not(:focus-within):not(.is-selected):not(.is-picked):not(.is-focus) > td { background: var(--ga-row-alt); }
+/* La fila que el detalle está mostrando: el filo naranja va solo en la primera celda, no entre columna y columna. */
+.lm-row.is-picked > td { background: var(--ga-orange-tint); }
+.lm-row.is-picked > td:first-child { box-shadow: inset 2px 0 0 var(--ga-orange); }
+/* Grupos plegables: una flecha antes del nombre, girada cuando el grupo está plegado. */
+.lm-group-toggle { display: inline-flex; align-items: center; justify-content: center; width: var(--ga-lm-group-toggle); height: var(--ga-lm-group-toggle);
+  margin-right: var(--ga-space-1); padding: 0; border: 0; border-radius: var(--ga-radius-s); background: none; color: var(--ga-orange); cursor: pointer; vertical-align: middle; }
+.lm-group-toggle > svg { transition: transform .15s ease; }
+.lm-group-toggle[aria-expanded="false"] > svg { transform: rotate(-90deg); }
+.lm-group-toggle:focus-visible { outline: var(--ga-switch-focus-w) solid var(--ga-orange); outline-offset: var(--ga-switch-focus-offset); }
+/* Las acciones del juego: su alineación la decide la plantilla general (§4.25). Acá solo se declara que esta columna
+   es un contenedor, para que la regla de "columna angosta" la alcance. */
+.lm-detail-acts { gap: var(--ga-space-1); }
+
+/* La tapa del juego, recortada, se muestra entera sola: hace un paneo lento de arriba abajo y vuelve (§4.49). Con el
+   cursor encima el paneo se detiene, la imagen se acerca apenas y una luz la cruza una vez. Todo por código, sin
+   recortes ni imágenes extra; con la pestaña oculta el navegador ya no anima. */
+@keyframes lm-cover-pan { from { object-position: center 0%; } to { object-position: center 100%; } }
+@keyframes lm-cover-sheen { from { transform: translateX(-120%) skewX(-12deg); } to { transform: translateX(220%) skewX(-12deg); } }
+.lm-detail-art { position: relative; isolation: isolate; }
+.lm-detail-art img { animation: lm-cover-pan var(--ga-lm-cover-pan-time) ease-in-out infinite alternate;
+  transition: transform var(--ga-lm-cover-lift-time) ease; transform-origin: center; }
+.lm-detail-art:hover img { animation-play-state: paused; transform: scale(var(--ga-lm-cover-lift)); }
+/* La luz: una banda inclinada que cruza una vez al pasar el cursor. */
+.lm-detail-art::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--ga-lm-cover-sheen-w); background: var(--ga-lm-cover-sheen);
+  transform: translateX(-120%) skewX(-12deg); pointer-events: none; }
+.lm-detail-art:hover::after { animation: lm-cover-sheen var(--ga-lm-cover-sheen-time) ease-out; }
+/* Un velo abajo, para que el nombre que sigue no pelee con la parte más clara de la tapa. */
+.lm-detail-art::before { content: ""; position: absolute; inset: 0; z-index: 1; background: var(--ga-lm-cover-veil); pointer-events: none; }
+/* Las acciones que no se pueden deshacer, al final del detalle y separadas del resto. */
+.lm-detail-risky { padding-top: var(--ga-space-2); border-top: var(--ga-nav-line-w) solid var(--ga-line); }
+/* El estado de una descarga en curso lleva al gestor de descargas: es un botón, pero se lee como la insignia. */
+.lm-status-link { display: inline-flex; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.lm-status-link:focus-visible { outline: var(--ga-switch-focus-w) solid var(--ga-orange); outline-offset: var(--ga-switch-focus-offset); }

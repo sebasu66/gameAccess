@@ -1,0 +1,85 @@
+/* Manager › Space (docs/GUI_DESIGN.md §4.38): distribution only. Sizes in templates/base.css (--ga-space-*-w, --ga-drive-*),
+   colours in the flavor (--ga-drive-1…6, --ga-space-move-*). */
+
+/* The section scrolls inside the Manager with the app's round scrollbar (CircularScrollbar follows `scrollRef`). */
+.ga-manager-view > .lm-space { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.ga-manager-view > .lm-space::-webkit-scrollbar { display: none; }
+/* A size container: the column of words asks it for the height it can take (100cqh), not the one the table grows to. */
+.lm-space { container: lm-space / size; padding-bottom: var(--ga-space-4); }
+
+/* The column of words: how it works, the policy as it stands and the two actions, each one a part of the column. */
+.lm-space-part { display: grid; gap: var(--ga-space-2); align-content: start; min-width: 0; }
+.lm-space-part > .ga-heading, .lm-space-part > .ga-label { margin: 0; }
+.lm-space-lead { margin: 0; text-align: justify; text-wrap: pretty; hyphens: auto; }
+.lm-space-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-space-2); }
+.lm-space-free { display: flex; flex-wrap: wrap; align-items: end; gap: var(--ga-space-2); }
+.lm-space-step { display: grid; gap: var(--ga-space-1); min-width: 0; color: var(--ga-muted); font: var(--ga-label-font); }
+.lm-space-step .ga-settings-select { width: auto; min-width: var(--ga-space-select-min-w); }
+/* The policy as a small table: one line per use, with the disks in the order they are tried. */
+.lm-space-order { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ga-space-1) var(--ga-space-2); align-items: center; margin: 0; }
+.lm-space-order dt { color: var(--ga-muted); font: var(--ga-label-font); text-transform: uppercase; }
+.lm-space-order dd { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); margin: 0; }
+
+/* Games and moves on the left, the rack with the disks on the right; the words on top until there is room for them
+   as a column of their own (the wide layout, at the end of this file). */
+.lm-space-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(var(--ga-space-disks-min-w), var(--ga-space-disks-w)); gap: var(--ga-space-4); align-items: start; }
+.lm-space-aside { grid-column: 1 / -1; display: grid; gap: var(--ga-space-2); min-width: 0; }
+.lm-space-main { display: grid; gap: var(--ga-space-3); min-width: 0; }
+.lm-space-grid { overflow: visible; }
+.lm-space-grid .lm-grid { width: 100%; min-width: 0; }
+/* The game's name is the one thing to read here, so it is bigger and its rows have more air. */
+.lm-space-grid .lm-grid td { padding-block: var(--ga-space-2); }
+.lm-space-grid .lm-name { font: var(--ga-space-name-font); }
+/* Compressing a game: one icon at the end of the row and nothing written (Seba, 2026-11-19), so the column is narrow.
+   What it does is in its tooltip; a game in deep freeze shows the state alone, since it thaws by itself. */
+.lm-space-zip { width: var(--ga-space-zip-w); text-align: center; white-space: nowrap; }
+.lm-space-zip :is(.ga-btn-secondary, .lm-space-zip-state) { display: inline-flex; align-items: center; justify-content: center;
+  width: var(--ga-tool-size); min-width: 0; height: var(--ga-tool-size); min-height: 0; padding: 0; }
+.lm-space-zip svg { width: var(--ga-space-zip-icon); height: var(--ga-space-zip-icon); }
+/* A compressed game is marked in the frozen colour; the base's ink is `!important`, so it is given through its own token. */
+.lm-space-zip .ga-btn-secondary.is-frozen { --ga-btn2-ink: var(--ga-space-frozen); }
+.lm-space-zip .lm-space-zip-state { color: var(--ga-space-frozen); }
+
+/* A disk's mark: its colour and letter. */
+.lm-drive-mark { display: inline-flex; align-items: center; gap: var(--ga-space-1); color: var(--ga-text-ink); font: var(--ga-hdd-row-size-font); }
+.lm-drive-mark i { width: var(--ga-drive-dot); height: var(--ga-drive-dot); border-radius: 50%; background: var(--lm-drive); box-shadow: 0 0 var(--ga-drive-dot) var(--lm-drive); }
+.lm-space-drive { white-space: nowrap; }
+/* The cell only has to say which disk the game is on: the long text is in the options, not in the control. */
+.lm-drive-select.ga-settings-select { height: var(--ga-tool-size); width: var(--ga-space-drive-w); min-width: 0; padding-inline: var(--ga-space-1); border-left: var(--ga-drive-edge-w) solid var(--lm-drive); }
+
+/* A disk's tags (the rack holds the disk itself: rack.css, §4.45). */
+.lm-disk-tag.is-recommended { border-color: var(--ga-space-recommend); color: var(--ga-space-recommend); }
+.lm-disk-tag.is-warn { border-color: var(--ga-hdd-critical); color: var(--ga-hdd-critical); }
+
+/* Moves under way. */
+.lm-space-transfers { display: grid; gap: var(--ga-space-2); }
+.lm-space-transfers > .ga-label { margin: 0; }
+.lm-space-batch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ga-space-2); }
+.lm-space-moves { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.lm-space-moves li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "name path state" "bar bar act"; align-items: center; gap: var(--ga-space-1) var(--ga-space-2);
+  padding: var(--ga-space-2); border: var(--ga-nav-line-w) solid var(--ga-hdd-row-line); border-radius: var(--ga-radius-m); background: var(--ga-hdd-row-bg); }
+.lm-space-move-name { grid-area: name; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-text-ink); font: var(--ga-hdd-row-font); }
+.lm-space-move-path { grid-area: path; display: inline-flex; align-items: center; gap: var(--ga-space-1); color: var(--ga-muted); }
+.lm-space-move-state { grid-area: state; color: var(--ga-muted); font: var(--ga-hdd-row-size-font); font-variant-numeric: tabular-nums; }
+.lm-space-move-bar { grid-area: bar; height: var(--ga-space-move-bar-h); border-radius: var(--ga-space-move-bar-h); background: var(--ga-space-move-track); overflow: hidden; }
+.lm-space-move-bar i { display: block; height: 100%; background: var(--ga-space-move-fill); transition: width .3s ease; }
+.lm-space-moves li > button { grid-area: act; }
+.lm-space-moves li.is-done .lm-space-move-bar i { background: var(--ga-nav-ok); }
+.lm-space-moves li.is-failed .lm-space-move-state { color: var(--ga-hdd-critical); }
+
+
+/* By the room the Manager gives it, not the window: the disks go under the games, then the actions stack. */
+@container lm-space (max-width: 1080px) { .lm-space-cols { grid-template-columns: minmax(0, 1fr); } }
+@container lm-space (max-width: 860px) { .lm-space-actions { grid-template-columns: minmax(0, 1fr); } }
+
+/* Wide: the words become a narrow column with its frame, like a panel in a magazine, as tall as the screen, with its
+   three parts spread over the free space. The games and the rack start at the top too. Narrower than this, the screen
+   is as it was and scrolls. */
+@container lm-space (min-width: 1440px) {
+  .lm-space-cols { grid-template-columns: var(--ga-space-aside-w) minmax(0, 1fr) var(--ga-space-disks-w); align-items: stretch; min-height: 100%; }
+  /* As tall as the screen lets it, and it stays there while the games scroll; its three parts share the free space. */
+  .lm-space-aside { grid-column: auto; position: sticky; top: 0; align-self: start; height: calc(100cqh - var(--ga-space-4));
+    display: flex; flex-direction: column; justify-content: space-between; gap: var(--ga-space-4); padding: var(--ga-space-3);
+    border: var(--ga-nav-line-w) solid var(--ga-line); border-radius: var(--ga-radius-l); background: var(--ga-surface); overflow: auto; scrollbar-width: none; }
+  .lm-space-aside .lm-space-actions { flex-direction: column; align-items: stretch; }
+}

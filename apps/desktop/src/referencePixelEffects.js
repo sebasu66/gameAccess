@@ -7,7 +7,6 @@ const fx=document.createElement('div');fx.id='ga-pixel-field';fx.setAttribute('a
 const fcv=document.createElement('canvas');fx.append(fcv);document.body.prepend(fx);
 const fctx=fcv.getContext('2d');if(!fctx){fx.remove();return ()=>{}};
 let P=loadPixelStyle();
-const media=matchMedia('(prefers-reduced-motion: reduce)');
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const hash=(i,k)=>{const s=Math.sin(i*12.9898+k*78.233)*43758.5453;return s-Math.floor(s)};
 const vn=(x,y,s)=>{
@@ -138,10 +137,10 @@ function updateStyle(){
 }
 function signature(data){let v=2166136261;for(let i=0;i<data.length;i+=17)v=Math.imul(v^data[i],16777619);return (v>>>0).toString(16)}
 let fieldMs=4;
-let frame=0,last=performance.now(),tt=media.matches?3:0,lp=-1e3,lq=-1e3,diagnosticAt=-1e3,dirty=true;
+let frame=0,last=performance.now(),tt=0,lp=-1e3,lq=-1e3,diagnosticAt=-1e3,dirty=true;
 function loop(now){
  const dt=Math.max(0,(now-last)/1000);last=now;
- const animated=P.animate&&!media.matches;
+ const animated=P.animate;
  if(animated&&document.visibilityState==='visible')tt+=dt*P.spd;
  if(document.visibilityState==='visible'&&(animated||dirty)){
    // The field repaints more slowly when a frame of it is expensive, so it never starves hover animations.
@@ -175,12 +174,12 @@ const visibility=()=>{last=performance.now();dirty=true};
 build();syncButtons();updateStyle();
 observer.observe(document.getElementById('root'),{childList:true,subtree:true,attributes:true,attributeFilter:['aria-selected','aria-pressed','class']});
 window.addEventListener('resize',resizeField);window.addEventListener(PIXEL_STYLE_EVENT,updateStyle);
-window.addEventListener('storage',updateStyle);document.addEventListener('visibilitychange',visibility);media.addEventListener('change',visibility);
+window.addEventListener('storage',updateStyle);document.addEventListener('visibilitychange',visibility);
 frame=requestAnimationFrame(loop);
 return ()=>{
  cancelAnimationFrame(frame);observer.disconnect();resize.disconnect();fx.remove();
  window.removeEventListener('resize',resizeField);window.removeEventListener(PIXEL_STYLE_EVENT,updateStyle);window.removeEventListener('storage',updateStyle);
- document.removeEventListener('visibilitychange',visibility);media.removeEventListener('change',visibility);
+ document.removeEventListener('visibilitychange',visibility);
  for(const [b,o] of targets){o.canvas.remove();b.classList.remove('ga-led-button','ga-pixel-search');delete b.dataset.pixelActive;delete b.dataset.pixelSignature}
  targets.clear();document.body.classList.remove('ga-pixel-field-on');
 };

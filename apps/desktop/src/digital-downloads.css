@@ -14,7 +14,7 @@
 .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button > svg { flex:none; width:16px; height:16px; }
 .digital-downloads-screen .ga-dl-label { max-width:0; opacity:0; overflow:hidden; white-space:nowrap; transition:max-width .25s, opacity .2s, margin .25s; }
 .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) > button:is(:hover, :focus-visible) .ga-dl-label { max-width:180px; opacity:1; margin-left:8px; }
-@media (prefers-reduced-motion: reduce) { .digital-downloads-screen .ga-dl-label { transition:none; } }
+
 .digital-download-row { display:flex; align-items:center; gap:24px; padding:24px 0; border-top:1px solid #25333a; }
 .digital-download-featured { padding:32px 0; }
 .digital-download-art { width:160px; height:76px; display:grid; place-items:center; background:#18292c; border-radius:5px; overflow:hidden; flex-shrink:0; }
@@ -41,7 +41,7 @@
 .digital-download-empty h2 { color:#edf4f4; }
 .digital-download-empty button { margin-top:20px; }
 @media(max-width:800px) { .digital-download-row { flex-wrap:wrap; gap:16px; } .digital-download-art,.digital-download-featured .digital-download-art { width:120px; height:60px; } .digital-download-actions { max-width:none; width:100%; } .digital-download-title { flex-direction:column; gap:6px; } .digital-download-metrics { gap:16px; flex-wrap:wrap; } .digital-downloads-heading { align-items:flex-start; flex-direction:column; gap:20px; } }
-@media(prefers-reduced-motion:reduce) { .digital-download-info progress::-webkit-progress-value { transition:none; } }
+
 
 .digital-download-row { position:relative; align-items:flex-start; padding-right:42px; }
 .digital-download-actions .digital-download-dismiss { position:absolute; right:0; top:24px; min-height:30px; padding:5px; border:0; background:transparent; color:#a7b6bb; }
@@ -179,7 +179,7 @@
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon {
   position: absolute; right: 10px; top: 10px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; background: #0b0f12b3; box-shadow: inset 0 0 0 2px currentColor, 0 2px 8px #000a; opacity: 1; }
 .digital-downloads-screen.is-embedded .digital-download-row:not(.digital-download-featured) .digital-download-state.is-icon svg { width: 22px; height: 22px; }
-@media (prefers-reduced-motion: reduce) { .digital-downloads-screen :is(.digital-download-actions, .ga-dl-card-actions) { transition: none; } }
+
 /* Pictures at rest as calm as the grid's covers (less colour, a little darker); the one under the pointer gets its colour back. */
 .digital-downloads-screen :is(.digital-download-art, .ga-dl-card-art) img { filter: saturate(.55) brightness(.9); transition: filter .3s; }
 .digital-downloads-screen :is(.digital-download-row, .ga-dl-card):is(:hover, :focus-within) :is(.digital-download-art, .ga-dl-card-art) img { filter: none; }

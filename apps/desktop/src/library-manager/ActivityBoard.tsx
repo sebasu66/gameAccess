@@ -26,7 +26,7 @@ export default function ActivityBoard({ scanning, working }: { scanning: boolean
     ...jobs.filter(job => !job.outcome).map(job => ({
       key: `freeze-${job.appId}`, percent: job.queued ? 0 : job.progress?.percent ?? null, detail: job.name,
       label: job.queued ? t("lmActivityQueued") : paused ? t("lmActivityPaused")
-        : t(jobLabelKey(job.mode)),
+        : t(jobLabelKey(job.mode, job.drive)),
     })),
     ...(working ? [{ key: "batch", label: t("lmActivityWorking"), percent: null }] : []),
     ...(scanning ? [{ key: "scan", label: t("lmActivityScan"), percent: null }] : []),

@@ -33,7 +33,7 @@ const LINK_POLL_MS = 2500;
  * apps/api/app/steam_link_routes.py); this waits until the user signed in there, cancelled, or the link expired. Game
  * Access never sees a password. When it is done, the account's whole library is in (the launcher syncs it at once).
  */
-export async function linkSteamAccount(options: { signal?: AbortSignal; wait?: (ms: number) => Promise<void> } = {}): Promise<SteamLinkStatus> {
+export async function linkSteamAccount(options: { signal?: AbortSignal; wait?: (ms: number) => Promise<void>; onSyncing?: () => void } = {}): Promise<SteamLinkStatus> {
   const api = await getApiBaseUrl();
   const started = await digitalProcessManager.steamLinkStart(api) as unknown as { state: string; expires_in: number };
   const wait = options.wait ?? (ms => new Promise<void>(done => window.setTimeout(done, ms)));
@@ -43,7 +43,7 @@ export async function linkSteamAccount(options: { signal?: AbortSignal; wait?: (
     if (options.signal?.aborted) return "cancelled";
     const answer = await digitalProcessManager.steamLinkPoll(api, started.state) as unknown as { status: SteamLinkStatus };
     if (answer.status !== "pending") {
-      if (answer.status === "done") await syncSteamLibrary([], {});
+      if (answer.status === "done") { options.onSyncing?.(); await syncSteamLibrary([], {}); }
       return answer.status;
     }
   }

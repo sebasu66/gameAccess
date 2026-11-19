@@ -14,8 +14,8 @@ import { Input } from "./components/ui/input";
 import { checkAntivirus } from "./AntivirusDialog";
 import { ANTIVIRUS_CHECK_EVENT, ANTIVIRUS_SOLVED_EVENT, openAntivirusDialog, requestAntivirusCheck } from "./antivirusExclusion";
 const copy = {
- es:{title:"Descargas y juegos",deleteSources:"Borrar archivos de descarga al terminar",deleteHint:"Elimina los comprimidos e instaladores ya usados. Se conserva el archivo de fix declarado.",games:"Carpeta de juegos",temporary:"Descargas temporales",hint:"Hay una sola carpeta de juegos: al cambiarla, los juegos que ya tenés se pueden mover a la nueva.",save:"Guardar rutas",saved:"Rutas guardadas.",library:"Biblioteca",clear:"Vaciar biblioteca",confirm:"¿Vaciar toda la biblioteca?",warning:"Se quitarán todos los juegos de tu biblioteca y se desinstalarán sus archivos locales. Esta acción no se puede deshacer.",cancel:"Volver",blocked:"Detén las descargas antes de cambiar rutas o vaciar la biblioteca.",done:"Biblioteca vaciada.",unavailable:"Las rutas se configuran en el cliente de escritorio.",count:"Juegos en la biblioteca",autoFreeze:"Congelar los juegos que no uso",autoFreezeHint:"Al mes sin jugar, el juego se comprime con la compresión de Windows y se sigue jugando igual. A los tres meses pasa a congelado profundo: ocupa menos y se descongela solo al jugar. Nunca toca juegos vinculados."},
- en:{title:"Downloads and games",deleteSources:"Delete download files when finished",deleteHint:"Removes archives and installers already used. The declared fix archive is kept.",games:"Game folder",temporary:"Temporary downloads",hint:"There is one games folder: when it changes, the games you already have can move to the new one.",save:"Save paths",saved:"Paths saved.",library:"Library",clear:"Clear library",confirm:"Clear the entire library?",warning:"All games will be removed from your library and their local files uninstalled. This cannot be undone.",cancel:"Back",blocked:"Stop downloads before changing paths or clearing the library.",done:"Library cleared.",unavailable:"Paths are configured in the desktop client.",count:"Games in library",autoFreeze:"Freeze the games I do not play",autoFreezeHint:"After a month without playing, the game is compressed with Windows compression and still plays the same. After three months it is deep frozen: it takes less space and thaws on its own when played. Linked games are never touched."},
+ es:{title:"Descargas y juegos",deleteSources:"Borrar archivos de descarga al terminar",deleteHint:"Elimina los comprimidos e instaladores ya usados. Se conserva el archivo de fix declarado.",games:"Carpeta de juegos",temporary:"Descargas temporales",hint:"Hay una sola carpeta de juegos: al cambiarla, los juegos que ya tenés se pueden mover a la nueva.",save:"Guardar rutas",saved:"Rutas guardadas.",library:"Biblioteca",clear:"Vaciar biblioteca",confirm:"¿Vaciar toda la biblioteca?",warning:"Se quitarán todos los juegos de tu biblioteca y se desinstalarán sus archivos locales. Esta acción no se puede deshacer.",cancel:"Volver",blocked:"Detén las descargas antes de cambiar rutas o vaciar la biblioteca.",done:"Biblioteca vaciada.",unavailable:"Las rutas se configuran en el cliente de escritorio.",count:"Juegos en la biblioteca",autoFreeze:"Congelar los juegos que no uso",reserve:"Espacio que cada disco deja libre",reserveHint:"Game Access no pone un juego en un disco si después le quedaría menos libre que esto: el menor de los dos valores. Un disco que ya tiene menos no recibe juegos nuevos.",reservePercent:"% del disco",reserveGb:"GB",reserveOr:"o",reserveSmaller:"lo que sea menor",autoFreezeHint:"Al mes sin jugar, el juego se comprime con la compresión de Windows y se sigue jugando igual. A los tres meses pasa a congelado profundo: ocupa menos y se descongela solo al jugar. Nunca toca juegos vinculados."},
+ en:{title:"Downloads and games",deleteSources:"Delete download files when finished",deleteHint:"Removes archives and installers already used. The declared fix archive is kept.",games:"Game folder",temporary:"Temporary downloads",hint:"There is one games folder: when it changes, the games you already have can move to the new one.",save:"Save paths",saved:"Paths saved.",library:"Library",clear:"Clear library",confirm:"Clear the entire library?",warning:"All games will be removed from your library and their local files uninstalled. This cannot be undone.",cancel:"Back",blocked:"Stop downloads before changing paths or clearing the library.",done:"Library cleared.",unavailable:"Paths are configured in the desktop client.",count:"Games in library",autoFreeze:"Freeze the games I do not play",reserve:"Room each disk keeps free",reserveHint:"Game Access does not put a game on a disk if less than this would be left free: the smaller of the two values. A disk that already has less takes no new games.",reservePercent:"% of the disk",reserveGb:"GB",reserveOr:"or",reserveSmaller:"whichever is smaller",autoFreezeHint:"After a month without playing, the game is compressed with Windows compression and still plays the same. After three months it is deep frozen: it takes less space and thaws on its own when played. Linked games are never touched."},
 };
 export default function DigitalStorageSettings(){
  const {locale,t}=useI18n();const c=copy[locale];
@@ -47,6 +47,12 @@ export default function DigitalStorageSettings(){
    try{const result=await digitalProcessManager.saveSettings({...settings,auto_freeze:value});setSettings(result.settings??{...settings,auto_freeze:value});}
    catch(error){setError(String(error));}
  };
+ // The reserve of each disk (storage.keep_free): saved when a value is left, like the freeze switch.
+ const saveReserve=async(next:{percent:number;gb:number})=>{if(!settings)return;setError("");
+   try{const result=await digitalProcessManager.saveSettings({...settings,free_reserve:next});setSettings(result.settings??{...settings,free_reserve:next});}
+   catch(error){setError(String(error));}
+ };
+ const reserve=settings?.free_reserve??{percent:5,gb:30};
  const clear=async()=>{setPending(true);setError("");setMessage("");
    try{await clearGameLibrary();setMessage(c.done);}catch(error){setError(String(error));}finally{setPending(false);setConfirm(false);}
  };
@@ -65,6 +71,16 @@ export default function DigitalStorageSettings(){
    <div className="flex items-start gap-3 rounded-lg border border-border bg-card/50 p-4">
     <Checkbox id="ga-auto-freeze" className="mt-0.5" disabled={pending||!settings} checked={settings?.auto_freeze??false} onCheckedChange={value=>void saveAutoFreeze(value===true)}/>
     <div className="grid gap-1"><label htmlFor="ga-auto-freeze" className="text-sm font-semibold">{c.autoFreeze}</label><p className="m-0 text-sm text-muted-foreground">{c.autoFreezeHint}</p></div>
+   </div>
+   <div className="grid gap-2 rounded-lg border border-border bg-card/50 p-4">
+    <span className="text-sm font-semibold">{c.reserve}</span>
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+     <Input type="number" min={0} max={50} step={1} className="w-20" aria-label={c.reservePercent} disabled={pending||!settings} key={`p${reserve.percent}`} defaultValue={reserve.percent} onBlur={event=>{const value=Number(event.target.value);if(Number.isFinite(value)&&value!==reserve.percent)void saveReserve({...reserve,percent:Math.min(50,Math.max(0,value))});}}/>
+     <span>{c.reservePercent}</span><span>{c.reserveOr}</span>
+     <Input type="number" min={0} max={2000} step={1} className="w-24" aria-label={c.reserveGb} disabled={pending||!settings} key={`g${reserve.gb}`} defaultValue={reserve.gb} onBlur={event=>{const value=Number(event.target.value);if(Number.isFinite(value)&&value!==reserve.gb)void saveReserve({...reserve,gb:Math.min(2000,Math.max(0,value))});}}/>
+     <span>{c.reserveGb},</span><span>{c.reserveSmaller}</span>
+    </div>
+    <p className="m-0 text-sm text-muted-foreground">{c.reserveHint}</p>
    </div>
    <p className="m-0 text-sm text-muted-foreground">{c.hint}</p>
    {antivirusOk!==null?<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card/50 p-4">

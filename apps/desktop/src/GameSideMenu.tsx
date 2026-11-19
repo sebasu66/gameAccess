@@ -33,7 +33,7 @@ export function menuHoldArea(card: Box, menu: Box | null): Box {
  * away toward the other sides. It closes when the pointer leaves the card and the menu (menuHoldArea), with Escape or on
  * scroll; a right click on another card replaces it at once. Only the actions that can run are listed: nothing greyed out.
  */
-export default function GameSideMenu({ anchor, label, items, note, onClose }: { anchor: HTMLElement; label: string; items: SideMenuItem[]; /** One short line under the actions (the Steam account a game belongs to). */ note?: string; onClose: () => void }) {
+export default function GameSideMenu({ anchor, label, items, note, onClose, takeFocus = true }: { anchor: HTMLElement; label: string; items: SideMenuItem[]; /** One short line under the actions (the Steam account a game belongs to). */ note?: string; onClose: () => void; /** false when it opens on hover (a genre deck's games): the keyboard stays where it was. */ takeFocus?: boolean }) {
   const menu = useRef<HTMLDivElement>(null);
   const timer = useRef(0);
   const closing = useRef(false);
@@ -59,7 +59,7 @@ export default function GameSideMenu({ anchor, label, items, note, onClose }: { 
     host.dataset.side = right ? "right" : "left";
     gsap.set(host, { left, top });
     const buttons = host.querySelectorAll(".ga-side-menu-items button");
-    const focusFirst = () => (host.querySelector(".ga-side-menu-items button:not(:disabled)") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+    const focusFirst = () => { if (takeFocus) (host.querySelector(".ga-side-menu-items button:not(:disabled)") as HTMLButtonElement | null)?.focus({ preventScroll: true }); };
     if (!motionOk()) { focusFirst(); return; }
     const tl = gsap.timeline({ onComplete: focusFirst })
       .fromTo(host, { opacity: 0, x: right ? -14 : 14 }, { opacity: 1, x: 0, duration: .35, ease: "power3.out" })

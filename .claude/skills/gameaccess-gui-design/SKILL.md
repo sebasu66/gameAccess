@@ -9,9 +9,25 @@ Antes de tocar estilos o componentes de la interfaz, lee `docs/GUI_DESIGN.md` en
 Es la fuente de verdad (tokens, tipografía, componentes, reglas y lista de comprobación).
 Si esta skill y ese documento se contradicen, manda el documento; avisa al usuario para corregir la skill.
 
-## Plantillas primero (política de Seba, 2026-11-05)
+## Los tres niveles de estilo (política de Seba, 2026-11-05; reafirmada 2026-11-19)
 
-Lo nuevo nace compatible con las capas de `docs/GUI_DESIGN.md` §0c: componentes y clases generales primero, un CSS de pantalla solo con distribución, y ningún color, fuente, radio, margen ni alto a mano. Si falta una variable, se agrega a `templates/base.css` o al sabor. La pantalla nueva entra en `templates/flavor.test.ts`. Ejemplos: `plugin-settings.css`, `ai-settings.css`.
+**Toda vista se arma con los tres niveles. Sin excepción, desde el primer commit.** Es lo que evita que haya estilos de
+interfaz distintos entre pantallas y lo que evita bordes, rellenos, márgenes, distribución y alineamiento improvisados.
+
+1. **General:** componentes de `components/ga` y clases de `components/ga/content.css` (`ga-stack`, `ga-group`,
+   `ga-label`, `ga-hint`, `ga-status`, `ga-heading`, `ga-actions`, `ga-path-control`, `ga-style-toggle`,
+   `ga-disclosure`, `GaAccordion`, `GaSwitch`, `GaButton`…). Si falta una pieza, se agrega **acá**, no en la pantalla.
+2. **Sabor:** `templates/flavor-terminal.css` y los sabores numerados: colores, letras y roles visuales. Una vista lee
+   un rol, nunca elige un color ni una fuente.
+3. **Específico:** un CSS de pantalla **solo con distribución**. Ningún color, fuente, radio, margen ni alto a mano:
+   todo con variables de `templates/base.css` (medidas) o del sabor (aspecto).
+
+Un campo es siempre **nombre arriba en `ga-label` y control abajo, los dos del mismo ancho** (`ga-path-control`). Una
+etiqueta en negrita pegada sobre un input, anchos distintos en una misma columna o separaciones que cambian de sección
+a sección son errores, no detalles. Una vista de detalle nueva se parece a las que ya hay (la ficha de juego §4.43).
+
+La pantalla nueva entra en `templates/flavor.test.ts` y pasa `npm run check:css`. Ejemplos: `plugin-settings.css`,
+`ai-settings.css`, `library-manager/list-detail.css`.
 
 ## Cuándo aplicarla
 

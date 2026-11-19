@@ -1,6 +1,6 @@
-/* EN10: the game's detail in the new shell (LibraryDetailPanel WideDetail). Layout only: sizes in templates/base.css,
-   colours, fonts and the action and close roles (EN9) in the flavor. A grid of two columns and three rows: header |
-   tabs with their own scroll, media and rating | actions, how much it was played. */
+/* EN10: the game's detail in the new shell (LibraryDetailPanel WideDetail): the dialog, the frame, the close and options,
+   the play modes, the media and the pad keys. Its layout as a file is detail-sheet.css (§4.43). Layout only: sizes in
+   templates/base.css, colours, fonts and the action and close roles (EN9) in the flavor. */
 .ga-detail-overlay:has(.ga-game-detail-wide) .ga-detail-dialog {
   width: calc(100vw - 2 * var(--ga-detail-wide-inset-x));
   height: calc(100svh - 2 * var(--ga-detail-wide-inset-y));
@@ -30,86 +30,11 @@
   -webkit-font-smoothing: antialiased;
   isolation: isolate;
 }
-
-/* The game's art behind the header, fading into the detail; a glow of the mode from the top left. */
-.ga-game-detail.ga-game-detail-wide > .library-detail-header-art {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  border: 0;
-  -webkit-mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink) 40%, transparent 78%);
-  mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink) 40%, transparent 78%);
-}
-.ga-game-detail.ga-game-detail-wide > .library-detail-header-art img {
-  width: calc(100% + 2 * var(--ga-detail-parallax-art));
-  height: calc(100% + 2 * var(--ga-detail-parallax-art));
-  margin: calc(-1 * var(--ga-detail-parallax-art));
-  object-fit: cover;
-  object-position: center 30%;
-  transform: translate(calc(var(--ga-detail-pointer-x) * -1 * var(--ga-detail-parallax-art)), calc(var(--ga-detail-pointer-y) * -1 * var(--ga-detail-parallax-art))) scale(1.04);
-  transition: transform var(--ga-detail-wide-entry) ease-out;
-}
-.ga-wide-shade {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(60% 50% at 8% 0, var(--ga-detail-wide-glow), transparent 70%),
-    linear-gradient(90deg, color-mix(in srgb, var(--ga-detail-wide-void) 82%, transparent) 0, color-mix(in srgb, var(--ga-detail-wide-void) 40%, transparent) 42%, transparent 72%),
-    linear-gradient(0deg, var(--ga-detail-wide-void) 22%, color-mix(in srgb, var(--ga-detail-wide-void) 55%, transparent) 48%, transparent 74%);
-}
-.ga-game-detail.ga-game-detail-wide > :is(.ga-wide-heading, .ga-wide-body, .ga-wide-side, .ga-wide-actions, .ga-wide-played) { position: relative; z-index: 2; min-width: 0; }
-
-/* Header: the title with its options and close (the close on the grid's right edge), then genre and modes, then the edition. */
-.ga-wide-heading {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: var(--ga-detail-wide-head-gap);
-}
-/* The title fills the row up to its options and close, which sit on the grid's right edge at its height. */
-.ga-wide-title-row { display: flex; align-items: center; gap: var(--ga-detail-wide-gap); }
-.ga-wide-title {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: clip;
-  color: var(--ga-detail-wide-ink);
-  font: var(--ga-detail-wide-title-font);
-  letter-spacing: var(--ga-detail-wide-title-track);
-  text-shadow: var(--ga-detail-wide-title-shadow);
-  transform: translate(calc(var(--ga-detail-pointer-x) * var(--ga-detail-parallax-title)), calc(var(--ga-detail-pointer-y) * var(--ga-detail-parallax-title)));
-  transition: transform var(--ga-detail-wide-entry) ease-out;
-}
-.ga-wide-title-tools { display: flex; flex: none; gap: var(--ga-detail-wide-tool-gap); }
-.ga-wide-title-tools button {
-  display: grid;
-  place-items: center;
-  width: var(--ga-detail-wide-tool);
-  height: var(--ga-detail-wide-tool);
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: var(--ga-detail-wide-tool-shadow);
-  transition: background var(--ga-detail-wide-entry), color var(--ga-detail-wide-entry), scale var(--ga-detail-wide-entry);
-}
-.ga-wide-title-tools svg { width: var(--ga-detail-wide-tool-icon); height: var(--ga-detail-wide-tool-icon); stroke-width: 2.6; }
+.ga-wide-actions { position: relative; z-index: 2; min-width: 0; }
 .ga-wide-more { background: var(--ga-detail-wide-deep); color: var(--ga-detail-wide-ink); }
 .ga-wide-more:hover, .ga-wide-more[aria-expanded="true"] { background: var(--ga-action-bg); color: var(--ga-action-ink); }
 .ga-wide-close { background: var(--ga-close-bg); color: var(--ga-close-ink); }
 .ga-wide-close:hover { background: var(--ga-close-bg-hover); color: var(--ga-close-ink); scale: 1.06; }
-.ga-wide-title-tools button:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-ink); outline-offset: var(--ga-space-1); }
-
-.ga-wide-genre-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-detail-wide-line-gap); margin-top: var(--ga-detail-wide-block-gap); }
-.ga-wide-genre { color: var(--ga-detail-wide-accent); font: var(--ga-detail-wide-genre-font); letter-spacing: var(--ga-detail-wide-genre-track); }
-.ga-wide-genre:empty { display: none; }
 .ga-game-detail.ga-game-detail-wide .ga-detail-modes { display: flex; flex-wrap: wrap; gap: var(--ga-detail-wide-tab-gap); margin: 0; }
 .ga-game-detail.ga-game-detail-wide .ga-detail-modes span {
   display: inline-flex; align-items: center; gap: var(--ga-space-1);
@@ -118,125 +43,23 @@
   color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-small-font);
 }
 .ga-game-detail.ga-game-detail-wide .ga-detail-modes svg { width: var(--ga-detail-wide-chip-icon); height: var(--ga-detail-wide-chip-icon); color: var(--ga-detail-wide-accent); }
-.ga-wide-genre-line .ga-steam-refresh {
-  position: static; display: grid; place-items: center;
-  width: var(--ga-detail-wide-chip-h); height: var(--ga-detail-wide-chip-h); padding: 0;
-  border: 0; border-radius: 50%; background: var(--ga-detail-wide-fill); color: var(--ga-detail-wide-soft); cursor: pointer;
-}
-.ga-wide-genre-line .ga-steam-refresh:hover:not(:disabled) { background: var(--ga-detail-wide-fill-hover); color: var(--ga-detail-wide-ink); }
-.ga-wide-genre-line .ga-steam-refresh svg { width: var(--ga-detail-wide-chip-icon); height: var(--ga-detail-wide-chip-icon); }
-.ga-wide-edition { display: flex; flex-wrap: wrap; gap: var(--ga-detail-wide-edition-gap); margin: var(--ga-detail-wide-block-gap) 0 0; padding: 0; }
-.ga-wide-edition div { min-width: 0; }
-.ga-wide-edition dt { margin: 0 0 var(--ga-space-1); color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-dt-font); }
-.ga-wide-edition dd { margin: 0; color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-dd-font); }
 
-/* Body: subtle pill tabs over a pane with its own scroll (the circular scrollbar sits in the gap before the media). */
-.ga-wide-body { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-height: 0; }
-.ga-wide-tabs { display: flex; flex-wrap: wrap; align-items: center; flex: none; gap: var(--ga-detail-wide-tab-gap); margin: 0 0 var(--ga-detail-wide-tabs-gap); padding: 0; }
-.ga-wide-tabs button {
-  display: inline-flex; align-items: center; gap: var(--ga-space-1);
-  height: var(--ga-detail-wide-tab-h); padding: 0 var(--ga-detail-wide-tab-pad);
-  border: 0; border-radius: var(--ga-detail-wide-tab-h); background: var(--ga-detail-wide-fill);
-  color: var(--ga-detail-wide-soft); font: var(--ga-detail-wide-tab-font); cursor: pointer;
-  transition: background var(--ga-detail-wide-entry), color var(--ga-detail-wide-entry), box-shadow var(--ga-detail-wide-entry);
-}
-.ga-wide-tabs button:hover { background: var(--ga-detail-wide-fill-hover); color: var(--ga-detail-wide-ink); }
-.ga-wide-tabs button[aria-selected="true"] { background: var(--ga-detail-wide-tab-on); color: var(--ga-detail-wide-ink); box-shadow: inset 0 0 0 var(--ga-detail-wide-ring) var(--ga-detail-wide-tab-ring); cursor: default; }
-.ga-wide-tabs button:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-accent); outline-offset: var(--ga-space-1); }
-.ga-wide-tab-count {
-  min-width: var(--ga-detail-wide-tab-count); height: var(--ga-detail-wide-tab-count); padding: 0 var(--ga-space-1); box-sizing: border-box;
-  border-radius: var(--ga-detail-wide-tab-count); background: var(--ga-detail-wide-fill-hover); text-align: center; line-height: var(--ga-detail-wide-tab-count);
-}
-.ga-wide-pane-frame { position: relative; flex: 1 1 0; min-height: 0; }
-.ga-wide-pane {
-  height: 100%;
-  box-sizing: border-box;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: var(--ga-detail-wide-pane-pad);
-  -webkit-mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-pane-fade)), transparent);
-  mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink) calc(100% - var(--ga-detail-wide-pane-fade)), transparent);
-}
-.ga-wide-pane::-webkit-scrollbar { display: none; }
-/* A section with nothing under its title is left out. */
-.ga-wide-sec:has(> .ga-wide-sec-title:only-child) { display: none; }
-.ga-wide-sec + .ga-wide-sec { margin-top: var(--ga-detail-wide-sec-gap); padding-top: var(--ga-detail-wide-sec-pad); border-top: var(--ga-detail-wide-rule) solid var(--ga-detail-wide-line); }
-.ga-wide-sec-title { margin: 0 0 var(--ga-detail-wide-block-gap); color: var(--ga-detail-wide-accent); font: var(--ga-detail-wide-head-font); letter-spacing: var(--ga-detail-wide-head-track); text-transform: uppercase; }
-.ga-wide-sec > * + .ga-wide-sec-title { margin-top: var(--ga-detail-wide-sec-pad); }
-.ga-wide-sub-title { margin: 0 0 var(--ga-space-1); color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-dd-font); }
-.ga-wide-pane .ga-detail-lead { margin: 0 0 var(--ga-detail-wide-block-gap); color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-lead-font); max-width: 62ch; }
-.ga-wide-pane .steam-rich-text, .ga-wide-pane .steam-rich-text :is(p, li) { color: var(--ga-detail-wide-soft); font: var(--ga-detail-wide-body-font); }
-.ga-wide-pane .steam-rich-text img { max-width: 100%; height: auto; border-radius: var(--ga-detail-wide-thumb-radius); }
-.ga-wide-pane .ga-detail-tags { display: flex; flex-wrap: wrap; gap: var(--ga-detail-wide-tab-gap); }
-.ga-wide-pane .ga-detail-tags span { padding: var(--ga-space-1) var(--ga-space-2); border: 0; border-radius: var(--ga-detail-wide-chip-radius); background: var(--ga-detail-wide-fill); color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-small-font); }
-.ga-wide-pane .library-room-game-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--ga-detail-wide-sec-gap); margin: 0; }
-.ga-wide-pane .library-room-game-facts div { padding: var(--ga-detail-wide-block-gap) 0; border-bottom: var(--ga-detail-wide-rule) solid var(--ga-detail-wide-line); }
-.ga-wide-pane .library-room-game-facts dt { color: var(--ga-detail-wide-accent); font: var(--ga-detail-wide-dt-font); }
-.ga-wide-pane .library-room-game-facts dd { margin: var(--ga-space-1) 0 0; color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-body-font); }
-.ga-wide-requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ga-detail-wide-sec-gap); }
-.ga-wide-pane .ga-ai-reason { padding: var(--ga-detail-wide-sec-pad); border: 0; border-radius: var(--ga-detail-wide-box-radius); background: color-mix(in srgb, var(--ga-detail-wide-accent) 13%, transparent); }
-.ga-wide-pane .ga-ai-reason :is(h4) { color: var(--ga-detail-wide-accent); }
-.ga-wide-pane .ga-ai-reason { --ga-p-size: var(--ga-detail-wide-lead-size); color: var(--ga-detail-wide-ink); }
-.ga-wide-source-list { display: grid; gap: var(--ga-space-2); }
-.ga-wide-source-list > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ga-space-2); padding: var(--ga-space-2) var(--ga-space-3); border-radius: var(--ga-detail-wide-chip-radius); background: var(--ga-detail-wide-fill); }
-.ga-wide-source-list .is-best { box-shadow: inset 0 0 0 var(--ga-detail-wide-ring) var(--ga-detail-wide-tab-ring); }
-.ga-wide-source-list span { color: var(--ga-detail-wide-muted); }
-
-/* Right column: the trailer and screenshots, the largest piece, then the compact rating of the same width. */
-.ga-wide-side { grid-column: 2; grid-row: 2; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--ga-detail-wide-side-gap); min-height: 0; }
 /* The media keeps 16:9 while there is room and gives way (cropped) on a short window, so the rating always fits. */
 .ga-wide-media { display: flex; flex-direction: column; min-height: 0; }
-.ga-wide-media .library-detail-media { display: flex; flex-direction: column; gap: var(--ga-space-1); position: relative; min-height: 0; max-height: 100%; }
+.ga-wide-media .library-detail-media { display: flex; flex-direction: column; gap: var(--ga-detail-wide-media-gap); position: relative; min-height: 0; max-height: 100%; }
 .ga-wide-media .library-room-feature-ambient { display: none; }
 .ga-wide-media .library-room-feature-media { position: relative; inset: auto; flex: 0 1 auto; min-height: 0; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--ga-detail-wide-box-radius); background: var(--ga-detail-wide-deep); box-shadow: var(--ga-detail-wide-box-shadow); }
 .ga-wide-media :is(.library-room-hero-layer, .library-room-video) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .ga-wide-media .ga-media-thumbnails:empty { display: none; }
-.ga-wide-media .ga-media-thumbnails { flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ga-space-1); }
+.ga-wide-media .ga-media-thumbnails { flex: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ga-detail-wide-media-gap); }
 .ga-wide-media .ga-media-thumbnails button { padding: 0; aspect-ratio: 16 / 9; overflow: hidden; border: 0; border-radius: var(--ga-detail-wide-thumb-radius); background: var(--ga-detail-wide-deep); box-shadow: inset 0 0 0 var(--ga-detail-wide-rule) var(--ga-detail-wide-line); cursor: pointer; }
 .ga-wide-media .ga-media-thumbnails button[aria-pressed="true"] { box-shadow: 0 0 0 calc(2 * var(--ga-detail-wide-ring)) var(--ga-detail-wide-accent); }
 .ga-wide-media .ga-media-thumbnails img { width: 100%; height: 100%; object-fit: cover; }
 .ga-wide-media .ga-media-badge { border-radius: var(--ga-space-1); background: var(--ga-action-bg); color: var(--ga-action-ink); }
 .ga-wide-media .ga-media-play { background: var(--ga-action-bg); color: var(--ga-action-ink); border: 0; }
 
-.ga-wide-rating {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ga-detail-wide-rating-gap);
-  min-height: 0; padding: var(--ga-detail-wide-rating-pad); overflow: hidden;
-  border-radius: var(--ga-detail-wide-box-radius); background: var(--ga-detail-wide-glass); box-shadow: inset 0 var(--ga-detail-wide-rule) 0 var(--ga-detail-wide-line);
-  --ga-wide-tone: var(--ga-detail-wide-muted);
-}
-.ga-wide-rating[data-tone="good"] { --ga-wide-tone: var(--ga-detail-wide-good); }
-.ga-wide-rating[data-tone="mixed"] { --ga-wide-tone: var(--ga-detail-wide-mixed); }
-.ga-wide-rating[data-tone="bad"] { --ga-wide-tone: var(--ga-detail-wide-bad); }
-.ga-wide-gauge { position: relative; width: var(--ga-detail-wide-gauge-w); height: var(--ga-detail-wide-gauge-h); }
-.ga-wide-gauge svg { width: 100%; height: 100%; overflow: visible; }
-.ga-wide-gauge rect { fill: var(--ga-detail-wide-segment); transition: fill var(--ga-detail-wide-entry) calc(var(--ga-gauge-i) * var(--ga-detail-wide-gauge-step)); }
-.ga-wide-gauge.is-on rect.is-lit { fill: var(--ga-wide-tone); }
-.ga-wide-gauge-dot { fill: var(--ga-detail-wide-ink); opacity: 0; transition: opacity var(--ga-detail-wide-entry) 1s; }
-.ga-wide-gauge.is-on .ga-wide-gauge-dot { opacity: 1; }
-.ga-wide-gauge-value { position: absolute; inset: var(--ga-detail-wide-gauge-top) 0 auto; text-align: center; color: var(--ga-detail-wide-ink); }
-.ga-wide-gauge-value b { display: block; font: var(--ga-detail-wide-gauge-font); letter-spacing: -.04em; }
-.ga-wide-gauge-value small { font: var(--ga-detail-wide-gauge-unit); }
-.ga-wide-gauge-value i { display: block; margin-top: var(--ga-detail-wide-ring); color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-gauge-label); font-style: normal; letter-spacing: .12em; text-transform: uppercase; }
-.ga-wide-rating-info { display: flex; flex-direction: column; min-width: 0; gap: var(--ga-space-1); }
-.ga-wide-rating-info > strong { color: var(--ga-wide-tone); font: var(--ga-detail-wide-verdict-font); }
-.ga-wide-rating-sub { color: var(--ga-detail-wide-soft); font: var(--ga-detail-wide-small-font); }
-.ga-wide-rating-bar { display: flex; gap: var(--ga-detail-wide-rating-bar-gap); height: var(--ga-detail-wide-rating-bar); }
-.ga-wide-rating-bar i { flex-basis: 0; border-radius: var(--ga-detail-wide-rating-bar); }
-.ga-wide-rating-bar .is-positive { background: var(--ga-detail-wide-good); }
-.ga-wide-rating-bar .is-negative { background: var(--ga-detail-wide-bad); }
-.ga-wide-rating-legend { display: flex; justify-content: space-between; font: var(--ga-detail-wide-small-font); }
-.ga-wide-rating-legend span { display: inline-flex; align-items: center; gap: var(--ga-space-1); }
-.ga-wide-rating-legend .is-positive { color: var(--ga-detail-wide-good); }
-.ga-wide-rating-legend .is-negative { color: var(--ga-detail-wide-bad); }
-.ga-wide-rating-legend svg { width: var(--ga-detail-wide-legend-icon); height: var(--ga-detail-wide-legend-icon); }
-.ga-wide-rating-chips { display: flex; gap: var(--ga-detail-wide-tab-gap); }
-.ga-wide-rating-chips > div { flex: 1; min-width: 0; padding: var(--ga-space-1) var(--ga-space-2); border-radius: var(--ga-detail-wide-thumb-radius); background: var(--ga-detail-wide-fill); }
-.ga-wide-rating-chips small { display: block; margin-bottom: var(--ga-detail-wide-ring); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-chip-label); letter-spacing: .05em; text-transform: uppercase; }
-.ga-wide-rating-chips b { color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-chip-value); }
-
 /* Footer: the actions take the section's colour (EN9) with filled icons; how much it was played sits on the right. */
-.ga-wide-actions { grid-column: 1; grid-row: 3; display: flex; align-items: center; gap: var(--ga-detail-wide-action-gap); margin-top: var(--ga-detail-wide-foot-gap); }
+.ga-wide-actions { --ga-pad-size: var(--ga-detail-wide-action-h); --ga-pad-color: var(--ga-detail-pad-color); grid-column: 1; grid-row: 3; display: flex; align-items: center; gap: var(--ga-detail-wide-action-gap); margin-top: var(--ga-detail-wide-foot-gap); }
 .ga-wide-actions .library-room-actions { display: flex; align-items: center; gap: var(--ga-detail-wide-action-gap); min-height: 0; }
 html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions :is(.glass-action, .steam-store-small, .ga-favorite) {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--ga-space-1);
@@ -255,27 +78,52 @@ html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions :is(.glass-action
 html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions .glass-action::after { content: none; }
 html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions .glass-action-icon { position: static; transform: none; width: auto; height: auto; }
 html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions .glass-action-label { position: static; display: block; opacity: 1; transform: none; max-width: none; color: inherit; font: var(--ga-detail-wide-action-font); letter-spacing: 0; text-transform: none; }
-html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions svg { width: var(--ga-detail-wide-action-icon); height: var(--ga-detail-wide-action-icon); stroke-width: 2.4; }
-.ga-wide-played { grid-column: 2; grid-row: 3; display: flex; align-items: center; gap: var(--ga-space-1); height: var(--ga-detail-wide-action-h); margin: var(--ga-detail-wide-foot-gap) 0 0; color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-small-font); }
-.ga-wide-played b { color: var(--ga-detail-wide-soft); }
+html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions svg:not(.ga-pad svg) { width: var(--ga-detail-wide-action-icon); height: var(--ga-detail-wide-action-icon); stroke-width: 2.4; }
 
 /* The trailer can fill the whole detail and back (useExpandedMedia). */
-.ga-detail-dialog:has(.ga-game-detail-wide) .library-detail-media.is-expanded .library-room-feature-media { position: fixed; inset: var(--ga-detail-wide-inset-y) var(--ga-detail-wide-inset-x); z-index: 40; width: auto; height: auto; aspect-ratio: auto; border-radius: var(--ga-detail-wide-radius); }
+/* Where full screen is refused it covers the whole detail: absolute to the detail itself (a fixed box would follow the
+   dialog's entrance transform and land in the wrong place), so its ancestors in between give up their position. */
+.ga-game-detail.ga-game-detail-wide:has(.library-detail-media.is-expanded) :is(.ga-sheet-main, .ga-sheet-media),
+.ga-game-detail.ga-game-detail-wide .ga-wide-media .library-detail-media.is-expanded { position: static; }
 
-/* A narrow window: one column that scrolls as a whole. */
-@media (max-width: 1100px) {
-  .ga-game-detail.ga-game-detail-wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--ga-detail-wide-head-h) auto auto auto auto; overflow: auto; }
-  .ga-wide-body, .ga-wide-side, .ga-wide-actions, .ga-wide-played { grid-column: 1; grid-row: auto; }
-  .ga-wide-pane-frame { flex: none; }
-  .ga-wide-pane { height: auto; -webkit-mask-image: none; mask-image: none; }
-  .ga-wide-side { grid-template-rows: auto auto; margin-top: var(--ga-detail-wide-foot-gap); }
-  /* Rows take their content's height here: nothing may shrink under it (the wide grid lets them, to fit the window). */
-  .ga-game-detail.ga-game-detail-wide > :is(.ga-wide-body, .ga-wide-side), .ga-wide-media, .ga-wide-media .library-detail-media { min-height: auto; max-height: none; }
-  .ga-wide-media .library-room-feature-media { flex: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ga-game-detail.ga-game-detail-wide *, .ga-game-detail.ga-game-detail-wide *::before, .ga-game-detail.ga-game-detail-wide *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
-}
+.ga-detail-dialog:has(.ga-game-detail-wide) .library-detail-media.is-expanded .library-room-feature-media { position: absolute; inset: 0; z-index: 40; width: auto; height: auto; max-height: none; aspect-ratio: auto; border-radius: var(--ga-detail-wide-radius); background: var(--ga-detail-wide-deep); }
+.ga-detail-dialog:has(.ga-game-detail-wide) .library-detail-media.is-expanded :is(.library-room-hero-layer, .library-room-video) { object-fit: contain; }
+.ga-detail-dialog:has(.ga-game-detail-wide) .library-detail-media.is-expanded .ga-media-badge { display: none; }
+
+
 
 /* The detail's buttons take the mode's colour with the ink that contrasts with it (--ga-action-ink), whatever polish.css says for the old Play button. */
 html body .ga-game-detail.ga-game-detail-wide .ga-wide-actions .glass-action:is(.play, .download) { color: var(--ga-action-ink) !important; border-color: transparent !important; filter: none; }
+
+
+/* The trailer's controls: a glass pill with round icon buttons that keep their icons visible. */
+.ga-wide-media .library-room-media-controls { position: absolute; right: var(--ga-space-2); bottom: var(--ga-space-2); z-index: 5; display: flex; align-items: center; gap: var(--ga-space-1); padding: var(--ga-detail-wide-controls-pad); border: 0; border-radius: var(--ga-detail-wide-media-btn); background: var(--ga-detail-wide-glass); box-shadow: var(--ga-detail-wide-tool-shadow); backdrop-filter: blur(var(--ga-detail-wide-controls-blur)); opacity: 1; }
+.ga-wide-media .library-room-media-controls button { display: grid; place-items: center; flex: none; width: var(--ga-detail-wide-media-btn); height: var(--ga-detail-wide-media-btn); padding: 0; border: 0; border-radius: 50%; appearance: none; background: none; color: var(--ga-detail-wide-ink); cursor: pointer; }
+.ga-wide-media .library-room-media-controls button:hover { background: var(--ga-detail-wide-fill-hover); }
+.ga-wide-media .library-room-media-controls button:focus-visible { outline: var(--ga-nav-focus-w) solid var(--ga-detail-wide-accent); outline-offset: var(--ga-detail-wide-ring); }
+.ga-wide-media .library-room-media-controls svg { width: var(--ga-detail-wide-media-icon); height: var(--ga-detail-wide-media-icon); }
+.ga-wide-media .library-room-media-controls input[type="range"] { width: var(--ga-detail-wide-volume-w); accent-color: var(--ga-detail-wide-accent); cursor: pointer; }
+/* Full screen (useExpandedMedia): the whole picture fits, on the deep colour, with no rounded corners. */
+.ga-wide-media .library-room-feature-media:fullscreen { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; background: var(--ga-detail-wide-deep); }
+.ga-wide-media .library-room-feature-media:fullscreen :is(.library-room-hero-layer, .library-room-video) { object-fit: contain; }
+.ga-wide-media .library-room-feature-media:fullscreen .ga-media-badge { display: none; }
+
+/* Downloads tab (DetailDownloads.tsx): one row per source with its own Download button. */
+.ga-detail-dl { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ga-detail-wide-summary-gap); }
+.ga-detail-dl-intro { margin: 0; color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-body-font); }
+.ga-detail-dl-wait { display: inline-flex; align-items: center; gap: var(--ga-space-1); color: var(--ga-detail-wide-muted); }
+.ga-detail-dl-list { display: flex; flex-direction: column; gap: var(--ga-space-1); width: 100%; margin: 0; padding: 0; list-style: none; }
+.ga-detail-dl-row { display: flex; align-items: center; gap: var(--ga-space-2); padding: var(--ga-space-2) var(--ga-space-2) var(--ga-space-2) var(--ga-space-3); border-radius: var(--ga-detail-wide-chip-radius); background: var(--ga-detail-wide-glass); box-shadow: inset 0 0 0 var(--ga-detail-wide-rule) var(--ga-detail-wide-line); }
+.ga-detail-dl-row.is-best { box-shadow: inset 0 0 0 var(--ga-detail-wide-ring) var(--ga-detail-wide-tab-ring); }
+.ga-detail-dl-row > .ga-btn-primary, .ga-detail-dl-row > .ga-btn-secondary { flex: none; }
+.ga-detail-dl-text { display: flex; flex: 1; flex-direction: column; gap: var(--ga-detail-wide-ring); min-width: 0; }
+.ga-detail-dl-text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-detail-wide-ink); font: var(--ga-detail-wide-dd-font); }
+.ga-detail-dl-text span { color: var(--ga-detail-wide-muted); font: var(--ga-detail-wide-small-font); }
+.ga-detail-dl-best { align-self: flex-start; padding: var(--ga-detail-wide-ring) var(--ga-space-1); border-radius: var(--ga-radius-s); background: var(--ga-action-bg); color: var(--ga-action-ink) !important; font: var(--ga-detail-wide-chip-label) !important; letter-spacing: .08em; text-transform: uppercase; }
+.ga-detail-dl-lesson { color: var(--ga-detail-wide-mixed); font: var(--ga-detail-wide-small-font); font-style: normal; }
+/* The confirmation's facts: label over value, two columns. */
+.ga-detail-dl-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ga-space-2); margin: 0; }
+.ga-detail-dl-facts dt { color: var(--ga-muted); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-detail-dl-facts dd { margin: var(--ga-detail-wide-ring) 0 0; overflow-wrap: anywhere; color: var(--ga-text-ink); font: var(--ga-field-font); }
+/* Grown over the new detail, the controls stay at the bottom right (the old detail's rule lifts them beside its close). */
+html body .ga-game-detail.ga-game-detail-wide .library-detail-media.is-expanded .library-room-media-controls { top: auto !important; right: var(--ga-space-3) !important; bottom: var(--ga-space-3) !important; }

@@ -1,0 +1,8 @@
+/* TEMPLATE: a card in three slices of art (SliceCard.tsx, docs/GUI_DESIGN.md §4.41). Layout only: the paddings are
+   --ga-slice-* in templates/base.css. Header and footer keep their aspect (width 100 %, height from the image); the
+   body's art stretches to whatever its content needs. */
+.ga-slice-card { display: flex; flex-direction: column; min-width: 0; filter: var(--ga-slice-shadow); }
+.ga-slice-card img { display: block; width: 100%; height: auto; pointer-events: none; user-select: none; }
+.ga-slice-body { flex: 1; display: grid; align-content: start; gap: var(--ga-space-2); padding: var(--ga-slice-body-pad); background-size: 100% 100%; background-repeat: no-repeat; }
+.ga-slice-foot { position: relative; }
+.ga-slice-foot-content { position: absolute; inset: var(--ga-slice-foot-inset); display: flex; align-items: center; justify-content: center; gap: var(--ga-space-2); }

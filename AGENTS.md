@@ -17,14 +17,34 @@ Al cerrar una tarea: tildarla en `Tareas.md`, registrar el commit en `Log.md` y 
 
 Antes de crear o cambiar pantallas, diálogos, paneles o botones de `apps/desktop`, leé `docs/GUI_DESIGN.md` (tokens, componentes y lista de comprobación) y usá la skill `.claude/skills/gameaccess-gui-design`. La ficha de juego es la referencia visual. Un solo botón de cierre (`ga-close`), acciones principales en naranja, botones de una fila con la misma altura, paneles de vidrio con borde degradado.
 
-### Plantillas de diseño (política de Seba, 2026-11-05)
+### Plantillas de diseño — los tres niveles (política de Seba, 2026-11-05; reafirmada 2026-11-19)
 
-Toda interfaz nueva o que se toque nace compatible con el sistema de plantillas (`docs/GUI_DESIGN.md` §0c), desde el primer commit:
+**Toda vista de la aplicación, sin excepción, se arma con los tres niveles de estilo.** No es una recomendación ni algo
+para «pasarle después»: una vista nueva o tocada nace así, desde el primer commit. Es lo que evita que haya estilos de
+interfaz distintos entre pantallas, y lo que evita los bordes, los rellenos, los márgenes, la distribución y el
+alineamiento improvisados. Esto es una aplicación profesional.
 
-1. **Primero lo general:** componentes de `components/ga` y clases de `components/ga/content.css` (`ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`). Mirá cómo lo resolvió la última pantalla migrada (Configuración › Plugins y › IA) antes de inventar.
-2. **Después lo específico:** un CSS de pantalla solo con distribución.
-3. **Nada a mano:** ni color, fuente, radio, margen ni alto de control; todo con variables de `templates/base.css` (estructura) o del sabor `templates/flavor-terminal.css` (aspecto). Si falta una variable, se agrega a esa capa.
-4. **Se controla:** la pantalla nueva entra en `templates/flavor.test.ts` y pasa `npm run check:css`.
+1. **Nivel general:** los componentes de `components/ga` y las clases de `components/ga/content.css`
+   (`ga-stack`, `ga-group`, `ga-settings-group`, `ga-label`, `ga-hint`, `ga-status`, `ga-heading`, `ga-actions`,
+   `ga-path-control`, `ga-style-toggle`, `ga-disclosure`, `GaAccordion`, `GaSwitch`, `GaButton`, `GaClose`…).
+   Si una pieza ya existe, se usa tal cual. Si falta, **se agrega a este nivel**, no en la pantalla.
+2. **Nivel del sabor:** `templates/flavor-terminal.css` (y los sabores numerados). Ahí viven los colores, las letras y
+   los roles visuales. Una vista nunca elige un color ni una fuente: lee un rol.
+3. **Nivel específico:** un CSS propio de la pantalla **solo con distribución** (grillas, posiciones, qué va al lado de
+   qué). Ni colores, ni fuentes, ni radios, ni márgenes, ni altos de control escritos a mano: todo sale de
+   `templates/base.css` (medidas y estructura) o del sabor (aspecto). Si falta una variable, se agrega a esa capa.
+
+**Cómo se nota que está mal hecho** (y por qué se revisa antes de dar algo por terminado): una etiqueta en negrita
+pegada arriba de un campo, campos de anchos distintos en la misma columna, separaciones que cambian de una sección a la
+otra, una vista que no carga los mismos ajustes que las demás porque sus clases solo están definidas dentro de otro
+contenedor. Un campo es siempre **nombre arriba en `ga-label`, control abajo, los dos del mismo ancho** (`ga-path-control`).
+
+**Coherencia entre vistas parecidas:** una vista de detalle nueva se parece a las que ya hay. Los encabezados de sección
+del detalle del Manager usan la misma letra, el mismo ámbar y el mismo tamaño de ícono que los paneles de la ficha de
+juego (§4.43 y §4.50), porque son la misma familia.
+
+**Se controla:** la pantalla nueva entra en `templates/flavor.test.ts`, y `npm run check:css` y `npm run check:i18n`
+pasan. Mirá el resultado en la vista previa antes de darlo por hecho.
 
 **Animaciones (Seba):** en Game Access, ignorá la preferencia de movimiento reducido del sistema. No desactives ni atenués animaciones por `prefers-reduced-motion`.
 

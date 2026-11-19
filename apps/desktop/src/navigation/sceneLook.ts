@@ -165,9 +165,15 @@ export function figureImageUrl(id: string): Promise<string | null> {
   return pending;
 }
 
+/** A stored figure's own file, to measure it again; null when it is gone. */
+export function figureImageBlob(id: string): Promise<Blob | null> {
+  return withStore<Blob | undefined>("readonly", store => store.get(id) as IDBRequest<Blob | undefined>)
+    .then(blob => blob ?? null).catch(() => null);
+}
+
 /** The src for a mode's figure: the player's image once it loads, otherwise the original. */
 export function useFigureSrc(mode: SceneMode, image: string | null | undefined): string {
-  const original = `/styles/escena/fig-${SCENE_FIGURE_FILES[mode]}.webp`;
+  const original = `/styles/escena/fig-${SCENE_FIGURE_FILES[mode]}-vertical.webp`;
   const [src, setSrc] = useState(() => image ? urls.get(image) ?? original : original);
   useEffect(() => {
     if (!image) { setSrc(original); return; }
@@ -212,6 +218,73 @@ export async function checkFigure(blob: Blob): Promise<FigureCheck> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Where a figure lands by itself when it is dropped (Seba, 2026-11-19), so every image reaches the same place however
+ * much transparent room it carries around the drawing: its drawing's **top right corner** goes to the art's corner and
+ * its height is always the same. In shares of the art's own height (`--ga-scene-art-height`).
+ */
+export const FIGURE_FIT = { top: 0, right: 0, height: 1.25 } as const;
+/** The box the figure is placed in: the scene's column, and the art's height inside it, all in pixels. */
+export interface FigureFrame { width: number; height: number; art: number }
+/** The drawing inside an image: what is not transparent, as shares of the image, with the image's own size. */
+export interface FigureBox { top: number; right: number; bottom: number; width: number; height: number }
+
+/** The scene column as a frame, read off the live element; null when the scene is not on screen. */
+export function figureFrame(scene: Element | null = document.querySelector(".ga-scene-navigation")): FigureFrame | null {
+  if (!scene) return null;
+  const rect = scene.getBoundingClientRect();
+  const art = parseFloat(getComputedStyle(scene).getPropertyValue("--ga-scene-art-height"));
+  return rect.width && rect.height && art ? { width: rect.width, height: rect.height, art } : null;
+}
+
+/** Measures the drawing inside an image: the smallest box that holds everything that is not transparent. */
+export async function figureBox(blob: Blob): Promise<FigureBox | null> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 64; canvas.height = 96;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context || !image.naturalWidth || !image.naturalHeight) return null;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let top = canvas.height, right = -1, bottom = -1;
+    for (let row = 0; row < canvas.height; row++) for (let column = 0; column < canvas.width; column++) {
+      if (pixels[(row * canvas.width + column) * 4 + 3] < 24) continue;
+      if (row < top) top = row;
+      if (row > bottom) bottom = row;
+      if (column > right) right = column;
+    }
+    if (bottom < 0) return null;                       // nothing but transparency
+    return { top: top / canvas.height, bottom: (bottom + 1) / canvas.height, right: (right + 1) / canvas.width,
+      width: image.naturalWidth, height: image.naturalHeight };
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * The scale and the place that put a drawing at `FIGURE_FIT`, in the same numbers the sliders use, so the player can
+ * go on moving it by hand afterwards. It undoes the geometry of `.ga-scene-art img` (scene-frame.css): the image is
+ * `art * scale` tall, hung from the art's top and from the column's right edge, and both offsets are shares of the
+ * column, not of the image.
+ */
+export function fitFigure(box: FigureBox, frame: FigureFrame): Pick<SceneFigure, "scale" | "x" | "y"> {
+  const [low, high, step] = FIGURE_LIMITS.scale;
+  const drawn = Math.max(box.bottom - box.top, .05);
+  const scale = Math.min(high, Math.max(low, Math.round(FIGURE_FIT.height / drawn / step) * step));
+  const tall = frame.art * scale, wide = tall * box.width / box.height;
+  const top = FIGURE_FIT.top * frame.art - (1 - scale) * frame.art * .8 - box.top * tall;
+  const right = (1 - scale) * frame.art / 3 + (1 - box.right) * wide - FIGURE_FIT.right * frame.art;
+  const hold = (value: number, limits: readonly [number, number, number]) =>
+    Math.min(limits[1], Math.max(limits[0], Math.round(value / limits[2]) * limits[2]));
+  return { scale, x: hold(right / frame.width * 100, FIGURE_LIMITS.x), y: hold(top / frame.height * 100, FIGURE_LIMITS.y) };
 }
 
 /** Stores a checked figure and returns its id. */

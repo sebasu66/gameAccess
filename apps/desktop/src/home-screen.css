@@ -6,6 +6,15 @@
 .ga-home-plus .ga-home-card-title { color: var(--ga-home-warm-ink); }
 .ga-home-plus.is-on { border-color: var(--ga-home-warm-line); background: var(--ga-home-warm-tint); }
 .ga-home-plus p { max-width: var(--ga-home-measure); }
+/* Subscription › Plan: the two plan cards side by side, the same width and the same height (§4.41). */
+.ga-plan-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ga-plan-card-min)), 1fr)); gap: var(--ga-space-4); align-items: stretch; max-width: var(--ga-plan-cards-max); }
+.ga-plan-card { --ga-plan-accent: var(--ga-plan-base-accent); }
+.ga-plan-card.is-plus { --ga-plan-accent: var(--ga-plan-plus-accent); }
+.ga-plan-lead { --ga-p-size: var(--ga-plan-lead-size); color: var(--ga-plan-accent); font-weight: 700; }
+.ga-plan-list { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.ga-plan-list li { display: flex; align-items: flex-start; gap: var(--ga-space-1); color: var(--ga-text-ink); font: var(--ga-plan-item-font); }
+.ga-plan-list svg { flex: none; margin-top: var(--ga-plan-check-nudge); color: var(--ga-plan-accent); }
+.ga-plan-current { color: var(--ga-plan-accent); font: var(--ga-plan-current-font); letter-spacing: var(--ga-plan-current-track); text-transform: uppercase; }
 /* The news and the help keep their own layout; inside a card they need no second frame. */
 .ga-home-card .ga-news { padding: 0; }
 .ga-home-help .ga-help-topic ol { font-size: var(--ga-text-size); }

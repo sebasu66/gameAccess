@@ -144,14 +144,15 @@ pub(crate) fn suspend() {
 pub(crate) fn shutdown() {
     let Ok(mut guard) = slot().lock() else { return };
     let Some(mut process) = guard.take() else { return };
-    let client = reqwest::blocking::Client::builder().no_proxy().timeout(Duration::from_secs(15)).build();
+    // Short waits: the window is already gone, and a process still closing holds the single instance.
+    let client = reqwest::blocking::Client::builder().no_proxy().timeout(Duration::from_secs(3)).build();
     if let Ok(client) = client {
         let _ = client
             .post(format!("http://127.0.0.1:{}/shutdown", process.port))
             .header("X-GameAccess-Token", &process.token)
             .send();
     }
-    for _ in 0..100 {
+    for _ in 0..40 {
         if process.child.try_wait().map(|status| status.is_some()).unwrap_or(true) {
             return;
         }

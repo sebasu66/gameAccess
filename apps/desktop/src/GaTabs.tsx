@@ -1,6 +1,10 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import PlusLock, { openPlusScreen } from "./components/ga/PlusLock";
 
-export interface GaTab { id: string; label: string; content: ReactNode }
+export interface GaTab { id: string; label: string; content: ReactNode;
+  /** Part of PLUS and not included: the tab shows a padlock, does not open, and a click on it takes the player to the
+   *  subscription screen, as the navigation's submodes do (docs/GUI_DESIGN.md §4.48). */ locked?: boolean;
+  /** What that padlock's tooltip says. */ lockReason?: string }
 
 /**
  * Template for any screen that would otherwise grow without limit: one sub-section visible at a
@@ -8,13 +12,14 @@ export interface GaTab { id: string; label: string; content: ReactNode }
  */
 export default function GaTabs({ tabs, initial, label }: { tabs: GaTab[]; initial?: string; label: string }) {
   const base = useId();
-  const [selected, setSelected] = useState(initial && tabs.some(tab => tab.id === initial) ? initial : tabs[0]?.id);
+  const open = tabs.filter(tab => !tab.locked);
+  const [selected, setSelected] = useState(initial && open.some(tab => tab.id === initial) ? initial : open[0]?.id);
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({});
-  const current = tabs.find(tab => tab.id === selected) ?? tabs[0];
+  const current = open.find(tab => tab.id === selected) ?? open[0];
   const move = (event: KeyboardEvent, index: number) => {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     const target = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : step ? (index + step + tabs.length) % tabs.length : -1;
-    if (target < 0) return;
+    if (target < 0 || tabs[target].locked) return;
     event.preventDefault();
     setSelected(tabs[target].id);
     buttons.current[tabs[target].id]?.focus();
@@ -23,9 +28,9 @@ export default function GaTabs({ tabs, initial, label }: { tabs: GaTab[]; initia
   return <div className="ga-tabs">
     <div className="ga-tabs-list" role="tablist" aria-label={label}>
       {tabs.map((tab, index) => <button key={tab.id} ref={node => { buttons.current[tab.id] = node; }} type="button" role="tab"
-        id={`${base}-tab-${tab.id}`} aria-controls={`${base}-panel-${tab.id}`} aria-selected={tab.id === current.id}
-        tabIndex={tab.id === current.id ? 0 : -1} className="ga-tab" data-tab-index={index % 6}
-        onClick={() => setSelected(tab.id)} onKeyDown={event => move(event, index)}>{tab.label}</button>)}
+        id={`${base}-tab-${tab.id}`} aria-controls={tab.locked ? undefined : `${base}-panel-${tab.id}`} aria-selected={!tab.locked && tab.id === current.id}
+        tabIndex={tab.id === current.id ? 0 : -1} className="ga-tab" data-locked={tab.locked || undefined} data-tab-index={index % 6}
+        onClick={() => tab.locked ? openPlusScreen() : setSelected(tab.id)} onKeyDown={event => move(event, index)}>{tab.label}{tab.locked ? <PlusLock reason={tab.lockReason} /> : null}</button>)}
     </div>
     <div className="ga-tabs-panel" role="tabpanel" id={`${base}-panel-${current.id}`} aria-labelledby={`${base}-tab-${current.id}`}>{current.content}</div>
   </div>;

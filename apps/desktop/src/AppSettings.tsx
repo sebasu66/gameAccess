@@ -3,7 +3,8 @@ import SteamSettings from "./SteamSettings";
 import GaTabs from "./GaTabs";
 import LanguageSwitch from "./LanguageSwitch";
 import StartupSettings from "./StartupSettings";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import CircularScrollbar from "./CircularScrollbar";
 import PluginSettings from "./PluginSettings";
 import AiSettings from "./AiSettings";
 import McpSettings from "./McpSettings";
@@ -29,6 +30,7 @@ const copy = {
 /** The settings screen (docs/GUI_DESIGN.md §0b): chosen from the frame like the others, no close button. */
 function SettingsScreen() {
  const { locale, t } = useI18n(); const c = copy[locale];
+ const scrollRef = useRef<HTMLDivElement>(null);
  const newShell = navigationShellEnabled();
  const navigation = useNavigationSelection();
  const selectedSection = navigation.settings;
@@ -81,10 +83,14 @@ function SettingsScreen() {
  const shown = settingsTabIds(selectedSection);
  const visibleTabs = !newShell ? tabs : tabs.filter(tab => shown.includes(tab.id));
  return <GaScreen id="ga-settings" mode="settings" title={c.title} subtitle={c.subtitle} className="ga-settings-screen">
-  {newShell ? <div className="ga-settings-content ga-settings-screen-content">
-   {/* The new shell chooses the tab in the sections panel (its submodes): only that one is drawn here. */}
-   {visibleTabs.find(tab => tab.id === (selectedSection === "plugins" ? "plugins" : sectionTab(selectedSection, navigation.tabs)))?.content ?? null}<BuildStamp />
-  </div> : <div className="ga-settings-content ga-settings-screen-content"><GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={visibleTabs} /><BuildStamp /></div>}
+  <div className="ga-scroll-frame ga-settings-frame">
+   <div ref={scrollRef} className="ga-settings-content ga-settings-screen-content">
+    {newShell ? visibleTabs.find(tab => tab.id === (selectedSection === "plugins" ? "plugins" : sectionTab(selectedSection, navigation.tabs)))?.content ?? null
+     : <GaTabs key={pluginFocus.times} initial={pluginFocus.id ? "plugins" : aiFirst ? "ai" : undefined} label={c.title} tabs={visibleTabs} />}
+    <BuildStamp />
+   </div>
+   <CircularScrollbar targetRef={scrollRef} label={c.title} />
+  </div>
  </GaScreen>;
 }
 export default function AppSettings({ dockTarget = null }: { dockTarget?: HTMLElement | null }) {

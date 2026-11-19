@@ -2,6 +2,7 @@
 closed app is put right on the next start."""
 import json
 import os
+from pathlib import Path
 
 from game_library_manager.mover import move_folder
 from game_library_manager.freeze_control import FreezeCancelled
@@ -35,8 +36,10 @@ def test_on_the_same_disk_it_is_only_renamed(tmp_path):
 
 
 def test_to_another_disk_each_byte_copied_moves_the_bar_and_the_original_goes_last(tmp_path, monkeypatch):
-    monkeypatch.setattr(os, "rename", lambda *a: (_ for _ in ()).throw(OSError(17, "different disk")))
     source, target, progress = tmp_path / "Eta", tmp_path / "lib" / "8-Eta", Recorder()
+    rename = os.rename
+    # Another disk: the original cannot be renamed there; the copy, made beside the target, takes its name.
+    monkeypatch.setattr(os, "rename", lambda a, b: (_ for _ in ()).throw(OSError(17, "different disk")) if Path(a) == source else rename(a, b))
     total = game(source)
     result = move_folder(source, target, progress)
     assert result == {"renamed": False, "bytes": total, "files": 2, "resumed_bytes": 0}

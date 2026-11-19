@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertOctagon, AlertTriangle, Check, ChevronDown, ChevronRight, CircleCheck, Download, HardDrive, Heart, Info, Library, List, RefreshCw, ShieldCheck, Snowflake, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { Activity, AlertOctagon, AlertTriangle, Check, ChevronDown, ChevronRight, CircleCheck, Download, HardDrive, Heart, Info, Library, List, RefreshCw, ShieldCheck, Snowflake, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { isDownloadHistory } from "../catalog/DigitalDownloadService";
 import { centralDialog, type TaskView } from "../centralDialog/centralDialog";
 import { activeDownloadService } from "../downloads/activeService";
@@ -20,6 +20,7 @@ import type { DownloadProgressSnapshot } from "../downloadProvider";
 import { formatDownloadBytes, sourceDownloadSize } from "../downloadSize";
 import type { CatalogGame } from "../types";
 import { activityCategory, activityGroups, activitySeverity, clearActivity, markActivitySeen, useActivity, type ActivityCategory, type ActivityEntry, type ActivityGroup, type ActivitySeverity } from "./activity";
+import { gsap, useGSAP } from "../motion/gsap";
 import "./activity.css";
 
 type Running = {
@@ -174,6 +175,16 @@ const SCENE_CATEGORIES: { id: ActivitySeverity; label: TranslationKey; icon: Luc
   { id: "info", label: "sceneActivityInfo", icon: Info },
 ];
 
+/** Small liquid connection behind a group: the row remains the interactive element. */
+function ActivityNotch() {
+  const ref = useRef<SVGSVGElement>(null);
+  useGSAP(() => {
+    if (!ref.current) return;
+    gsap.fromTo(ref.current, { scaleX: .35 }, { scaleX: 1, duration: .55, ease: "back.out(1.5)", transformOrigin: "right center" });
+  }, { scope: ref });
+  return <svg ref={ref} className="ga-scene-history-notch" viewBox="0 0 30 80" preserveAspectRatio="none" aria-hidden="true"><path d="M30 0 C30 19 27 20 17 26 C5 33 5 47 17 54 C27 60 30 61 30 80 Z" fill="var(--ga-scene-gradient-end)" /></svg>;
+}
+
 /** Escena groups actual history by outcome. Filters never delete entries or replace their destinations. */
 export function SceneHistory({ entries, onOpen }: { entries: ActivityEntry[]; onOpen?: () => void }) {
   const { t } = useI18n();
@@ -194,15 +205,14 @@ export function SceneHistory({ entries, onOpen }: { entries: ActivityEntry[]; on
       const open = items.length === 1 || expanded.has(category.id);
       const Icon = category.icon;
       return <div className="ga-scene-history-group" data-severity={category.id} key={category.id}>
+        {items.length > 1 && <ActivityNotch />}
         {items.length > 1 ? <button type="button" className="ga-scene-history-group-head" aria-expanded={open} onClick={() => toggle(category.id)}>
           <span className="ga-scene-history-kind"><Icon aria-hidden="true" /></span><strong>{t(category.label)}</strong><span className="ga-scene-history-count">{items.length}</span><ChevronDown className="ga-scene-history-chevron" aria-hidden="true" />
-        </button> : <div className="ga-scene-history-group-head">
-          <span className="ga-scene-history-kind"><Icon aria-hidden="true" /></span><strong>{t(category.label)}</strong><span className="ga-scene-history-count">{items.length}</span>
-        </div>}
+        </button> : null}
         <ul>{(open ? items : items.slice(0, 1)).map(entry => {
           const go = entryDestination(entry);
-          const contents = <><strong>{entry.title}</strong>{entry.text && <span>{entry.text}</span>}<time>{t(`activityCategory_${activityCategory(entry)}`)} · {when(entry.endedAt ?? entry.startedAt)}</time></>;
-          return <li key={entry.id}>{go ? <button type="button" className="ga-scene-history-entry" onClick={() => { onOpen?.(); go(); }}>{contents}</button>
+          const contents = <><span className="ga-scene-history-kind"><Icon aria-hidden="true" /></span><span className="ga-scene-history-entry-copy"><strong>{entry.title}</strong>{entry.text && <span>{entry.text}</span>}<time>{t(`activityCategory_${activityCategory(entry)}`)} · {when(entry.endedAt ?? entry.startedAt)}</time></span></>;
+          return <li key={entry.id}><ActivityNotch />{go ? <button type="button" className="ga-scene-history-entry" onClick={() => { onOpen?.(); go(); }}>{contents}</button>
             : <div className="ga-scene-history-entry">{contents}</div>}</li>;
         })}</ul>
         {!open && <button type="button" className="ga-scene-history-more" onClick={() => toggle(category.id)}>{t("sceneActivityMore", { count: items.length - 1 })}</button>}
@@ -258,7 +268,7 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
       cancel: () => void activeDownloadService().confirmCancel(game, snapshot.gameId).catch(() => undefined),
     })),
     ...jobs.map(job => ({
-      key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name), percent: job.progress?.percent ?? 0,
+      key: `job:${job.appId}`, appId: job.appId, title: freezeTitle(job.mode, job.name, job.drive), percent: job.progress?.percent ?? 0,
       waiting: job.queued ? t("tasksWaiting") : undefined, cancelling: job.cancelling, cancel: () => cancelFreezeJob(job.appId),
     })),
     // Without a count the step says what it is doing (starting the plugin, reading the sources) in place of a percent.
@@ -269,7 +279,7 @@ export default function ActivityPanel({ onOpen }: { onOpen?: () => void }) {
   ];
 
   if (navigationShellEnabled()) return <div className="ga-activity ga-scene-activity">
-    <div className="ga-scene-activity-title">{t("processesTitle")}</div>
+    <div className="ga-scene-activity-title"><span className="ga-scene-activity-mark"><Activity aria-hidden="true" /></span>{t("processesTitle")}</div>
     <section className="ga-process-tasks" aria-labelledby="ga-scene-running">
       <h3 id="ga-scene-running" className="ga-label">{t("activityRunning")} <span>{running.length}</span></h3>
       {running.length > 0 && <ul>{running.map(item => <RunningRow key={item.key} item={item} onOpen={onOpen} />)}</ul>}

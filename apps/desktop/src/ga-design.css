@@ -162,9 +162,7 @@ button.ga-cube:disabled { opacity: .45; cursor: not-allowed; }
   display: grid; place-items: center; background: #cc8333; color: #140a02;
   font: 800 10px Manrope, sans-serif; letter-spacing: 0; box-shadow: 0 0 0 2px #0e1214;
 }
-@media (prefers-reduced-motion: reduce) {
-  button.ga-cube, button.ga-cube .ga-cube-label, button.ga-cube::before { transition: none; }
-}
+
 
 /* Installed: a green play on the cover's top-left corner (docs/GUI_DESIGN.md §4.15). */
 .library-room-card-art .ga-card-installed {
@@ -226,7 +224,7 @@ button.ga-cube.ga-personal-order.is-unlocked .ga-cube-label { max-width: 170px; 
 .ga-spotlight-dot:focus-visible { outline: 2px solid #cc8333; outline-offset: 4px; }
 @keyframes ga-spotlight-progress { to { transform: scaleX(1); } }
 @media (max-height: 760px), (max-width: 900px) { .ga-spotlight { display: none; } }
-@media (prefers-reduced-motion: reduce) { .ga-spotlight-image { transition: none; } .ga-spotlight-dot[data-active] i { animation: none; transform: scaleX(1); } }
+
 details.library-sort-dropdown > summary.ga-cube .ga-cube-label { position: relative; display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .35s cubic-bezier(.3,.7,.2,1), opacity .2s, margin .35s; }
 details.library-sort-dropdown > summary.ga-cube > svg { width: 19px; height: 19px; flex: none; }
 

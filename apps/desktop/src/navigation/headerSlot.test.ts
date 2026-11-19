@@ -4,14 +4,14 @@ import { NAVIGATION } from "./navigationTree";
 import { filterBlocks, GAME_SEARCH_SECTIONS, headerKind, PAGE_SEARCH_SECTIONS } from "./headerSlot";
 
 describe("cabecera del contenido (§4.3)", () => {
-  it("buscan Explorar, Juegos nuevos, Jugar, Manager, Ayuda y toda Configuración; las demás muestran un resumen", () => {
+  it("buscan Explorar, Juegos nuevos, Jugar, Manager, Ayuda; Configuración no tiene buscador y las demás muestran un resumen", () => {
     const sections = NAVIGATION.flatMap(mode => mode.sections.map(section => section.id as string));
     for (const id of [...GAME_SEARCH_SECTIONS, ...PAGE_SEARCH_SECTIONS]) expect(sections).toContain(id);
     expect(headerKind("play")).toBe("games");
-    expect(headerKind("appearance")).toBe("page");
+    expect(headerKind("appearance")).toBe("none");
     expect(headerKind("downloads")).toBe("summary");
     const settings = NAVIGATION.find(mode => mode.id === "settings")!.sections.map(section => section.id as string);
-    for (const id of settings) expect(headerKind(id)).toBe("page");
+    for (const id of settings) expect(headerKind(id)).toBe("none");
   });
 
   it("la búsqueda en pantalla deja solo los bloques con todas las palabras, sin mirar tildes ni mayúsculas", () => {

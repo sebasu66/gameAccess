@@ -1,0 +1,27 @@
+/* Sections that open one at a time (Accordion.tsx, docs/GUI_DESIGN.md §4.50). Layout only: measures in
+   templates/base.css (--ga-accordion-*), colours and fonts in the flavor. */
+.ga-accordion { display: grid; grid-template-columns: minmax(0, 1fr); border: var(--ga-nav-line-w) solid var(--ga-accordion-line); border-radius: var(--ga-radius-l); background: var(--ga-accordion-bg); overflow: hidden; }
+.ga-accordion-item + .ga-accordion-item { border-top: var(--ga-nav-line-w) solid var(--ga-accordion-line); }
+.ga-accordion-title { margin: 0; font: inherit; }
+/* The head fills the width: icon and name at the left, the mark at the right, all on the same middle line. */
+.ga-accordion-head { display: flex; align-items: center; gap: var(--ga-accordion-head-gap); width: 100%; min-height: var(--ga-accordion-head-h);
+  padding: 0 var(--ga-accordion-pad); border: 0; background: none; color: var(--ga-accordion-head-ink); font: var(--ga-accordion-head-font);
+  letter-spacing: var(--ga-accordion-track); text-transform: uppercase; text-align: start; cursor: pointer; }
+.ga-accordion-label { flex: 1 1 auto; min-width: 0; }
+.ga-accordion-icon { flex: none; display: inline-flex; }
+.ga-accordion-icon svg { width: var(--ga-accordion-icon); height: var(--ga-accordion-icon); }
+.ga-accordion-item.is-open > .ga-accordion-title > .ga-accordion-head { background: var(--ga-accordion-open-bg); }
+.ga-accordion-head:hover { color: var(--ga-accordion-head-ink-open); }
+.ga-accordion-head:focus-visible { outline: var(--ga-switch-focus-w) solid var(--ga-orange); outline-offset: calc(var(--ga-switch-focus-offset) * -1); }
+.ga-accordion-item.is-open > .ga-accordion-title > .ga-accordion-head { color: var(--ga-accordion-head-ink-open); }
+/* The mark: a chevron that points down when the section is open and to the start when it is closed. */
+.ga-accordion-mark { flex: none; width: var(--ga-accordion-mark); height: var(--ga-accordion-mark); border: solid currentColor; border-width: 0 2px 2px 0;
+  transform: rotate(-45deg); transition: transform .15s ease; }
+.ga-accordion-item.is-open .ga-accordion-mark { transform: rotate(45deg); }
+/* La franja del título abierta es más alta, y su contenido empieza más abajo: pegados, el título y el primer nombre
+   del cuerpo se leían como uno solo (Seba, 2026-11-19). */
+.ga-accordion-item.is-open > .ga-accordion-title > .ga-accordion-head { min-height: var(--ga-accordion-head-h-open); }
+.ga-accordion-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ga-accordion-gap);
+  padding: var(--ga-accordion-gap) var(--ga-accordion-pad) var(--ga-accordion-pad); }
+/* Una sección que es de PLUS: su candado donde iría la V, y el encabezado no abre nada (§4.48). */
+.ga-accordion-item[data-locked] > .ga-accordion-title > .ga-accordion-head { cursor: pointer; }

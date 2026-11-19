@@ -1,0 +1,20 @@
+/* A sheet over the whole window with its content centred (Sheet.tsx, docs/GUI_DESIGN.md §4.46). Layout only: sizes in
+   templates/base.css, colours and fonts in the flavor. The backdrop and the glass are the overlay family's
+   (.ga-overlay-root, .ga-overlay-dialog in ga-design.css), the same the wizard uses, so the smoke takes it alike. */
+.ga-midsheet-root { position: fixed; inset: var(--window-chrome-height, 0px) 0 0; z-index: var(--ga-wizard-layer); display: grid; place-items: center; padding: var(--ga-wizard-margin); box-sizing: border-box; }
+/* It grows sideways and upwards with its content, and never past the window. */
+.ga-midsheet-panel { display: flex; flex-direction: column; gap: var(--ga-space-3); width: min(var(--ga-midsheet-w), 100%); max-height: 100%; padding: var(--ga-midsheet-pad); box-sizing: border-box; color: var(--ga-wizard-ink); }
+.ga-midsheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ga-space-3); }
+.ga-midsheet-titles { display: grid; gap: var(--ga-space-1); min-width: 0; }
+.ga-midsheet-eyebrow { color: var(--ga-wizard-eyebrow-ink); font: var(--ga-wizard-eyebrow-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-midsheet-title { margin: 0; color: var(--ga-wizard-title-ink); font: var(--ga-wizard-title-font); }
+.ga-midsheet-lead { --ga-p-size: var(--ga-wizard-lead-size); margin: 0; max-width: var(--ga-home-measure); color: var(--ga-wizard-read); font: var(--ga-wizard-lead-font); }
+.ga-midsheet-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--ga-space-3); }
+.ga-midsheet-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--ga-space-2); padding-top: var(--ga-space-3); border-top: var(--ga-nav-line-w) solid var(--ga-wizard-line); }
+
+/* A choice made of pills: one of them is the one in use. */
+.ga-midsheet-choice { display: flex; flex-wrap: wrap; gap: var(--ga-space-2); }
+.ga-midsheet-choice button { display: inline-flex; align-items: center; gap: var(--ga-space-1); min-height: var(--ga-midsheet-pill-h); padding: 0 var(--ga-space-3);
+  border: var(--ga-nav-line-w) solid var(--ga-line); border-radius: var(--ga-radius-m); background: var(--ga-surface); color: var(--ga-muted); font: var(--ga-btn-font); cursor: pointer; }
+.ga-midsheet-choice button:hover { color: var(--ga-text-ink); }
+.ga-midsheet-choice button[aria-checked="true"] { border-color: var(--ga-orange); background: var(--ga-orange-tint); color: var(--ga-text-ink); }

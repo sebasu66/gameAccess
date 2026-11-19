@@ -1,0 +1,47 @@
+/* The disks' rack in Manager › Space (docs/GUI_DESIGN.md §4.45): distribution only. The bay is Seba's drawing
+   (`hdd/rack-bay.webp`) at its own proportions; every place on it comes from the fractions measured on the drawing
+   (--ga-rack-* in templates/base.css), colours in the flavor. */
+
+.lm-rack { position: relative; display: grid; gap: var(--ga-rack-gap); align-content: start; min-width: 0; }
+/* With empty bays at the foot, the rack fades out downwards instead of ending in a cut. */
+.lm-rack:has(.is-ghost) { mask-image: linear-gradient(to bottom, black calc(100% - var(--ga-rack-fade)), transparent); }
+
+/* One bay: the piece, with nothing on top of it, so they stack into one rack. */
+.lm-bay { position: relative; min-width: 0; container: lm-bay / size; aspect-ratio: var(--ga-rack-aspect);
+  background: url("./hdd/rack-bay.webp") center / 100% 100% no-repeat; }
+.lm-bay.is-ghost { opacity: var(--ga-rack-ghost-opacity); }
+.lm-bay.is-off .ga-hdd { opacity: var(--ga-hdd-off-opacity); }
+
+/* The disk rests in the free area of the piece, as tall as that area lets it. */
+.lm-bay-disk { position: absolute; left: 0; top: 0; width: var(--ga-rack-free-w); height: var(--ga-rack-free-h);
+  display: flex; align-items: center; justify-content: center; padding: var(--ga-rack-disk-pad); }
+.lm-bay .ga-hdd { width: auto; height: 100%; }
+/* The disk's own colour, lit in the window of the column. */
+.lm-bay-led { position: absolute; left: var(--ga-rack-win-x); top: var(--ga-rack-win-y); width: var(--ga-rack-win-w); height: var(--ga-rack-win-h);
+  border-radius: var(--ga-radius-s); background: var(--lm-led);
+  box-shadow: 0 0 var(--ga-rack-led-glow) var(--lm-led), 0 0 var(--ga-rack-led-halo) var(--lm-led); }
+
+/* The two engraved bands of the tray: the switches in the first, what the disk holds in the second. */
+.lm-bay-shelf, .lm-bay-count { position: absolute; display: flex; align-items: center; gap: var(--ga-space-1) var(--ga-space-3);
+  padding-inline: var(--ga-rack-band-pad-x); overflow: hidden; }
+.lm-bay-shelf { left: var(--ga-rack-band1-x); width: var(--ga-rack-band1-w); top: var(--ga-rack-band1-y); height: var(--ga-rack-band1-h);
+  /* Engraved, not a row of buttons: the pair takes the band's own height and spreads over its whole length, so no
+     switch nor light falls outside the engraving (Seba, 2026-11-19). */
+  justify-content: space-between;
+  --ga-control-h: var(--ga-rack-band-control-h); --ga-switch-w: var(--ga-rack-switch-w); --ga-switch-h: var(--ga-rack-switch-h);
+  --ga-switch-thumb: var(--ga-rack-switch-thumb); --ga-switch-inset: var(--ga-rack-switch-inset); --ga-switch-gap: var(--ga-rack-switch-gap); --ga-switch-font: var(--ga-rack-switch-font); }
+.lm-bay-shelf .ga-switch { padding: 0; }
+.lm-bay-count { left: var(--ga-rack-band2-x); width: var(--ga-rack-band2-w); top: var(--ga-rack-band2-y); height: var(--ga-rack-band2-h); gap: var(--ga-space-2);
+  color: var(--ga-rack-print); font: var(--ga-rack-print-font); letter-spacing: var(--ga-rack-print-track); text-transform: uppercase; }
+.lm-bay-role { display: inline-flex; align-items: center; gap: var(--ga-rack-switch-gap); }
+/* How well the disk suits that use, as three lights: one lit, or all three when it is the recommended disk. */
+.lm-bay-score { display: inline-flex; align-items: center; gap: var(--ga-rack-score-gap); font: var(--ga-switch-font); }
+.lm-bay-score i { width: var(--ga-rack-score-dot); height: var(--ga-rack-score-dot); border-radius: var(--ga-radius-round); border: var(--ga-nav-line-w) solid var(--ga-rack-score-off); }
+.lm-bay-score i.is-on { border-color: var(--ga-space-recommend); background: var(--ga-space-recommend); box-shadow: 0 0 var(--ga-rack-score-glow) var(--ga-space-recommend); }
+/* What cannot be done with that disk is said over the piece, under its bands. */
+.lm-bay-tip { position: absolute; left: var(--ga-rack-band1-x); right: 0; top: 100%; margin: 0; }
+
+/* The dots that travel the painted cable while a game moves between two disks. */
+.lm-rack-flow-art { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: visible; }
+.lm-rack-flow { fill: none; stroke: var(--ga-rack-flow); stroke-width: var(--ga-rack-dot-w); stroke-linecap: round;
+  stroke-dasharray: var(--ga-rack-dot) var(--ga-rack-dot-gap); filter: drop-shadow(0 0 var(--ga-rack-flow-glow) var(--ga-rack-flow)); }

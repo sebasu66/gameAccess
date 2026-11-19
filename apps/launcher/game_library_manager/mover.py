@@ -5,6 +5,10 @@ the bytes written going to the progress file a few times a second (the desktop d
 original folder goes only once every file was copied. A cancel or a pause from the app (freeze_control) is looked at
 between two pieces: cancelled, the half-made copy goes and the original was never touched.
 
+Each game moves on its own and whole (Seba, 2026-11-18): the copy is made in a hidden folder beside the target
+(`staging_of`), every file is checked against the original (same size), the folder then takes the game's name, and
+only after that does the original go. A scan never sees a half-made game, and a cancel leaves the game as it was.
+
 A copy cut short any other way (the app or the computer went off, a disk error) keeps what it copied: `resume=True`
 goes on from there. A file already copied whole (same size and date) is skipped; the file that was being copied goes
 on from where it stopped once its last piece is checked against the original, else it is copied again.
@@ -61,6 +65,23 @@ def _copied_whole(source: Path, copy: Path) -> bool:
     return a.st_size == b.st_size and abs(a.st_mtime - b.st_mtime) < 2
 
 
+def staging_of(target: Path) -> Path:
+    """Where a game is copied before it takes its name in the target disk."""
+    target = Path(target)
+    return target.parent / f".{target.name}.ga-moving"
+
+
+def _verify(files: list[Path], source: Path, copy: Path) -> None:
+    """Every file of the original is in the copy, whole. Raises before the original is touched."""
+    for path in files:
+        twin = copy / path.relative_to(source)
+        try:
+            if twin.stat().st_size != path.stat().st_size:
+                raise RuntimeError(f"La copia de {path.relative_to(source)} quedó incompleta.")
+        except FileNotFoundError:
+            raise RuntimeError(f"Falta {path.relative_to(source)} en la copia.") from None
+
+
 def move_folder(source: Path, target: Path, progress=None, checkpoint=lambda: None, clock=time.time, resume: bool = False) -> dict:
     """Move `source` to `target`. `target` must not exist, unless `resume` (a copy cut short to go on with).
     Returns {"renamed": bool, "bytes": int, "files": int, "resumed_bytes": int}."""
@@ -71,7 +92,13 @@ def move_folder(source: Path, target: Path, progress=None, checkpoint=lambda: No
     progress.total(total)
     progress.event("files", count=len(files), bytes=total)
     progress.step("move")
-    resuming = resume and target.is_dir()
+    staging = staging_of(target)
+    # An older copy cut short sits in the target itself (before the staging folder existed): it goes on there.
+    if resume and not staging.is_dir() and target.is_dir():
+        staging = target
+    resuming = resume and staging.is_dir()
+    if not resuming and staging.is_dir() and staging != target:
+        shutil.rmtree(staging, ignore_errors=True)   # an old half-made copy nobody goes on with
     if not resuming:
         try:
             os.rename(source, target)
@@ -84,10 +111,10 @@ def move_folder(source: Path, target: Path, progress=None, checkpoint=lambda: No
     started = clock()
     try:
         for directory in [source, *(path for path in source.rglob("*") if path.is_dir() and not path.is_symlink())]:
-            (target / directory.relative_to(source)).mkdir(parents=True, exist_ok=True)
+            (staging / directory.relative_to(source)).mkdir(parents=True, exist_ok=True)
         for path in files:
             relative = path.relative_to(source)
-            destination = target / relative
+            destination = staging / relative
             start = 0
             if resuming and destination.is_file():
                 if _copied_whole(path, destination):
@@ -115,11 +142,14 @@ def move_folder(source: Path, target: Path, progress=None, checkpoint=lambda: No
             if path.stat().st_size >= BIG_FILE:
                 progress.event("file", name=str(relative), bytes=path.stat().st_size)
     except FreezeCancelled:
-        shutil.rmtree(target, ignore_errors=True)   # cancelled on purpose: the half-made copy goes, the original is untouched
+        shutil.rmtree(staging, ignore_errors=True)   # cancelled on purpose: the half-made copy goes, the original is untouched
         raise
     if kept:
         progress.event("resumed", bytes=kept)
+    _verify(files, source, staging)
     progress.event("copied", bytes=done, seconds=round(clock() - started, 1))
+    if staging != target:
+        os.rename(staging, target)   # the game appears in the target disk only now, whole
     progress.step("clear")
     try:
         shutil.rmtree(source)

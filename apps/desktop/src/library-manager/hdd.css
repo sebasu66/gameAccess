@@ -1,0 +1,45 @@
+/* A disk drawn as a hard drive (DiskCard.tsx, docs/GUI_DESIGN.md §4.38). Layout only: where each layer of the art sits
+   (percent of the case art, cropped to its visible edge so the card fills its column) in templates/base.css, colours and fonts in the flavor. The SVG's text
+   sizes are in its own 1100 × 500 units, so they scale with the card. */
+.ga-hdd { position: relative; isolation: isolate; width: 100%; aspect-ratio: var(--ga-hdd-aspect); user-select: none; filter: var(--ga-hdd-shadow); --ga-hdd-status: var(--ga-hdd-normal); }
+.ga-hdd.is-warning { --ga-hdd-status: var(--ga-hdd-warning); }
+.ga-hdd.is-critical { --ga-hdd-status: var(--ga-hdd-critical); }
+.ga-hdd img { display: block; pointer-events: none; }
+.ga-hdd-body { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; }
+.ga-hdd-platter { position: absolute; z-index: 2; left: var(--ga-hdd-platter-x); top: var(--ga-hdd-platter-y); width: var(--ga-hdd-platter-w); height: auto; will-change: transform; }
+.ga-hdd-head { position: absolute; z-index: 3; left: var(--ga-hdd-head-x); top: var(--ga-hdd-head-y); width: var(--ga-hdd-head-w); height: auto; will-change: transform; }
+.ga-hdd-accent { position: absolute; z-index: 4; pointer-events: none; left: var(--ga-hdd-accent-x); top: var(--ga-hdd-accent-y); width: var(--ga-hdd-accent-w); height: var(--ga-hdd-accent-h); border-radius: var(--ga-hdd-accent-w); background: var(--ga-hdd-status); box-shadow: 0 0 var(--ga-hdd-glow) var(--ga-hdd-status); opacity: var(--ga-hdd-accent-opacity); }
+.ga-hdd-panel { position: absolute; z-index: 5; left: var(--ga-hdd-panel-x); top: var(--ga-hdd-panel-y); width: var(--ga-hdd-panel-w); height: var(--ga-hdd-panel-h); overflow: visible; }
+.ga-hdd-box { fill: var(--ga-hdd-box-bg); stroke: var(--ga-hdd-box-line); stroke-width: 3; }
+.ga-hdd-corner { stroke: var(--ga-hdd-status); stroke-width: 5; opacity: .85; }
+.ga-hdd-rule { stroke: var(--ga-hdd-rule); stroke-width: 3; }
+.ga-hdd-unit { font: var(--ga-hdd-unit-font); fill: var(--ga-hdd-ink); }
+.ga-hdd-micro { font: var(--ga-hdd-micro-font); letter-spacing: 4px; fill: var(--ga-hdd-muted); text-transform: uppercase; }
+.ga-hdd-label { font-family: var(--ga-hdd-label-family); font-weight: 850; fill: var(--ga-hdd-ink); text-transform: uppercase; }
+.ga-hdd-percent { font: var(--ga-hdd-percent-font); fill: var(--ga-hdd-status); }
+.ga-hdd-caption { font: var(--ga-hdd-caption-font); letter-spacing: 3px; fill: var(--ga-hdd-muted); text-transform: uppercase; }
+.ga-hdd-value { font: var(--ga-hdd-value-font); fill: var(--ga-hdd-ink); }
+.ga-hdd-capacity { font: var(--ga-hdd-capacity-font); fill: var(--ga-hdd-soft); text-transform: uppercase; }
+.ga-hdd-activity { font: var(--ga-hdd-activity-font); letter-spacing: 3px; fill: var(--ga-hdd-soft); text-transform: uppercase; }
+.ga-hdd-track { fill: var(--ga-hdd-track); stroke: var(--ga-hdd-track-line); stroke-width: 3; }
+.ga-hdd-fill, .ga-hdd-led { fill: var(--ga-hdd-status); }
+.ga-hdd-gloss { fill: var(--ga-hdd-gloss); }
+.ga-hdd-tick { stroke: var(--ga-hdd-tick); stroke-width: 2; }
+
+
+/* Manager › Space (ManagerSpace.tsx): the disks two by two, each with its controls and its games under it. */
+.lm-disks { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ga-hdd-min-w), 1fr)); gap: var(--ga-space-4) var(--ga-space-3); }
+.lm-disk { display: grid; gap: var(--ga-space-2); align-content: start; min-width: 0; }
+.lm-disk.is-off .ga-hdd { opacity: var(--ga-hdd-off-opacity); }
+.lm-disk-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ga-space-1) var(--ga-space-2); }
+.lm-disk-tags { display: flex; flex-wrap: wrap; gap: var(--ga-space-1); }
+.lm-disk-tag { display: inline-flex; align-items: center; gap: var(--ga-space-1); padding: 2px var(--ga-space-1); border: var(--ga-nav-line-w) solid var(--ga-hdd-tag-line); border-radius: var(--ga-radius-s); color: var(--ga-hdd-tag-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.lm-disk-tag.is-install { border-color: var(--ga-hdd-install); color: var(--ga-hdd-install); }
+.lm-disk-games { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ga-space-1); max-height: var(--ga-hdd-list-h); overflow-y: auto; }
+.lm-disk-games li { display: flex; align-items: center; gap: var(--ga-space-2); min-height: var(--ga-control-h); padding: 0 var(--ga-space-1) 0 var(--ga-space-2); border: var(--ga-nav-line-w) solid var(--ga-hdd-row-line); border-radius: var(--ga-radius-m);
+  background: linear-gradient(90deg, var(--ga-hdd-row-fill) 0 max(var(--ga-hdd-row-fill-min), calc(var(--lm-share, 0%) - var(--ga-nav-line-w))), var(--ga-hdd-row-fill-edge) 0 max(var(--ga-hdd-row-fill-min), var(--lm-share, 0%)), transparent 0), var(--ga-hdd-row-bg); }
+.lm-disk-game { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ga-text-ink); font: var(--ga-hdd-row-font); }
+.lm-disk-size { flex: none; color: var(--ga-hdd-muted-ui); font: var(--ga-hdd-row-size-font); font-variant-numeric: tabular-nums; }
+/* What the disk is, in the panel's top-right corner (§4.45): NVMe, SSD, HDD, with USB when it hangs off a USB port. */
+.ga-hdd-kind-box { fill: var(--ga-hdd-box-bg); stroke: var(--ga-hdd-box-line); stroke-width: 2; }
+.ga-hdd-kind { font: var(--ga-hdd-kind-font); fill: var(--ga-hdd-soft); letter-spacing: 2px; }

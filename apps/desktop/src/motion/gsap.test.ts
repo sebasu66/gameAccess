@@ -8,15 +8,15 @@ const setReduce = (matches: boolean) => {
 describe("motion helpers", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("allows motion unless the system asks to reduce it", () => {
+  it("allows motion with normal system settings", () => {
     setReduce(false);
     expect(motionOk()).toBe(true);
     expect(dur(.6)).toBe(.6);
   });
 
-  it("jumps tweens to their end when motion is reduced", () => {
+  it("keeps animations and their duration when Windows requests reduced motion", () => {
     setReduce(true);
-    expect(motionOk()).toBe(false);
-    expect(dur(.6)).toBe(0);
+    expect(motionOk()).toBe(true);
+    expect(dur(.6)).toBe(.6);
   });
 });

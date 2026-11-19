@@ -6,7 +6,7 @@ import { numberedStyleFlavors, setStyleFlavor, styleFlavor } from "./flavor";
 
 const css = (name: string) => readFileSync(join(process.cwd(), "src", name), "utf8");
 const base = css("templates/base.css"), flavor = css("templates/flavor-terminal.css");
-const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css") + css("game-detail-wide.css") + css("navigation/download-wizard.css") + css("account-libraries.css") + css("navigation/scene-look.css");
+const screens = css("game-info-card.css") + css("plugin-settings.css") + css("plugin-files.css") + css("ai-settings.css") + css("mcp-settings.css") + css("activity/activity.css") + css("components/ga/smoke.css") + css("big-play-confirm.css") + css("big-picture-browse.css") + css("game-detail-wide.css") + css("navigation/download-wizard.css") + css("account-libraries.css") + css("navigation/scene-look.css") + css("library-manager/column-filter.css") + css("components/ga/wizard.css") + css("library-manager/hdd.css") + css("components/ga/switch.css") + css("components/ga/slice-card.css") + css("components/ga/pad-button.css") + css("detail-editorial.css") + css("detail-sheet.css") + css("library-manager/space.css") + css("library-manager/rack.css") + css("library-manager/list-detail.css") + css("components/ga/plus-lock.css") + css("components/ga/accordion.css");
 
 describe("capas de estilo", () => {
   it("Escena usa recursos locales y las variables de sus plantillas", () => {
@@ -99,6 +99,15 @@ describe("capas de estilo", () => {
     const roles = [...code.matchAll(/var\((--ga-detail-[\w-]+)/g)].map(match => match[1]);
     expect(roles.length).toBeGreaterThan(20);
     for (const role of new Set(roles)) expect(`${base}${flavor}${code}`).toContain(`${role}:`);
+  });
+
+  it("el rack de los discos es capa de pantalla: sin colores, fuentes ni medidas a mano", () => {
+    const code = css("library-manager/rack.css").replace(/\/\*[\s\S]*?\*\//g, "").replace(/@container\s*[^{]*/g, "");
+    expect(code).not.toMatch(/Manrope|Bebas|rgba?\(|#[0-9a-f]{3,8}|border-radius: \d|font-size|font: \d|(?<![\d.])\d+px/i);
+    const roles = [...code.matchAll(/var\((--ga-rack-[\w-]+)/g)].map(match => match[1]).filter(role => role !== "--ga-rack-fade");
+    expect(roles.length).toBeGreaterThan(10);
+    // --ga-rack-fade is how tall the empty bays are: measured by DiskRack, not a template's value.
+    for (const role of new Set(roles)) expect(`${base}${flavor}`).toContain(`${role}:`);
   });
 
   it("el asistente de descargas toma sus colores y tipografías de las plantillas", () => {

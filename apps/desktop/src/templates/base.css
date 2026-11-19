@@ -13,7 +13,7 @@
   --ga-deck-fan-0: translate(14px, 16px) rotate(-8deg); --ga-deck-fan-1: translate(24px, 8px) rotate(-3deg); --ga-deck-fan-2: translate(34px, 2px) rotate(4deg); --ga-deck-fan-3: translate(44px, -2px) rotate(9deg);
   --ga-deck-hover-0: translate(-8px, 8px) rotate(-14deg) scale(.98); --ga-deck-hover-1: translate(30px, -4px) rotate(-5deg); --ga-deck-hover-2: translate(74px, -12px) rotate(4deg) scale(1.03); --ga-deck-hover-3: translate(118px, -6px) rotate(12deg) scale(1.05); --ga-home-measure: 80ch; --ga-space-1: 8px; --ga-space-2: 16px; --ga-space-3: 24px; --ga-space-4: 32px; --ga-row-gap: 10px;
   /* Sizes. */
-  --ga-radius-s: 5px; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
+  --ga-radius-s: 5px; --ga-radius-round: 50%; --ga-radius-m: 8px; --ga-radius-l: 12px; --ga-control-h: 44px; --ga-tool-size: 30px;
   /* A settings tab: how wide it runs, and the least a group's text column takes before its buttons wrap below it. */
   --ga-settings-w: 960px; --ga-settings-text-min: 280px;
   /* Cards of a list of notices (Activity). */
@@ -28,19 +28,26 @@
   --ga-nav-content-min: 600px;
   /* Then the left column folds into a drawer (navigation/sideDrawer.ts) that leaves its tab at the window's edge:
      --ga-nav-drawer-room is what would be left with it docked and no activity column (negative: it does not fit). */
-  --ga-nav-drawer-tab-w: 28px; --ga-nav-drawer-tab-h: 76px; --ga-nav-drawer-tab-icon: 18px; --ga-nav-drawer-tab-radius: 14px; --ga-nav-drawer-time: .32s; --ga-nav-activity-tab-inset: 14px; --ga-nav-activity-tab-gap: 2px; --ga-nav-activity-tab-icon: 14px;
+  --ga-nav-drawer-tab-w: 38px; --ga-nav-drawer-tab-h: 38px; --ga-nav-drawer-tab-icon: 20px; --ga-nav-drawer-tab-radius: 50%; --ga-nav-handle-border: 2px; --ga-nav-handle-arrow-stroke: 3; --ga-nav-drawer-time: .32s; --ga-nav-activity-tab-inset: 14px; --ga-nav-activity-tab-gap: 2px; --ga-nav-activity-tab-icon: 20px;
   --ga-nav-drawer-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
   --ga-nav-mode-w: clamp(92px, 12.75vh, 120px); --ga-nav-sections-w: clamp(300px, 41.65vh, 392px); --ga-nav-activity-w: clamp(202px, 28.05vh, 264px);
   --ga-nav-activity-room: calc(100vw - var(--ga-frame-left, 0px) - var(--ga-frame-right, 0px) - 2 * var(--ga-nav-outer-pad) - 2 * var(--ga-nav-column-gap) - var(--ga-scene-column-space) - var(--ga-nav-mode-w) - var(--ga-nav-sections-w) - var(--ga-nav-content-min));
   --ga-nav-outer-pad: clamp(18px, 3vh, 28px); --ga-nav-column-gap: 12px; --ga-nav-activity-gap: 30px; --ga-nav-status-h: 30px; --ga-nav-status-gap: var(--ga-nav-column-gap);
   --ga-scene-frame-inset: 8px; --ga-scene-frame-radius: 34px; --ga-scene-frame-width: 1.5px; --ga-scene-frame-first-stop: 30%; --ga-scene-frame-clear-stop: 55%;
-  --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
+  --ga-scene-dock-scallop-radius: 44px; --ga-scene-dock-scallop-offset: 29px; --ga-scene-dock-base-height: 54px; --ga-scene-active-scale: 1.08; --ga-scene-notice-notch-w: 26px; --ga-scene-notice-notch-h: 76px; --ga-scene-activity-mark: 42px; --ga-scene-dock-inset: 16px; --ga-scene-dock-button: 92px; --ga-scene-dock-gap: 8px; --ga-scene-dock-badge: 22px; --ga-scene-dock-focus: 2px;
   --ga-scene-dock-clear: 20px; --ga-scene-cut-radius: 27px; --ga-scene-panel-radius: 40px;
-  --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-plan-size: 22px; --ga-scene-plan-pad: 6px; --ga-scene-plan-pad-x: 14px; --ga-scene-plan-radius: 8px; --ga-scene-plan-edge: 1px; --ga-scene-plan-shine-w: 45%; --ga-scene-plan-shine-time: 3.2s; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-lock-size: 30px;
+  --ga-scene-radius: 34px; --ga-scene-inner: 16px; --ga-scene-plan-h: 48px; --ga-scene-plan-radius: 14px; --ga-slice-body-pad: 24px 44px 28px; --ga-slice-foot-inset: 24% 24% 22%; --ga-plan-cards-max: 1180px; --ga-plan-card-min: 340px; --ga-plan-lead-size: 20px; --ga-plan-check-nudge: 2px;
+  /* The pad button (components/ga/pad-button.css, §4.42): size, edge, glow and how much of its colour each part takes. */
+  --ga-pad-size: 112px; --ga-pad-round: .24; --ga-pad-edge-ratio: .02; --ga-pad-edge-lit-ratio: .013; --ga-pad-time: .18s; --ga-pad-lift: -1px; --ga-pad-glow: .125; --ga-pad-glow-hover: .18;
+  --ga-pad-icon: .42; --ga-pad-label: .3; --ga-pad-gap: .18; --ga-pad-pad-x: .42; --ga-pad-engrave: 1px; --ga-pad-engrave-opacity: 1; --ga-pad-deboss-mix: 42%; --ga-pad-outline: 1px; --ga-pad-halo-inset: 26%; --ga-pad-halo-inset-wide: 24% 12%; --ga-pad-halo-blur: .14;
+  --ga-pad-core-mix: 83%; --ga-pad-mid-mix: 50%; --ga-pad-rim-mix: 36%; --ga-pad-edge-mix: 72%; --ga-pad-glow-mix: 42%; --ga-pad-glow-hover-mix: 60%; --ga-pad-hover-edge-mix: 55%;
+  --ga-pad-hover-bright: 1.1; --ga-pad-sheen-strength: .028; --ga-pad-rim-light: .2; --ga-pad-rim-mid: .12; --ga-pad-rim-dim: .06;
+  --ga-pad-lit-rim-light: .95; --ga-pad-lit-rim-mid: .6; --ga-pad-lit-rim-dim: .35; --ga-pad-focus-w: 2px; --ga-pad-focus-offset: 4px; --ga-pad-disabled: .45; --ga-scene-menu-pad: 16px; --ga-scene-menu-gap: 8px; --ga-scene-menu-bottom-space: 20px; --ga-scene-row-height: 58px; --ga-scene-icon-size: 34px; --ga-scene-selected-icon-size: 46px; --ga-scene-selected-icon-drawing: 23px; --ga-scene-lock-size: 30px;
   --ga-scene-row-pad: 10px; --ga-scene-row-gap: 13px; --ga-scene-list-gap: 2px; --ga-scene-list-top: 10px; --ga-scene-copy-gap: 3px; --ga-scene-icon-drawing: 19px; --ga-scene-icon-stroke: 2.2px;
   --ga-scene-menu-head-gap: 12px; --ga-scene-menu-head-side: 6px; --ga-scene-menu-head-bottom: 14px; --ga-scene-menu-head-size: 21px;
   /* The figure's place; the player's scale and offsets (Settings › Appearance) replace these on the figure. */
   /* The look editor on right-click and in Settings › Appearance (navigation/scene-look.css). */
+  --ga-scene-drop-w: 3px; --ga-scene-drop-gap: -6px;
   --ga-scene-look-w: 400px; --ga-scene-look-swatch: 28px; --ga-scene-look-thumb: 72px; --ga-scene-look-ring-w: 2px; --ga-scene-look-z: 1200;
   --ga-scene-figure-scale: 1; --ga-scene-figure-x: 0%; --ga-scene-figure-y: 0%;
   --ga-scene-art-height: 620px; --ga-scene-art-top: 14px; --ga-scene-word-size: 150px; --ga-scene-ring-size: 268px; --ga-scene-ring-top: 60px;
@@ -87,7 +94,7 @@
   --ga-nav-panel-shade-start: 8%; --ga-nav-panel-shade-end: 70%;
   /* The shell's lines, focus ring and leadings of its big words; the status bar's parts and a mode button's count. */
   --ga-nav-line-w: 1px; --ga-nav-focus-w: 2px; --ga-nav-word-leading: .85; --ga-nav-title-leading: .92;
-  --ga-nav-status-icon: 13px; --ga-nav-status-item-h: 24px; --ga-nav-status-item-pad: 8px; --ga-nav-status-item-gap: 7px;
+  --ga-nav-status-icon: 13px; --ga-nav-status-item-h: 24px; --ga-nav-status-item-pad: 10px; --ga-nav-status-item-gap: 8px; --ga-nav-status-disk-gap: 6px; --ga-nav-status-disk-max: 18ch;
   --ga-nav-status-sep-h: 14px; --ga-nav-status-badge: 12px; --ga-nav-status-badge-size: 9px; --ga-nav-status-dot: 7px;
   --ga-nav-meter-w: 3px; --ga-nav-meter-h: 12px; --ga-nav-meter-gap: 2px; --ga-nav-meter-low: .35; --ga-nav-meter-time: 1.4s;
   --ga-nav-mode-badge: 20px; --ga-nav-mode-badge-inset: 6px;
@@ -134,15 +141,89 @@
   --ga-detail-wide-tab-h: 38px; --ga-detail-wide-tab-pad: 18px; --ga-detail-wide-tab-gap: 6px; --ga-detail-wide-tab-count: 20px; --ga-detail-wide-tabs-gap: 16px;
   --ga-detail-wide-pane-fade: 40px; --ga-detail-wide-pane-pad: 2px 40px 36px 2px; --ga-detail-wide-sec-gap: 30px; --ga-detail-wide-sec-pad: 24px;
   --ga-detail-wide-chip-radius: 18px; --ga-detail-wide-box-radius: 26px; --ga-detail-wide-thumb-radius: 16px;
-  --ga-detail-wide-action-h: 60px; --ga-detail-wide-action-pad: 34px; --ga-detail-wide-action-icon: 26px; --ga-detail-wide-icon-btn: 56px; --ga-detail-wide-action-gap: 10px;
+  --ga-detail-wide-action-h: 60px; --ga-detail-wide-action-pad: 34px; --ga-detail-wide-action-icon: 26px; --ga-detail-wide-icon-btn: 56px; --ga-detail-wide-action-gap: 18px;
+  /* The detail's subtle editorial layers (DetailEditorial.tsx, §4.43): a grid over the art and sight corners. */
+  --ga-ed-inset: 6px; --ga-ed-hair: 1px; --ga-ed-bracket: 24px; --ga-ed-bracket-w: 2px; --ga-ed-bracket-round: 6px;
+  --ga-ed-grid: 56px; --ga-ed-grid-reach: 1.6;
+  /* The detail as a file (DetailSheet.tsx, §4.43). */
+  --ga-sheet-pad: clamp(18px, 2vw, 34px); --ga-sheet-gap: clamp(12px, 1.2vw, 20px); --ga-sheet-info-gap: 14px; --ga-sheet-section-pad: clamp(6px, 1vh, 14px); --ga-sheet-fade: clamp(16px, 4vmin, 64px); --ga-sheet-blur: 14px; --ga-sheet-parallax-travel: clamp(36px, 4vw, 110px); --ga-sheet-parallax-ease: 180ms;
+  --ga-sheet-info-w: clamp(360px, 33.3%, 720px); --ga-sheet-info-w-solo: clamp(360px, 33.3%, 720px); --ga-sheet-extras-w: clamp(300px, 22vw, 420px);
+  --ga-sheet-media-h: clamp(110px, 17vh, 220px); --ga-sheet-panels-h: clamp(190px, 25vh, 300px);
+  --ga-sheet-art-solid-x: 88%; --ga-sheet-art-solid-y: 78%; --ga-sheet-art-focus: 50% 30%;
+  --ga-sheet-glow-size: 50% 45%; --ga-sheet-glow-at: 0 0; --ga-sheet-shade-y: 45%; --ga-sheet-shade-top: 22%; --ga-sheet-shade-right: 26%; --ga-sheet-shots: 4; --ga-sheet-shots-wide: 6;
+  --ga-sheet-radius: 16px; --ga-sheet-radius-s: 8px; --ga-sheet-line-w: 1px; --ga-sheet-active-ring: 2px;
+  --ga-sheet-crumb-gap: 8px; --ga-sheet-crumb-icon: 14px; --ga-sheet-chip-pad: 16px; --ga-sheet-maker-pad: 6px 12px;
+  --ga-sheet-logo-h: clamp(80px, 12vh, 184px); --ga-sheet-logo-ref-aspect: 2.6; --ga-sheet-fold: 24px; --ga-sheet-dl-cube: 40px; --ga-sheet-panels-open-h: 50vh; --ga-sheet-score-w: 420px; --ga-sheet-score-min: 260px; --ga-sheet-score-row-gap: 6px; --ga-sheet-score-bar-h: 14px; --ga-sheet-score-seg-gap: 4px; --ga-sheet-score-seg-round: 2px; --ga-sheet-art-narrow-h: clamp(160px, 30vh, 320px); --ga-sheet-side-head-pad: 10px 14px; --ga-sheet-side-head-icon: 18px; --ga-sheet-pick-cover: 44px; --ga-sheet-pick-pad: 8px; --ga-sheet-lead-lines: 3; --ga-sheet-media-min: 96px; --ga-sheet-panels-min: 150px;
+  --ga-sheet-stat-icon: 18px; --ga-sheet-ai-h: 40px;
+  --ga-sheet-head-gap: 10px; --ga-sheet-head-pad: 7px 16px; --ga-sheet-head-icon: 20px; --ga-sheet-body-pad: 14px 18px;
+  --ga-sheet-stripes-w: 56px; --ga-sheet-stripes-h: 18px; --ga-sheet-stripe: 5px; --ga-sheet-stripes-angle: 120deg;
+  --ga-sheet-row-pad: 9px; --ga-sheet-row-label: 9.5em; --ga-sheet-check: 20px; --ga-sheet-check-pad: 3px;
+  --ga-sheet-dot: 10px; --ga-sheet-dot-ring: 2px; --ga-sheet-underline: 4px;
   --ga-detail-wide-action-lift: -2px; --ga-detail-wide-foot-gap: 22px;
   --ga-detail-wide-gauge-w: 128px; --ga-detail-wide-gauge-h: 110px; --ga-detail-wide-gauge-top: 33px; --ga-detail-wide-gauge-step: 22ms;
   --ga-detail-wide-rating-gap: 14px; --ga-detail-wide-rating-pad: 6px 14px; --ga-detail-wide-rating-bar: 10px; --ga-detail-wide-rating-bar-gap: 3px; --ga-detail-wide-legend-icon: 16px;
   --ga-detail-wide-mask-x: 120px; --ga-detail-wide-mask-y: 90px; --ga-detail-parallax-art: 18px; --ga-detail-parallax-title: 8px;
   --ga-detail-wide-rule: var(--ga-nav-line-w); --ga-detail-wide-ring: 1.5px; --ga-detail-wide-entry: .55s; --ga-detail-wide-lead-size: clamp(16px, 2vh, 19px);
+  /* The detail like Netflix (Seba, 2026-11-17): how far the art reaches, where its shade ends, the reading measures, the media gaps and its controls. */
+  --ga-detail-wide-art-full: 62%; --ga-detail-wide-shade-mid: 30%; --ga-detail-wide-shade-x: 60%; --ga-detail-wide-shade-foot: 16%; --ga-detail-wide-shade-y: 44%;
+  --ga-detail-wide-measure: 72ch; --ga-detail-wide-measure-lead: 58ch; --ga-detail-wide-summary-gap: 18px;
+  --ga-detail-wide-media-gap: 14px; --ga-detail-wide-media-btn: 36px; --ga-detail-wide-media-icon: 18px; --ga-detail-wide-controls-pad: 4px 8px; --ga-detail-wide-controls-blur: 14px; --ga-detail-wide-volume-w: 92px;
+  /* Library manager: the filter of a grid column (library-manager/ColumnFilter.tsx). */
+  /* A one-time process over the whole window (components/ga/Wizard.tsx, §4.37): its layer, margin to the window, width, padding and step marks. */
+  --ga-wizard-layer: 12000; --ga-wizard-margin: clamp(16px, 3vw, 40px); --ga-wizard-w: 1200px; --ga-midsheet-w: 760px; --ga-midsheet-pad: 36px 40px 32px; --ga-midsheet-pill-h: 40px; --ga-wizard-pad: 40px 44px 36px; --ga-wizard-pad-short: 24px 32px 20px;
+  --ga-wizard-step-gap: 12px; --ga-wizard-lead-size: 18px; --ga-wizard-bar: 4px; --ga-wizard-mark: 28px; --ga-wizard-check: 16px;
+  /* A disk drawn as a hard drive (library-manager/DiskCard.tsx, §4.38): where each layer sits on the art, and the Space grid. */
+  --ga-hdd-platter-x: 4.88%; --ga-hdd-platter-y: 8.68%; --ga-hdd-platter-w: 27.7%; --ga-hdd-head-x: -1.25%; --ga-hdd-head-y: 37.84%; --ga-hdd-head-w: 23.44%;
+  --ga-hdd-accent-x: 34.22%; --ga-hdd-accent-y: 9.86%; --ga-hdd-accent-w: 0.21%; --ga-hdd-accent-h: 78.43%; --ga-hdd-glow: 10px; --ga-hdd-accent-opacity: .42;
+  --ga-hdd-panel-x: 35.32%; --ga-hdd-panel-y: 11.43%; --ga-hdd-panel-w: 58.55%; --ga-hdd-panel-h: 75.3%;
+  --ga-hdd-min-w: 520px; --ga-hdd-aspect: 1126 / 415; --ga-hdd-list-h: 260px; --ga-hdd-off-opacity: .55;
+  --ga-hdd-row-fill-min: 2%;
+  /* Manager › Space (§4.38): the actions on top, the disks column, a disk's colour mark and the move bars. */
+  --ga-space-action-min-w: 240px; --ga-space-select-min-w: 160px; --ga-space-aside-w: 330px; --ga-space-drive-w: 88px; --ga-space-zip-w: 56px; --ga-space-zip-icon: 17px; --ga-space-disks-min-w: 460px; --ga-space-disks-w: 580px; --ga-drive-dot: 10px; --ga-drive-edge-w: 3px; --ga-space-move-bar-h: 6px;
+  /* The disks' rack (library-manager/rack.css, §4.45): the spine on the right, the rails of each bay, the lit
+     moulding with the disk's colour, the empty bays at the foot and the cable that shows a move. */
+  --ga-rack-gap: 0px; --ga-rack-aspect: 1257 / 542; --ga-rack-ratio: 2.3192;
+  /* Every place on the piece, as measured on Seba's drawing (1257 × 542): the free area where the disk rests, the
+     window of the column, the two engraved bands of the tray and where its green cable runs. */
+  --ga-rack-free-w: 81.9%; --ga-rack-free-h: 71.8%; --ga-rack-disk-pad: 8px;
+  --ga-rack-win-x: 84.8%; --ga-rack-win-w: 8%; --ga-rack-win-y: 7.4%; --ga-rack-win-h: 30.8%; --ga-rack-led-glow: 9px; --ga-rack-led-halo: 22px;
+  --ga-rack-band1-x: 12.5%; --ga-rack-band1-w: 68.7%; --ga-rack-band1-y: 75.5%; --ga-rack-band1-h: 11.8%;
+  --ga-rack-band2-x: 12.8%; --ga-rack-band2-w: 19.7%; --ga-rack-band2-y: 89.4%; --ga-rack-band2-h: 5.2%; --ga-rack-band-pad-x: 4.5cqh;
+  --ga-rack-wire-x: .948; --ga-rack-wire-y: .482; --ga-rack-branch-x: .819;
+  --ga-rack-score-dot: .7em; --ga-rack-score-gap: 3px; --ga-rack-score-glow: 5px;
+  /* What goes in the first engraved band is measured against the piece itself (cqh of the bay), so the switches
+     and their lights stay inside the engraving at any size of the rack. */
+  --ga-rack-band-control-h: 9cqh; --ga-rack-switch-w: 12cqh; --ga-rack-switch-h: 6.4cqh; --ga-rack-switch-thumb: 4cqh; --ga-rack-switch-inset: 1.2cqh; --ga-rack-switch-gap: 2.4cqh; --ga-rack-band-gap: 3cqh;
+  --ga-rack-ghost-opacity: .45; --ga-rack-dot: 3px; --ga-rack-dot-gap: 21px; --ga-rack-dot-step: 24px; --ga-rack-dot-w: 5px; --ga-rack-flow-glow: 7px;
+  --ga-rack-print-track: .06em;
+  /* The on/off switch (components/ga/switch.css, §4.39). */
+  --ga-switch-w: 46px; --ga-switch-h: 26px; --ga-switch-thumb: 18px; --ga-switch-inset: 3px; --ga-switch-gap: 10px; --ga-switch-time: .22s;
+  --ga-switch-focus-w: 2px; --ga-switch-focus-offset: 3px; --ga-switch-disabled: .55;
+  --ga-colfilter-w: 300px; --ga-colfilter-list-h: 280px; --ga-colfilter-row-h: 34px; --ga-colfilter-icon: 16px; --ga-colfilter-mark: 6px;
+  /* A field of a form: its name above, its control below (components/ga/content.css, §4.25). */
+  --ga-field-h: 40px; --ga-field-pad: 0 12px; --ga-field-area-pad: 10px 12px; --ga-field-gap: 8px; --ga-check-size: 16px;
+  /* Sections that open one at a time (components/ga/accordion.css, §4.50). */
+  --ga-accordion-head-h: 44px; --ga-accordion-head-h-open: 54px; --ga-accordion-pad: var(--ga-space-2); --ga-accordion-gap: var(--ga-space-2); --ga-accordion-mark: 7px;
+  --ga-accordion-head-gap: var(--ga-sheet-head-gap); --ga-accordion-icon: var(--ga-sheet-head-icon);
+  /* Every scrollbar of the app (components/ga/scrollbars.css, §4.51): a hairline track and a round knob. */
+  --ga-scroll-w: 12px; --ga-scroll-pad: 3px;
+  /* The round overlay handle (circle-scrollbar.css, §4.51) for the big reading surfaces. */
+  --ga-circle-w: 28px; --ga-circle-range-w: 2px; --ga-circle-knob: 20px; --ga-circle-grow: 1.35; --ga-circle-ring-w: 2px; --ga-circle-halo-w: 3.5px;
+  /* The padlock over what BASE does not include (components/ga/plus-lock.css, §4.48): the navigation's own measures,
+     so the mark is the same wherever it appears. */
+  --ga-plus-lock-size: var(--ga-nav-lock-size); --ga-plus-lock-tip-gap: var(--ga-nav-lock-tip-gap); --ga-plus-lock-tip-rise: var(--ga-nav-lock-tip-rise);
+  --ga-plus-lock-tip-pad: var(--ga-nav-lock-tip-pad); --ga-plus-lock-tip-radius: var(--ga-nav-lock-tip-radius); --ga-plus-lock-tip-w: 240px;
+  /* Manager › Games as a list with a detail (§4.49): the detail column, and the game's card art in it. */
+  --ga-lm-detail-w: clamp(320px, 25%, 440px); --ga-lm-detail-gap: 24px; --ga-lm-cover-max-h: 320px; --ga-lm-group-toggle: 22px;
+  /* The two columns are as tall as the window and scroll inside themselves, never the whole page. */
+  --ga-lm-pane-h: calc(100vh - var(--window-chrome-height, 34px) - var(--ga-space-4));
+  /* The cover, cropped, shows itself whole: it pans slowly up and down, and a sheen crosses it when the cursor is on it. */
+  --ga-lm-cover-pan-time: 22s; --ga-lm-cover-lift: 1.05; --ga-lm-cover-lift-time: .9s; --ga-lm-cover-sheen-time: 1.1s; --ga-lm-cover-sheen-w: 55%;
 }
 /* A short window: the downloads wizard's cover gets smaller so the card fits above its actions. */
 @media (max-height: 820px) { :root { --ga-wz-cover-w: 44px; } }
+/* A low screen: the game sheet's information packs tighter so the media strip keeps some height (§4.43). */
+@media (max-height: 960px) { :root { --ga-sheet-info-gap: 10px; --ga-sheet-logo-h: 80px; } }
 @media (max-width: 1100px) {
   :root {
     --ga-nav-mode-w: 76px; --ga-nav-sections-w: min(260px, 30vw); --ga-nav-activity-w: 0px;

@@ -1,0 +1,33 @@
+/* A one-time process over the whole window (Wizard.tsx, docs/GUI_DESIGN.md §4.37). Layout only: sizes in
+   templates/base.css, colours and fonts in the flavor. The backdrop and the glass are the overlay family's
+   (.ga-overlay-root, .ga-overlay-dialog in ga-design.css), so the smoke takes it like any large dialog. */
+.ga-wizard-root { position: fixed; inset: var(--window-chrome-height, 0px) 0 0; z-index: var(--ga-wizard-layer); display: grid; place-items: stretch center; padding: var(--ga-wizard-margin); box-sizing: border-box; }
+.ga-wizard-panel { display: flex; flex-direction: column; width: min(var(--ga-wizard-w), 100%); min-height: 0; max-height: 100%; padding: var(--ga-wizard-pad); box-sizing: border-box; color: var(--ga-wizard-ink); }
+.ga-wizard-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ga-space-3); }
+.ga-wizard-titles { display: grid; gap: var(--ga-space-1); min-width: 0; }
+.ga-wizard-eyebrow { color: var(--ga-wizard-eyebrow-ink); font: var(--ga-wizard-eyebrow-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-wizard-title { margin: 0; color: var(--ga-wizard-title-ink); font: var(--ga-wizard-title-font); }
+/* The named steps: a line that fills up to the step on screen. */
+.ga-wizard-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--ga-wizard-step-gap); margin: var(--ga-space-3) 0 0; padding: 0 0 var(--ga-space-3); list-style: none; border-bottom: var(--ga-nav-line-w) solid var(--ga-wizard-line); }
+.ga-wizard-steps li { display: flex; align-items: center; gap: var(--ga-space-1); min-width: 0; padding-top: var(--ga-space-1); border-top: var(--ga-wizard-bar) solid var(--ga-wizard-rest); color: var(--ga-wizard-muted); }
+.ga-wizard-steps li:is(.is-done, .is-now) { border-top-color: var(--ga-wizard-on); color: var(--ga-wizard-ink); }
+.ga-wizard-step-mark { flex: none; display: grid; place-items: center; width: var(--ga-wizard-mark); height: var(--ga-wizard-mark); border: var(--ga-nav-line-w) solid currentColor; border-radius: 50%; font: var(--ga-wizard-mark-font); }
+.ga-wizard-steps li.is-now .ga-wizard-step-mark { border-color: var(--ga-wizard-on); background: var(--ga-wizard-on); color: var(--ga-wizard-on-ink); }
+.ga-wizard-steps li.is-done .ga-wizard-step-mark { color: var(--ga-wizard-ok); }
+.ga-wizard-step-mark svg { width: var(--ga-wizard-check); height: var(--ga-wizard-check); }
+.ga-wizard-step-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: var(--ga-wizard-step-font); }
+.ga-wizard-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--ga-space-3); padding-top: var(--ga-space-3); }
+.ga-wizard-lead { --ga-p-size: var(--ga-wizard-lead-size); margin: 0; max-width: var(--ga-home-measure); color: var(--ga-wizard-read); font: var(--ga-wizard-lead-font); }
+.ga-wizard-foot { display: flex; align-items: center; gap: var(--ga-space-2); margin-top: var(--ga-space-4); padding-top: var(--ga-space-3); border-top: var(--ga-nav-line-w) solid var(--ga-wizard-line); }
+.ga-wizard-back { margin-right: auto; display: flex; gap: var(--ga-space-1); }
+.ga-wizard-actions { display: flex; gap: var(--ga-space-1); }
+/* Parts a wizard step is made of: a titled group and a done/failed list. */
+.ga-wizard-group { display: grid; gap: var(--ga-space-2); }
+.ga-wizard-group-title { margin: 0; color: var(--ga-wizard-ink); font: var(--ga-wizard-group-font); }
+.ga-wizard-working { display: flex; align-items: center; gap: var(--ga-space-2); color: var(--ga-wizard-read); font: var(--ga-wizard-lead-font); }
+.ga-wizard-working svg { flex: none; width: var(--ga-wizard-mark); height: var(--ga-wizard-mark); color: var(--ga-wizard-on); }
+.ga-wizard-results { display: grid; gap: var(--ga-space-1); margin: 0; padding: 0; list-style: none; }
+.ga-wizard-results li { display: flex; align-items: baseline; gap: var(--ga-space-1); color: var(--ga-wizard-read); font: var(--ga-wizard-item-font); }
+.ga-wizard-results li.is-ok::before { content: "✓"; color: var(--ga-wizard-ok); }
+.ga-wizard-results li.is-failed::before { content: "✕"; color: var(--ga-wizard-error); }
+@media (max-height: 720px) { .ga-wizard-panel { padding: var(--ga-wizard-pad-short); } }

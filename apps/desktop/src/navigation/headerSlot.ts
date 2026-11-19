@@ -1,10 +1,11 @@
 /** What the content header (§4.3) shows in each section: nothing in the game sections (their search sits with the
  *  filters, DownloadCatalogPanel), a search over what is on screen, or a summary. */
 export const GAME_SEARCH_SECTIONS: readonly string[] = ["explore", "newGames", "play", "manager"];
-export const PAGE_SEARCH_SECTIONS: readonly string[] = ["support", "general", "appearance", "plugins", "parental"];
-export type HeaderKind = "games" | "page" | "summary";
+export const PAGE_SEARCH_SECTIONS: readonly string[] = ["support"];
+export const SETTINGS_SECTIONS: readonly string[] = ["general", "appearance", "plugins", "parental"];
+export type HeaderKind = "games" | "page" | "summary" | "none";
 export const headerKind = (section: string): HeaderKind =>
-  GAME_SEARCH_SECTIONS.includes(section) ? "games" : PAGE_SEARCH_SECTIONS.includes(section) ? "page" : "summary";
+  GAME_SEARCH_SECTIONS.includes(section) ? "games" : PAGE_SEARCH_SECTIONS.includes(section) ? "page" : SETTINGS_SECTIONS.includes(section) ? "none" : "summary";
 
 /** Blocks a search over the screen can hide: settings groups and fields, help topics. */
 export const PAGE_SEARCH_BLOCKS = ".ga-settings-group, fieldset, .ga-rail-field, .ga-help-topic";

@@ -34,6 +34,7 @@ from disk_space import folder_size
 from game_download_manager.extractor import find_portable_7z
 from . import wof
 from .freeze_control import FreezeBusy, FreezeCancelled, FreezeControl, lower_priority, pid_alive, resume, suspend
+from .mover import staging_of
 from .storage import BACKUP_MARKER, ERROR_FILE, split_folder_name
 
 LEVELS = ("freeze", "deep")
@@ -87,7 +88,9 @@ STEPS = {"freeze": (("scan", 1), ("compress", 99)),
          "thaw": (("decompress", 100),),
          "thaw-deep": (("extract", 97), ("check", 3)),
          # A linked game moved into the library (mover.py): copied, the original removed, adopted to the standard.
-         "move": (("move", 96), ("clear", 2), ("adopt", 2))}
+         "move": (("move", 96), ("clear", 2), ("adopt", 2)),
+         # A library game moved to the library's folder on another disk (drives.py): copied, then the original removed.
+         "drive-move": (("move", 98), ("clear", 2))}
 MAX_EVENTS = 80
 
 
@@ -693,7 +696,7 @@ class GameFreezer:
                     if state.get("source") and source.is_dir() and state.get("step") == "move":
                         # Cut while copying: the game is played from where it was meanwhile; the copy waits for "Continue".
                         self.storage.linked.link(app_id, name, str(source), "folder", state.get("executable") or "")
-                        state["resumable"] = bool(state.get("target")) and target.is_dir()
+                        state["resumable"] = bool(state.get("target")) and (target.is_dir() or staging_of(target).is_dir())
                         entry["outcome"] = "resumable" if state["resumable"] else "restored"
                         folder = source
                     else:
@@ -702,6 +705,23 @@ class GameFreezer:
                             shutil.rmtree(source, ignore_errors=True)
                         if target.is_dir():
                             self.storage.register(app_id, name)
+                        entry["outcome"] = "completed"
+                        folder = target
+                elif action == "drive-move":
+                    source, target = Path(state.get("source") or ""), Path(state.get("target") or "")
+                    if state.get("step") == "move" and state.get("source") and source.is_dir():
+                        # Cut while copying: the game was never touched; the half-made copy goes (two folders with
+                        # the same AppID would hide the game).
+                        if state.get("target") and target.is_dir():
+                            shutil.rmtree(target, ignore_errors=True)
+                        if state.get("target"):
+                            shutil.rmtree(staging_of(target), ignore_errors=True)
+                        entry["outcome"] = "restored"
+                        folder = source
+                    else:
+                        # Cut while removing the original: the game is whole on the other disk; the rest goes.
+                        if state.get("source") and source.is_dir() and target.is_dir():
+                            shutil.rmtree(source, ignore_errors=True)
                         entry["outcome"] = "completed"
                         folder = target
                 elif action == "thaw-deep":

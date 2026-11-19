@@ -130,9 +130,11 @@ class GameImporter:
                 self.log.info("AppID %s (%s): already linked at %s", app_id, name, source)
                 return {"ok": True, "mode": "link", "already": True}
             raise ValueError(f"Este juego ya está vinculado desde otra carpeta: {linked['path']}")
-        target = self.storage.root / f"{int(app_id)}-{self.storage.folder_name(name)}"
+        target = self.storage.install_root() / f"{int(app_id)}-{self.storage.folder_name(name)}"
         in_library = next((folder for root in self.storage.roots if root.is_dir() for folder in root.glob(f"{int(app_id)}-*")), None)
-        resuming = resume and mode == "move" and in_library is not None and in_library.resolve() == target.resolve()
+        from game_library_manager.mover import staging_of   # here: the package imports this module at load time
+        half_made = staging_of(target).is_dir() or (in_library is not None and in_library.resolve() == target.resolve())
+        resuming = resume and mode == "move" and half_made
         if in_library is not None and not resuming:
             raise ValueError(f"Este juego ya está en la biblioteca: {in_library}")
         steam = kind == "steam" or is_steam_path(source)
@@ -144,9 +146,12 @@ class GameImporter:
             self.storage.linked.link(app_id, name, str(source), "steam" if steam else "folder", executable)
             self.log.info("AppID %s (%s): linked in place at %s", app_id, name, source)
             return {"ok": True, "mode": "link"}
-        size = folder_size(source) - (folder_size(target) if resuming else 0)
-        same_disk = source.resolve().drive.lower() == self.storage.root.drive.lower() and (os.name == "nt" or source.stat().st_dev == self.storage.root.stat().st_dev)
-        if not same_disk and disk_info(self.storage.root)["disk_free_bytes"] < size + GIB:
+        size = folder_size(source) - (folder_size(staging_of(target) if staging_of(target).is_dir() else target) if resuming else 0)
+        # The library folder it goes to: the one with most room (storage.install_root), maybe on another disk.
+        library_root = target.parent
+        library_root.mkdir(parents=True, exist_ok=True)
+        same_disk = source.resolve().drive.lower() == library_root.drive.lower() and (os.name == "nt" or source.stat().st_dev == library_root.stat().st_dev)
+        if not same_disk and disk_info(library_root)["disk_free_bytes"] < size + GIB:
             message = "No hay espacio suficiente en el disco de juegos para mover este juego."
             self.log.error("AppID %s: move refused, %s", app_id, message)
             return {"ok": False, "error": message}
@@ -156,10 +161,9 @@ class GameImporter:
         # gets once adopted), or the game would not run (or not even move) from there.
         longest = longest_inside(source)
         if not fits(Path(f"{target}-ready"), longest):
-            message = ui("importTooLong", longest=longest, folder=str(self.storage.root))
+            message = ui("importTooLong", longest=longest, folder=str(library_root))
             self.log.error("AppID %s: move refused, %s", app_id, message)
             return {"ok": False, "error": message}
-        self.storage.root.mkdir(parents=True, exist_ok=True)
         from game_library_manager.mover import move_folder   # here: the package imports this module at load time
         moved = move_folder(source, target, progress, checkpoint, resume=resuming)
         self.storage.register(app_id, name)
@@ -183,7 +187,7 @@ class GameImporter:
         analysis = self.manager.analyze(app_id, name)
         if analysis["state"] in ("extract", "setup"):
             # Unpacking or installing writes about as much again: refuse before starting, not halfway through.
-            room = check_space(folder_size(folder), self.storage.root, Path(self.storage.preferences.load()["temporary_root"]), factor=1.0)
+            room = check_space(folder_size(folder), folder.parent, Path(self.storage.preferences.load()["temporary_root"]), factor=1.0)
             if not room["ok"]:
                 journal.note(folder, "espacio", room["message"])
                 self.log.error("AppID %s: not adopted, %s", app_id, room["message"])

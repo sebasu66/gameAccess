@@ -1,13 +1,17 @@
-/* The app's round scrollbar handle (CircularScrollbar). A bigger, ringed handle (thin gap + thin border) that grows
-   when hovered, dragged or while the content scrolls. */
-html body .ga-circle-scrollbar { width: 28px; }
-html body .ga-circle-scrollbar-range { width: 2px; border-radius: 1px; background: #ffffff14; transition: background .25s; }
-html body .ga-circle-scrollbar-range i { width: 20px; height: 20px; background: #c9ced2; box-shadow: 0 0 0 2px #111416, 0 0 0 3.5px #ffffff4d; transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), background .2s, box-shadow .2s; }
+/* The app's round scrollbar handle (CircularScrollbar.tsx, docs/GUI_DESIGN.md §4.51): a thin line with a ringed knob
+   that grows when hovered, dragged or while the content scrolls. Loaded with the general template from main.tsx and
+   by the component itself, so it is defined wherever it is mounted. Measures in templates/base.css (--ga-circle-*),
+   colours in the flavor. */
+html body .ga-circle-scrollbar { width: var(--ga-circle-w); }
+html body .ga-circle-scrollbar-range { width: var(--ga-circle-range-w); border-radius: calc(var(--ga-circle-range-w) / 2); background: var(--ga-circle-track); transition: background .25s; }
+html body .ga-circle-scrollbar-range i { width: var(--ga-circle-knob); height: var(--ga-circle-knob); background: var(--ga-circle-knob-fill);
+  box-shadow: 0 0 0 var(--ga-circle-ring-w) var(--ga-circle-ring), 0 0 0 var(--ga-circle-halo-w) var(--ga-circle-halo);
+  transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), background .2s, box-shadow .2s; }
 html body .ga-circle-scrollbar:hover i, html body .ga-circle-scrollbar:focus-visible i, html body .ga-circle-scrollbar[data-active] i {
-  transform: translate(-50%, -50%) scale(1.35); background: var(--ga-orange, #cc8333); box-shadow: 0 0 0 2px #111416, 0 0 0 3.5px #cc833399, 0 0 16px #cc833355;
+  transform: translate(-50%, -50%) scale(var(--ga-circle-grow)); background: var(--ga-orange);
+  box-shadow: 0 0 0 var(--ga-circle-ring-w) var(--ga-circle-ring), 0 0 0 var(--ga-circle-halo-w) var(--ga-circle-halo-on), var(--ga-circle-glow);
 }
-html body .ga-circle-scrollbar:hover .ga-circle-scrollbar-range, html body .ga-circle-scrollbar[data-active] .ga-circle-scrollbar-range { background: #ffffff26; }
+html body .ga-circle-scrollbar:hover .ga-circle-scrollbar-range, html body .ga-circle-scrollbar[data-active] .ga-circle-scrollbar-range { background: var(--ga-circle-track-on); }
 /* Next to the catalog grid it sits a little outside the grid, in the free space on the right. */
 html body .library-room:not(.surface-display):not(.surface-tablet) .ga-scroll-frame > .ga-circle-scrollbar { right: -34px; }
 html body .library-room:not(.surface-display):not(.surface-tablet) > .library-room-catalog { overflow: clip; overflow-clip-margin: 48px; }
-@media (prefers-reduced-motion: reduce) { html body .ga-circle-scrollbar-range i { transition: background .2s, box-shadow .2s; } }

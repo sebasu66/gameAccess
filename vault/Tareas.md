@@ -327,6 +327,8 @@ Codifica: el agente que tome la tarea · Verifica: Claude · Prueba: Seba. Un co
 - [ ] **RN13 · Atajos con Ctrl** (§5.14).
 - [ ] **RN14 · Documentación**: actualizar `docs/GUI_DESIGN.md` §0b (modos) y §4.33 (barra de modos), y la skill `gameaccess-gui-design`, con lo que quedó implementado.
 
+> Decisión de Seba (2026-11-18): Game Access no adapta sus animaciones a la preferencia de movimiento reducido de Windows. La opción propia de animación de inicio permanece independiente.
+
 ## Marco «Escena» (referencia: prototipo en `examples/GA Arbol de Navegacion`, commit `0234625`; Seba 2026-11-15)
 
 Reglas de Seba para estas tareas: (1) el alcance es **el marco** —navegación a la izquierda, barra de estado abajo, Actividad a la derecha y la cabecera de arriba—; el contenido central de cada sección está mucho más avanzado en la app y **no se rehace**. (2) **No se descarta** la implementación actual ni los comportamientos ya decididos. (3) Si este diseño choca con una orden reciente de Seba, **se le pregunta caso por caso** en [[Mensajes]] antes de implementar. (4) Por ahora hay **un solo estilo** (Escena); los demás quedan en pausa, sin borrarlos.

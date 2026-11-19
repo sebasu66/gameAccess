@@ -5,7 +5,7 @@
  * General pieces first (GaButton, ga-label, ga-hint, the settings fields); scene-look.css only lays them out.
  */
 import { useRef, useState, type CSSProperties } from "react";
-import { ImageUp, RotateCcw, Save, Trash2 } from "lucide-react";
+import { ImageUp, RotateCcw, Save, Trash2, Wand2 } from "lucide-react";
 import { GaButton } from "../components/ga/Buttons";
 import { Field, Seg, Slider } from "../ModeRailSettings";
 import { useI18n, type TranslationKey } from "../i18n";
@@ -13,12 +13,13 @@ import { NAVIGATION } from "./navigationTree";
 import { useShellLook } from "./shellLook";
 import {
   DEFAULT_FIGURE, DEFAULT_GRADIENTS, FIGURE_LIMITS, MAX_SCENE_VARIATIONS, SCENE_GRADIENTS, SCENE_MODES, SCENE_PALETTES, SCENE_WORD_FONTS,
-  useFigureSrc, type SceneGradient, type SceneMode, type SceneWordFont,
+  useFigureSrc, type FigureCheck, type SceneGradient, type SceneMode, type SceneWordFont,
 } from "./sceneLook";
 import {
-  applySceneVariation, deleteSceneVariation, saveSceneVariation, setSceneFigure, setSceneFigureImage, setSceneGradient,
-  setScenePalette, setSceneWordFont,
+  applySceneVariation, deleteSceneVariation, fitSceneFigure, saveSceneVariation, setSceneFigure, setSceneFigureImage,
+  setSceneGradient, setScenePalette, setSceneWordFont,
 } from "./sceneLookActions";
+import { useFigureDrop } from "./useFigureDrop";
 import "./scene-look.css";
 
 export const modeLabel = (mode: SceneMode) => NAVIGATION.find(item => item.id === mode)!.label;
@@ -75,23 +76,25 @@ export function FigureControl({ mode }: { mode: SceneMode }) {
   const src = useFigureSrc(mode, figure?.image);
   const input = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
-  const pick = async (file: File | undefined) => {
-    if (!file) return;
-    const check = await setSceneFigureImage(mode, file);
-    if (!check.ok) setStatus({ text: t(check.reason), error: true });
-    else setStatus({ text: check.exact ? t("lookFigureDone") : t("lookFigureResized", { width: check.width, height: check.height }), error: false });
-  };
+  const told = (check: FigureCheck) => setStatus(check.ok
+    ? { text: check.exact ? t("lookFigureDone") : t("lookFigureResized", { width: check.width, height: check.height }), error: false }
+    : { text: t(check.reason), error: true });
+  // The thumbnail takes a dropped image too, the same as the character on the scene.
+  const drop = useFigureDrop(mode, told);
+  const pick = async (file: File | undefined) => { if (file) told(await setSceneFigureImage(mode, file, true)); };
   return <div className="ga-scene-look-figure">
     <span className="ga-label">{t("lookFigure", { mode: t(modeLabel(mode)) })}</span>
     <div className="ga-scene-look-figure-row">
-      <img className="ga-scene-look-thumb" src={src} alt="" />
+      <span className="ga-scene-look-thumb" data-dropping={drop.over || undefined} {...drop.handlers}><img src={src} alt="" /></span>
       <div className="ga-scene-look-figure-body">
         <div className="ga-scene-look-actions">
           <GaButton icon={<ImageUp size={16} />} onClick={() => input.current?.click()}>{t("lookFigureChange")}</GaButton>
+          <GaButton icon={<Wand2 size={16} />} disabled={!figure?.image} onClick={() => void fitSceneFigure(mode).then(done => done && setStatus({ text: t("lookFigureFitDone"), error: false }))}>{t("lookFigureFit")}</GaButton>
           <GaButton icon={<RotateCcw size={16} />} disabled={!figure} onClick={() => { setSceneFigure(mode, null); setStatus(null); }}>{t("lookOriginal")}</GaButton>
         </div>
         <input ref={input} type="file" accept="image/png,image/webp" hidden onChange={event => { void pick(event.target.files?.[0]); event.target.value = ""; }} />
         <p className="ga-hint">{t("lookFigureHint")}</p>
+        <p className="ga-hint">{t("lookFigureDropHint")}</p>
         {status && <p className={status.error ? "ga-status is-error" : "ga-status is-ok"} role="status">{status.text}</p>}
       </div>
     </div>

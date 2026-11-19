@@ -55,7 +55,7 @@ export default function ContentHeader({ section, plan, unread }: { section: stri
     : section === "news" ? [{ label: t("navSumUnread"), value: String(unread) }, ...(version ? [{ label: t("navSumVersion"), value: version }] : [])]
     : section === "subscription" ? [{ label: t("navSumPlan"), value: plan }]
     : [];
-  if (kind === "games") return null;
+  if (kind === "games" || kind === "none") return null;
   return <header className="ga-nav-head" aria-label={t("navHeadAria")}>
     <div className="ga-nav-head-main">{kind === "page" ? <PageSearch section={section} /> : <Summary facts={facts} />}</div>
   </header>;

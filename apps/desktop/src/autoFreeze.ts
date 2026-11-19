@@ -19,7 +19,7 @@ export function startAutoFreeze(): () => void {
     try {
       const settings = (await digitalProcessManager.settings()).settings;
       if (!settings?.auto_freeze) return;
-      const results = (await digitalProcessManager.autoFreeze()).results ?? [];
+      const results = (await digitalProcessManager.autoFreeze(settings.auto_freeze_days ?? 30)).results ?? [];
       for (const result of results) void narrate(`AppID ${result.app_id} · automatic freeze: ${result.ok ? "done" : result.error}`, { area: "LIBRARY" });
       if (results.length) await scanLibrary();
     } catch (error) {

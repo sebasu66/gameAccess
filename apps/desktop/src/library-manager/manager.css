@@ -1,10 +1,12 @@
 /* Library Manager, compact (docs/TAREA-interfaz-nueva.md T11): sober colours, orange only on the main button. */
-.lm-root { color: #f4f4f2; font-family: Manrope, sans-serif; color-scheme: dark; }
-.lm-root:not(.is-embedded) .lm-content { width: min(1100px, 100%); margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
-/* Summary on the left, the main buttons stacked in a column on the right. */
-.lm-top { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(220px, 300px); gap: 32px; align-items: start; margin-bottom: 20px; }
+.lm-root { color: #f4f4f2; font-family: var(--ga-text-family); color-scheme: dark; }
+/* La vista crece a todo el ancho (Seba, 2026-11-19): la grilla se compacta mas que el detalle, asi que el ancho sobrante va para ella. */
+.lm-root:not(.is-embedded) .lm-content { width: 100%; margin: 0 auto; padding: 0 48px 48px; box-sizing: border-box; }
+/* The toolbar over the grid: the actions in one row from the left edge, the activity board at the right edge; the
+   filters below start on the same edge, and the grid under them too (one column, the same gaps). */
+.lm-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ga-space-3); align-items: center; margin-bottom: var(--ga-space-3); }
 /* The activity board: faint lines and letters on the background, like the side word; a little clearer while busy. */
-.lm-activity { align-self: center; justify-self: center; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; min-width: 0; opacity: .38; transition: opacity .4s; }
+.lm-activity { align-self: center; justify-self: end; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; min-width: 0; opacity: .38; transition: opacity .4s; }
 .lm-activity.is-busy { opacity: .7; }
 .lm-activity-title { flex-basis: 100%; font-size: 10px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; color: #f4f4f2; }
 .lm-activity-task { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -18,13 +20,15 @@
 .lm-activity-task em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #f4f4f2; }
 .lm-activity-task small { font-size: 12px; color: #c9ced2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes lm-activity-turn { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .lm-activity-ring .turn { animation: none; } }
-.lm-summary { min-width: 0; }
+
+/* Manager › Space (ManagerSpace.tsx): the disk chart on its own. */
+.lm-space { display: grid; gap: var(--ga-space-4); align-content: start; }
+.lm-space-lead { margin: 0; max-width: var(--ga-home-measure); color: var(--ga-text-ink); font: var(--ga-wizard-lead-font); }
 .lm-donut-wrap { display: grid; grid-template-columns: 190px minmax(0, 340px); gap: 24px; align-items: center; }
 .lm-donut { width: 190px; height: 190px; overflow: visible; }
 .lm-donut circle { transition: stroke-width .35s, opacity .35s; }
 .lm-c1 { font: 400 28px "Bebas Neue", sans-serif; fill: #f4f4f2; }
-.lm-c2 { font: 700 10px Manrope, sans-serif; letter-spacing: .04em; fill: #929ba2; }
+.lm-c2 { font: 700 10px var(--ga-text-family); letter-spacing: .04em; fill: #929ba2; }
 .lm-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
 .lm-legend li { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; font-size: 12px; transition: opacity .3s; }
 .lm-legend li.dim { opacity: .35; }
@@ -32,11 +36,14 @@
 .lm-legend li i b { display: block; height: 100%; background: var(--c); transform-origin: left; transition: transform .8s cubic-bezier(.2,.8,.2,1); }
 .lm-legend li span { color: #c9ced2; }
 .lm-legend li strong { font-weight: 700; }
-.lm-actions { display: flex; flex-direction: column; gap: 10px; }
-.lm-actions > button { width: 100%; justify-content: flex-start; }
+/* The actions as equal cells: four in a row when they fit, two by two when not; never one left alone and short. */
+.lm-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ga-space-1); min-width: 0; }
+.lm-actions > button { width: 100%; min-width: 0; }
+/* At rest the board says nothing new (the Activity panel is beside it): it shows only while something runs. */
+.lm-activity:not(.is-busy) { display: none; }
 .lm-filters .lm-scan { margin-left: auto; padding: 0; }
-.lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 18px; }
-.lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px Manrope, sans-serif; cursor: pointer; }
+.lm-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ga-space-1); margin-bottom: var(--ga-space-3); }
+.lm-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid #ffffff22; background: #ffffff08; color: #e4e7e9; font: 700 12px var(--ga-text-family); cursor: pointer; }
 .lm-chip span { opacity: .6; font-variant-numeric: tabular-nums; }
 .lm-chip:hover { background: #ffffff14; }
 .lm-chip[aria-pressed="true"] { background: #f4f4f2; border-color: transparent; color: #111416; }
@@ -47,7 +54,7 @@
 .lm-message.is-error { border-color: #be475080; background: #be47501a; color: #e8a1a6; }
 /* Grid (table): sortable headers, one line per game, the row's actions at the right. */
 .lm-grid-wrap { container-type: inline-size; overflow-x: auto; border-radius: 12px; border: 1px solid #ffffff14; background: #ffffff04; }
-.lm-grid { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.lm-grid { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .lm-grid th { padding: 0 8px; height: 40px; text-align: left; background: #15191d; border-bottom: 1px solid #ffffff20; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #929ba2; }
 .lm-grid td { padding: 8px; vertical-align: middle; border-bottom: 1px solid #ffffff0d; }
 .lm-sort { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; text-align: left; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 5px; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
@@ -66,7 +73,7 @@
 .lm-check { width: 15px; height: 15px; margin: 0; accent-color: #cc8333; cursor: pointer; vertical-align: middle; }
 .lm-cell-name { min-width: 160px; max-width: 240px; }
 .lm-name { font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-.lm-cell-path { min-width: 140px; max-width: 200px; overflow-wrap: anywhere; color: #929ba2; font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.lm-cell-path { min-width: 140px; max-width: 200px; overflow-wrap: anywhere; color: #929ba2; font-family: var(--ga-mono-family); font-size: 11px; }
 .lm-cell-size { min-width: 110px; }
 .lm-kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: .04em; white-space: nowrap; background: #ffffff0c; color: #c9ced2; }
 .lm-cell-num { white-space: nowrap; color: #c9ced2; }
@@ -90,7 +97,7 @@
 .lm-empty { margin: 24px 0; text-align: center; color: #929ba2; font-size: 13px; }
 .lm-thumb.is-frozen::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #a5cee966, #a5cee91a); pointer-events: none; }
 .lm-size { margin-top: 4px; }
-.lm-size-figures { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lm-size-figures { display: flex; align-items: baseline; gap: 8px; font-family: var(--ga-mono-family); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .lm-frozen-size { display: inline-flex; align-items: center; gap: 4px; color: var(--ga-frost, #a5cee9); }
 .lm-frozen-size svg { width: 12px; height: 12px; }
 .lm-unfrozen-size { color: #cc8333; opacity: .55; }
@@ -159,8 +166,8 @@
 .lm-fbar-readout b small { font-size: 20px; margin-left: 2px; opacity: .7; }
 .lm-fbar-readout span { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .85; }
 @keyframes lm-fbar-next { 50% { background: #a5cee933; } }
-@media (prefers-reduced-motion: reduce) { .lm-fbar-cubes i { transition: none; } .lm-fbar-cubes i.is-next { animation: none; } }
-@media (prefers-reduced-motion: reduce) { .lm-donut circle { transition: none; } }
+
+
 .lm-icon-button { width: 44px; padding: 0; justify-content: center; }
 /* The import wizard reuses the grid: narrower (it lives in a dialog) and each game's row clearly bordered. */
 .lm-import-grid { min-width: 0; }
@@ -223,7 +230,7 @@
 .lm-move.is-failed .lm-move-cover, .lm-move.is-failed .lm-move-inner { border-color: var(--ga-danger); outline-color: var(--ga-danger); }
 .lm-move.is-failed .lm-move-outline { stroke: var(--ga-danger); }
 .lm-move.is-done .lm-move-outline { stroke: var(--ga-orange); fill: color-mix(in srgb, var(--ga-orange) 10%, transparent); }
-@media (prefers-reduced-motion: reduce) { .lm-move-file { animation: none; display: none; } .lm-move-clip { transition: none; } }
+
 .lm-status.ok { color: var(--ga-success); background: color-mix(in srgb, var(--ga-success) 8%, transparent); }
 .lm-status.bad { color: var(--ga-danger-ink); background: color-mix(in srgb, var(--ga-danger) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ga-danger) 33%, transparent); }
 .lm-runcheck { margin-left: 6px; }
@@ -322,20 +329,22 @@
 /* One block per library (Game Access's own, then each account's): its title row. Variables only (GUI_DESIGN §0c). */
 .lm-grid .lm-group-row > th { height: auto; padding: var(--ga-space-2) var(--ga-space-1) var(--ga-space-1); border-bottom: 1px solid var(--ga-line); background: var(--ga-surface); text-transform: none; letter-spacing: 0; }
 .lm-group-row > th > span { margin-right: var(--ga-space-1); }
+/* Only the column headers stay on top while the rows scroll: a library's title row scrolls with its games (it covered the headers). */
+.ga-manager-view .lm-grid .lm-group-row > th { position: static; }
 .lm-group-title { color: var(--ga-orange); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
 .lm-group-count { color: var(--ga-white); font: var(--ga-status-font); }
 .lm-group-hint { color: var(--ga-muted); font: var(--ga-hint-font); }
 /* The top of the Manager in a narrow content column (Escena's centre keeps --ga-nav-content-min): it rearranges
-   instead of overlapping. Two columns (disk and actions, the activity under both), then one. */
+   instead of overlapping: the actions, then the activity under them, in one column. */
 .lm-content { container: lm-content / inline-size; }
-@container lm-content (max-width: 1000px) {
-  .lm-top { grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); }
-  .lm-top > .lm-summary { grid-column: 1; grid-row: 1; }
-  .lm-top > .lm-actions { grid-column: 2; grid-row: 1; }
-  .lm-top > .lm-activity { grid-column: 1 / -1; grid-row: 2; }
-}
+@container lm-content (max-width: 860px) { .lm-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container lm-content (max-width: 640px) {
   .lm-top { grid-template-columns: minmax(0, 1fr); }
-  .lm-top > :is(.lm-summary, .lm-actions, .lm-activity) { grid-column: 1; grid-row: auto; }
+  .lm-activity { justify-self: start; }
   .lm-donut-wrap { grid-template-columns: minmax(0, 1fr); justify-items: start; }
 }
+
+/* The room keeps 100 px free under the game grid so its last row can rise above the floating dock's search box
+   (gameaccess-theme.css). The Manager has no dock over it and its own scroller ends there, so that band stayed empty
+   at the foot of the screen (Seba, 2026-11-18): it goes back to the Manager. */
+html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-grid:has(> .ga-manager-view) { padding-bottom: var(--ga-space-2) !important; }

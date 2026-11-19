@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Game Access · Discos</title>
+  <style>
+    :root { font-family: Inter, 'Segoe UI', system-ui, sans-serif; background: #110e14; color: #eee7e9; }
+    body { margin: 0; min-height: 100vh; background:
+      radial-gradient(ellipse at 85% 12%, rgba(135,30,63,.11), transparent 55%),
+      repeating-linear-gradient(90deg, transparent 0, transparent 89px, #ffffff03 90px),
+      #110e14; }
+    .page { max-width: 1530px; margin: 0 auto; padding: 46px 32px 80px; }
+    .eyebrow { font-size: 11px; color: #f46a82; letter-spacing: .2em; font-weight: 800; }
+    h1 { margin: 3px 0 8px; font-size: clamp(28px,3.8vw,43px); letter-spacing: -.045em; }
+    p { margin: 0 0 36px; color: #a998a5; font-size: 14px; }
+    .drive-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 32px 24px; }
+    .drive-item { min-width: 0; }
+    .control-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding: 2px 8px 0; font-size:11px; letter-spacing:.08em; color:#756e7a; font-weight:800; }
+    .actions { display:flex; flex-wrap:wrap; gap:5px; }
+    button { border: 1px solid #554049; background: #241922; color:#bcaeb5; font:inherit;
+      letter-spacing:0; font-size:11px; cursor:pointer; padding: 7px 10px; border-radius:8px; }
+    button:hover { background:#39222b; color:#fff; }
+    button.selected { background:#6c253b; color:#ffb6c2; border-color:#ad475c; }
+    footer { font-size:12px; color:#807381; padding-top:32px; }
+    @media(max-width:900px) { .drive-grid { grid-template-columns: 1fr; } .page { padding:24px 10px; } }
+    @media(max-width:500px) { .control-row { align-items:flex-start; flex-direction:column; padding:6px 12px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="eyebrow">GAME ACCESS / SYSTEM MONITOR</div>
+    <h1>Almacenamiento</h1>
+    <p>Discos locales · HUD modular con animaciones de plato y cabezal mediante GSAP</p>
+    <div class="drive-grid" id="drive-grid"></div>
+    <footer>El indicador de uso admite datos reales en bytes; las capacidades de este ejemplo son ficticias.</footer>
+  </main>
+  <script type="module" src="./src/demo.js"></script>
+</body>
+</html>

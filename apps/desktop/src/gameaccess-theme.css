@@ -5,6 +5,9 @@
 /* Exact title font embedded in the approved mockup, bundled for offline Tauri. */
 @font-face { font-family:"Bebas Neue"; src:url("/fonts/BebasNeue-Mockup.ttf") format("truetype"); font-weight:400; font-display:swap; }
 @font-face { font-family:Manrope; src:url("/fonts/Manrope[wght].ttf") format("truetype"); font-weight:400 800; font-display:swap; }
+/* Inter (OFL, public/fonts/inter): the open font closest to Apple's San Francisco, for interface text such as the pads. */
+@font-face { font-family:Inter; src:url("/fonts/inter/inter-latin-wght-normal.woff2") format("woff2"); font-weight:100 900; font-display:swap; unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family:Inter; src:url("/fonts/inter/inter-latin-ext-wght-normal.woff2") format("woff2"); font-weight:100 900; font-display:swap; unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 /* Templates (docs/GUI_DESIGN.md §0): change a value here and every dialog or button of that kind follows.
    Buttons: --ga-btn-* (lettering, primary/orange), --ga-btn2-* (secondary), --ga-btn-danger-*. Dialogs: --ga-backdrop*
    (what dims the screen behind) and --ga-dialog-* (the panel: frosted rust glass and the thin gradient ring). */
@@ -110,7 +113,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) { background:
 .ga-card-frozen.is-deep svg { filter:drop-shadow(0 0 4px var(--ga-frost)); }
 .ga-card-installed { flex-shrink:0; display:grid; place-items:center; width:20px; height:20px; border-radius:50%; color:var(--ga-orange); background:#cc833324; transition:transform 180ms ease, background-color 180ms ease; }
 .library-room-card-shell:hover .ga-card-installed { transform:scale(1.12); background:#cc833340; }
-@media (prefers-reduced-motion:reduce) { .ga-card-installed { transition:none; } }
+
 .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-genre { display:none; }
 .library-room:not(.surface-display):not(.surface-tablet) .library-install-state.ready { top:auto; right:auto; bottom:12px; left:12px; width:auto; height:24px; padding:0 8px; display:flex; gap:5px; border:0; border-radius:0; font-size:9px; font-weight:800; color:#e1eee6; background:#111820a6; backdrop-filter:blur(8px); }
 .library-room:not(.surface-display):not(.surface-tablet) .library-favorite-state { border-radius:0; background:#10182099; color:#e5d5bc; width:26px; height:26px; }
@@ -183,7 +186,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 .ga-rating-bar > i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--ga-orange),#deb37d); box-shadow:0 0 12px #cc833366; transition:width 480ms cubic-bezier(.16,1,.3,1); }
 .ga-rating-bar.is-great > i { background:linear-gradient(90deg,#48956c,#92cca7); box-shadow:0 0 12px #48956c66; }
 .ga-rating-bar.is-bad > i { background:linear-gradient(90deg,#a25149,#e19289); box-shadow:0 0 12px #a2514966; }
-@media(prefers-reduced-motion:reduce) { .ga-rating-bar > i { transition:none; } }
+
 .ga-game-detail .library-detail-extended { padding:0; overflow:visible!important; background:none; border:0; }
 .ga-game-detail h3 { margin:0 0 12px; font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--ga-orange); }
 .ga-game-detail .steam-rich-text,.ga-game-detail .library-room-copy-block p { font-size:15px; font-weight:500; line-height:1.8; color:white; }
@@ -242,13 +245,13 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 @keyframes ga-download-spin { to {transform:rotate(360deg)} }
 /* Completed downloads use the same prominent orange play action as details. */
 .digital-download-actions .ga-download-play:disabled { opacity:.55; cursor:wait; }
-@media(prefers-reduced-motion:reduce) { .ga-catalog-notice { animation:none; } }
+
 /* Motion is decorative only, and disabled when requested by the OS. */
 @keyframes ga-reflection { 0%,12%{opacity:0;transform:translateX(-43%)}20%{opacity:.8}65%,100%{opacity:0;transform:translateX(43%)} }
 @media(max-height:780px) { .ga-detail-dialog { height:calc(100svh - 60px); } .ga-game-detail { grid-template-rows:130px minmax(0,1fr); } .ga-detail-info,.ga-detail-gallery { padding-top:20px; } .ga-detail-info h1 { font-size:36px; margin-bottom:12px; } .ga-detail-modes { margin:10px 0; } .ga-detail-actions { padding:14px 0 18px; } }
 @media(max-width:1000px) { .catalog-bottom-actions { padding:0 270px 0 100px; } .ga-footer-status { left:14px; } .library-catalog-filter-actions { gap:14px; } .library-toolbar-filter > summary,.library-sort-dropdown > summary { font-size:10px; letter-spacing:.03em; } .ga-detail-info { padding-inline:24px; } }
 @media(max-width:760px) { .ga-detail-dialog { width:calc(100vw - 24px); height:calc(100svh - 36px); } .ga-game-detail { overflow-y:auto; display:block; } .ga-game-detail .library-detail-header-art { height:150px; } .ga-detail-body { display:block; } .ga-detail-scroll { max-height:40svh; } .ga-detail-gallery { padding:20px 24px; } .catalog-header-controls .library-catalog-toolbar { width:calc(100vw - 30px); } .library-catalog-toolbar .global-search { height:58px; } .library-catalog-toolbar .global-search input { font-size:16px; } .library-catalog-tabs button { width:54px; min-width:54px; height:54px; } .ga-footer-status { display:none; } .catalog-bottom-actions { justify-content:flex-start; padding:0 12px; } .library-toolbar-filter > summary { font-size:9px; } .topbar-actions .digital-download-nav { right:115px; font-size:9px; } body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settings-fab { right:42px; } .topbar-actions { right:9px; } .library-catalog-filter-actions { gap:10px; } .library-sort-dropdown > summary span { display:none; } }
-@media(prefers-reduced-motion:reduce) { .library-room-card-art,.library-room-card-art::after,.library-catalog-tabs button { animation:none!important; transition:none!important; } }
+
 
 /* Resets for reusable controls formerly styled by the split feature panel. */
 .library-catalog-toolbar .global-search { max-width:none!important; }
@@ -320,7 +323,7 @@ html body .ga-detail-dialog .library-detail-media.is-expanded .library-room-medi
 .ga-steam-refresh:disabled { opacity:.5; cursor:default; }
 .ga-steam-refresh .is-refreshing { animation:ga-refresh-spin 1s linear infinite; }
 @keyframes ga-refresh-spin { to { transform:rotate(360deg); } }
-@media(prefers-reduced-motion:reduce) { .ga-steam-refresh .is-refreshing { animation:none; } }
+
 
 /* Filter overlay and active conditions. Capabilities are multi-select, not radios.
    Footer pills edit/remove conditions; the vertical rule separates sorting. */
@@ -491,10 +494,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 @keyframes ga-overlay-exit { from {opacity:1;} to {opacity:0;} }
 @keyframes ga-panel-enter { from {opacity:0;transform:translateY(14px) scale(.975);} to {opacity:1;transform:translateY(0) scale(1);} }
 @keyframes ga-panel-exit { from {opacity:1;transform:translateY(0) scale(1);} to {opacity:0;transform:translateY(8px) scale(.985);} }
-@media(prefers-reduced-motion:reduce) {
-  .ga-detail-overlay,.ga-filter-backdrop,.ga-pad-keyboard-backdrop,
-  .ga-detail-dialog,.ga-filter-dialog,.ga-pad-keyboard,.digital-downloads-screen { animation:none!important; }
-}
+
 
 .ga-detail-metadata{padding-top:24px}.ga-detail-coop{padding:20px 0;margin:24px 0;border-block:1px solid #ffffff20}.ga-detail-section-heading{display:flex;justify-content:space-between;gap:16px;align-items:baseline;margin-bottom:14px}.ga-detail-section-heading h3{margin:0}.ga-detail-section-heading a,.ga-detail-text-action{font-size:11px;color:#cbd1d5}.ga-detail-coop p{font-size:13px;line-height:1.6;color:#cbd1d5}.ga-coop-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0 0 16px}.ga-coop-facts dt{font-size:11px;color:#aeb6bc}.ga-coop-facts dd{margin:5px 0 0;font-size:14px;font-weight:600}.ga-detail-text-action{border:0;padding:8px 0;background:none;text-decoration:underline;cursor:pointer}.ga-detail-text-action:focus-visible{outline:2px solid var(--ga-orange);outline-offset:3px}
 
@@ -526,7 +526,7 @@ body:has(.library-room:not(.surface-tablet):not(.surface-display)) .steam-settin
 @keyframes ga-dialog-rise { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
 @keyframes ga-dialog-turn { to { transform:rotate(360deg); } }
 @keyframes ga-dialog-slide { 0% { transform:translateX(-100%); } 100% { transform:translateX(280%); } }
-@media (prefers-reduced-motion:reduce) { .ga-dialog-backdrop, .ga-dialog, .ga-dialog-progress { animation:none; } .ga-dialog-spin, .ga-dialog-bar > span { animation-duration:2.4s; } .ga-dialog button { transition:none; } }
+
 
 /* Screen headers (app-wide): every full-screen view keeps the same title font, colour and margins. */
 .ga-screen-header { display:flex; align-items:center; gap:14px; flex:none; width:100%; max-width:1280px; margin:0 auto; padding:34px 48px 22px; box-sizing:border-box; }

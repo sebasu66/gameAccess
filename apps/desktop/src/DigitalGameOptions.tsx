@@ -7,9 +7,12 @@ import { emptyAutomation, loadAutomation, saveAutomation, type AutomationFields 
 import { digitalProcessManager, type DigitalLaunchOptions } from "./catalog/DigitalProcessManager";
 import { getGameCard, setGameCard, type GameCard } from "./gameCard";
 import { deckGenres, genreLabel, primaryGenre } from "./libraryGenres";
+import { Languages, Play, Wand2 } from "lucide-react";
+import GaAccordion, { type GaAccordionItem } from "./components/ga/Accordion";
+import { usePlus } from "./kidMode";
 import type { CatalogGame } from "./types";
 const copy = {
- es: {cardTab:"Ficha",cardTitle:"Ficha del juego",cardName:"Nombre a mostrar",cardNameHint:"Si queda vacío se usa el de la tienda.",cardCover:"Portada",cardCoverHint:"Una imagen de esta PC o una dirección web. Si queda vacía se usa la de Steam.",cardCoverPick:"Elegir imagen…",cardCoverReset:"Usar la de Steam",cardCoverFilter:"Imágenes",cardGenre:"Género principal",cardGenreAuto:"Automático",cardGenreNone:"sin género",cardGenreHint:"Decide en qué mazo aparece en Jugar › Por género.",cardVisible:"Mostrar en Jugar",cardVisibleHint:"Un juego oculto sigue en el administrador de biblioteca, donde se puede volver a mostrar.",
+ es: {cardTab:"Personalización",cardTitle:"Ficha del juego",cardName:"Nombre a mostrar",cardNameHint:"Si queda vacío se usa el de la tienda.",cardCover:"Portada",cardCoverHint:"Una imagen de esta PC o una dirección web. Si queda vacía se usa la de Steam.",cardCoverPick:"Elegir imagen…",cardCoverReset:"Usar la de Steam",cardCoverFilter:"Imágenes",cardGenre:"Mazo",cardGenreAuto:"El de su género",cardGenreNone:"sin género",cardGenreHint:"En qué mazo aparece en Jugar › Por género. El género que trae el catálogo no se cambia.",cardVisible:"Mostrar en Jugar",cardVisibleHint:"Un juego oculto sigue en el administrador de biblioteca, donde se puede volver a mostrar.",cardPlus:"Personalizar la ficha es parte de PLUS. En BASE se puede cambiar el idioma y la ejecución del juego.",langLead:"Los juegos traen su idioma en un archivo de ajustes. Game Access puede ponerlo en español, de a un juego por vez y solo cuando se lo pedís.",langSet:"Poner el juego en español",langSetTip:"Game Access busca el archivo de ajustes del juego y lo configura en español. Tené en cuenta que si el juego no admite español esto puede romperlo; se deshace con «Revertir el cambio de idioma».",langRevert:"Revertir el cambio de idioma",langRevertTip:"Devuelve los archivos de ajustes como estaban, desde la copia que se guardó antes de cambiarlos.",langNoSpanish:"Steam no lista el español entre los idiomas de este juego, así que no se lo cambiamos: hacerlo podría impedir que abra.",langReverted:"Los archivos de idioma volvieron a como estaban.",
   title:"Idioma y ejecución",language:"Idioma del juego",repair:"Buscar y reparar idioma",hint:"Busca ajustes de idioma en archivos INI y conserva una copia original. El juego necesita incluir ese idioma.",tabLanguage:"Idioma",tabLaunch:"Ejecución",keep:"No cambiar el idioma del juego",keepHint:"El juego queda con el idioma que trae. Si GameAccess lo había cambiado, al jugar vuelve al original.",exe:"Archivo ejecutable",automatic:"Detectar automáticamente",args:"Argumentos de lanzamiento",admin:"Ejecutar como administrador",adminHint:"Windows pedirá autorización al jugar.",decompress:"Descomprimir el fix en cada ejecución",decompressHint:"Antes de jugar, el fix o crack se vuelve a descomprimir sobre el juego, por si el antivirus borró archivos.",save:"Guardar opciones",close:"Cerrar",saved:"Opciones guardadas.",repaired:"Archivos corregidos",none:"No se encontraron ajustes de idioma que cambiar.",backup:"La restauración de respaldos y los ajustes automáticos siguen activos.",loading:"Leyendo archivos del juego…",spanish:"Español",english:"Inglés",portuguese:"Portugués",french:"Francés",german:"Alemán",appLanguage:"Idioma de la aplicación",
   linkedTitle:"Ejecución",linkedHint:"Es un juego vinculado: Game Access lo ejecuta desde su carpeta y no cambia sus archivos.",command:"Comando de ejecución",commandHint:"Si queda vacío se usa el de siempre:",commandReset:"Usar el de siempre",
   helpIntro:"Cada línea es un paso y se ejecutan en orden. Con «wait 5» se esperan 5 segundos entre un paso y el siguiente. Las líneas que empiezan con # son notas. ID es el número del juego en Steam.",
@@ -19,7 +22,7 @@ const copy = {
    {title:"3. Ejecutar el juego",lines:[["steam://rungameid/ID","Lo abre Steam, como sus accesos directos. Es el de siempre para los juegos de Steam."],["steam://run/ID//-dx11 -windowed/","Lo abre Steam con argumentos (van entre las dos barras dobles y la final)."],[String.raw`"C:\Program Files (x86)\Steam\steam.exe" -applaunch ID -dx11`,"Steam desde la terminal, con argumentos."],[String.raw`"D:\Juegos\Cyberpunk 2077\bin\x64\Cyberpunk2077.exe"`,"El ejecutable del juego directo, sin Steam: sirve para los juegos cuyo launcher no necesita Steam abierto ni verifica la licencia (Cyberpunk 2077, por ejemplo). En ese caso no hacen falta los pasos 1 y 2."]]},
   ],
   helpNote:"Después de cambiar el comando, usá «Verificar que corre» para probarlo."},
- en: {cardTab:"Card",cardTitle:"Game card",cardName:"Display name",cardNameHint:"When empty, the store's name is used.",cardCover:"Cover",cardCoverHint:"A picture on this PC or a web address. When empty, Steam's is used.",cardCoverPick:"Choose picture…",cardCoverReset:"Use Steam's",cardCoverFilter:"Pictures",cardGenre:"Main genre",cardGenreAuto:"Automatic",cardGenreNone:"no genre",cardGenreHint:"Decides which deck it is in under Play › By genre.",cardVisible:"Show in Play",cardVisibleHint:"A hidden game stays in the library manager, where it can be shown again.",
+ en: {cardTab:"Personalization",cardTitle:"Game card",cardName:"Display name",cardNameHint:"When empty, the store's name is used.",cardCover:"Cover",cardCoverHint:"A picture on this PC or a web address. When empty, Steam's is used.",cardCoverPick:"Choose picture…",cardCoverReset:"Use Steam's",cardCoverFilter:"Pictures",cardGenre:"Deck",cardGenreAuto:"Its genre's",cardGenreNone:"no genre",cardGenreHint:"Which deck it is in under Play › By genre. The genre the catalog ships is not changed.",cardVisible:"Show in Play",cardVisibleHint:"A hidden game stays in the library manager, where it can be shown again.",cardPlus:"Personalizing the card is part of PLUS. On BASE you can still change the game's language and launch.",langLead:"Games keep their language in a settings file. Game Access can set it to Spanish, one game at a time and only when you ask.",langSet:"Put the game in Spanish",langSetTip:"Game Access looks for the game's settings file and sets it to Spanish. Mind that if the game does not support Spanish this can break it; undo it with “Undo the language change”.",langRevert:"Undo the language change",langRevertTip:"Puts the settings files back as they were, from the copy saved before changing them.",langNoSpanish:"Steam does not list Spanish among this game's languages, so we do not change it: doing so could keep it from opening.",langReverted:"The language files are back as they were.",
   title:"Language and launch",language:"Game language",repair:"Find and repair language",hint:"Finds language settings in INI files and keeps an original backup. The game must include that language.",tabLanguage:"Language",tabLaunch:"Launch",keep:"Don't change the game's language",keepHint:"The game keeps the language it ships with. If GameAccess had changed it, it goes back to the original when you play.",exe:"Executable file",automatic:"Detect automatically",args:"Launch arguments",admin:"Run as administrator",adminHint:"Windows will ask for permission when you play.",decompress:"Extract the fix on every launch",decompressHint:"Before playing, the fix or crack is extracted over the game again, in case antivirus deleted files.",save:"Save options",close:"Close",saved:"Options saved.",repaired:"Files repaired",none:"No language settings needed changing.",backup:"Archive restoration and automatic fixes remain active.",loading:"Reading game files…",spanish:"Spanish",english:"English",portuguese:"Portuguese",french:"French",german:"German",appLanguage:"App language",
   linkedTitle:"Launch",linkedHint:"A linked game: Game Access runs it from its folder and does not change its files.",command:"Launch command",commandHint:"When empty, the usual one is used:",commandReset:"Use the usual one",
   helpIntro:"Each line is a step and they run in order. “wait 5” waits 5 seconds between one step and the next. Lines starting with # are notes. ID is the game's number on Steam.",
@@ -36,8 +39,11 @@ const copy = {
  * Steam, a download not finished, one in the deep-freeze archive). `openOnCard` opens it on the card (the library
  * manager's "Game card").
  */
-export default function DigitalGameOptions({game,onClose,disabled=false,cardOnly=false,openOnCard=false}:{game:CatalogGame;onClose:()=>void;disabled?:boolean;cardOnly?:boolean;openOnCard?:boolean}) {
+export default function DigitalGameOptions({game,onClose=()=>undefined,disabled=false,cardOnly=false,openOnCard=false,layout="dialog",after}:{game:CatalogGame;onClose?:()=>void;disabled?:boolean;cardOnly?:boolean;openOnCard?:boolean;
+ /** `panel`: the groups as sections that open one at a time, inside the Manager's detail (§4.49, §4.50). */ layout?:"dialog"|"panel";
+ /** `panel` only: more sections after the game's own, in the same accordion. */ after?:GaAccordionItem[]}) {
  const {locale}=useI18n(); const c=copy[locale];
+ const plus=usePlus();
  const ref=useDialogFocus(onClose);
  const [options,setOptions]=useState<DigitalLaunchOptions>({executable:"",arguments:"",administrator:false,language:""});
  const [executables,setExecutables]=useState<string[]>([]);
@@ -76,6 +82,33 @@ export default function DigitalGameOptions({game,onClose,disabled=false,cardOnly
      }else setMessage(c.saved);
    }catch(error){setError(String(error));}finally{setBusy(false);}
  };
+ /** Puts this one game's settings files in Spanish, and remembers it so playing it does not undo the change. */
+ const setSpanish=async()=>{
+   setBusy(true);setError("");setMessage("");
+   try {
+     const next={...options,language:"spanish"};
+     setOptions(next);
+     const saved=await digitalProcessManager.saveGameOptions(game,next);
+     if(saved.error) throw new Error(saved.error);
+     const result=await digitalProcessManager.repairLanguage(game);
+     // The launcher checks whether the game ships Spanish at all: when it does not, nothing was touched.
+     if((result as {supported?:boolean}).supported===false){setMessage("");setError(c.langNoSpanish);return;}
+     setMessage(result.changed?.length ? c.repaired+": "+result.changed.join(", ") : c.none);
+     if(result.errors?.length) setError(result.errors.map(item=>item.file+": "+item.error).join("\n"));
+   }catch(error){setError(String(error));}finally{setBusy(false);}
+ };
+ /** Puts the files back as they were and leaves the game alone from then on. */
+ const revertLanguage=async()=>{
+   setBusy(true);setError("");setMessage("");
+   try {
+     const next={...options,language:"keep"};
+     setOptions(next);
+     const saved=await digitalProcessManager.saveGameOptions(game,next);
+     if(saved.error) throw new Error(saved.error);
+     await digitalProcessManager.keepLanguage(game);
+     setMessage(c.langReverted);
+   }catch(error){setError(String(error));}finally{setBusy(false);}
+ };
  const locked=disabled||loading||busy;
  const keep=options.language==="keep";
  // The fix is re-applied unless the options switched it off, or the profile declares an archive and switched it off.
@@ -106,34 +139,59 @@ export default function DigitalGameOptions({game,onClose,disabled=false,cardOnly
   <p className="ga-hint">{c.cardGenreHint}</p>
   <div className="ga-group"><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={!card.hidden} disabled={locked} onChange={event=>setCard({...card,hidden:!event.target.checked})}/>{c.cardVisible}</label><p className="ga-hint">{c.cardVisibleHint}</p></div>
  </div>;
- const cardTab={id:"card",label:c.cardTab,content:cardFields};
+ // Personalizing the card is PLUS: in BASE the section is listed with its padlock and does not open (§4.48).
+ const cardTab={id:"card",label:c.cardTab,icon:<Wand2 aria-hidden="true"/>,locked:!plus,lockReason:c.cardPlus,content:cardFields};
+ /*
+  * Language (Seba, 2026-11-19): no list to pick from. A game's settings file is put in Spanish **only when the player
+  * asks, one game at a time**, and it is undone from here too (the original of every file changed is kept next to it).
+  * It is not done to every game any more: forcing a language a game does not ship keeps it from opening. When Steam
+  * does not list Spanish among the game's languages, it is not even offered.
+  */
+ const languageFields=<div className="ga-stack">
+  <p className="ga-hint">{c.langLead}</p>
+  <div className="ga-actions">
+   <GaButton variant="primary" disabled={locked} title={c.langSetTip} onClick={()=>void setSpanish()}>{c.langSet}</GaButton>
+   <GaButton disabled={locked} title={c.langRevertTip} onClick={()=>void revertLanguage()}>{c.langRevert}</GaButton>
+  </div>
+ </div>;
+ const launchStack=<div className="ga-stack">
+  {launchFields}
+  <div className="ga-group"><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={decompress} disabled={locked} onChange={event=>setDecompress(event.target.checked)}/>{c.decompress}</label><p className="ga-hint">{c.decompressHint}</p></div>
+ </div>;
+ const folderStack=<div className="ga-stack">{launchFields}<p className="ga-hint">{c.linkedHint}</p></div>;
+ const commandStack=linked?<div className="ga-stack">
+  <div className="ga-path-control"><label htmlFor="game-command">{c.command}</label>
+   <textarea id="game-command" rows={4} value={linked.command} disabled={locked} spellCheck={false} placeholder={linked.usual} aria-describedby="game-command-help" onChange={event=>setLinked({...linked,command:event.target.value})}/></div>
+  {/* The help is always there, folded in three steps (sign out, sign in, run): one opens at a time, so the dialog grows by one. */}
+  <div id="game-command-help" className="ga-command-help ga-stack"><p className="ga-hint">{c.helpIntro}</p>
+   <div className="ga-command-steps">{c.help.map(section=><details key={section.title} className="ga-command-step ga-disclosure"><summary>{section.title}</summary>
+    <dl>{section.lines.map(([form,why])=><div key={form}><dt><code>{form}</code></dt><dd>{why}</dd></div>)}</dl></details>)}</div>
+   <p className="ga-hint">{c.helpNote}</p></div>
+  {linked.usual?<p className="ga-hint">{c.commandHint} <code>{linked.usual}</code></p>:null}
+  {linked.command?<GaButton disabled={locked} onClick={()=>setLinked({...linked,command:""})}>{c.commandReset}</GaButton>:null}
+ </div>:null;
+ /* The same groups in the dialog (as tabs) and in the Manager's detail (one under the other, GUI_DESIGN §4.49):
+    language and launch, which BASE includes, and then personalization, which is PLUS. A game whose files Game Access
+    does not run (owned in Steam, a download not finished, one in the deep freeze) has the card alone. */
+ const tabs=cardOnly?[cardTab]
+  :folderLink?[{id:"launch",label:c.tabLaunch,icon:<Play aria-hidden="true"/>,content:folderStack},cardTab]
+  :linked?[{id:"launch",label:c.tabLaunch,icon:<Play aria-hidden="true"/>,content:commandStack},cardTab]
+  :[{id:"language",label:c.tabLanguage,icon:<Languages aria-hidden="true"/>,content:languageFields},{id:"launch",label:c.tabLaunch,icon:<Play aria-hidden="true"/>,content:launchStack},cardTab];
+ const title=cardOnly?c.cardTitle:linked||folderLink?c.linkedTitle:c.title;
+ // In a panel the groups are sections that open one at a time (§4.50), with whatever the screen adds after them (the
+ // game's log, in the Manager's detail); the first one opens, and there is always exactly one open.
+ if(layout==="panel") return <div className="lm-props">
+  {loading?<p className="ga-status" role="status">{c.loading}</p>:null}
+  <GaAccordion items={[...tabs,...(after??[])]} label={title} />
+  {message?<p className="ga-status is-ok" role="status">{message}</p>:null}{error?<p className="ga-settings-error" role="alert">{error}</p>:null}
+  <div className="ga-actions ga-actions-end"><GaButton variant="primary" disabled={locked} onClick={()=>void save()}>{c.save}</GaButton></div>
+ </div>;
  return <div className="ga-settings-backdrop" onPointerDown={event=>event.stopPropagation()} onClick={event=>{if(event.target===event.currentTarget&&!busy)onClose();}}>
   <section ref={ref} className="ga-settings-panel ga-game-config" role="dialog" aria-modal="true" aria-labelledby="game-config-title">
-   <header><div><span className="eyebrow">{game.name}</span><h2 id="game-config-title">{cardOnly?c.cardTitle:linked||folderLink?c.linkedTitle:c.title}</h2></div><GaClose label={c.close} onClick={onClose} disabled={busy} data-dialog-initial /></header>
+   <header><div><span className="eyebrow">{game.name}</span><h2 id="game-config-title">{title}</h2></div><GaClose label={c.close} onClick={onClose} disabled={busy} data-dialog-initial /></header>
    <div className="ga-settings-content">
     {loading?<p className="ga-status" role="status">{c.loading}</p>:null}
-    {cardOnly?cardFields
-    :folderLink?<GaTabs label={c.linkedTitle} initial={openOnCard?"card":undefined} tabs={[{id:"launch",label:c.tabLaunch,content:<div className="ga-stack">{launchFields}<p className="ga-hint">{c.linkedHint}</p></div>},cardTab]}/>
-    :linked?<GaTabs label={c.linkedTitle} initial={openOnCard?"card":undefined} tabs={[{id:"launch",label:c.tabLaunch,content:<div className="ga-stack">
-     <div className="ga-path-control"><label htmlFor="game-command">{c.command}</label>
-      <textarea id="game-command" rows={4} value={linked.command} disabled={locked} spellCheck={false} placeholder={linked.usual} aria-describedby="game-command-help" onChange={event=>setLinked({...linked,command:event.target.value})}/></div>
-     {/* The help is always there, folded in three steps (sign out, sign in, run): one opens at a time, so the dialog grows by one. */}
-     <div id="game-command-help" className="ga-command-help ga-stack"><p className="ga-hint">{c.helpIntro}</p>
-      <div className="ga-command-steps">{c.help.map(section=><details key={section.title} className="ga-command-step ga-disclosure"><summary>{section.title}</summary>
-       <dl>{section.lines.map(([form,why])=><div key={form}><dt><code>{form}</code></dt><dd>{why}</dd></div>)}</dl></details>)}</div>
-      <p className="ga-hint">{c.helpNote}</p></div>
-     {linked.usual?<p className="ga-hint">{c.commandHint} <code>{linked.usual}</code></p>:null}
-     {linked.command?<GaButton disabled={locked} onClick={()=>setLinked({...linked,command:""})}>{c.commandReset}</GaButton>:null}
-    </div>},cardTab]}/>:<GaTabs label={c.title} initial={openOnCard?"card":undefined} tabs={[{id:"language",label:c.tabLanguage,content:<div className="ga-stack">
-     <label className="ga-path-control"><span>{c.language}</span><select value={options.language} disabled={locked} onChange={event=>setOptions({...options,language:event.target.value})}>
-      <option value="">{c.appLanguage} ({c[getSteamStoreLanguage()]})</option><option value="keep">{c.keep}</option>
-      {(["spanish","english","portuguese","french","german"] as const).map(language=><option key={language} value={language}>{c[language]}</option>)}</select></label>
-     <p className="ga-hint">{keep?c.keepHint:c.hint}</p>
-     {keep?null:<GaButton disabled={locked} onClick={()=>void save(true)}>{c.repair}</GaButton>}
-    </div>},{id:"launch",label:c.tabLaunch,content:<div className="ga-stack">
-     {launchFields}
-     <div className="ga-group"><label className="ga-style-toggle"><input type="checkbox" tabIndex={-1} checked={decompress} disabled={locked} onChange={event=>setDecompress(event.target.checked)}/>{c.decompress}</label><p className="ga-hint">{c.decompressHint}</p></div>
-    </div>},cardTab]}/>}
+    {cardOnly?cardTab.content:<GaTabs label={title} initial={openOnCard?"card":undefined} tabs={tabs}/>}
     {message?<p className="ga-status is-ok" role="status">{message}</p>:null}{error?<p className="ga-settings-error" role="alert">{error}</p>:null}
    </div>
    <footer><button type="button" disabled={locked} onClick={()=>void save()}>{c.save}</button></footer>

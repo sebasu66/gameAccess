@@ -11,7 +11,7 @@ import { demoInstalledStatuses, demoLocalGames, uiDemo } from "../devDemo/uiDemo
 export interface RunCheck { state: "checked" | "cantRun"; at: string; detail: string; seconds?: number }
 export interface ProcessExecutionResult {
   ok: boolean;
-  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "steam-link-start" | "steam-link-poll" | "steam-account-remove" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix" | "open-launcher" | "verify-run";
+  action: "play" | "uninstall" | "status" | "snapshot" | "open-folder" | "settings" | "save-settings" | "local-games" | "probe-source" | "game-options" | "save-game-options" | "repair-language" | "install-setup" | "game-log" | "game-analyze" | "game-repair" | "import-drives" | "import-scan" | "import-run" | "set-label" | "library-list" | "library-plan" | "library-space" | "library-drives" | "library-drive-move" | "library-drive-evacuate" | "library-batch" | "library-relocate-plan" | "library-relocate" | "library-relocate-finish" | "library-autofreeze" | "freeze" | "deep-freeze" | "thaw" | "freeze-recover" | "steam-status" | "steam-save-settings" | "steam-sync" | "steam-install" | "steam-link-start" | "steam-link-poll" | "steam-account-remove" | "launch-diagnose" | "restore-language" | "auto-fix" | "save-learned-fix" | "open-launcher" | "verify-run";
   app_id: number;
   name?: string;
   pid?: number;
@@ -69,6 +69,24 @@ export interface ProcessExecutionResult {
 }
 
 export interface ImportDrive { path: string; label: string; total_bytes: number; free_bytes: number }
+/** A fixed disk as Manager › Space shows it: `primary` holds the games folder, `enabled` a library folder of its own,
+ *  `install` is where new games go now (the most room), `temporary` holds the downloads' temporary folder. */
+/** A disk in Manager › Space (apps/launcher/game_library_manager/drives.py). `install` / `temporary`: the next game is
+ *  installed / downloaded here (Game Access picks the fastest allowed disk with room). */
+export interface LibraryDrive extends ImportDrive { letter: string; name: string; primary: boolean; enabled: boolean; folder: string; download_folder?: string; games: number; temporary: boolean; install: boolean;
+  /** What the player allowed the disk for. */ roles?: { install: boolean; download: boolean };
+  kind?: DriveKind; model?: string; /** How it is plugged in, and whether that is a USB port (slower, whatever the disk is). */ bus?: string; external?: boolean;
+  /** Whether Windows already told us what this disk is. */ known?: boolean;
+  /** What it suits: fast disks for installing, big or slow ones for downloads. */ recommended?: DriveRole[];
+  /** What it keeps free after a game lands on it, and whether it is already under that (then it takes nothing new). */ reserve_bytes?: number; too_full?: boolean }
+export type DriveKind = "nvme" | "ssd" | "hdd" | "unknown";
+export type DriveRole = "install" | "download";
+/** Free a disk (drives.py evacuate_plan / evacuate). */
+export interface DriveEvacuation { ok: boolean; error?: string; source?: string; bytes?: number; started?: boolean; cancelled?: boolean;
+  moves?: { app_id: number; name: string; bytes: number; target: string; folder: string }[];
+  skipped?: { app_id: number; name: string; reason: "frozen" | "unfinished" }[];
+  short?: { drive: string; missing_bytes: number }[];
+  results?: { app_id: number; ok: boolean; cancelled?: boolean; error?: string }[] }
 export interface ImportCandidate { id: string; name: string; path: string; kind: "steam" | "folder"; source: "steam" | "library" | "downloads"; app_id: number | null; app_id_file?: string; size_bytes: number; executable: string; can_move: boolean; folder_name?: string; duplicate_of?: string }
 export interface ImportItem { app_id: number; name: string; path: string; mode: "link" | "move"; kind: "steam" | "folder"; executable: string }
 export interface LibraryUsage { by_day: Record<string, number>; by_month: Record<string, number> }
@@ -87,7 +105,9 @@ export type LibraryBatchAction = "uninstall" | "steam_uninstall" | "repair" | "a
 export interface GameAnalysis { state: "empty" | "extract" | "setup" | "blocked" | "ready"; ready: boolean; warning: string; needs: string[]; executable: string }
 export interface RelocationGame { app_id: number; name: string; folder: string; size_bytes: number; same_disk: boolean; fits: boolean; taken: boolean; must_move: boolean }
 export interface RelocationPlan { target: string; games: RelocationGame[]; copy_bytes: number; free_bytes: number; room: boolean }
-export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[]; delete_download_sources?: boolean; auto_freeze?: boolean }
+export interface DigitalStorageSettings { games_root: string; temporary_root: string; previous_roots: string[]; delete_download_sources?: boolean; auto_freeze?: boolean;
+  /** Days without playing before a game is compressed; deep freeze at three times that (30, 60 or 90). */ auto_freeze_days?: number;
+  /** What each disk keeps free after a game lands on it: the smaller of the two (game_library_manager/storage.keep_free). */ free_reserve?: { percent: number; gb: number } }
 export interface DigitalLaunchOptions { executable: string; arguments: string; administrator: boolean; language: string; backupEnabled?: boolean; backupArchive?: string }
 
 /** The launcher sends errors and warnings as keys of the app's translations (ui_text.py): said in the app's language. */
@@ -155,6 +175,12 @@ export class DigitalProcessManager {
     return result;
   }
   importDrives() { return this.execute("import-drives", {id:0,name:""} as CatalogGame); }
+  /** Manager › Space: the fixed disks and the library's folder on each (drives.py); with `drive`, one turned on or off. */
+  libraryDrives(change?: { drive: string; on: boolean; role?: DriveRole } | { profile: true; only_missing: boolean }) { return this.execute("library-drives", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify(change ?? {})).then(localizeResult) as Promise<{ drives?: LibraryDrive[] }>; }
+  /** One library game to the library's folder on another disk; its progress is the game's move progress file. */
+  /** Free a disk: `planOnly` checks what would move and whether it fits; otherwise it moves (checked first). */
+  libraryDriveEvacuate(source: string, target: string, planOnly = false) { return this.execute("library-drive-evacuate", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ source, target, plan_only: planOnly })).then(localizeResult) as Promise<{ evacuate?: DriveEvacuation }>; }
+  libraryDriveMove(appId: number, target: string) { return this.execute("library-drive-move", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ app_id: appId, target })).then(localizeResult) as Promise<{ moved?: { ok: boolean; cancelled?: boolean; error?: string; moved_bytes?: number; seconds?: number } }>; }
   importScan(drives: string[], folders: string[] = []) { return this.execute("import-scan", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ drives, folders })); }
   async importRun(items: ImportItem[]) { return this.execute("import-run", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ items })); }
   /** Steam Account Manager: the local Steam client, its accounts and who owns each game. */
@@ -194,7 +220,7 @@ export class DigitalProcessManager {
   /** After a closed app: every freeze cut short, put back in a safe state by the launcher (or still running). */
   freezeRecover() { return this.execute("freeze-recover", {id:0,name:""} as CatalogGame); }
   /** Freeze at most one game unused for a month (Windows compression) or three (deep freeze). */
-  autoFreeze() { return this.execute("library-autofreeze", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ freeze_days: 30, deep_days: 90 })); }
+  autoFreeze(days = 30) { return this.execute("library-autofreeze", {id:0,name:""} as CatalogGame, undefined, undefined, JSON.stringify({ freeze_days: days, deep_days: days * 3 })); }
   /** The player's own name for the game in their library; "" goes back to the download source's name. */
   setLabel(game: CatalogGame, label: string) { return this.execute("set-label", game, undefined, undefined, label); }
   /** How healthy a download source is (seeds and peers of a torrent, or whether a direct link answers). Checked locally. */

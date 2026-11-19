@@ -16,6 +16,7 @@ import SceneNavigation from "./SceneNavigation";
 import SceneContentTitle from "./SceneContentTitle";
 import ContentHeader from "./ContentHeader";
 import SceneModeDock from "./SceneModeDock";
+import SceneActivityFrame from "./SceneActivityFrame";
 import { useSceneModeExit } from "./useSceneModeExit";
 import { useSideDrawer } from "./sideDrawer";
 import { useActivityFold } from "./activityFold";
@@ -23,6 +24,9 @@ import { applyShellLook, clearShellLook, currentCssValue, useShellLook } from ".
 import "./navigation-shell.css";
 import "../templates/scene-fonts.css";
 import "./scene-frame.css";
+import planBadgeBase from "../assets/plans/plan-badge-base.webp";
+import planBadgePlus from "../assets/plans/plan-badge-plus.webp";
+import planBadgeBasic from "../assets/plans/plan-badge-basic.webp";
 
 export { navigationShellEnabled } from "./navigationSelection";
 
@@ -58,7 +62,7 @@ const reachable = (mode: NavigationModeId, section: string) => mode === "library
 
 /** Four zones around the existing screens while their sections move into the new hierarchy. */
 export default function NavigationShell() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n(); // In English the free plan is BASIC (its own badge).
   const screen = useAppScreen();
   const gameSection = useGameSection();
   const downloads = useActiveDownloadCount();
@@ -114,11 +118,12 @@ export default function NavigationShell() {
     <button type="button" className="ga-nav-drawer-tab" aria-expanded={drawer.state !== "closed"} aria-label={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")}
       title={t(drawer.state === "closed" ? "navDrawerOpen" : "navDrawerClose")} onClick={drawer.toggle}><ChevronLeft aria-hidden="true" /></button>
     {/* The plan, always in sight: at the first column's top right, or at the content's when that column is folded away. */}
-    <button type="button" className={tier ? "ga-scene-plan is-plus" : "ga-scene-plan"} onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}>{t(tier ? "navPlanPlus" : "navPlanBase")}</button>
+    <button type="button" className={tier ? "ga-scene-plan is-plus" : "ga-scene-plan"} onClick={openPlans} aria-label={`${t("navSumPlan")}: ${t(tier ? "navPlanPlus" : "navPlanBase")}`} title={t("navMyPlan")}><img src={tier ? planBadgePlus : locale === "en" ? planBadgeBasic : planBadgeBase} alt="" draggable={false} /></button>
     <ContentHeader section={selectedSection} plan={t(tier ? "navPlanPlus" : "navPlanBase")} unread={unread} />
     <SceneContentTitle mode={mode} section={selectedSection} onLocked={openPlans} />
     <SceneModeDock mode={mode} badges={{ library: downloads, gameAccess: unread }} onOpen={changeMode} />
     <aside className="ga-nav-activity" aria-label={t("processesTitle")}>
+      <SceneActivityFrame />
       <div className="ga-nav-activity-scroll"><ActivityPanel /></div>
     </aside>
     {/* The activity column's handle (activityFold.ts): folds it out to the right and back. */}

@@ -30,11 +30,7 @@ html body .ga-smoke-ghost.is-smoke-fade { animation: ga-smoke-fade var(--ga-smok
 @keyframes ga-smoke-in-up { from { translate: 0 var(--ga-smoke-push, var(--ga-smoke-travel)); opacity: 0; } }
 @keyframes ga-smoke-in-down { from { translate: 0 calc(-1 * var(--ga-smoke-push, var(--ga-smoke-travel))); opacity: 0; } }
 @keyframes ga-smoke-fade { to { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  html body .is-smoke-away { animation: none; opacity: 0; visibility: hidden; }
-  html body :is(.is-smoke-in, .is-smoke-back) { animation: none; }
-  .ga-smoke-ghost { display: none; }
-}
+
 
 /* The app's own smoke dialogs. */
 .ga-smoke { position: fixed; inset: 0; z-index: var(--ga-smoke-layer); display: grid; place-items: center; padding: var(--ga-space-4); box-sizing: border-box; }

@@ -24,7 +24,7 @@
 .ga-ai-spin { flex: none; width: 22px; height: 22px; border: 3px solid var(--ga-surface-2); border-top-color: var(--ga-orange); border-radius: 50%; animation: ga-ai-spin 1s linear infinite; }
 .ga-ai-spin.is-big { width: 40px; height: 40px; border-width: 4px; }
 @keyframes ga-ai-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .ga-ai-spin { animation-duration: 3s; } }
+
 .ga-ai-section { display: grid; gap: 12px; margin-top: 32px; }
 .ga-ai-paste { display: flex; gap: 10px; align-items: center; }
 .ga-ai-paste .ga-ai-field { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--ga-line); border-radius: 8px; background: var(--ga-field-bg); color: var(--ga-text-ink); font: 500 15px/1.4 Consolas, "Cascadia Mono", monospace; }

@@ -54,10 +54,7 @@ button.ga-activity-link:focus-visible { outline: 2px solid var(--ga-orange); out
 .ga-activity-new { width: var(--ga-feed-dot); height: var(--ga-feed-dot); margin-inline-start: var(--ga-space-1); border-radius: 50%; display: inline-block; background: var(--kind); vertical-align: middle; }
 .ga-activity-chevron { align-self: center; color: var(--kind); transition: transform .15s; }
 .ga-activity-link[aria-expanded="true"] .ga-activity-chevron { transform: rotate(90deg); }
-@media (prefers-reduced-motion: reduce) {
-  .ga-activity-group[data-fresh] > .ga-activity-link { animation: none; }
-  .ga-activity-chevron, button.ga-activity-link { transition: none; }
-}
+
 
 /* The kind's icon in the card's corner: a tile in its colour; over the game's cover, a badge at its corner. */
 .ga-activity-mark { position: relative; display: grid; }

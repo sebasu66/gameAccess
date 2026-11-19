@@ -3,7 +3,7 @@ import { translate } from "../i18n";
 import { getSteamStoreLanguage } from "../i18n";
 import { loadDiscoveryCatalog } from "./DiscoveryCatalog";
 import { queryCatalogCache, readCatalogCachedDetail, storeCatalogCachedDetail } from "../catalogCache";
-import { getSteamStoreMetadata, hasTauriRuntime } from "../native";
+import { getSteamStoreMetadata, hasTauriRuntime, openSteamClientInstall } from "../native";
 import { FlowDiagnostics } from "../FlowDiagnostics";
 import { narrate } from "../narrationLog";
 import { checkPluginSources, getPluginSources, preparePluginSource, type PluginSource } from "./PluginSources";
@@ -261,7 +261,7 @@ export class DigitalCatalog {
     // One install per game: another version needs the installed one removed first (Library Manager or Uninstall).
     if (await this.isInstalled(game).catch(() => false)) throw new GameAlreadyInstalledError(game.name);
     // A game Steam gives away, or one a linked account owns, is installed by Steam itself with its own window, into the
-    // Steam library; the queue follows it (apps/launcher/game_download_manager/pipeline.py steam_depot).
+    // Steam library; Game Access does not queue or follow it.
     const appId = game.app_id ?? game.id;
     const owned = libraryScanState().games.some(entry => entry.app_id === appId && entry.link_kind === "steam" && entry.state === "steam_owned");
     const fromSteam = !source ? freeSteamSource(game) ?? (owned ? `${STEAM_DEPOT_PREFIX}${appId}` : null) : null;
@@ -291,16 +291,12 @@ export class DigitalCatalog {
       download_size_source: selected.sourceName }, { record: effectiveRecord, race });
   }
 
-  /** DepotDownloader brings the game into the Steam library: no plugin source, and Steam's library holds its size. */
-  private downloadFromSteam(game: CatalogGame, source: string): Promise<void> {
-    const record = this.ensureRecord(game);
-    const steamRecord: DigitalGameRecord = {
-      name: game.name, id: game.app_id ?? game.id, downloadSource: source, sourceDelivery: "download",
-      sourceTitle: "Steam", sourceProvider: "Steam",
-      installProcess: "", playProcess: record.playProcess ?? "", uninstallProcess: "", auto_installed: false,
-    };
-    digitalDownloadService.registerRecords([steamRecord]);
-    return digitalDownloadService.start({ ...game, download_size: null, download_size_bytes: null, download_size_source: null }, { record: steamRecord });
+  /** Steam's own install window, and nothing else: Steam downloads it and shows its progress, and the library finds it
+   * installed. Game Access does not queue it (Seba, 2026-11-17: a cancel in Steam left a stuck download that failed). */
+  private async downloadFromSteam(game: CatalogGame, source: string): Promise<void> {
+    const appId = Number(source.slice(STEAM_DEPOT_PREFIX.length)) || (game.app_id ?? game.id);
+    void narrate(`AppID ${appId} · handed to Steam's install window`, { area: "DOWNLOAD" });
+    await openSteamClientInstall(appId);
   }
 
   /**

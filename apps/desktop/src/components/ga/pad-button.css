@@ -1,0 +1,64 @@
+/* TEMPLATE: the pad button (PadButton.tsx, docs/GUI_DESIGN.md §4.42). Layout and how the states mix the pad's colour;
+   sizes are --ga-pad-* in templates/base.css, the default colour and the glass in the flavor. Every lit shade is the
+   pad's own colour (--ga-pad-color) mixed with the flavor's light or glass, so one colour paints the whole pad.
+   Everything that has a size scales with --ga-pad-size (a 54 px key in the detail, a 112 px pad on a board). */
+.ga-pad { --ga-pad-h: var(--ga-pad-size); --ga-pad-edge: max(1px, calc(var(--ga-pad-h) * var(--ga-pad-edge-ratio)));
+  position: relative; display: inline-grid; place-items: center; width: var(--ga-pad-h); height: var(--ga-pad-h); padding: 0; border: 0; background: none;
+  color: var(--ga-pad-ink); font: var(--ga-pad-font); cursor: pointer; isolation: isolate; filter: drop-shadow(var(--ga-pad-shadow));
+  transition: filter var(--ga-pad-time) ease, transform var(--ga-pad-time) ease; }
+.ga-pad.is-wide { width: auto; min-width: var(--ga-pad-h); padding: 0 calc(var(--ga-pad-h) * var(--ga-pad-pad-x)); }
+.ga-pad-art { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; overflow: visible; }
+/* The shapes are sized here (the SVG has no viewBox): the corners keep their radius at any width. */
+.ga-pad-art rect { x: calc(var(--ga-pad-edge) / 2); y: calc(var(--ga-pad-edge) / 2); width: calc(100% - var(--ga-pad-edge)); height: calc(100% - var(--ga-pad-edge)); rx: calc(var(--ga-pad-h) * var(--ga-pad-round)); }
+.ga-pad-content { display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--ga-pad-h) * var(--ga-pad-gap)); min-width: 0; white-space: nowrap; }
+.ga-pad-icon { display: inline-flex; }
+.ga-pad-icon svg { width: calc(var(--ga-pad-h) * var(--ga-pad-icon)); height: calc(var(--ga-pad-h) * var(--ga-pad-icon)); }
+.ga-pad-label { font-size: max(var(--ga-text-min), calc(var(--ga-pad-h) * var(--ga-pad-label))); letter-spacing: var(--ga-pad-label-track); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+
+/* Common: matte dark glass; its frame (a gradient set on the element) catches a little light at the top and bottom. */
+.ga-pad-off-top { stop-color: var(--ga-pad-glass-top); }
+.ga-pad-off-bottom { stop-color: var(--ga-pad-glass-bottom); }
+.ga-pad-sheen-top { stop-color: var(--ga-pad-sheen); stop-opacity: var(--ga-pad-sheen-strength); }
+.ga-pad-sheen-bottom { stop-color: var(--ga-pad-sheen); stop-opacity: 0; }
+.ga-pad-rim-light { stop-color: var(--ga-pad-sheen); stop-opacity: var(--ga-pad-rim-light); }
+.ga-pad-rim-mid { stop-color: var(--ga-pad-sheen); stop-opacity: var(--ga-pad-rim-mid); }
+.ga-pad-rim-dim { stop-color: var(--ga-pad-sheen); stop-opacity: var(--ga-pad-rim-dim); }
+.ga-pad-edge { fill: none; stroke-width: var(--ga-pad-edge); }
+
+/* Lit: the colour fills it from below, a thinner frame in its colour, a glow around it. */
+.ga-pad.is-lit { --ga-pad-edge: max(1px, calc(var(--ga-pad-h) * var(--ga-pad-edge-lit-ratio))); color: var(--ga-pad-ink-lit);
+  filter: drop-shadow(0 0 calc(var(--ga-pad-h) * var(--ga-pad-glow)) color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-glow-mix), transparent)); }
+.ga-pad-lit-core { stop-color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-core-mix), var(--ga-pad-light)); }
+.ga-pad-lit-mid { stop-color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-mid-mix), var(--ga-pad-glass-bottom)); }
+.ga-pad-lit-rim { stop-color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-rim-mix), var(--ga-pad-glass-bottom)); }
+.ga-pad.is-lit .ga-pad-rim-light { stop-color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-edge-mix), var(--ga-pad-light)); stop-opacity: var(--ga-pad-lit-rim-light); }
+.ga-pad.is-lit .ga-pad-rim-mid { stop-color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-edge-mix), var(--ga-pad-light)); stop-opacity: var(--ga-pad-lit-rim-mid); }
+.ga-pad.is-lit .ga-pad-rim-dim { stop-color: var(--ga-pad-color); stop-opacity: var(--ga-pad-lit-rim-dim); }
+
+/* How the icon and the label sit on the key. */
+.ga-pad.ink-shadow .ga-pad-content { filter: drop-shadow(var(--ga-pad-ink-shadow)); }
+.ga-pad:is(.ink-engraved, .ink-printed-engraved) .ga-pad-content { filter: drop-shadow(0 calc(var(--ga-pad-engrave) * -1) 0 var(--ga-pad-engrave-dark)) drop-shadow(0 var(--ga-pad-engrave) 0 var(--ga-pad-engrave-light)); }
+.ga-pad.ink-engraved .ga-pad-content { opacity: var(--ga-pad-engrave-opacity); }
+.ga-pad:is(.ink-printed, .ink-printed-engraved) .ga-pad-content { mix-blend-mode: var(--ga-pad-print-blend); }
+/* Debossed: sunk into the key, a shade darker than its surface, its lower edge catching the light. */
+.ga-pad.ink-debossed .ga-pad-content { color: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-deboss-mix), var(--ga-pad-deboss-ink));
+  filter: drop-shadow(0 var(--ga-pad-engrave) 0 var(--ga-pad-deboss-light)) drop-shadow(0 calc(var(--ga-pad-engrave) * -1) 0 var(--ga-pad-deboss-dark)); }
+.ga-pad.ink-debossed:not(.is-lit) .ga-pad-content { color: var(--ga-pad-deboss-off); }
+/* Outlined: a black hairline around the white icon and label. */
+.ga-pad.ink-outlined .ga-pad-content { filter: drop-shadow(var(--ga-pad-outline) 0 0 var(--ga-pad-outline-ink)) drop-shadow(calc(var(--ga-pad-outline) * -1) 0 0 var(--ga-pad-outline-ink))
+  drop-shadow(0 var(--ga-pad-outline) 0 var(--ga-pad-outline-ink)) drop-shadow(0 calc(var(--ga-pad-outline) * -1) 0 var(--ga-pad-outline-ink)); }
+
+/* Halo: one soft blurred shadow behind the icon and the label (not around each letter), over the key, under the ink. */
+.ga-pad.has-halo::after { content: ""; position: absolute; inset: var(--ga-pad-halo-inset); z-index: -1; border-radius: 50%;
+  background: var(--ga-pad-halo); filter: blur(calc(var(--ga-pad-h) * var(--ga-pad-halo-blur))); pointer-events: none; }
+.ga-pad.is-wide.has-halo::after { inset: var(--ga-pad-halo-inset-wide); }
+
+/* Hover: the common frame takes the colour; both get a little brighter and rise a pixel. */
+.ga-pad:hover:not(:disabled) { transform: translateY(var(--ga-pad-lift)); }
+.ga-pad:hover:not(:disabled):not(.is-lit) { filter: drop-shadow(var(--ga-pad-shadow)) brightness(var(--ga-pad-hover-bright)); }
+.ga-pad:hover:not(:disabled):not(.is-lit) .ga-pad-edge { stroke: color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-hover-edge-mix), var(--ga-pad-glass-edge)) !important; }
+.ga-pad.is-lit:hover:not(:disabled) { filter: drop-shadow(0 0 calc(var(--ga-pad-h) * var(--ga-pad-glow-hover)) color-mix(in srgb, var(--ga-pad-color) var(--ga-pad-glow-hover-mix), transparent)) brightness(var(--ga-pad-hover-bright)); }
+.ga-pad:active:not(:disabled) { transform: none; }
+.ga-pad:is(:focus-visible, .is-selected) { outline: var(--ga-pad-focus-w) solid var(--ga-pad-color); outline-offset: var(--ga-pad-focus-offset); border-radius: calc(var(--ga-pad-h) * var(--ga-pad-round)); }
+.ga-pad:disabled { cursor: default; opacity: var(--ga-pad-disabled); }
+

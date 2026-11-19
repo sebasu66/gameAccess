@@ -47,7 +47,9 @@ class DigitalGameStorage:
         self.preferences = DigitalPreferences(self.launcher)
         settings = self.preferences.load()
         self.root = Path(settings["games_root"]).resolve()
-        self.roots = list(dict.fromkeys([self.root, *(Path(root).resolve() for root in settings["previous_roots"])]))
+        # The library's folders on other disks (drives.py); a disk unplugged leaves its folder out until it is back.
+        self.drive_roots = [Path(root).resolve() for root in settings.get("library_drives", []) if Path(root).is_dir()]
+        self.roots = list(dict.fromkeys([self.root, *self.drive_roots, *(Path(root).resolve() for root in settings["previous_roots"])]))
         self.registry = self.data / ".cache" / "digital_games"
         self.linked = LinkedGames(self.launcher)
 
@@ -92,7 +94,127 @@ class DigitalGameStorage:
             if registered.is_dir():
                 return checked
         legacy = next((root / self.legacy_folder_name(name) for root in self.roots if (root / self.legacy_folder_name(name)).is_dir()), self.root / self.legacy_folder_name(name))
-        return self.checked(legacy if legacy.is_dir() else self.root / f"{int(app_id)}-{self.folder_name(name)}")
+        return self.checked(legacy if legacy.is_dir() else self.install_root(app_id=app_id) / f"{int(app_id)}-{self.folder_name(name)}")
+
+    def library_roots(self) -> list[Path]:
+        """Where games of the library may live: the games folder and its folders on other disks."""
+        return list(dict.fromkeys([self.root, *self.drive_roots]))
+
+    # -- disks and placement (Seba, 2026-11-18) ------------------------------------------------------------------
+    # Each disk may be allowed to install games, to hold downloads, both or neither (preferences "drive_roles").
+    # Game Access picks among the allowed ones: the fastest disk first (disk_profile.rank_of: NVMe, SSD, hard disk by what Windows says each one is, one over USB last), as long as the game fits and
+    # the disk keeps its reserve free (keep_free: the smaller of a share of the disk and some GB, 5 % and 30 GB unless
+    # the player chose others; Seba, 2026-11-18); else the next one. A disk already under its reserve takes nothing. The pick for a download is kept for its
+    # AppID (`.cache/placement`), so the game folder and the temporary download land where check_space decided.
+    def keep_free(self, total: int) -> int:
+        """What a disk must keep free after a game lands on it: the smaller of the two the player set."""
+        reserve = self.preferences.load()["free_reserve"]
+        return int(min(total * float(reserve["percent"]) / 100, float(reserve["gb"]) * 1024 ** 3))
+
+    @staticmethod
+    def drive_of(path: Path) -> str:
+        resolved = Path(path).resolve()
+        return (resolved.drive or resolved.anchor).upper()
+
+    @staticmethod
+    def drive_root(letter: str) -> Path:
+        return Path(letter + "\\")
+
+    def role(self, letter: str, role: str) -> bool:
+        """Whether a disk may install games or hold downloads; without a choice of the player, what it did before."""
+        settings = self.preferences.load()
+        chosen = (settings.get("drive_roles") or {}).get(letter, {})
+        if role in chosen:
+            return bool(chosen[role])
+        if role == "install":
+            return any(self.drive_of(root) == letter for root in self.library_roots())
+        return self.drive_of(Path(settings["temporary_root"])) == letter
+
+    def library_folder_on(self, letter: str) -> Path:
+        return self.root if self.drive_of(self.root) == letter else self.drive_root(letter) / self.root.name
+
+    def temporary_folder_on(self, letter: str) -> Path:
+        temporary = Path(self.preferences.load()["temporary_root"]).resolve()
+        return temporary if self.drive_of(temporary) == letter else self.drive_root(letter) / temporary.name
+
+    def install_roots(self) -> list[Path]:
+        roots = [root for root in self.library_roots() if self.role(self.drive_of(root), "install")]
+        return roots or [self.root]
+
+    def download_roots(self) -> list[Path]:
+        settings = self.preferences.load()
+        letters = list(dict.fromkeys(self.drive_of(root) for root in [*self.library_roots(), Path(settings["temporary_root"])]))
+        letters += [letter for letter in (settings.get("drive_roles") or {}) if letter not in letters]
+        roots = [self.temporary_folder_on(letter) for letter in letters if self.role(letter, "download")]
+        return roots or [Path(settings["temporary_root"]).resolve()]
+
+    def temporary_roots(self) -> list[Path]:
+        """Every folder a download of ours may sit in: the allowed ones and any left from a disk no longer allowed."""
+        found = [Path(self.preferences.load()["temporary_root"]).resolve(), *self.download_roots()]
+        for root in self.library_roots():
+            other = self.temporary_folder_on(self.drive_of(root))
+            if other.is_dir():
+                found.append(other)
+        return list(dict.fromkeys(path.resolve() for path in found))
+
+    def pick(self, roots: list[Path], size: int, reserved: dict[str, int] | None = None, strict: bool = False) -> Path | None:
+        """The fastest of `roots` where `size` bytes fit and the disk keeps free what keep_free asks. When none can:
+        None if `strict` (the space check says so), else the fastest (a folder is needed anyway, nothing is written)."""
+        from disk_space import SAFETY_MARGIN
+        from .disk_profile import DiskProfiles, rank_of
+        profiles = DiskProfiles(self.data)
+        reserved = reserved or {}
+        rows = []
+        for root in roots:
+            letter = self.drive_of(root)
+            try:
+                usage = shutil.disk_usage(root if root.exists() else self.drive_root(letter))
+            except OSError:
+                continue
+            left = usage.free - int(size) - reserved.get(letter, 0)
+            rows.append((rank_of(profiles.known(letter)), left, usage.total, root))
+        if not rows:
+            return None if strict else roots[0]
+        rows.sort(key=lambda row: row[0], reverse=True)
+        for _speed, left, total, root in rows:
+            if left - SAFETY_MARGIN >= self.keep_free(total):
+                return root
+        return None if strict else rows[0][3]
+
+    def _placement_file(self, app_id: int) -> Path:
+        return self.data / ".cache" / "placement" / f"{int(app_id)}.json"
+
+    def placement(self, app_id: int) -> dict:
+        try:
+            data = json.loads(self._placement_file(app_id).read_text(encoding="utf-8"))
+            return data if time.time() - float(data.get("at", 0)) < 7 * 24 * 3600 else {}
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    def plan_placement(self, app_id: int, download_bytes: int, factor: float = 1.0, download_left: int | None = None,
+                       download_at: Path | None = None) -> dict:
+        """Where this download goes and where the game is installed, kept for its AppID. The install is chosen first
+        (the fast disk is for playing); a download on the same disk counts on top of it. A download that already began
+        stays in its folder (`download_at`) and only what is left of it (`download_left`) still has to fit."""
+        size = int(download_bytes or 0)
+        left = size if download_left is None else max(0, int(download_left))
+        install = self.pick(self.install_roots(), int(size * factor), strict=True)
+        reserved = {self.drive_of(install): int(size * factor)} if install else {}
+        temporary = download_at if download_at is not None else self.pick(self.download_roots(), left, reserved, strict=True)
+        plan = {"install": str(install) if install else "", "download": str(temporary) if temporary else "", "bytes": size, "at": time.time()}
+        if app_id and install and temporary:
+            write_json(self._placement_file(app_id), plan)
+        return plan
+
+    def clear_placement(self, app_id: int) -> None:
+        self._placement_file(app_id).unlink(missing_ok=True)
+
+    def install_root(self, size: int = 0, app_id: int = 0) -> Path:
+        """Where a new game goes: what was planned for its download (plan_placement), else the policy's pick."""
+        planned = self.placement(app_id).get("install") if app_id else None
+        if planned and Path(planned).resolve() in [root.resolve() for root in self.install_roots()]:
+            return Path(planned).resolve()
+        return self.pick(self.install_roots(), size)
 
     def checked(self, folder: Path) -> Path:
         # Never remove a root, outside folder, or redirected junction/symlink.
@@ -323,21 +445,22 @@ class DigitalGameStorage:
     def transfer_folder(self, app_id: int, name: str) -> Path:
         """Where a game's download goes: the temporary folder it already has (whatever its name, found by its AppID, so
         a download started before the folder names changed still resumes), or a new "<appid>-<clean name>" one."""
-        temporary = Path(self.preferences.load()["temporary_root"])
-        if temporary.is_dir():
-            existing = sorted(p for p in temporary.glob(f"{int(app_id)}-*") if p.is_dir() and not p.is_symlink())
-            if existing:
-                return existing[0]
+        for temporary in self.temporary_roots():
+            if temporary.is_dir():
+                existing = sorted(p for p in temporary.glob(f"{int(app_id)}-*") if p.is_dir() and not p.is_symlink())
+                if existing:
+                    return existing[0]
+        planned = self.placement(app_id).get("download")
+        allowed = [root.resolve() for root in self.download_roots()]
+        temporary = Path(planned).resolve() if planned and Path(planned).resolve() in allowed else self.pick(self.download_roots(), 0)
         return temporary / f"{int(app_id)}-{self.folder_name(name)}"
 
     def transfers(self) -> list[dict]:
         """Downloads sitting in the temporary root, and whether a worker is alive on each right now."""
-        temporary = Path(self.preferences.load()["temporary_root"]).resolve()
         found = []
-        if not temporary.is_dir():
-            return found
         now = time.time()
-        for folder in sorted(temporary.iterdir()):
+        folders = [folder for temporary in self.temporary_roots() if temporary.is_dir() for folder in sorted(temporary.iterdir())]
+        for folder in folders:
             app_id, title, _ = split_folder_name(folder.name)
             if app_id is None or not folder.is_dir() or folder.is_symlink():
                 continue
@@ -361,13 +484,13 @@ class DigitalGameStorage:
         own "Discard"), also the unfinished folder the download left in the games folder (unpacked, its installer
         failed...) and its resume point, so the next scan does not offer it again. A finished install is never touched;
         the automatic clean-up of empty downloads never passes it."""
-        temporary = Path(self.preferences.load()["temporary_root"]).resolve()
+        temporaries = self.temporary_roots()
         targets = [t for t in self.transfers() if t["app_id"] == int(app_id)]
         if any(t["active"] for t in targets):
             raise ValueError("La descarga está en curso; cancélala antes de descartarla.")
         for target in targets:
             folder = Path(target["folder"]).resolve()
-            if folder == temporary or not folder.is_relative_to(temporary):
+            if not any(folder != temporary and folder.is_relative_to(temporary) for temporary in temporaries):
                 raise ValueError("La carpeta está fuera del directorio permitido.")
             if any(item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()) for item in [folder, *folder.rglob("*")]):
                 raise ValueError("La carpeta contiene enlaces; no se pudo eliminar de forma segura.")
@@ -476,8 +599,8 @@ class DigitalGameStorage:
 
     def _remove_transfers(self, app_id: int) -> None:
         """The game's temporary download folders, never through a link out of the temporary root."""
-        temporary_root = Path(self.preferences.load()["temporary_root"]).resolve()
-        for target in (temporary_root.glob(f"{int(app_id)}-*") if temporary_root.is_dir() else []):
+        targets = [(root, target) for root in self.temporary_roots() if root.is_dir() for target in root.glob(f"{int(app_id)}-*")]
+        for temporary_root, target in targets:
             resolved = target.resolve()
             if resolved == temporary_root or not resolved.is_relative_to(temporary_root) or target.is_symlink():
                 continue

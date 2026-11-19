@@ -57,8 +57,11 @@
 .ga-deck.is-open .ga-deck-card:focus-visible { outline: none; }
 .ga-deck.is-open .ga-deck-card:focus-visible .ga-deck-art { border-color: var(--ga-accent); }
 .ga-deck-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: var(--ga-space-1); font: 700 var(--ga-deck-meta-size)/1.25 var(--ga-scene-text-family); color: var(--ga-deck-ink); }
-@media (prefers-reduced-motion: reduce) { .ga-deck-card, .ga-deck-art, .ga-deck-glow, .ga-deck-more { transition: none; } }
+
 
 
 /* Far from the screen an open deck's cards have no blended layers: they are drawn again as they come near (IntersectionObserver). */
 .ga-deck.is-open .ga-deck-card:not(.is-near) :is(.ga-deck-art::before, .ga-deck-art::after, .ga-deck-face::after) { display: none; }
+
+/* Riding the mat back to its cell (data-travel, LibraryGenreDecks.tsx): the cards stay piled; they fan out when it lands. */
+.ga-deck[data-travel]:not(.is-open) .ga-deck-card[data-fan] { transform: none; }

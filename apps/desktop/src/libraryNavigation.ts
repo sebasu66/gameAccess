@@ -16,7 +16,7 @@ export function renderedGridColumns(template: string): number {
  * manual scrolling; reduced-motion users receive the same final position. */
 export function tweenSelectionScroll(root: HTMLElement, target: number): () => void {
   const from = root.scrollTop;
-  if (Math.abs(target-from) < 1 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+  if (Math.abs(target-from) < 1) {
     root.scrollTop = target;
     return () => {};
   }

@@ -425,10 +425,7 @@ body {
   .hero-media-controls { top: 92px; right: 18px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .glass-action.play.pulse,
-  .game-card.is-downloading .game-card-art::before { animation: none; }
-}
+
 
 /* Main library view: a conventional responsive cover grid. */
 .magazine-view { position: relative; height: 100svh; min-height: 0; padding: 88px 20px 44px; display: block; overflow: hidden; }
@@ -538,9 +535,7 @@ body {
   .dome-focus article { grid-template-columns: 120px 1fr; }
   .dome-focus h3 { font-size: 23px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .library-vault, .dome-focus { animation: none; }
-}
+
 /* Restore original split main layout while preserving corrected card grid. */
 .magazine-view { position: relative; height: 100svh; min-height: 0; padding: 96px 4vw 44px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(22px, 3vw, 52px); overflow: hidden; }
 .magazine-feature.hero, .magazine-catalog { height: 100%; min-height: 0; box-sizing: border-box; }

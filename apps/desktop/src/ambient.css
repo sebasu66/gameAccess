@@ -12,7 +12,7 @@ html body .library-room:not(.surface-display):not(.surface-tablet) .library-room
 html body .library-room:not(.surface-display):not(.surface-tablet) .library-room-card-art { transform-style: preserve-3d; }
 html body .ga-bento-card:hover, html body .ga-bento-card:focus-visible { transform: none; }
 .ga-glare { position: absolute; inset: 0; z-index: 4; border-radius: inherit; pointer-events: none; opacity: 0; background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%), #ffffff55 0, transparent 55%); mix-blend-mode: overlay; }
-@media (prefers-reduced-motion: reduce) { .ga-cursor-glow { display: none; } }
+
 .ga-style-hint { margin: 8px 0 0; color: #929ba2; font: 500 12px/1.5 Manrope, sans-serif; }
 
 /* Catalog cards as in the approved demo: 8 px corners, soft shadow, hairline edge that turns orange on hover/selection,

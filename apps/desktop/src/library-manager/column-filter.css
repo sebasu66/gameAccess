@@ -1,0 +1,29 @@
+/* The filter of a grid column (ColumnFilter.tsx). Layout only: sizes in templates/base.css, colours and fonts in the flavor. */
+.lm-colfilter {
+  position: fixed; z-index: 700; display: flex; flex-direction: column; gap: var(--ga-space-1);
+  width: var(--ga-colfilter-w); padding: var(--ga-space-2); box-sizing: border-box;
+  border: var(--ga-nav-line-w) solid var(--ga-colfilter-line); border-radius: var(--ga-radius-l);
+  background: var(--ga-colfilter-bg); box-shadow: var(--ga-colfilter-shadow); color: var(--ga-colfilter-ink);
+}
+.lm-colfilter-search { display: flex; align-items: center; gap: var(--ga-space-1); height: var(--ga-control-h); padding: 0 var(--ga-space-2); box-sizing: border-box; border: var(--ga-nav-line-w) solid var(--ga-field-line); border-radius: var(--ga-radius-m); background: var(--ga-field-bg); }
+.lm-colfilter-search svg { flex: none; width: var(--ga-colfilter-icon); height: var(--ga-colfilter-icon); color: var(--ga-colfilter-muted); }
+.lm-colfilter-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ga-field-ink); font: var(--ga-field-font); }
+.lm-colfilter-list { display: flex; flex-direction: column; max-height: var(--ga-colfilter-list-h); overflow: auto; }
+.lm-colfilter-option { display: flex; align-items: center; gap: var(--ga-space-1); min-height: var(--ga-colfilter-row-h); padding: 0 var(--ga-space-1); border-radius: var(--ga-radius-s); font: var(--ga-colfilter-font); cursor: pointer; }
+.lm-colfilter-option:hover { background: var(--ga-colfilter-hover); }
+.lm-colfilter-option input { flex: none; accent-color: var(--ga-colfilter-on); }
+.lm-colfilter-value { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lm-colfilter-count { flex: none; color: var(--ga-colfilter-muted); font: var(--ga-colfilter-count-font); }
+.lm-colfilter-actions { display: flex; justify-content: flex-end; gap: var(--ga-space-1); padding-top: var(--ga-space-1); border-top: var(--ga-nav-line-w) solid var(--ga-colfilter-line); }
+/* The header: its funnel shows on hover and stays lit while the column has a filter. */
+.lm-grid th .lm-colfilter-open { display: inline-grid; place-items: center; width: var(--ga-tool-size); height: var(--ga-tool-size); margin-left: var(--ga-colfilter-mark); padding: 0; border: 0; border-radius: var(--ga-radius-s); background: none; color: inherit; opacity: 0; cursor: pointer; vertical-align: middle; }
+.lm-grid th:hover .lm-colfilter-open, .lm-grid th .lm-colfilter-open:focus-visible { opacity: .6; }
+.lm-grid th .lm-colfilter-open.is-on { opacity: 1; color: var(--ga-colfilter-on); }
+.lm-grid th .lm-colfilter-open svg { width: var(--ga-colfilter-icon); height: var(--ga-colfilter-icon); }
+/* What the grid is filtered by, beside the filter chips: each one clears its column. */
+.lm-colfilter-chip { display: inline-flex; align-items: center; gap: var(--ga-space-1); }
+/* From and to of a number column, side by side. */
+.lm-colfilter-range { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ga-space-1); }
+.lm-colfilter-range label { display: grid; gap: var(--ga-space-1); min-width: 0; }
+.lm-colfilter-range input { width: 100%; height: var(--ga-control-h); padding: 0 var(--ga-space-2); box-sizing: border-box; border: var(--ga-nav-line-w) solid var(--ga-field-line); border-radius: var(--ga-radius-m); background: var(--ga-field-bg); color: var(--ga-field-ink); font: var(--ga-field-font); }
+.lm-colfilter-range input:focus-visible { outline: var(--ga-nav-line-w) solid var(--ga-colfilter-on); border-color: var(--ga-colfilter-on); }

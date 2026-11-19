@@ -41,14 +41,14 @@ export function selectNavigationSection(mode: NavigationModeId, section: string)
 
 /**
  * The submode tabs (§2) that already have something to show. The others are drawn but cannot be chosen yet: their
- * screens do not have that part (Play › By genre is the decks of RN8; Manager's Space, Freeze, Move and Import, the
+ * screens do not have that part (Play › By genre is the decks of RN8; Manager's Freeze, the
  * three parts of Parental controls and Catalog's new games still have one screen for everything).
  */
 export const READY_TABS: Readonly<Record<string, readonly string[]>> = {
   newGames: ["downloadable"],
   play: ["recent", "genres", "favorites", "alphabetical"],
   downloads: ["active", "queued", "completed"],
-  manager: ["games", "accounts"],
+  manager: ["games", "accounts", "space"],
   news: ["release", "announcements"],
   support: ["instructions", "faq", "contact"],
   subscription: ["plan", "account"],

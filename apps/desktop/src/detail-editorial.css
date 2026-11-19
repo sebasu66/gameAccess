@@ -1,0 +1,17 @@
+/* The detail's subtle editorial layers (DetailEditorial.tsx, docs/GUI_DESIGN.md §4.43): a grid over the art and sight
+   corners. Layout only: sizes --ga-ed-* in templates/base.css, colours in the flavor. Over the art and its shade, under
+   the content, never taking the pointer. */
+.ga-ed { position: absolute; inset: 0; z-index: 1; overflow: hidden; border-radius: inherit; pointer-events: none; }
+
+/* A technical grid over the art, fading out before the content. */
+.ga-ed-grid { position: absolute; inset: 0 0 auto; height: calc(var(--ga-detail-wide-head-h) * var(--ga-ed-grid-reach));
+  background-image: linear-gradient(var(--ga-ed-grid-line) var(--ga-ed-hair), transparent var(--ga-ed-hair)), linear-gradient(90deg, var(--ga-ed-grid-line) var(--ga-ed-hair), transparent var(--ga-ed-hair));
+  background-size: var(--ga-ed-grid) var(--ga-ed-grid); background-position: var(--ga-detail-wide-pad-l) 0;
+  -webkit-mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink), transparent); mask-image: linear-gradient(to bottom, var(--ga-detail-wide-mask-ink), transparent); }
+
+/* Sight corners inside the frame. */
+.ga-ed-corner { position: absolute; width: var(--ga-ed-bracket); height: var(--ga-ed-bracket); border: 0 solid var(--ga-ed-ink); }
+.ga-ed-corner.is-tl { top: var(--ga-ed-inset); left: var(--ga-ed-inset); border-top-width: var(--ga-ed-bracket-w); border-left-width: var(--ga-ed-bracket-w); border-top-left-radius: var(--ga-ed-bracket-round); }
+.ga-ed-corner.is-tr { top: var(--ga-ed-inset); right: var(--ga-ed-inset); border-top-width: var(--ga-ed-bracket-w); border-right-width: var(--ga-ed-bracket-w); border-top-right-radius: var(--ga-ed-bracket-round); }
+.ga-ed-corner.is-bl { bottom: var(--ga-ed-inset); left: var(--ga-ed-inset); border-bottom-width: var(--ga-ed-bracket-w); border-left-width: var(--ga-ed-bracket-w); border-bottom-left-radius: var(--ga-ed-bracket-round); }
+.ga-ed-corner.is-br { bottom: var(--ga-ed-inset); right: var(--ga-ed-inset); border-bottom-width: var(--ga-ed-bracket-w); border-right-width: var(--ga-ed-bracket-w); border-bottom-right-radius: var(--ga-ed-bracket-round); }

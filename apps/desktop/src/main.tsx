@@ -79,6 +79,10 @@ import "./utility-controls.css";
 import "./library-manager/library-manager.css";
 import "./ga-design.css";
 import "./components/ga/content.css";
+// Every scrollbar of the app, and the round handle's own classes, with the rest of the general template (§4.51):
+// a view that scrolls gets the app's bar without mounting anything (Seba, 2026-11-19).
+import "./components/ga/scrollbars.css";
+import "./circle-scrollbar.css";
 
 // Suppress WebView's browser menu in the native client. Keep propagation so
 // game cards can still open the application's own context menu.
@@ -169,7 +173,9 @@ void (libraryDemo() ? Promise.resolve(null) : readKidSession()).then(session => 
     if (kid.kid.language === "es" || kid.kid.language === "en") setAppLocale(kid.kid.language);
     ReactDOM.createRoot(root).render(<><KidScreen initial={kid} demo={!kid.kid.sid} /><GaNotice /></>);
   } else if (libraryDemo()) {
-    ReactDOM.createRoot(root).render(<><GameLibraryManager onClose={() => undefined} /><GaNotice /></>);
+    // `embedded`, as the app renders it (Seba, 2026-11-19): the Manager is a tab of Library, beside Accounts and
+    // Space, so it has no title bar and no back button of its own. The standalone preview showed one and misled.
+    ReactDOM.createRoot(root).render(<><GameLibraryManager embedded onClose={() => undefined} /><GaNotice /></>);
   } else ReactDOM.createRoot(root).render(
     <React.StrictMode>
       <WindowChrome /><PixelAppearance /><AmbientBackground /><ActivityConsole /><GaNotice /><ParentKeyDialog /><CentralDialogView /><NativeAccessBoundary />

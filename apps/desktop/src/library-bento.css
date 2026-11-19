@@ -49,7 +49,7 @@
 .ga-bento-empty { margin: 60px 0; text-align: center; color: #929ba2; }
 /* Deep freeze: the frosted veil rises from the bottom. */
 @keyframes ga-bento-ice-rise { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
-@media (prefers-reduced-motion: reduce) { .ga-bento-card, .ga-bento-landscape { transition: none; } .ga-bento-ice { animation: none; } }
+
 
 /* Library pills: only installed / only favorites, next to the search. */
 /* The library's groups (installed, frozen, installable) as three square cubes on the filter strip, after sorting:
@@ -90,7 +90,7 @@
 .ga-side-menu-note { max-width: 240px; margin: 8px 0 0; padding: 8px 12px 0; border-top: 1px solid #ffffff1f; color: #f4f4f2b3; font: 600 12px/1.4 Manrope, sans-serif; text-shadow: 0 1px 6px #000a; }
 .ga-side-menu-items button.primary { min-height: 40px; margin-bottom: 4px; border-radius: 8px; background: #cc8333; color: #140a02; font-weight: 800; text-shadow: none; }
 .ga-side-menu-items button.primary:hover:not(:disabled) { background: #d69959; }
-@media (prefers-reduced-motion: reduce) { .ga-bento-menu, .ga-bento-menu path { transition: none; animation: none !important; } }
+
 
 /* Big picture: a favourite or much played game, wide (bentoLayout.bigPictureBento), its Steam header picture filling
    the card; the name stays under it, as on every card. */

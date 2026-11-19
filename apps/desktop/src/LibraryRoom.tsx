@@ -793,7 +793,7 @@ export default function LibraryRoom({ externalDetailGame: externalDetailGameProp
       setActionIndex={setActionIndex}
       onAction={onAction}
       {...(navigationShellEnabled() ? {
-        onClose: closeGameDetail, closeRef: detailCloseRef, moreOpen: Boolean(detailMenu),
+        onClose: closeGameDetail, closeRef: detailCloseRef, moreOpen: Boolean(detailMenu), onOpenGame: setOwnDetailGame,
         onMore: (anchor: DOMRect) => setDetailMenu(current => current ? null : { game: selectedGame, x: anchor.left, y: anchor.bottom + 6, status: selectedAppId ? effectiveDownloads[selectedAppId] : undefined }),
       } : {})}
     />

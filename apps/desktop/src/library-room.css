@@ -124,7 +124,7 @@
 .library-room-empty { place-items: center; color: #9ba6b4; }
 @media (max-width: 1050px) { .library-room { grid-template-columns: minmax(330px,38vw) minmax(0,1fr); gap: 16px; padding-inline: 16px; } .library-room-feature-copy { inset-inline: 24px; } .library-room-grid { grid-template-columns: repeat(auto-fill,minmax(118px,1fr)); } }
 @media (max-width: 760px) { .library-room { height: auto; min-height: 100svh; grid-template-columns: 1fr; overflow-y: auto; } .library-room-feature { min-height: 52vh; } .library-room-catalog { min-height: 58vh; } .library-room-grid { overflow: visible; } .library-room-hint { position: fixed; left: 12px; right: 12px; justify-content: center; padding: 8px; background: rgba(3,5,8,.78); backdrop-filter: blur(10px); } }
-@media (prefers-reduced-motion: reduce) { .library-room-video, .library-room-hero-layer, .library-room-feature-ambient img, .library-room-action, .library-room-action::before { transition: none !important; } }
+
 
 /* The previous magazine implementation stays mounted temporarily while LibraryRoom replaces it. */
 .magazine-view { display: none !important; }
@@ -827,9 +827,6 @@ body:has(.library-room.surface-display) .app-shell > main { min-height: 100vh; h
   .library-room:not(.surface-display):not(.surface-tablet) .library-room-game-facts { gap: 5px 14px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .library-room:not(.surface-display):not(.surface-tablet) .library-room-hero-layer,
-  .library-room:not(.surface-display):not(.surface-tablet) .library-room-video { transition: none; }
-}
+
 
 .library-cover-fallback { flex-direction: column; gap: 12px; padding: 16px; text-align: center; }

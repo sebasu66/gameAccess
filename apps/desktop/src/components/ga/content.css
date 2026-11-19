@@ -65,10 +65,22 @@
 .ga-settings-group > legend + * { clear: both; }
 .ga-group-danger > :where(.ga-label) { color: var(--ga-danger-ink); }
 
-/* Button row: 10 px apart, every button as tall as the tallest, wraps when narrow. */
-.ga-actions { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--ga-row-gap); margin: 0; }
+/* Button row: 10 px apart, every button as tall as the tallest, wraps when narrow.
+
+   HOW BUTTONS LINE UP, once for the whole app (Seba, 2026-11-19; it was different in every screen):
+   1. By default they keep their own width and sit at the **start** of the line. That is the place of a button that
+      fires something (check that it runs, open the folder, repair, rename).
+   2. In a **narrow column** (a container of 420 px or less, such as the Manager's detail) each one takes the **whole
+      width**, one per line: half-cut labels and a ragged right edge read worse than a column of equal buttons.
+   3. A **dangerous** button always takes the whole width, wherever it is: it is not something to hit by mistake while
+      aiming at its neighbour.
+   4. `ga-actions-end` is only for the action that closes a form (Save, Done): that one goes at the end of the line.
+   A screen does not decide this; if a case does not fit, the rule changes here. */
+.ga-actions { display: flex; flex-wrap: wrap; align-items: stretch; justify-content: flex-start; gap: var(--ga-row-gap); margin: 0; }
 .ga-actions > :where(*) { flex: none; margin: 0; }
 .ga-actions-end { justify-content: flex-end; }
+.ga-actions > :where(.ga-btn-danger) { flex: 1 1 100%; justify-content: center; }
+@container (max-width: 420px) { .ga-actions > :where(*) { flex: 1 1 100%; justify-content: center; } }
 
 /* Disclosure: details/summary with an orange chevron, never the browser's triangle. Its body is one .ga-stack. */
 .ga-disclosure { margin: 0; }
@@ -81,4 +93,17 @@
 .ga-disclosure > :where(summary):hover { color: var(--ga-orange-hover); }
 .ga-disclosure > :where(summary):focus-visible { outline: 2px solid var(--ga-orange); outline-offset: 3px; }
 .ga-disclosure > :where(:not(summary)) { margin: var(--ga-space-1) 0 0; }
-@media (prefers-reduced-motion: reduce) { .ga-disclosure > :where(summary)::before { transition: none; } }
+
+
+/* Field: its name above and its control below, both the same width, 8 px apart (§4.25). It is the general layout of
+   every form of the app; a screen only changes measures through the tokens, never the shape. */
+.ga-path-control { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ga-field-gap); min-width: 0; margin: 0; }
+.ga-path-control > :where(span, label) { color: var(--ga-label-ink); font: var(--ga-label-font); letter-spacing: var(--ga-label-track); text-transform: uppercase; }
+.ga-path-control > :where(input, select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; height: var(--ga-field-h); padding: var(--ga-field-pad);
+  border: var(--ga-nav-line-w) solid var(--ga-field-line); border-radius: var(--ga-radius-m); background: var(--ga-field-bg); color: var(--ga-field-ink); font: var(--ga-field-font); }
+.ga-path-control > :where(textarea) { height: auto; padding: var(--ga-field-area-pad); resize: vertical; }
+.ga-path-control > :where(input, select, textarea)::placeholder { color: var(--ga-field-placeholder); }
+.ga-path-control > :where(input, select, textarea):focus-visible { outline: var(--ga-switch-focus-w) solid var(--ga-orange); outline-offset: var(--ga-switch-focus-offset); }
+/* A line with a box: the box first, its name beside it, both lined up on their middle. */
+.ga-style-toggle { display: flex; align-items: center; gap: var(--ga-field-gap); min-height: var(--ga-check-size); margin: 0; color: var(--ga-field-ink); font: var(--ga-field-font); cursor: pointer; }
+.ga-style-toggle > :where(input[type="checkbox"]) { flex: none; width: var(--ga-check-size); height: var(--ga-check-size); margin: 0; accent-color: var(--ga-orange); cursor: pointer; }

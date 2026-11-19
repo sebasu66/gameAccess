@@ -168,11 +168,11 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 .ga-nav-section:focus-visible { outline: none; }
 .ga-nav-section-list:has(.ga-nav-section:not(:disabled):hover) .ga-nav-section:not(:hover) { filter: brightness(var(--ga-nav-dim-hover)); }
 .ga-nav-section:disabled { opacity: var(--ga-nav-disabled-opacity); cursor: default; }
-@media (prefers-reduced-motion: reduce) { .ga-nav-band, .ga-nav-band svg, .ga-nav-section, .ga-nav-section *, .ga-nav-section::after, .ga-nav-chevrons i { transition: none; } }
+
 .ga-nav-activity { right: var(--ga-nav-right); width: var(--ga-nav-activity-w); display: flex; flex-direction: column; border-left: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); }
 .ga-nav-activity-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .ga-nav-activity-scroll .ga-activity { min-width: 0; }
-.ga-nav-status { position: absolute; left: var(--ga-nav-left); right: var(--ga-nav-right); bottom: var(--ga-frame-bottom, 0px); height: var(--ga-nav-status-h); display: flex; align-items: center; gap: var(--ga-feed-tight); padding: 0 var(--ga-nav-status-item-pad); box-sizing: border-box; border-top: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); background: var(--ga-nav-shell-bg); color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-caption-size)/1 var(--ga-text-family); white-space: nowrap; overflow: hidden; }
+.ga-nav-status { position: absolute; left: var(--ga-nav-left); right: var(--ga-nav-right); bottom: var(--ga-frame-bottom, 0px); height: var(--ga-nav-status-h); display: flex; align-items: center; gap: var(--ga-nav-status-gap); padding: 0 var(--ga-nav-status-item-pad); box-sizing: border-box; border-top: var(--ga-nav-line-w) solid var(--ga-nav-shell-line); background: var(--ga-nav-shell-bg); color: var(--ga-nav-shell-muted); font: 600 var(--ga-nav-caption-size)/1 var(--ga-text-family); white-space: nowrap; overflow: hidden; }
 .ga-nav-status .ga-backend-status { min-width: 0; padding: 0 var(--ga-nav-status-item-pad); color: inherit; font: inherit; }
 .ga-nav-status .ga-backend-status i { width: var(--ga-nav-status-dot); height: var(--ga-nav-status-dot); background: var(--ga-nav-bad); }
 .ga-nav-status .ga-backend-status[data-connected=true] i { background: var(--ga-nav-ok); }
@@ -193,7 +193,7 @@ html.ga-navigation-shell body:not(.ga-pixel-field-on) { background: var(--ga-nav
 .ga-nav-meter i:nth-child(3) { animation-delay: calc(-.5 * var(--ga-nav-meter-time)); }
 .ga-nav-meter i:nth-child(4) { animation-delay: calc(-.7 * var(--ga-nav-meter-time)); opacity: var(--ga-nav-disabled-opacity); }
 @keyframes ga-nav-meter { 0%, 100% { transform: scaleY(var(--ga-nav-meter-low)); } 50% { transform: scaleY(1); } }
-@media (prefers-reduced-motion: reduce) { .ga-nav-meter i { animation: none; } }
+
 html.ga-navigation-shell body ga-mode-rail.ga-mode-rail { display: none !important; }
 html.ga-navigation-shell body .catalog-bottom-actions { display: none !important; }
 html.ga-navigation-shell body .plugin-indicator-group { display: none !important; }
@@ -247,3 +247,11 @@ html.ga-navigation-shell .ga-view-rail { display: none; }
   .ga-nav-activity { display: none; }
 }
 html.ga-navigation-shell, html.ga-navigation-shell body { overflow-x: clip; }
+/* Los discos en uso en la barra de estado (§4.52): uno al lado del otro, el que peor está primero. La cifra va en la
+   tinta de la barra, como todo lo demás; el único color es el triangulito del que se está quedando sin lugar, para
+   que el pie no se llene de colores. */
+.ga-nav-disks { gap: var(--ga-nav-status-item-gap); }
+.ga-nav-disk { display: inline-flex; align-items: center; gap: var(--ga-nav-status-disk-gap); }
+.ga-nav-disk > b { max-width: var(--ga-nav-status-disk-max); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ga-nav-disk-warn[data-level="low"] { color: var(--ga-warn); }
+.ga-nav-disk-warn[data-level="critical"] { color: var(--ga-danger); }

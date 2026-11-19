@@ -85,6 +85,9 @@ fn main() {
             tauri::WindowEvent::Resized(_) => webview_rest::reconcile(window, None),
             // In a child's account closing Game Access (Alt+F4 too) signs the child out (kid_mode.rs).
             tauri::WindowEvent::CloseRequested { .. } if kid_mode::kid_account().is_some() => kid_mode::sign_out(),
+            // Closing the main window closes Game Access, even with another window still open (the hidden Co-Optimus
+            // lookup, the AI steps): otherwise the process stayed and a second start found it holding the single instance.
+            tauri::WindowEvent::Destroyed if window.label() == "main" => { use tauri::Manager; window.app_handle().exit(0); }
             _ => {}
         })
         .setup(move |app| {
@@ -247,9 +250,12 @@ fn main() {
             mcp_clients::mcp_clients,
             mcp_clients::mcp_client_setup
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running gameAccess");
-    // The Download Manager stops its workers without deleting anything; they resume when the app opens again.
-    download_queue::shutdown();
-    plugin_registry::stop_all_plugins();
+        .build(tauri::generate_context!())
+        .expect("error while running gameAccess")
+        // Tauri ends the process right after its loop, so what must stop is stopped here, not after `run`.
+        .run(|_app, event| if let tauri::RunEvent::Exit = event {
+            // The Download Manager stops its workers without deleting anything; they resume when the app opens again.
+            download_queue::shutdown();
+            plugin_registry::stop_all_plugins();
+        });
 }
