@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- Colección de ejemplo. Plantilla: carreras. Parámetros: angulo_grados=14, barras_visibles=5. Arte, colores, transiciones y pertenencia siguen el formato 1. -->
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Línea de largada · Barras diagonales</title>
+<style>
+:root{color-scheme:dark;--bg:#12171b;--surface:#202a31;--ink:#fff4e3;--muted:#bfbdaf;--accent:#ff823c;--rule:#455059;--gap:clamp(9px,1.4vw,20px);--pad:clamp(14px,2.5vw,36px);--banner-h:clamp(110px,28vh,225px);--radius:10px;--duration:180ms;--control:34px;--angle:-14deg;--cover-h:clamp(148px,32vh,270px);--heading:clamp(28px,6vw,78px);--display:'Arial Black','Segoe UI',sans-serif;--body:'Segoe UI',Arial,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:16px var(--body)}body{padding-bottom:var(--pad);background:linear-gradient(150deg,#26323b -20%,var(--bg) 60%)}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:3px solid white;outline-offset:-4px}header{padding:var(--pad);display:grid;align-content:center;position:relative;isolation:isolate;overflow:hidden}h1,h2,p{margin:0}h1{font:900 italic var(--heading)/.96 var(--display);letter-spacing:-.075em;text-transform:uppercase;max-width:74%}header small{display:block;font-weight:700;margin-top:8px;color:var(--muted)}
+.banner{min-height:var(--banner-h);background:#182b30;color:#fff2df;border-bottom:4px solid var(--accent)}.banner:before,.track-bg:before{content:"";position:absolute;inset:0;background-image:var(--track);background-position:right center;background-size:auto 107%;background-repeat:no-repeat;z-index:-1}.banner:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#182b30 9%,#182b30dc 35%,transparent 65%)}
+.compact h1{font-size:clamp(24px,4.5vw,56px)}.compact{padding-bottom:12px}.track-bg{position:relative;isolation:isolate;background:#122629}.track-bg:before{position:fixed;opacity:.3;background-size:cover}
+main{padding:0 var(--pad);min-width:0}.tools{display:flex;align-items:center;justify-content:space-between;margin:var(--gap) 0;color:var(--muted);gap:12px}.tools h2,h2.group{font-size:clamp(16px,2vw,23px);color:var(--ink);letter-spacing:-.025em}.paging,.actions{display:flex;align-items:center;gap:8px}.paging span{font-size:13px;font-variant-numeric:tabular-nums}.arrow,.actions button,dialog button{height:var(--control);border:1px solid var(--rule);border-radius:6px;background:var(--surface);padding:0 10px;font-weight:700}.arrow{min-width:var(--control);font-size:19px}.arrow:disabled{opacity:.32;cursor:default}.game{display:block;position:relative;min-width:0;overflow:hidden;color:var(--ink);border:0;padding:0;text-align:left;background:var(--paint);border-radius:var(--radius);isolation:isolate}.game[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--ink)}.plate{position:absolute;inset:3px;z-index:-1;overflow:hidden;background:var(--paint);color:var(--print)}.plate svg{width:100%;height:100%;display:block}.game strong{display:block;position:absolute;bottom:0;left:0;right:0;padding:12px 10px 9px;background:linear-gradient(transparent,#0d141ad9 68%);text-shadow:0 1px 3px #000;font:800 italic clamp(14px,2.1vw,27px)/1.05 var(--display);letter-spacing:-.055em;overflow-wrap:anywhere}.selected{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:var(--gap);padding-top:var(--gap);border-top:1px solid var(--rule)}.selected b{font-size:clamp(16px,2.2vw,24px)}.actions button:first-child,dialog button{background:var(--accent);color:#20130e;border-color:var(--accent)}dialog{background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:var(--radius);padding:var(--pad);max-width:min(86vw,440px)}dialog::backdrop{background:#080a0dc9}dialog p{margin:12px 0 20px;color:var(--muted)}
+#board{display:flex;height:clamp(160px,36vh,320px);gap:5px;margin:0 2%;padding-inline:2%;overflow:hidden;background:#10171b}
+.game{transform:skewX(var(--angle));border-radius:0;flex:1;transition:flex-grow var(--duration) ease-out}
+.game[aria-pressed=true]{flex-grow:3.2;box-shadow:inset 0 -5px 0 var(--ink)}
+.game .plate{inset:0 -35px 5px;transform:skewX(14deg);background:linear-gradient(115deg,transparent 68%,#fff2 68% 71%,transparent 71% 74%,#fff2 74% 80%,transparent 80%),var(--paint)}
+.game .plate svg{width:max(100%,175px);position:absolute;left:50%;transform:translateX(-50%)}
+.game[aria-pressed=true] .plate svg{width:78%}
+.game strong{bottom:5px;padding:19px 8px 10px 16px;transform:skewX(14deg);font-size:clamp(12px,1.8vw,24px)}
+
+.slice{position:relative;flex:1;transform:skewX(var(--angle));transition:flex-grow var(--duration);min-width:0;overflow:hidden}.slice:has(.game[aria-pressed=true]){flex-grow:3.2}
+.slice .game{position:absolute;inset:0;width:100%;height:100%;transform:none}
+.slice .actions{display:none;position:absolute;left:10%;bottom:12px;transform:skewX(14deg);gap:5px}
+.slice:has(.game[aria-pressed=true]) .actions{display:flex}
+.slice .actions button{height:30px;padding:0 8px;font-size:13px}
+.slice .game[aria-pressed=true] strong{bottom:46px;background:transparent;text-shadow:0 2px 4px #1a191a;font-size:clamp(16px,2.7vw,34px)}
+.slice .game[aria-pressed=true] .plate{background:linear-gradient(0deg,#162329b8,transparent 48%),var(--paint)}
+.slice .game[aria-pressed=true] .plate svg{height:76%}.selected{display:none}
+</style></head><body data-layout="carreras"><header class="banner"><h1>Línea de largada</h1><small>12 juegos</small></header><main>
+<div class="tools"><h2>Barras diagonales</h2><div class="paging" hidden><span id="count"></span><button class="arrow" id="prev" aria-label="Juegos anteriores">‹</button><button class="arrow" id="next" aria-label="Juegos siguientes">›</button></div></div>
+<div id="board"></div><div class="selected"><b id="selectedName"></b><div class="actions"><button type="button" data-action="play">▶ Jugar</button><button type="button" data-action="detail">Ficha</button></div></div></main>
+<dialog><h2></h2><p></p><button type="button">Volver a la colección</button></dialog>
+<script>
+const games = [
+ ['Vértice GT','Circuito','#fc883d','#542d23'],['Costa Turbo','Ruta','#49c7c4','#134449'],['Rally Austral','Rally','#f2cf5f','#624a23'],['Distrito Drift','Ruta','#ab9ae4','#423155'],
+ ['Grava Roja','Rally','#fa7365','#622b28'],['Curva Cero','Circuito','#b9da76','#384a23'],['Medianoche GT','Circuito','#75a0cd','#233850'],['Ruta Solar','Ruta','#ffd38c','#704735'],
+ ['Bosque Rally','Rally','#91c7a5','#2f493f'],['Paso Alpino','Rally','#becbdc','#344451'],['Sprint Costero','Circuito','#ffa4ab','#603141'],['Asfalto Sur','Ruta','#7ad0dd','#254851']
+];
+const routes=[
+ 'M33 87 Q20 80 38 66 L76 32 Q88 22 102 27 L155 39 Q178 44 167 58 L151 75 Q142 84 126 73 L105 60 Q98 54 89 60 L57 89 Q47 98 33 87Z',
+ 'M35 40 Q38 26 55 32 L112 49 Q119 50 126 44 L146 29 Q162 18 169 34 L174 49 Q178 60 160 69 L113 91 Q104 95 91 88 L43 66 Q30 60 35 40Z',
+ 'M28 77 Q25 68 37 65 L69 59 Q81 57 79 48 L77 37 Q75 27 88 25 L141 22 Q158 22 159 34 L160 52 Q160 63 145 66 L111 72 Q101 73 95 83 Q88 97 71 93 L41 89 Q31 87 28 77Z',
+ 'M36 66 L58 39 Q63 32 73 32 L105 33 Q116 34 119 43 L123 55 Q126 62 137 54 L154 41 Q170 31 176 45 Q180 54 166 66 L136 88 Q129 94 117 91 L90 83 Q82 80 72 86 L60 93 Q50 98 41 88 L35 80 Q30 74 36 66Z'
+];
+const banner='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 220"><defs><pattern id="grid" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="#548181"/></pattern></defs><path fill="#18373b" d="M0 0h680v220H0z"/><path fill="url(#grid)" d="M0 0h680v220H0z"/><g transform="translate(0 -9) rotate(-8 340 100)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path id="road" d="M-30 169L173 169Q195 169 214 147L282 70Q300 49 326 49H473Q503 49 486 72L448 120Q430 144 462 144H544Q563 144 584 120L666 28"/><use href="#road" stroke="#ff8448" stroke-width="34"/><use href="#road" stroke="#eadbb9" stroke-width="34" stroke-dasharray="8 12"/><use href="#road" stroke="#263738" stroke-width="23"/><use href="#road" stroke="#a1b4a9" stroke-width="1.4" stroke-dasharray="8 9"/></g></svg>';
+document.documentElement.style.setProperty('--track','url("data:image/svg+xml,'+encodeURIComponent(banner)+'")');
+const layout=document.body.dataset.layout, board=document.querySelector('#board'), paging=document.querySelector('.paging');
+const pageSize=layout==='estante'?8:5;let start=0, active=0;
+function card(i, spine=false){
+ const [name,,paint,print]=games[i], b=document.createElement('button');
+ b.type='button';b.className='game';b.dataset.i=i;b.style.setProperty('--paint',paint);b.style.setProperty('--print',print);b.setAttribute('aria-label',name);b.setAttribute('aria-pressed',String(i===active));
+ const plate=document.createElement('span');plate.className='plate';plate.setAttribute('aria-hidden','true');
+ const route=routes[i%routes.length], tilt=12*(i%3)-12;
+ plate.innerHTML='<svg viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet"><g transform="rotate('+tilt+' 100 60)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="'+route+'" stroke-width="9"/><path d="'+route+'" stroke="'+paint+'" stroke-width="4"/><path d="'+route+'" stroke-width="1" stroke-dasharray="3 4"/></g></svg>';
+ const label=document.createElement('strong');label.textContent=name;b.append(plate,label);
+ if(spine){const side=document.createElement('span');side.className='spine';side.textContent=name;b.append(side)}
+ b.addEventListener('click',()=>select(i));b.addEventListener('focus',()=>select(i));if(layout==='carreras')b.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse')select(i)});
+ return b;
+}
+function select(i){active=i;board.querySelectorAll('.game').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.i)===i)));document.querySelector('#selectedName').textContent=games[i][0]}
+function range(from,to){return Array.from({length:to-from},(_,j)=>from+j)}
+function draw(){
+ board.replaceChildren();const paged=['carreras','estante'].includes(layout);
+ if(layout==='mazos'){for(const group of ['Circuito','Ruta','Rally']){const deck=document.createElement('section'),title=document.createElement('h2'),stack=document.createElement('div');title.className='group';title.textContent=group;stack.className='stack';games.forEach((g,i)=>{if(g[1]===group)stack.append(card(i))});deck.append(title,stack);board.append(deck)}}
+ else {for(const i of range(paged?start:0,paged?Math.min(start+pageSize,games.length):games.length)){
+ const button=card(i,layout==='estante');
+ if(layout==='carreras'){
+   const slice=document.createElement('div');slice.className='slice';
+   const actions=document.querySelector('.selected .actions').cloneNode(true);
+   slice.append(button,actions);board.append(slice);
+ }else board.append(button);
+ }}
+ paging.style.display=paged||layout==='fila'?'flex':'none';if(paged){document.querySelector('#count').textContent=(start+1)+'–'+Math.min(start+pageSize,games.length)+' de '+games.length;document.querySelector('#prev').disabled=start===0;document.querySelector('#next').disabled=start+pageSize>=games.length}select(active)
+}
+function move(direction){if(layout==='fila'){const i=Math.max(0,Math.min(games.length-1,active+direction));select(i);board.querySelector('[data-i="'+i+'"]').scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});return}start=Math.max(0,Math.min(Math.floor((games.length-1)/pageSize)*pageSize,start+direction*pageSize));active=start;draw()}
+document.querySelector('#prev').onclick=()=>move(-1);document.querySelector('#next').onclick=()=>move(1);
+board.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();const i=Math.max(0,Math.min(games.length-1,Number(e.target.dataset.i)+(e.key==='ArrowRight'?1:-1)));if(['estante','carreras'].includes(layout)&&Math.floor(i/pageSize)!==Math.floor(start/pageSize)){start=Math.floor(i/pageSize)*pageSize;draw()}board.querySelector('[data-i="'+i+'"]').focus()});
+const dialog=document.querySelector('dialog');document.addEventListener('click',event=>{const button=event.target.closest('[data-action]');if(!button)return;dialog.querySelector('h2').textContent=games[active][0];dialog.querySelector('p').textContent=button.dataset.action==='play'?'Juego ficticio de esta vista previa. En la aplicación, Jugar abriría el juego instalado.':games[active][1]+' · Juego ficticio de la colección Línea de largada.';dialog.showModal()});dialog.querySelector('button').onclick=()=>dialog.close();draw();
+</script></body></html>
