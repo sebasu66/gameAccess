@@ -26,6 +26,8 @@ Toda interfaz nueva o que se toque nace compatible con el sistema de plantillas 
 3. **Nada a mano:** ni color, fuente, radio, margen ni alto de control; todo con variables de `templates/base.css` (estructura) o del sabor `templates/flavor-terminal.css` (aspecto). Si falta una variable, se agrega a esa capa.
 4. **Se controla:** la pantalla nueva entra en `templates/flavor.test.ts` y pasa `npm run check:css`.
 
+**Animaciones (Seba):** en Game Access, ignorá la preferencia de movimiento reducido del sistema. No desactives ni atenués animaciones por `prefers-reduced-motion`.
+
 ## Local and remote development workflow
 
 GameAccess uses `dev` for development and `main` for stable releases. Work on the existing `dev` branch; do not create a branch or worktree for each task. Do not delete historical branches or move work into `main` without an explicit request.
